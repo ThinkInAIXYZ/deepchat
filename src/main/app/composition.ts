@@ -412,7 +412,7 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
           delegationId: observation.delegationId,
           turnId: observation.turnId,
           status: observation.status,
-          durationMs: observation.durationMs,
+          ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
           error: { category: observation.errorCategory }
         })
       } else {
@@ -422,7 +422,7 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
           delegationId: observation.delegationId,
           turnId: observation.turnId,
           status: observation.status,
-          durationMs: observation.durationMs
+          ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs })
         })
       }
       break

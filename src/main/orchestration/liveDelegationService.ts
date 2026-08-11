@@ -176,7 +176,7 @@ export type LiveDelegationLifecycleObservation =
   | (LiveDelegationObservationIdentity & {
       type: 'turn_terminal'
       childSessionId?: string
-      durationMs: number
+      durationMs?: number
     } & (
         | { status: 'completed' | 'cancelled' | 'interrupted' }
         | { status: 'failed'; errorCategory: LiveDelegationFailureCategory }
@@ -273,12 +273,10 @@ export class LiveDelegationService {
   start(): void {
     if (this.started || this.stopPromise) return
     const activeRecords = this.options.repository.listActiveTurnIdentities()
-    const observedAt = this.readMonotonicNow()
     this.childToTurn.clear()
     this.quarantinedTurns.clear()
     this.turnObservedAt.clear()
     for (const record of activeRecords) {
-      if (observedAt !== undefined) this.turnObservedAt.set(record.turnId, observedAt)
       if (record.childSessionId) {
         this.childToTurn.set(record.childSessionId, record.turnId)
       }
@@ -1900,7 +1898,7 @@ export class LiveDelegationService {
       ...(delegation.childSessionId ? { childSessionId: delegation.childSessionId } : {}),
       delegationId: delegation.id,
       turnId: turn.id,
-      durationMs
+      ...(durationMs === undefined ? {} : { durationMs })
     }
     if (turn.status === 'failed') {
       this.notifyObserver({ ...identity, status: 'failed', errorCategory })
@@ -1929,14 +1927,14 @@ export class LiveDelegationService {
     })
   }
 
-  private finishTurnObservation(turnId: string): number {
+  private finishTurnObservation(turnId: string): number | undefined {
     const observedAt = this.turnObservedAt.get(turnId)
     this.turnObservedAt.delete(turnId)
-    if (observedAt === undefined) return 0
+    if (observedAt === undefined) return undefined
     const completedAt = this.readMonotonicNow()
-    if (completedAt === undefined) return 0
+    if (completedAt === undefined) return undefined
     const elapsed = completedAt - observedAt
-    return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0
+    return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : undefined
   }
 
   private readMonotonicNow(): number | undefined {

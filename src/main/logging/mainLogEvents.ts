@@ -316,7 +316,7 @@ export interface MainLogEventInputMap {
     childSessionId?: string
     delegationId: string
     turnId: string
-    durationMs: number
+    durationMs?: number
   } & (
     | { status: 'completed' | 'cancelled' | 'interrupted' }
     | { status: 'failed'; error: SafeLogError }
@@ -1134,7 +1134,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       return {
         ...projectDelegationIdentity(input, options),
         status,
-        durationMs: duration('durationMs', input.durationMs),
+        ...(input.durationMs === undefined
+          ? {}
+          : { durationMs: duration('durationMs', input.durationMs) }),
         ...(error ? { error } : {})
       }
     }

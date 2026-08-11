@@ -466,6 +466,34 @@ describe('Main log event projection', () => {
     ).toThrow(MainLogEventProjectionError)
   })
 
+  it('omits an unavailable cross-restart delegation duration', () => {
+    const projected = projectMainLogEvent('orchestration.delegation.turn.terminal', {
+      parentSessionId: 'parent_1',
+      childSessionId: 'child_1',
+      delegationId: 'delegation_1',
+      turnId: 'turn_1',
+      status: 'completed'
+    })
+
+    expect(projected).toEqual({
+      level: 'info',
+      context: {
+        parentSessionId: 'parent_1',
+        childSessionId: 'child_1',
+        delegationId: 'delegation_1',
+        turnId: 'turn_1',
+        status: 'completed'
+      }
+    })
+    expect(
+      isProjectedMainLogEvent(
+        'orchestration.delegation.turn.terminal',
+        projected.level,
+        projected.context
+      )
+    ).toBe(true)
+  })
+
   it('rejects unknown startup components and broad error categories independently', () => {
     const unknownComponent = {
       startupRunId: 'main:123:1',

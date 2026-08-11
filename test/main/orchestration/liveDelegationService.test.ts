@@ -269,6 +269,29 @@ describeIfSqlite('LiveDelegationService', () => {
     })
   })
 
+  it('omits duration when the monotonic clock moves backward without changing settlement', async () => {
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Handle a backward diagnostic clock',
+      prompt: 'Remain active until the service stops.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    monotonicNow = 90
+
+    await service.stop()
+
+    expect(repository.require(detail.delegation.id).status).toBe('interrupted')
+    const terminalObservation = observations.find(
+      (observation) =>
+        observation.type === 'turn_terminal' && observation.turnId === detail.turns[0]!.id
+    )
+    expect(terminalObservation).toMatchObject({
+      type: 'turn_terminal',
+      status: 'interrupted'
+    })
+    expect(terminalObservation).not.toHaveProperty('durationMs')
+  })
+
   it('does not await asynchronous lifecycle observers while flushing stop observations', async () => {
     const detail = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -1836,7 +1859,7 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(publishedStatuses.filter((status) => status === 'running')).toHaveLength(1)
   })
 
-  it('settles a write-ahead turn when handoff delivery fails', async () => {
+  it('settles a write-ahead turn without inventing an unavailable duration', async () => {
     monotonicNow = -10
     harness.sessions.sendConversationMessage.mockRejectedValueOnce(new Error('handoff failed'))
     const spawned = await service.spawn('parent', {
@@ -1855,13 +1878,12 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(observations).not.toContainEqual(
       expect.objectContaining({ type: 'turn_started', turnId: spawned.turns[0]!.id })
     )
-    expect(observations).toContainEqual(
-      expect.objectContaining({
-        type: 'turn_terminal',
-        turnId: spawned.turns[0]!.id,
-        durationMs: 0
-      })
+    const terminalObservation = observations.find(
+      (observation) =>
+        observation.type === 'turn_terminal' && observation.turnId === spawned.turns[0]!.id
     )
+    expect(terminalObservation).toMatchObject({ type: 'turn_terminal', status: 'failed' })
+    expect(terminalObservation).not.toHaveProperty('durationMs')
     expect(repository.countActiveByParent('parent')).toBe(0)
     expect(harness.sessions.linkSubagentTape).not.toHaveBeenCalled()
   })
@@ -2186,6 +2208,12 @@ describeIfSqlite('LiveDelegationService', () => {
     ])
     expect(repository.require(created.delegation.id).status).toBe('idle')
     await new Promise<void>((resolve) => setImmediate(resolve))
+    const terminalObservation = observations.find(
+      (observation) =>
+        observation.type === 'turn_terminal' && observation.turnId === created.turn.id
+    )
+    expect(terminalObservation).toBeDefined()
+    expect(terminalObservation).not.toHaveProperty('durationMs')
     expect(observations).toContainEqual(
       expect.objectContaining({
         type: 'reconciliation_terminal',

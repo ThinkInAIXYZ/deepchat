@@ -240,7 +240,10 @@ collector instead of coupling to the Memory diagnostics lifecycle.
 Delegation lifecycle observations use a bounded ordered queue. If that queue overflows, one
 `orchestration.delegation.observations.dropped` warning reports the coalesced loss count after the
 surviving backlog is dispatched. Teardown dispatches that warning before resolving, but does not
-wait for asynchronous logging work.
+wait for asynchronous logging work. A turn terminal event includes `durationMs` only when the
+current process observed that turn's monotonic start. Recovery does not relabel time since process
+startup as the complete turn duration; when the pre-restart monotonic baseline is unavailable, the
+field is omitted.
 
 ## Logging Setting And Startup
 
