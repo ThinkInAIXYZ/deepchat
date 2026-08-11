@@ -970,6 +970,59 @@ describe('WindowSideBar agent switch', () => {
     expect(wrapper.findAll('[data-group-id="/work/new"]')).toHaveLength(1)
   })
 
+  it('disambiguates duplicate workspace labels with minimal parent context', async () => {
+    const { wrapper, projectStore } = await setup({
+      groupMode: 'project',
+      groups: [
+        {
+          id: '/work/team-a/app',
+          label: 'app',
+          sessions: [
+            {
+              id: 'session-a',
+              title: 'Session A',
+              status: 'none',
+              projectDir: '/work/team-a/app',
+              updatedAt: 100
+            }
+          ]
+        },
+        {
+          id: '/work/design',
+          label: 'design',
+          sessions: [
+            {
+              id: 'session-d',
+              title: 'Session D',
+              status: 'none',
+              projectDir: '/work/design',
+              updatedAt: 90
+            }
+          ]
+        }
+      ],
+      projectEnvironments: [
+        { path: '/work/team-a/app', sessionCount: 1 },
+        { path: '/work/archive/app', sessionCount: 0 },
+        { path: '/work/design', sessionCount: 1 }
+      ]
+    })
+
+    const teamGroup = wrapper.get('[data-group-id="/work/team-a/app"]')
+    const archiveGroup = wrapper.get('[data-group-id="/work/archive/app"]')
+    const designGroup = wrapper.get('[data-group-id="/work/design"]')
+    expect(teamGroup.text()).toContain('app · team-a')
+    expect(archiveGroup.text()).toContain('app · archive')
+    expect(designGroup.text()).not.toContain('design ·')
+    expect(teamGroup.attributes('title')).toBe('/work/team-a/app')
+
+    projectStore.environments.splice(1, 1)
+    await flushPromises()
+
+    expect(wrapper.find('[data-group-id="/work/archive/app"]').exists()).toBe(false)
+    expect(wrapper.get('[data-group-id="/work/team-a/app"]').text()).not.toContain('app · team-a')
+  })
+
   it('merges a project snapshot into an earlier session-derived row without duplication', async () => {
     const { wrapper, projectStore } = await setup({
       groupMode: 'project',
@@ -1494,20 +1547,22 @@ describe('WindowSideBar agent switch', () => {
           }
         ]
       })
-      const event = new KeyboardEvent('keydown', {
-        key: '1',
-        metaKey: true,
-        bubbles: true,
-        cancelable: true
-      })
 
       const input = document.createElement('input')
-      Object.defineProperty(event, 'target', { value: input })
-
-      ;(wrapper.vm as any).handleWindowShortcutKeydown(event)
+      document.body.appendChild(input)
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: '1',
+          metaKey: true,
+          bubbles: true,
+          cancelable: true
+        })
+      )
       await flushPromises()
+      input.remove()
 
       expect(sessionStore.selectSession).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
     },
     TEST_TIMEOUT_MS
   )
@@ -2545,7 +2600,11 @@ describe('WindowSideBar agent switch', () => {
     ])
     remoteControlClient.getChannelStatus.mockRejectedValueOnce(new Error('IPC unavailable'))
 
-    await expect((wrapper.vm as any).refreshRemoteControlStatus()).resolves.toBe(false)
+    // Advance to the next active poll tick so the failing refresh runs through the
+    // real scheduling path instead of a direct internal call.
+    vi.advanceTimersByTime(2_000)
+    await flushPromises()
+
     await wrapper.find('[data-testid="remote-control-button"]').trigger('click')
 
     expect(router.push).toHaveBeenLastCalledWith({

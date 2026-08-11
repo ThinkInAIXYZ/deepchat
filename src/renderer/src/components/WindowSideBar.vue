@@ -284,7 +284,7 @@
             </div>
           </div>
 
-          <div v-if="chatSectionGroup" class="pt-4">
+          <div v-if="chatSectionGroup" class="mt-4 rounded-lg bg-muted/30 p-1">
             <div
               class="group flex w-full items-center gap-1 rounded-md pr-1 text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
               :class="
@@ -343,7 +343,14 @@
             </TransitionGroup>
           </div>
 
-          <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
+          <div
+            class="flex items-center justify-between gap-2 px-2 pb-1"
+            :class="
+              pinnedSessions.length > 0 || chatSectionGroup
+                ? 'mt-3 border-t border-border/60 pt-3'
+                : 'pt-4'
+            "
+          >
             <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
               {{ t('chat.sidebar.workspace') }}
             </div>
@@ -414,6 +421,7 @@
                         : ''
                     "
                     :data-group-id="getGroupIdentifier(group)"
+                    :title="isProjectDirectoryGroup(group) ? getGroupIdentifier(group) : undefined"
                     :aria-expanded="getWorkspaceGroupAriaExpanded(group)"
                     @click="handleWorkspaceGroupClick(group)"
                   >
@@ -427,6 +435,9 @@
                     </span>
                     <span class="truncate">
                       {{ getGroupLabel(group) }}
+                    </span>
+                    <span v-if="isProjectDirectoryGroup(group)" class="sr-only">
+                      {{ getGroupIdentifier(group) }}
                     </span>
                     <span
                       v-if="isTrueEmptyWorkspaceGroup(group)"
@@ -649,8 +660,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
@@ -675,9 +685,6 @@ import {
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { createSettingsClient } from '@api/SettingsClient'
-import { createRemoteControlClient } from '@api/RemoteControlClient'
-import { createDeviceClient } from '@api/DeviceClient'
-import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import {
@@ -688,48 +695,23 @@ import {
 } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
-import type { EnvironmentSummary } from '@shared/types/agent-interface'
-import type { RemoteChannel, RemoteRuntimeState } from '@shared/types/remote'
-import { normalizeWorkspacePath } from '@shared/utils/filesystem'
+import {
+  CHAT_SECTION_GROUP_ID,
+  useSidebarWorkspaceGroups
+} from '@/composables/sidebar/useSidebarWorkspaceGroups'
+import { useSessionListAutoFill } from '@/composables/sidebar/useSessionListAutoFill'
+import { useSessionPinFlight } from '@/composables/sidebar/useSessionPinFlight'
+import { useSidebarSessionShortcuts } from '@/composables/sidebar/useSidebarSessionShortcuts'
+import { useProjectGroupReorder } from '@/composables/sidebar/useProjectGroupReorder'
+import { useSidebarWorkspaceActions } from '@/composables/sidebar/useSidebarWorkspaceActions'
+import { useSidebarRemoteControl } from '@/composables/sidebar/useSidebarRemoteControl'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useThemeStore } from '@/stores/theme'
 
-type PinFeedbackMode = 'pinning' | 'unpinning'
-
-const PIN_FEEDBACK_DURATION_MS: Record<PinFeedbackMode, number> = {
-  pinning: 560,
-  unpinning: 460
-}
-const PIN_FLIGHT_DURATION_MS = 460
-const PIN_TARGET_SETTLE_MAX_FRAMES = 10
-const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
-const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
-const SIDEBAR_SHORTCUT_MAX_ROWS = 10
-const CHAT_SECTION_GROUP_ID = '__chat__'
-const NO_PROJECT_GROUP_ID = '__no_project__'
-const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
-  nextPinned ? 'pinning' : 'unpinning'
-
-type SessionItemRegion = 'pinned' | 'grouped'
-type ShortcutPlatform = 'mac' | 'other'
-type ProjectGroupMoveTarget = 'top' | 'up' | 'down' | 'bottom'
-type WorkspaceArchiveTarget = Pick<EnvironmentSummary, 'path' | 'name'>
-type SidebarWorkspaceGroup = SessionGroup & {
-  environment?: EnvironmentSummary
-}
-type SessionItemRect = {
-  left: number
-  top: number
-  width: number
-  height: number
-}
-
 const settingsClient = createSettingsClient()
-const remoteControlClient = createRemoteControlClient()
-const deviceClient = createDeviceClient()
 const { t } = useI18n()
 const router = useRouter()
 const agentStore = useAgentStore()
@@ -739,8 +721,6 @@ const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const themeStore = useThemeStore()
 const pluginCatalogStore = usePluginCatalogStore()
-const { remoteChannels: remoteChannelDescriptors, remoteStatuses: remoteControlStatus } =
-  storeToRefs(pluginCatalogStore)
 
 // line-md 过渡图标自带线条流动动画：切到该模式时，线条会绘制/morph 成对应形状
 const themeIcon = computed(() => {
@@ -775,22 +755,7 @@ const pluginsRouteActive = computed(() =>
 )
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
-let remoteControlStatusTimer: number | null = null
-let remoteControlStatusErrors = 0
-let remoteControlStatusUnmounted = false
-let pinFeedbackTimer: number | null = null
-let sessionListScrollFrame: number | null = null
-let sessionListFillFrame: number | null = null
-let sessionListResizeObserver: ResizeObserver | null = null
-let shortcutBadgeTimer: number | null = null
-let workspaceRevealTimer: number | null = null
-const shortcutPlatform = ref<ShortcutPlatform>(
-  navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
-)
-const shortcutModifierDown = ref(false)
-const showShortcutBadges = ref(false)
-const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
-const REMOTE_STATUS_IDLE_POLL_MS = 30_000
+
 const sidebarSelectedAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
   if (sessionStore.hasActiveSession && activeSessionAgentId) {
@@ -817,354 +782,11 @@ const selectedAgentName = computed(() => {
   return matchedAgent?.name ?? t('chat.sidebar.allAgents')
 })
 
-const remoteChannelIds = computed(() =>
-  remoteChannelDescriptors.value.map((descriptor) => descriptor.id)
-)
-const getRemoteChannelStatus = (channel: RemoteChannel) => remoteControlStatus.value[channel]
-const showRemoteControlButton = computed(() =>
-  remoteChannelIds.value.some((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled))
-)
-const firstEnabledRemoteChannel = computed<RemoteChannel | null>(
-  () =>
-    remoteChannelIds.value.find((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled)) ??
-    null
-)
-const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
-  const states = remoteChannelIds.value
-    .map((channel) => getRemoteChannelStatus(channel))
-    .filter((status) => status?.enabled)
-    .map((status) => status?.state as RemoteRuntimeState)
-
-  if (states.length === 0) {
-    return 'disabled'
-  }
-  if (states.includes('error')) {
-    return 'error'
-  }
-  if (states.includes('backoff')) {
-    return 'backoff'
-  }
-  if (states.includes('starting')) {
-    return 'starting'
-  }
-  if (states.includes('running')) {
-    return 'running'
-  }
-  if (states.includes('stopped')) {
-    return 'stopped'
-  }
-  return 'disabled'
-})
-const remoteControlTooltip = computed(() => {
-  return remoteChannelIds.value
-    .map((channel) => {
-      const descriptor = remoteChannelDescriptors.value.find((item) => item.id === channel)
-      const title = descriptor ? t(descriptor.titleKey) : channel
-      const status = getRemoteChannelStatus(channel)
-      const statusText =
-        status?.enabled && status.state
-          ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
-          : t('chat.sidebar.remoteControlDisabled')
-      return `${title}: ${statusText}`
-    })
-    .join('\n')
-})
-const remoteControlButtonClass = computed(() => {
-  const state = aggregatedRemoteControlState.value
-
-  if (state === 'error') {
-    return 'border-red-500/40 bg-red-500/10 hover:bg-red-500/15'
-  }
-
-  return 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15'
-})
-const remoteControlIconClass = computed(() => {
-  const state = aggregatedRemoteControlState.value
-
-  if (state === 'error') {
-    return 'text-red-600 dark:text-red-400'
-  }
-
-  return ['text-emerald-600 dark:text-emerald-400', state === 'starting' ? 'animate-pulse' : '']
-})
-
-const isPinnedSectionCollapsed = ref(false)
-const collapsedGroupIds = ref<Set<string>>(new Set())
-const pinFlightSessionId = ref<string | null>(null)
-const pinDockedSessionId = ref<string | null>(null)
-const pinFeedbackSessionId = ref<string | null>(null)
-const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
-const sessionRowsStatic = ref(sessionStore.loading || sessionStore.loadingMore)
-const chatSessionRowsStatic = computed(
-  () => sessionRowsStatic.value || pinFlightSessionId.value !== null
-)
-const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
-const matchesSessionSearch = (session: UISession) => {
-  if (!normalizedSessionSearchQuery.value) {
-    return true
-  }
-
-  return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
-}
-const isProjectGroupDragging = ref(false)
-const projectGroupDragScrollTop = ref<number | null>(null)
-const pinnedSessions = computed(() =>
-  sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
-)
-const baseFilteredGroups = computed(() =>
-  sessionStore
-    .getFilteredGroups(sidebarSelectedAgentId.value)
-    .map((group) => ({
-      id: group.id,
-      label: group.label,
-      labelKey: group.labelKey,
-      sessions: group.sessions.filter(matchesSessionSearch)
-    }))
-    .filter((group) => group.sessions.length > 0)
-)
-const defaultChatWorkspacePath = computed(() =>
-  normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
-)
-const projectOrderIndex = computed(
-  () =>
-    new Map(
-      projectStore.environments.map((environment, index) => [
-        normalizeWorkspacePath(environment.path),
-        index
-      ])
-    )
-)
-const activeProjectEnvironmentByPath = computed(
-  () =>
-    new Map(
-      projectStore.environments.map((environment) => [
-        normalizeWorkspacePath(environment.path),
-        environment
-      ])
-    )
-)
-const historicalProjectEnvironmentByPath = computed(
-  () =>
-    new Map(
-      [...projectStore.archivedEnvironments, ...projectStore.removedEnvironments].map(
-        (environment) => [normalizeWorkspacePath(environment.path), environment]
-      )
-    )
-)
-const selectableProjectPathSet = computed(
-  () => new Set(projectStore.projects.map((project) => normalizeWorkspacePath(project.path)))
-)
-const isChatSession = (session: UISession) => {
-  const projectPath = normalizeWorkspacePath(session.projectDir)
-  return (
-    projectPath.length === 0 ||
-    (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
-  )
-}
-const isChatProjectGroup = (group: SessionGroup) =>
-  group.id === NO_PROJECT_GROUP_ID ||
-  (defaultChatWorkspacePath.value.length > 0 &&
-    normalizeWorkspacePath(group.id) === defaultChatWorkspacePath.value)
-const isProjectDirectoryGroup = (group: SessionGroup) =>
-  sessionStore.groupMode === 'project' &&
-  group.id !== NO_PROJECT_GROUP_ID &&
-  !group.labelKey &&
-  !isChatProjectGroup(group)
-const getWorkspaceEnvironment = (group: SessionGroup) =>
-  (group as SidebarWorkspaceGroup).environment
-const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
-  isProjectDirectoryGroup(group) && getWorkspaceEnvironment(group)?.status === 'active'
-const isWorkspaceUnavailable = (group: SessionGroup) =>
-  isActiveProjectDirectoryGroup(group) && getWorkspaceEnvironment(group)?.exists === false
-const canStartConversationInProjectGroup = (group: SessionGroup) =>
-  isActiveProjectDirectoryGroup(group) && !isWorkspaceUnavailable(group)
-const isTrueEmptyWorkspaceGroup = (group: SessionGroup) => {
-  const environment = getWorkspaceEnvironment(group)
-  return (
-    canStartConversationInProjectGroup(group) &&
-    environment?.sessionCount === 0 &&
-    group.sessions.length === 0
-  )
-}
-const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
-  const leftRank = isActiveProjectDirectoryGroup(left) ? 0 : 1
-  const rightRank = isActiveProjectDirectoryGroup(right) ? 0 : 1
-
-  if (leftRank !== rightRank) {
-    return leftRank - rightRank
-  }
-
-  const leftOrder =
-    projectOrderIndex.value.get(normalizeWorkspacePath(left.id)) ?? Number.MAX_SAFE_INTEGER
-  const rightOrder =
-    projectOrderIndex.value.get(normalizeWorkspacePath(right.id)) ?? Number.MAX_SAFE_INTEGER
-  if (leftOrder !== rightOrder) {
-    return leftOrder - rightOrder
-  }
-
-  return 0
-}
-const decorateWorkspaceGroup = (
-  group: SessionGroup,
-  environment: EnvironmentSummary | undefined
-): SidebarWorkspaceGroup => ({
-  ...group,
-  ...(environment ? { environment } : {})
-})
-const sortProjectGroups = (groups: SidebarWorkspaceGroup[]) =>
-  [...groups].sort(compareProjectGroups)
-const mergeProjectWorkspaceGroups = (sessionGroups: SessionGroup[]) => {
-  const decoratedSessionGroups = sessionGroups.map((group) => {
-    const pathIdentity = normalizeWorkspacePath(group.id)
-    const environment =
-      activeProjectEnvironmentByPath.value.get(pathIdentity) ??
-      historicalProjectEnvironmentByPath.value.get(pathIdentity)
-    return decorateWorkspaceGroup(group, environment)
-  })
-
-  if (!projectStore.snapshotReady || normalizedSessionSearchQuery.value.length > 0) {
-    return sortProjectGroups(decoratedSessionGroups)
-  }
-
-  const sessionGroupByPath = new Map(
-    decoratedSessionGroups.map((group) => [normalizeWorkspacePath(group.id), group])
-  )
-  const activeGroups = projectStore.environments
-    .filter(
-      (environment) =>
-        normalizeWorkspacePath(environment.path) !== defaultChatWorkspacePath.value &&
-        (!environment.isTemp ||
-          selectableProjectPathSet.value.has(normalizeWorkspacePath(environment.path)) ||
-          sessionGroupByPath.has(normalizeWorkspacePath(environment.path)))
-    )
-    .map((environment): SidebarWorkspaceGroup => {
-      const pathIdentity = normalizeWorkspacePath(environment.path)
-      const sessionGroup = sessionGroupByPath.get(pathIdentity)
-      sessionGroupByPath.delete(pathIdentity)
-      return {
-        id: environment.path,
-        label: sessionGroup?.label ?? environment.name,
-        labelKey: sessionGroup?.labelKey,
-        sessions: sessionGroup?.sessions ?? [],
-        environment
-      }
-    })
-  const historicalGroups = decoratedSessionGroups.filter((group) =>
-    sessionGroupByPath.has(normalizeWorkspacePath(group.id))
-  )
-
-  return [...activeGroups, ...historicalGroups]
-}
-const orderedFilteredGroups = computed<SidebarWorkspaceGroup[]>(() => {
-  const groups = baseFilteredGroups.value
-  if (sessionStore.groupMode !== 'project') {
-    return groups
-  }
-
-  const chatGroups = groups.filter(isChatProjectGroup)
-  const workspaceSessionGroups = groups.filter(isProjectDirectoryGroup)
-  return [...chatGroups, ...mergeProjectWorkspaceGroups(workspaceSessionGroups)]
-})
-const compareSidebarSessions = (left: UISession, right: UISession) => {
-  const leftUpdatedAt = Number.isFinite(left.updatedAt) ? left.updatedAt : 0
-  const rightUpdatedAt = Number.isFinite(right.updatedAt) ? right.updatedAt : 0
-  if (leftUpdatedAt !== rightUpdatedAt) {
-    return rightUpdatedAt - leftUpdatedAt
-  }
-
-  return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
-}
-const ensureSortedSessions = (
-  sessions: UISession[],
-  compare: (left: UISession, right: UISession) => number
-) => {
-  for (let index = 1; index < sessions.length; index += 1) {
-    if (compare(sessions[index - 1], sessions[index]) > 0) {
-      return [...sessions].sort(compare)
-    }
-  }
-
-  return sessions
-}
-const sessionSections = computed(() => {
-  if (sessionStore.groupMode === 'project') {
-    const chatSessions = ensureSortedSessions(
-      orderedFilteredGroups.value.filter(isChatProjectGroup).flatMap((group) => group.sessions),
-      compareSidebarSessions
-    )
-
-    return {
-      chatSessions,
-      workspaceGroups: orderedFilteredGroups.value.filter(isProjectDirectoryGroup).map((group) => {
-        const sessions = ensureSortedSessions(group.sessions, compareSidebarSessions)
-        return sessions === group.sessions ? group : { ...group, sessions }
-      })
-    }
-  }
-
-  const chatSessions: UISession[] = []
-  const workspaceGroups: SessionGroup[] = []
-  for (const group of orderedFilteredGroups.value) {
-    const workspaceSessions: UISession[] = []
-    for (const session of group.sessions) {
-      if (isChatSession(session)) {
-        chatSessions.push(session)
-      } else {
-        workspaceSessions.push(session)
-      }
-    }
-
-    if (workspaceSessions.length > 0) {
-      workspaceGroups.push({
-        ...group,
-        sessions: ensureSortedSessions(workspaceSessions, compareSidebarSessions)
-      })
-    }
-  }
-
-  return {
-    chatSessions: ensureSortedSessions(chatSessions, compareSidebarSessions),
-    workspaceGroups
-  }
-})
-const chatSectionGroup = computed<SessionGroup | null>(() => {
-  const sessions = sessionSections.value.chatSessions
-  if (sessions.length === 0) {
-    return null
-  }
-
-  return {
-    id: CHAT_SECTION_GROUP_ID,
-    label: 'chat.sidebar.chats',
-    labelKey: 'chat.sidebar.chats',
-    sessions
-  }
-})
-const workspaceGroups = computed(() => sessionSections.value.workspaceGroups)
-const visibleGroups = computed(() => [
-  ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
-  ...workspaceGroups.value
-])
-const projectReorderableGroups = computed(() =>
-  workspaceGroups.value.filter(isActiveProjectDirectoryGroup)
-)
-const canReorderProjectGroups = computed(
-  () =>
-    !collapsed.value &&
-    sessionStore.groupMode === 'project' &&
-    normalizedSessionSearchQuery.value.length === 0 &&
-    !pinFlightSessionId.value &&
-    projectStore.snapshotReady &&
-    sessionStore.hasLoadedInitialPage &&
-    !sessionStore.loading &&
-    projectReorderableGroups.value.length > 1
-)
-const isAddingWorkspace = ref(false)
-const revealedWorkspaceGroupId = ref<string | null>(null)
 const sessionListRef = ref<HTMLElement | null>(null)
+// Shared with the reorder/auto-fill/group composables: a group drag pauses collapse
+// sync, scroll pagination and viewport auto-fill until the drop settles.
+const isProjectGroupDragging = ref(false)
 const deleteTargetSession = ref<UISession | null>(null)
-const archiveTargetWorkspace = ref<WorkspaceArchiveTarget | null>(null)
-const isArchivingWorkspace = ref(false)
 
 const deleteDialogOpen = computed({
   get: () => deleteTargetSession.value !== null,
@@ -1175,114 +797,146 @@ const deleteDialogOpen = computed({
   }
 })
 
-const archiveWorkspaceDialogOpen = computed({
-  get: () => archiveTargetWorkspace.value !== null,
-  set: (open: boolean) => {
-    if (!open && !isArchivingWorkspace.value) {
-      archiveTargetWorkspace.value = null
-    }
-  }
+const {
+  showRemoteControlButton,
+  remoteControlTooltip,
+  remoteControlButtonClass,
+  remoteControlIconClass,
+  openRemoteSettings
+} = useSidebarRemoteControl({ pluginCatalogStore, settingsClient, router, t })
+
+const {
+  pinFlightSessionId,
+  pinDockedSessionId,
+  pinFeedbackSessionId,
+  pinFeedbackMode,
+  handleTogglePin
+} = useSessionPinFlight({ sessionStore, sessionListRef })
+
+const {
+  normalizedSessionSearchQuery,
+  pinnedSessions,
+  defaultChatWorkspacePath,
+  chatSectionGroup,
+  workspaceGroups,
+  visibleGroups,
+  isPinnedSectionCollapsed,
+  isProjectDirectoryGroup,
+  isActiveProjectDirectoryGroup,
+  isWorkspaceUnavailable,
+  canStartConversationInProjectGroup,
+  isTrueEmptyWorkspaceGroup,
+  getWorkspaceEnvironment,
+  getGroupIdentifier,
+  getWorkspacePath,
+  getGroupIcon,
+  isGroupCollapsed,
+  getWorkspaceGroupAriaExpanded,
+  canAutoFillSessionList,
+  visibleSessionFingerprint,
+  togglePinnedSection,
+  toggleGroup
+} = useSidebarWorkspaceGroups({
+  sessionStore,
+  projectStore,
+  selectedAgentId: sidebarSelectedAgentId,
+  searchQuery: sessionSearchQuery,
+  suspendCollapseSync: isProjectGroupDragging
 })
 
-const getGroupIdentifier = (group: SessionGroup) => normalizeWorkspacePath(group.id)
-const getWorkspacePath = (group: SessionGroup) => getWorkspaceEnvironment(group)?.path ?? group.id
+const { handleSessionListScroll, ensureSessionListFilled } = useSessionListAutoFill({
+  sessionStore,
+  sessionListRef,
+  collapsed,
+  canAutoFill: canAutoFillSessionList,
+  suspended: isProjectGroupDragging,
+  fillCheckSources: [
+    sidebarSelectedAgentId,
+    normalizedSessionSearchQuery,
+    visibleSessionFingerprint
+  ]
+})
 
-const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
-const getGroupIcon = (group: SessionGroup) =>
-  isTrueEmptyWorkspaceGroup(group)
-    ? 'lucide:folder'
-    : isGroupCollapsed(group)
-      ? 'lucide:folder-closed'
-      : 'lucide:folder-open'
+const { getShortcutBadgeLabelForSession, hasShortcutBadgeForSession, hideShortcutBadges } =
+  useSidebarSessionShortcuts({
+    collapsed,
+    pinnedSessions,
+    visibleGroups,
+    isPinnedSectionCollapsed,
+    isGroupCollapsed,
+    excludedSessionId: pinFlightSessionId,
+    hasOwnOverlayOpen: () => spotlightStore.open || deleteDialogOpen.value,
+    selectSession: (sessionId) => void sessionStore.selectSession(sessionId)
+  })
 
-const isGroupCollapsed = (group: SessionGroup) =>
-  collapsedGroupIds.value.has(getGroupIdentifier(group))
-const getWorkspaceGroupAriaExpanded = (group: SessionGroup) =>
-  isTrueEmptyWorkspaceGroup(group) ? undefined : !isGroupCollapsed(group)
+const {
+  canReorderProjectGroups,
+  isProjectGroupReorderTarget,
+  handleProjectGroupModelUpdate,
+  canMoveProjectGroup,
+  handleMoveProjectGroup,
+  handleProjectGroupDragStart,
+  handleProjectGroupDragEnd
+} = useProjectGroupReorder({
+  sessionStore,
+  projectStore,
+  sessionListRef,
+  collapsed,
+  normalizedSearchQuery: normalizedSessionSearchQuery,
+  pinFlightSessionId,
+  workspaceGroups,
+  isProjectGroupDragging,
+  isActiveProjectDirectoryGroup,
+  getGroupIdentifier,
+  getWorkspacePath,
+  ensureSessionListFilled,
+  onDragStart: hideShortcutBadges
+})
 
-const canAutoFillSessionList = computed(
-  () =>
-    normalizedSessionSearchQuery.value.length === 0 &&
-    !isPinnedSectionCollapsed.value &&
-    !visibleGroups.value.some(isGroupCollapsed)
+const {
+  isAddingWorkspace,
+  revealedWorkspaceGroupId,
+  archiveTargetWorkspace,
+  isArchivingWorkspace,
+  archiveWorkspaceDialogOpen,
+  handleAddWorkspace,
+  requestWorkspaceArchive,
+  handleArchiveWorkspaceConfirm
+} = useSidebarWorkspaceActions({
+  sessionStore,
+  projectStore,
+  sessionListRef,
+  searchQuery: sessionSearchQuery,
+  defaultChatWorkspacePath,
+  getWorkspaceEnvironment,
+  t
+})
+
+const sessionRowsStatic = ref(sessionStore.loading || sessionStore.loadingMore)
+const chatSessionRowsStatic = computed(
+  () => sessionRowsStatic.value || pinFlightSessionId.value !== null
 )
 
-const visibleShortcutSessions = computed<UISession[]>(() => {
-  if (collapsed.value) {
-    return []
-  }
-
-  const sessions: UISession[] = []
-
-  if (!isPinnedSectionCollapsed.value) {
-    sessions.push(...pinnedSessions.value)
-  }
-
-  for (const group of visibleGroups.value) {
-    if (!isGroupCollapsed(group)) {
-      sessions.push(...group.sessions)
+watch(
+  () => sessionStore.loading || sessionStore.loadingMore,
+  (loading) => {
+    if (loading) {
+      sessionRowsStatic.value = true
+      return
     }
-  }
 
-  return sessions
-    .filter((session) => session.id !== pinFlightSessionId.value)
-    .slice(0, SIDEBAR_SHORTCUT_MAX_ROWS)
-})
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!sessionStore.loading && !sessionStore.loadingMore) {
+          sessionRowsStatic.value = false
+        }
+      })
+    })
+  },
+  { immediate: true }
+)
 
-const getShortcutDigitForIndex = (index: number) => (index === 9 ? '0' : String(index + 1))
-
-const getShortcutIndexForDigit = (digit: string) => (digit === '0' ? 9 : Number(digit) - 1)
-
-const getShortcutBadgeLabelForIndex = (index: number) => {
-  const digit = getShortcutDigitForIndex(index)
-  return shortcutPlatform.value === 'mac' ? `⌘${digit}` : `Alt+${digit}`
-}
-
-const shortcutBadgeLabelBySessionId = computed(() => {
-  const labels = new Map<string, string>()
-
-  visibleShortcutSessions.value.forEach((session, index) => {
-    labels.set(session.id, getShortcutBadgeLabelForIndex(index))
-  })
-
-  return labels
-})
-
-const getShortcutBadgeLabelForSession = (sessionId: string) =>
-  shortcutBadgeLabelBySessionId.value.get(sessionId) ?? null
-
-const hasShortcutBadgeForSession = (sessionId: string) =>
-  showShortcutBadges.value && shortcutBadgeLabelBySessionId.value.has(sessionId)
-
-const scheduleSessionListFillCheck = () => {
-  if (sessionListFillFrame !== null) {
-    return
-  }
-
-  sessionListFillFrame = window.requestAnimationFrame(() => {
-    sessionListFillFrame = null
-    void ensureSessionListFilled()
-  })
-}
-
-const togglePinnedSection = () => {
-  isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
-  scheduleSessionListFillCheck()
-}
-
-const toggleGroup = (group: SessionGroup) => {
-  const groupId = getGroupIdentifier(group)
-  const nextCollapsedGroupIds = new Set(collapsedGroupIds.value)
-
-  if (nextCollapsedGroupIds.has(groupId)) {
-    nextCollapsedGroupIds.delete(groupId)
-  } else {
-    nextCollapsedGroupIds.add(groupId)
-  }
-
-  collapsedGroupIds.value = nextCollapsedGroupIds
-  scheduleSessionListFillCheck()
-}
+const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
 
 const handleWorkspaceGroupClick = (group: SessionGroup) => {
   if (isTrueEmptyWorkspaceGroup(group)) {
@@ -1293,327 +947,12 @@ const handleWorkspaceGroupClick = (group: SessionGroup) => {
   toggleGroup(group)
 }
 
-const isProjectGroupReorderTarget = (group: SessionGroup) => isActiveProjectDirectoryGroup(group)
-
-const getCurrentProjectOrderPaths = () => {
-  const environmentPaths = projectStore.environments.map((environment) => environment.path)
-  return environmentPaths.length > 0
-    ? environmentPaths
-    : projectReorderableGroups.value.map(getWorkspacePath)
-}
-
-const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
-  const currentOrder = getCurrentProjectOrderPaths()
-  const previousVisiblePaths = projectReorderableGroups.value.map(getWorkspacePath)
-  const previousVisiblePathSet = new Set(previousVisiblePaths)
-  const nextOrder = [...currentOrder]
-  let nextVisibleIndex = 0
-
-  for (let index = 0; index < nextOrder.length; index += 1) {
-    if (!previousVisiblePathSet.has(nextOrder[index])) {
-      continue
-    }
-
-    const nextPath = nextVisiblePaths[nextVisibleIndex]
-    if (nextPath) {
-      nextOrder[index] = nextPath
-    }
-    nextVisibleIndex += 1
-  }
-
-  for (const path of nextVisiblePaths) {
-    if (!nextOrder.includes(path)) {
-      nextOrder.push(path)
-    }
-  }
-
-  await projectStore.reorderEnvironments(nextOrder)
-}
-
-const handleProjectGroupModelUpdate = (nextGroups: SessionGroup[]) => {
-  if (!canReorderProjectGroups.value) {
-    return
-  }
-
-  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map(getWorkspacePath)
-  void commitVisibleProjectGroupOrder(nextVisiblePaths).catch((error) => {
-    console.warn('[WindowSideBar] Failed to reorder project groups:', error)
-  })
-}
-
-const canMoveProjectGroup = (group: SessionGroup, delta: -1 | 1) => {
-  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
-    return false
-  }
-
-  const groups = projectReorderableGroups.value
-  const index = groups.findIndex(
-    (candidate) => getGroupIdentifier(candidate) === getGroupIdentifier(group)
-  )
-  if (index < 0) {
-    return false
-  }
-
-  return delta < 0 ? index > 0 : index < groups.length - 1
-}
-
-const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTarget) => {
-  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
-    return
-  }
-
-  const paths = projectReorderableGroups.value.map(getWorkspacePath)
-  const currentIndex = paths.indexOf(getWorkspacePath(group))
-  if (currentIndex < 0) {
-    return
-  }
-
-  const [path] = paths.splice(currentIndex, 1)
-  const nextIndex =
-    target === 'top'
-      ? 0
-      : target === 'bottom'
-        ? paths.length
-        : target === 'up'
-          ? Math.max(0, currentIndex - 1)
-          : Math.min(paths.length, currentIndex + 1)
-
-  paths.splice(nextIndex, 0, path)
-  void commitVisibleProjectGroupOrder(paths).catch((error) => {
-    console.warn('[WindowSideBar] Failed to move project group:', error)
-  })
-}
-
-const requestWorkspaceArchive = (group: SessionGroup) => {
-  const environment = getWorkspaceEnvironment(group)
-  if (environment?.status !== 'active' || isArchivingWorkspace.value) {
-    return
-  }
-
-  archiveTargetWorkspace.value = {
-    path: environment.path,
-    name: environment.name
-  }
-}
-
-const handleArchiveWorkspaceConfirm = async () => {
-  const target = archiveTargetWorkspace.value
-  if (!target || isArchivingWorkspace.value) {
-    return
-  }
-
-  isArchivingWorkspace.value = true
-  try {
-    await projectStore.archiveEnvironment(target.path)
-    archiveTargetWorkspace.value = null
-  } catch (error) {
-    console.warn('[WindowSideBar] Failed to archive workspace:', error)
-    notifyRenderer({
-      kind: 'error',
-      code: 'chat.workspace.archive.failed',
-      title: t('settings.environments.errors.archiveTitle')
-    })
-  } finally {
-    isArchivingWorkspace.value = false
-  }
-}
-
-const handleProjectGroupDragStart = () => {
-  isProjectGroupDragging.value = true
-  projectGroupDragScrollTop.value = sessionListRef.value?.scrollTop ?? null
-  hideShortcutBadges()
-}
-
-const handleProjectGroupDragEnd = () => {
-  void nextTick(() => {
-    restoreSessionListScroll(projectGroupDragScrollTop.value)
-    projectGroupDragScrollTop.value = null
-    isProjectGroupDragging.value = false
-    void ensureSessionListFilled()
-  })
-}
-
-watch(
-  [pinnedSessions, () => sessionStore.activeSessionId],
-  ([sessions, activeSessionId]) => {
-    if (sessions.length === 0) {
-      isPinnedSectionCollapsed.value = false
-      return
-    }
-
-    if (activeSessionId && sessions.some((session) => session.id === activeSessionId)) {
-      isPinnedSectionCollapsed.value = false
-    }
-  },
-  { immediate: true }
-)
-
-watch(
-  [visibleGroups, () => sessionStore.activeSessionId],
-  ([groups, activeSessionId]) => {
-    if (isProjectGroupDragging.value) {
-      return
-    }
-
-    const validGroupIds = new Set(
-      groups.filter((group) => !isTrueEmptyWorkspaceGroup(group)).map(getGroupIdentifier)
-    )
-    const nextCollapsedGroupIds = new Set(
-      [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
-    )
-
-    if (activeSessionId) {
-      const activeGroup = groups.find((group) =>
-        group.sessions.some((session) => session.id === activeSessionId)
-      )
-
-      if (activeGroup) {
-        nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
-      }
-    }
-
-    const stateChanged =
-      nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||
-      [...nextCollapsedGroupIds].some((groupId) => !collapsedGroupIds.value.has(groupId))
-
-    if (stateChanged) {
-      collapsedGroupIds.value = nextCollapsedGroupIds
-    }
-  },
-  { immediate: true }
-)
-
 const openSettings = () => {
   void settingsClient.openSettings()
 }
 
 const openPlugins = () => {
   void router?.push({ name: 'plugins' })
-}
-
-const openRemoteSettings = async () => {
-  if (router?.hasRoute?.('plugins-detail') && firstEnabledRemoteChannel.value) {
-    await router.push({
-      name: 'plugins-detail',
-      params: { pluginId: `remote:${firstEnabledRemoteChannel.value}` }
-    })
-    return
-  }
-
-  await settingsClient.openSettings({ routeName: 'settings-remote' })
-}
-
-const hasEnabledRemoteChannelStatus = () =>
-  Object.values(remoteControlStatus.value).some((status) => status?.enabled === true)
-
-const clearRemoteControlStatusTimer = () => {
-  if (!remoteControlStatusTimer) return
-  window.clearTimeout(remoteControlStatusTimer)
-  remoteControlStatusTimer = null
-}
-
-const runRemoteControlStatusRefresh = async () => {
-  const refreshed = await refreshRemoteControlStatus()
-  remoteControlStatusErrors = refreshed ? 0 : remoteControlStatusErrors + 1
-
-  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
-  const backoffMs = Math.min(30_000, 2_000 * 2 ** remoteControlStatusErrors)
-  scheduleRemoteControlStatusRefresh(
-    hasEnabledRemoteChannelStatus()
-      ? refreshed
-        ? REMOTE_STATUS_ACTIVE_POLL_MS
-        : backoffMs
-      : REMOTE_STATUS_IDLE_POLL_MS
-  )
-}
-
-const scheduleRemoteControlStatusRefresh = (delayMs = 0) => {
-  clearRemoteControlStatusTimer()
-  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
-
-  if (delayMs <= 0) {
-    void runRemoteControlStatusRefresh()
-    return
-  }
-
-  remoteControlStatusTimer = window.setTimeout(() => {
-    remoteControlStatusTimer = null
-    void runRemoteControlStatusRefresh()
-  }, delayMs)
-}
-
-const refreshRemoteControlStatus = async (): Promise<boolean> => {
-  const version = pluginCatalogStore.captureRemoteRefresh()
-  try {
-    const descriptors = await remoteControlClient.listRemoteChannels()
-    const channels = descriptors.map((descriptor) => descriptor.id)
-    const statuses = await Promise.all(
-      channels.map((channel) => remoteControlClient.getChannelStatus(channel))
-    )
-    pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
-    return true
-  } catch (error) {
-    console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
-    return false
-  }
-}
-
-const revealWorkspaceGroup = async (projectPath: string) => {
-  await nextTick()
-  const pathIdentity = normalizeWorkspacePath(projectPath)
-  const isChatWorkspace = pathIdentity === defaultChatWorkspacePath.value
-  const groupId = isChatWorkspace ? CHAT_SECTION_GROUP_ID : pathIdentity
-  const groupTarget = Array.from(
-    sessionListRef.value?.querySelectorAll<HTMLElement>('[data-group-id]') ?? []
-  ).find((element) => element.dataset.groupId === groupId)
-  const target =
-    groupTarget ??
-    (isChatWorkspace
-      ? sessionListRef.value
-          ?.closest<HTMLElement>('[data-testid="window-sidebar"]')
-          ?.querySelector<HTMLElement>('[data-testid="app-new-chat-button"]')
-      : null)
-
-  target?.scrollIntoView?.({ block: 'nearest' })
-  target?.focus()
-  if (target && !prefersReducedMotion()) {
-    if (workspaceRevealTimer !== null) {
-      window.clearTimeout(workspaceRevealTimer)
-    }
-    revealedWorkspaceGroupId.value = groupId
-    workspaceRevealTimer = window.setTimeout(() => {
-      revealedWorkspaceGroupId.value = null
-      workspaceRevealTimer = null
-    }, 900)
-  }
-}
-
-const handleAddWorkspace = async () => {
-  if (isAddingWorkspace.value) {
-    return
-  }
-
-  isAddingWorkspace.value = true
-  try {
-    const selectedPath = await projectStore.openFolderPicker({ select: false })
-    if (!selectedPath) {
-      return
-    }
-
-    sessionSearchQuery.value = ''
-    await sessionStore.setGroupMode('project')
-    await revealWorkspaceGroup(selectedPath)
-  } catch (error) {
-    console.warn('[WindowSideBar] Failed to add workspace:', error)
-    notifyRenderer({
-      kind: 'error',
-      code: 'chat.workspace.registrationFailed',
-      title: t('common.error.operationFailed'),
-      description: t('chat.sidebar.addWorkspaceFailed')
-    })
-  } finally {
-    isAddingWorkspace.value = false
-  }
 }
 
 const navigateToChat = async () => {
@@ -1695,576 +1034,8 @@ const handleSessionClick = async (session: { id: string }) => {
   }
 }
 
-const loadShortcutPlatform = async () => {
-  try {
-    const deviceInfo = await deviceClient.getDeviceInfo()
-    shortcutPlatform.value = deviceInfo.platform === 'darwin' ? 'mac' : 'other'
-  } catch (error) {
-    console.warn('[WindowSideBar] Failed to resolve shortcut platform:', error)
-  }
-}
-
-const isEditableShortcutTarget = (target: EventTarget | null) => {
-  const element = target instanceof HTMLElement ? target : null
-  if (!element) {
-    return false
-  }
-
-  return Boolean(
-    element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
-  )
-}
-
-const hasKeyboardOwningOverlay = () =>
-  spotlightStore.open ||
-  deleteDialogOpen.value ||
-  document.querySelector('.chat-search-bar') !== null ||
-  document.querySelector('[role="dialog"][aria-modal="true"]') !== null
-
-const shouldIgnoreSidebarShortcutEvent = (event: KeyboardEvent) =>
-  collapsed.value || isEditableShortcutTarget(event.target) || hasKeyboardOwningOverlay()
-
-const getPlatformModifierKey = () => (shortcutPlatform.value === 'mac' ? 'Meta' : 'Alt')
-
-const isPlatformModifierPressed = (event: KeyboardEvent) =>
-  shortcutPlatform.value === 'mac' ? event.metaKey : event.altKey
-
-const isPlatformModifierOnlyKeydown = (event: KeyboardEvent) => {
-  if (event.repeat || shouldIgnoreSidebarShortcutEvent(event)) {
-    return false
-  }
-
-  if (shortcutPlatform.value === 'mac') {
-    return (
-      event.key === 'Meta' && event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
-    )
-  }
-
-  return event.key === 'Alt' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
-}
-
-const isSidebarShortcutDigitEvent = (event: KeyboardEvent) => {
-  if (event.repeat || !/^[0-9]$/.test(event.key) || shouldIgnoreSidebarShortcutEvent(event)) {
-    return false
-  }
-
-  if (shortcutPlatform.value === 'mac') {
-    return event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
-  }
-
-  return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
-}
-
-const clearShortcutBadgeTimer = () => {
-  if (shortcutBadgeTimer !== null) {
-    window.clearTimeout(shortcutBadgeTimer)
-    shortcutBadgeTimer = null
-  }
-}
-
-const hideShortcutBadges = () => {
-  clearShortcutBadgeTimer()
-  shortcutModifierDown.value = false
-  showShortcutBadges.value = false
-}
-
-const startShortcutBadgeTimer = () => {
-  if (shortcutBadgeTimer !== null || showShortcutBadges.value) {
-    return
-  }
-
-  shortcutModifierDown.value = true
-  shortcutBadgeTimer = window.setTimeout(() => {
-    shortcutBadgeTimer = null
-
-    if (
-      shortcutModifierDown.value &&
-      !collapsed.value &&
-      !hasKeyboardOwningOverlay() &&
-      visibleShortcutSessions.value.length > 0
-    ) {
-      showShortcutBadges.value = true
-    }
-  }, SIDEBAR_SHORTCUT_BADGE_DELAY_MS)
-}
-
-const selectShortcutSession = (digit: string) => {
-  const shortcutIndex = getShortcutIndexForDigit(digit)
-  const targetSession = visibleShortcutSessions.value[shortcutIndex]
-
-  if (targetSession) {
-    void sessionStore.selectSession(targetSession.id)
-  }
-}
-
-const handleWindowShortcutKeydown = (event: KeyboardEvent) => {
-  if (isPlatformModifierOnlyKeydown(event)) {
-    if (shortcutPlatform.value !== 'mac') {
-      event.preventDefault()
-    }
-    startShortcutBadgeTimer()
-    return
-  }
-
-  if (shortcutBadgeTimer !== null && event.key !== getPlatformModifierKey()) {
-    clearShortcutBadgeTimer()
-  }
-
-  if (!isSidebarShortcutDigitEvent(event)) {
-    return
-  }
-
-  event.preventDefault()
-  event.stopPropagation()
-  selectShortcutSession(event.key)
-}
-
-const handleWindowShortcutKeyup = (event: KeyboardEvent) => {
-  const modifierKey = getPlatformModifierKey()
-  if (event.key === modifierKey || !isPlatformModifierPressed(event)) {
-    if (shortcutPlatform.value !== 'mac' && event.key === modifierKey) {
-      event.preventDefault()
-    }
-    hideShortcutBadges()
-  }
-}
-
-const handleWindowShortcutBlur = () => {
-  hideShortcutBadges()
-}
-
-const handleDocumentVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') {
-    hideShortcutBadges()
-    clearRemoteControlStatusTimer()
-    return
-  }
-
-  scheduleRemoteControlStatusRefresh()
-}
-
-watch(collapsed, (isCollapsed) => {
-  if (isCollapsed) {
-    hideShortcutBadges()
-  }
-})
-
-watch(
-  () => sessionStore.loading || sessionStore.loadingMore,
-  (loading) => {
-    if (loading) {
-      sessionRowsStatic.value = true
-      return
-    }
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!sessionStore.loading && !sessionStore.loadingMore) {
-          sessionRowsStatic.value = false
-        }
-      })
-    })
-  },
-  { immediate: true }
-)
-
 const openDeleteDialog = (session: UISession) => {
   deleteTargetSession.value = session
-}
-
-const prefersReducedMotion = () =>
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-
-const clearPinFeedback = () => {
-  if (pinFeedbackTimer) {
-    window.clearTimeout(pinFeedbackTimer)
-    pinFeedbackTimer = null
-  }
-
-  pinFeedbackSessionId.value = null
-  pinFeedbackMode.value = null
-}
-
-const applyPinFeedback = (sessionId: string, nextPinned: boolean) => {
-  if (prefersReducedMotion()) {
-    clearPinFeedback()
-    return
-  }
-
-  if (pinFeedbackTimer) {
-    window.clearTimeout(pinFeedbackTimer)
-  }
-
-  pinFeedbackSessionId.value = sessionId
-  const mode = getPinFeedbackMode(nextPinned)
-  pinFeedbackMode.value = mode
-  pinFeedbackTimer = window.setTimeout(() => {
-    pinFeedbackSessionId.value = null
-    pinFeedbackMode.value = null
-    pinFeedbackTimer = null
-  }, PIN_FEEDBACK_DURATION_MS[mode])
-}
-
-const commitPinToggle = async (session: UISession, nextPinned: boolean, withFeedback = true) => {
-  await sessionStore.toggleSessionPinned(session.id, nextPinned)
-  if (withFeedback) {
-    applyPinFeedback(session.id, nextPinned)
-  }
-  await nextTick()
-}
-
-const waitForAnimationFrame = () =>
-  new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve())
-  })
-
-const restoreSessionListScroll = (scrollTop: number | null) => {
-  if (scrollTop === null || !sessionListRef.value) {
-    return
-  }
-
-  sessionListRef.value.scrollTop = scrollTop
-}
-
-const performSessionListScrollCheck = () => {
-  const listElement = sessionListRef.value
-  if (
-    !listElement ||
-    isProjectGroupDragging.value ||
-    sessionStore.loadingMore ||
-    !sessionStore.hasMore
-  ) {
-    return
-  }
-
-  const distanceToBottom =
-    listElement.scrollHeight - listElement.scrollTop - listElement.clientHeight
-
-  if (distanceToBottom <= 96) {
-    void sessionStore.loadNextPage()
-  }
-}
-
-const handleSessionListScroll = () => {
-  if (sessionListScrollFrame !== null) {
-    return
-  }
-
-  sessionListScrollFrame = window.requestAnimationFrame(() => {
-    sessionListScrollFrame = null
-    performSessionListScrollCheck()
-  })
-}
-
-// 当首屏返回的 regular 会话不足以填满列表容器时，不会产生滚动条，
-// `@scroll` 永远不触发，`loadNextPage` 也就永远不会被调用（issue #1762）。
-// 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
-let isFillingSessionList = false
-const ensureSessionListFilled = async () => {
-  if (
-    isFillingSessionList ||
-    isProjectGroupDragging.value ||
-    collapsed.value ||
-    !canAutoFillSessionList.value
-  ) {
-    return
-  }
-  isFillingSessionList = true
-  try {
-    // 轮数上限兜底，避免异常情况下（如 cursor 不推进）陷入死循环。
-    const MAX_FILL_ROUNDS = 50
-    for (let round = 0; round < MAX_FILL_ROUNDS; round += 1) {
-      await nextTick()
-      const listElement = sessionListRef.value
-      if (
-        !listElement ||
-        isProjectGroupDragging.value ||
-        collapsed.value ||
-        !canAutoFillSessionList.value ||
-        !sessionStore.hasMore ||
-        sessionStore.loadingMore ||
-        sessionStore.loading
-      ) {
-        return
-      }
-      // 内容高度已超过容器（存在可滚动空间），交还给滚动事件处理后续分页。
-      if (listElement.scrollHeight > listElement.clientHeight + 1) {
-        return
-      }
-      const beforeCount = sessionStore.sessions.length
-      const beforeHasMore = sessionStore.hasMore
-      await sessionStore.loadNextPage()
-      if (
-        beforeHasMore === sessionStore.hasMore &&
-        sessionStore.hasMore &&
-        sessionStore.sessions.length <= beforeCount
-      ) {
-        return
-      }
-    }
-  } finally {
-    isFillingSessionList = false
-  }
-}
-
-const visibleSessionFingerprint = computed(() =>
-  [
-    isPinnedSectionCollapsed.value ? 'pinned:collapsed' : 'pinned:expanded',
-    ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
-    ...visibleGroups.value.flatMap((group) => [
-      `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
-      ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
-    ])
-  ].join('|')
-)
-
-// 会话列表内容或容器高度变化后，若视口仍未填满则继续加载，保证「滚动加载更多」
-// 在首屏内容过少时也能启动（issue #1762）。搜索仅过滤已加载会话，仍要求所有
-// 分组展开，避免因为筛选或隐藏行扫完剩余分页。
-watch(
-  [
-    () => sessionStore.sessions.length,
-    () => sessionStore.hasMore,
-    () => sessionStore.loading,
-    () => sessionStore.groupMode,
-    sidebarSelectedAgentId,
-    normalizedSessionSearchQuery,
-    visibleSessionFingerprint,
-    collapsed
-  ],
-  () => {
-    scheduleSessionListFillCheck()
-  },
-  { immediate: true }
-)
-
-const getSessionItemElement = (sessionId: string, region: SessionItemRegion) =>
-  document.querySelector<HTMLElement>(
-    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
-  )
-
-const getPinPlaceholderElement = (sessionId: string, region: SessionItemRegion) =>
-  document.querySelector<HTMLElement>(
-    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"][data-pin-placeholder="true"]`
-  )
-
-const captureSessionItemRect = (element: HTMLElement | null): SessionItemRect | null => {
-  if (!element) {
-    return null
-  }
-
-  const rect = element.getBoundingClientRect()
-  if (rect.width === 0 || rect.height === 0) {
-    return null
-  }
-
-  return {
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: rect.height
-  }
-}
-
-const areSessionItemRectsEqual = (left: SessionItemRect, right: SessionItemRect) =>
-  Math.abs(left.left - right.left) <= PIN_TARGET_SETTLE_EPSILON_PX &&
-  Math.abs(left.top - right.top) <= PIN_TARGET_SETTLE_EPSILON_PX &&
-  Math.abs(left.width - right.width) <= PIN_TARGET_SETTLE_EPSILON_PX &&
-  Math.abs(left.height - right.height) <= PIN_TARGET_SETTLE_EPSILON_PX
-
-const waitForPinTargetPlaceholder = async (
-  sessionId: string,
-  region: SessionItemRegion
-): Promise<{ element: HTMLElement; rect: SessionItemRect } | null> => {
-  let previousRect: SessionItemRect | null = null
-
-  for (let frame = 0; frame < PIN_TARGET_SETTLE_MAX_FRAMES; frame += 1) {
-    await waitForAnimationFrame()
-    const element = getPinPlaceholderElement(sessionId, region)
-    const rect = captureSessionItemRect(element)
-
-    if (!element || !rect) {
-      previousRect = null
-      continue
-    }
-
-    if (previousRect && areSessionItemRectsEqual(previousRect, rect)) {
-      return { element, rect }
-    }
-
-    previousRect = rect
-  }
-
-  const fallbackElement =
-    getPinPlaceholderElement(sessionId, region) ?? getSessionItemElement(sessionId, region)
-  const fallbackRect = captureSessionItemRect(fallbackElement)
-  if (!fallbackElement || !fallbackRect) {
-    return null
-  }
-
-  return {
-    element: fallbackElement,
-    rect: fallbackRect
-  }
-}
-
-const getPinFlightAnimationOptions = (nextPinned: boolean) =>
-  nextPinned
-    ? {
-        duration: PIN_FLIGHT_DURATION_MS,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
-      }
-    : {
-        duration: PIN_FLIGHT_DURATION_MS + 20,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
-      }
-
-const createPinFlightKeyframes = (
-  deltaX: number,
-  deltaY: number,
-  scaleX: number,
-  scaleY: number,
-  nextPinned: boolean
-): Keyframe[] => {
-  const leadX = nextPinned ? deltaX * 0.82 : deltaX * 0.9
-  const leadY = nextPinned ? deltaY * 0.78 : deltaY * 0.86
-  const leadScaleX = nextPinned ? 1.018 : 1.008
-  const leadScaleY = nextPinned ? 1.018 : 1.008
-
-  return [
-    {
-      transform: 'translate3d(0, 0, 0) scale(1)',
-      opacity: 1,
-      offset: 0
-    },
-    {
-      transform: `translate3d(${leadX}px, ${leadY}px, 0) scale(${leadScaleX}, ${leadScaleY})`,
-      opacity: 1,
-      offset: nextPinned ? 0.68 : 0.74
-    },
-    {
-      transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
-      opacity: 1,
-      offset: 1
-    }
-  ]
-}
-
-const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
-  const clone = sourceElement.cloneNode(true) as HTMLElement
-
-  clone.removeAttribute('style')
-  clone.classList.remove('is-hero-hidden')
-  delete clone.dataset.pinFx
-  delete clone.dataset.heroHidden
-  clone.setAttribute('aria-hidden', 'true')
-  clone.classList.add('sidebar-pin-flight')
-  Object.assign(clone.style, {
-    position: 'fixed',
-    left: `${sourceRect.left}px`,
-    top: `${sourceRect.top}px`,
-    width: `${sourceRect.width}px`,
-    height: `${sourceRect.height}px`,
-    margin: '0',
-    pointerEvents: 'none',
-    zIndex: '2147483647',
-    transformOrigin: 'top left',
-    willChange: 'transform',
-    contain: 'layout style paint'
-  })
-
-  return clone
-}
-
-const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
-  const sourceRegion: SessionItemRegion = session.isPinned ? 'pinned' : 'grouped'
-  const targetRegion: SessionItemRegion = nextPinned ? 'pinned' : 'grouped'
-  const sourceElement = getSessionItemElement(session.id, sourceRegion)
-  const sourceRect = sourceElement?.getBoundingClientRect()
-  const preservedScrollTop = sessionListRef.value?.scrollTop ?? null
-
-  if (!sourceElement || !sourceRect || sourceRect.width === 0 || sourceRect.height === 0) {
-    await commitPinToggle(session, nextPinned)
-    return
-  }
-
-  const clone = createPinFlightClone(sourceElement, sourceRect)
-  document.body.appendChild(clone)
-  pinFlightSessionId.value = session.id
-  if (!nextPinned) {
-    pinDockedSessionId.value = session.id
-  }
-  await nextTick()
-
-  try {
-    await waitForAnimationFrame()
-    clone.dataset.pinState = 'docked'
-    await waitForAnimationFrame()
-
-    await commitPinToggle(session, nextPinned, false)
-    restoreSessionListScroll(preservedScrollTop)
-    await waitForAnimationFrame()
-    restoreSessionListScroll(preservedScrollTop)
-    await waitForAnimationFrame()
-
-    const targetSettledState = await waitForPinTargetPlaceholder(session.id, targetRegion)
-    const targetElement = targetSettledState?.element
-    const targetRect = targetSettledState?.rect
-
-    if (!targetElement || !targetRect) {
-      clone.remove()
-      if (pinDockedSessionId.value === session.id) {
-        pinDockedSessionId.value = null
-      }
-      applyPinFeedback(session.id, nextPinned)
-      pinFlightSessionId.value = null
-      await nextTick()
-      return
-    }
-
-    const deltaX = targetRect.left - sourceRect.left
-    const deltaY = targetRect.top - sourceRect.top
-    const scaleX = targetRect.width / sourceRect.width
-    const scaleY = targetRect.height / sourceRect.height
-
-    const animation = clone.animate(
-      createPinFlightKeyframes(deltaX, deltaY, scaleX, scaleY, nextPinned),
-      {
-        ...getPinFlightAnimationOptions(nextPinned),
-        fill: 'forwards'
-      }
-    )
-
-    await animation.finished.catch(() => undefined)
-    clone.remove()
-    if (pinDockedSessionId.value === session.id) {
-      pinDockedSessionId.value = null
-    }
-    applyPinFeedback(session.id, nextPinned)
-    pinFlightSessionId.value = null
-    await nextTick()
-  } finally {
-    if (pinDockedSessionId.value === session.id) {
-      pinDockedSessionId.value = null
-    }
-    pinFlightSessionId.value = null
-    clone.remove()
-  }
-}
-
-const handleTogglePin = async (session: UISession) => {
-  const nextPinned = !session.isPinned
-
-  try {
-    if (prefersReducedMotion()) {
-      await commitPinToggle(session, nextPinned)
-      return
-    }
-
-    await animatePinFlight(session, nextPinned)
-  } catch (error) {
-    console.error('Failed to toggle pin status:', error)
-  }
 }
 
 const handleDeleteConfirm = async () => {
@@ -2283,63 +1054,7 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
-  remoteControlStatusUnmounted = false
   void projectStore.fetchEnvironments()
-  void loadShortcutPlatform()
-  window.addEventListener('keydown', handleWindowShortcutKeydown)
-  window.addEventListener('keyup', handleWindowShortcutKeyup)
-  window.addEventListener('blur', handleWindowShortcutBlur)
-  document.addEventListener('visibilitychange', handleDocumentVisibilityChange)
-
-  if (typeof ResizeObserver !== 'undefined') {
-    sessionListResizeObserver = new ResizeObserver(() => {
-      scheduleSessionListFillCheck()
-    })
-    if (sessionListRef.value) {
-      sessionListResizeObserver.observe(sessionListRef.value)
-    }
-  }
-
-  scheduleSessionListFillCheck()
-  scheduleRemoteControlStatusRefresh()
-})
-
-onUnmounted(() => {
-  remoteControlStatusUnmounted = true
-  window.removeEventListener('keydown', handleWindowShortcutKeydown)
-  window.removeEventListener('keyup', handleWindowShortcutKeyup)
-  window.removeEventListener('blur', handleWindowShortcutBlur)
-  document.removeEventListener('visibilitychange', handleDocumentVisibilityChange)
-
-  clearRemoteControlStatusTimer()
-
-  if (sessionListScrollFrame !== null) {
-    window.cancelAnimationFrame(sessionListScrollFrame)
-    sessionListScrollFrame = null
-  }
-
-  if (sessionListFillFrame !== null) {
-    window.cancelAnimationFrame(sessionListFillFrame)
-    sessionListFillFrame = null
-  }
-
-  if (workspaceRevealTimer !== null) {
-    window.clearTimeout(workspaceRevealTimer)
-    workspaceRevealTimer = null
-  }
-  revealedWorkspaceGroupId.value = null
-
-  if (sessionListResizeObserver) {
-    sessionListResizeObserver.disconnect()
-    sessionListResizeObserver = null
-  }
-
-  pinFlightSessionId.value = null
-  pinDockedSessionId.value = null
-  isProjectGroupDragging.value = false
-  projectGroupDragScrollTop.value = null
-  clearPinFeedback()
-  hideShortcutBadges()
 })
 </script>
 
