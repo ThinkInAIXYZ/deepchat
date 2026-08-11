@@ -295,6 +295,49 @@ describe('UpgradeService', () => {
     expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_NATIVE_RUNTIME_ERROR')
   })
 
+  it('does not guess one operation for a native error during overlapping phases', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    let resolveCheck!: () => void
+    let resolveDownload!: () => void
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockImplementation(
+      () => new Promise((resolve) => (resolveCheck = () => resolve(undefined as never)))
+    )
+    vi.mocked(electronUpdater.autoUpdater.downloadUpdate).mockImplementation(
+      () => new Promise((resolve) => (resolveDownload = () => resolve([])))
+    )
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    const checking = service.checkUpdate()
+    autoUpdaterState.listeners.get('update-available')!({
+      version: '1.1.0',
+      releaseDate: '2026-08-01',
+      releaseNotes: ''
+    })
+    expect(service.startDownloadUpdate()).toBe(true)
+    autoUpdaterState.listeners.get('error')!(new Error('SECRET_AMBIGUOUS_UPDATE_ERROR'))
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'runtime',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_AMBIGUOUS_UPDATE_ERROR')
+
+    resolveCheck()
+    resolveDownload()
+    await checking
+    await Promise.resolve()
+  })
+
   it('starts a new automatic check failure episode after a successful check', async () => {
     const settings = {
       getChannel: vi.fn(() => 'stable')
@@ -441,6 +484,40 @@ describe('UpgradeService', () => {
       errorCategory: 'unknown'
     })
     expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_NATIVE_INSTALL_ERROR')
+  })
+
+  it.each([
+    ['relaunch', appRelaunchMock],
+    ['exit', appExitMock]
+  ])('contains delayed app %s failures during a normal restart', async (_phase, fail) => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    fail.mockImplementationOnce(() => {
+      throw new Error('SECRET_DELAYED_RESTART_ERROR')
+    })
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    service.restartApp()
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'runtime',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_DELAYED_RESTART_ERROR')
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'upgrade.error',
+      expect.objectContaining({ error: 'SECRET_DELAYED_RESTART_ERROR' })
+    )
   })
 
   it('ignores cross-channel downgrades when current install is a prerelease', () => {

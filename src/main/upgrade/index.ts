@@ -672,12 +672,15 @@ export class UpgradeService {
       this.emitWillRestart()
       // 给UI层一点时间保存状态
       setTimeout(() => {
-        app.relaunch()
-        app.exit()
+        try {
+          app.relaunch()
+          app.exit()
+        } catch (error) {
+          this.reportRestartFailure(error)
+        }
       }, 1000)
-    } catch (e) {
-      console.error('重启失败', e)
-      this.emitError(e instanceof Error ? e.message : String(e))
+    } catch (error) {
+      this.reportRestartFailure(error)
     }
   }
 
@@ -689,6 +692,12 @@ export class UpgradeService {
   // Get update flag
   isUpdatingInProgress(): boolean {
     return this._isUpdating
+  }
+
+  private reportRestartFailure(error: unknown): void {
+    this.notifyFailure('runtime', 'unknown')
+    console.error('重启失败', error)
+    this.emitError(error instanceof Error ? error.message : String(error))
   }
 
   private notifyFailure(
@@ -703,10 +712,21 @@ export class UpgradeService {
   }
 
   private currentUpdaterOperation(): 'check' | 'download' | 'install' | 'runtime' {
-    if (this._isUpdating) return 'install'
-    if (this._downloadOperationActive) return 'download'
-    if (this._activeCheckOperations > 0) return 'check'
-    return 'runtime'
+    let operation: 'check' | 'download' | 'install' | undefined
+    let activeOperations = 0
+    if (this._isUpdating) {
+      operation = 'install'
+      activeOperations += 1
+    }
+    if (this._downloadOperationActive) {
+      operation = 'download'
+      activeOperations += 1
+    }
+    if (this._activeCheckOperations > 0) {
+      operation = 'check'
+      activeOperations += 1
+    }
+    return activeOperations === 1 && operation ? operation : 'runtime'
   }
 
   private notifyUpdaterFailure(
