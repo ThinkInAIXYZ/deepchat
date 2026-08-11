@@ -66,13 +66,13 @@ export type AgentInvocationAdmissionObservation =
   | ({
       type: 'granted'
       acquisitionSeq: number
-      waitMs: number
+      waitMs?: number
     } & AgentInvocationAdmissionCorrelation &
       AgentInvocationAdmissionState)
   | ({
       type: 'released'
       acquisitionSeq: number
-      holdMs: number
+      holdMs?: number
       reason: 'permit_released' | 'lease_suspended' | 'lease_released'
       active: number
       pending: number
@@ -80,7 +80,7 @@ export type AgentInvocationAdmissionObservation =
   | ({
       type: 'rejected'
       acquisitionSeq: number
-      waitMs: number
+      waitMs?: number
       reason: 'queue_full' | 'aborted' | 'closed'
     } & AgentInvocationAdmissionCorrelation &
       AgentInvocationAdmissionState)
@@ -387,14 +387,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     waiter.settled = true
     this.detachAbort(waiter)
     this.rejected += 1
-    const waitDuration = this.elapsedSince(waiter.queuedAt)
-    if (waitDuration.valid) this.waitSamples.push(waitDuration.value)
+    const waitMs = this.elapsedSince(waiter.queuedAt)
+    if (waitMs !== undefined) this.waitSamples.push(waitMs)
     if (waiter.correlation) {
       this.emit({
         type: 'rejected',
         ...waiter.correlation,
         acquisitionSeq: waiter.acquisitionSeq,
-        waitMs: waitDuration.value,
+        ...(waitMs === undefined ? {} : { waitMs }),
         reason,
         ...this.currentState()
       })
@@ -423,14 +423,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     this.activeHighWater = Math.max(this.activeHighWater, this.active)
     this.granted += 1
     const grantedAt = this.readClock()
-    const waitDuration = this.elapsedBetween(startedAt, grantedAt)
-    if (waitDuration.valid) this.waitSamples.push(waitDuration.value)
+    const waitMs = this.elapsedBetween(startedAt, grantedAt)
+    if (waitMs !== undefined) this.waitSamples.push(waitMs)
     if (correlation) {
       this.emit({
         type: 'granted',
         ...correlation,
         acquisitionSeq,
-        waitMs: waitDuration.value,
+        ...(waitMs === undefined ? {} : { waitMs }),
         ...this.currentState()
       })
     }
@@ -453,14 +453,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       } else {
         this.activeByOwner.set(ownerId, ownerActive - 1)
       }
-      const holdDuration = this.elapsedSince(grantedAt)
-      if (holdDuration.valid) this.holdSamples.push(holdDuration.value)
+      const holdMs = this.elapsedSince(grantedAt)
+      if (holdMs !== undefined) this.holdSamples.push(holdMs)
       if (correlation) {
         this.emit({
           type: 'released',
           ...correlation,
           acquisitionSeq,
-          holdMs: holdDuration.value,
+          ...(holdMs === undefined ? {} : { holdMs }),
           reason,
           active: this.active,
           pending: this.pending
@@ -549,16 +549,18 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     }
   }
 
-  private elapsedSince(startedAt: number | undefined): { value: number; valid: boolean } {
+  private elapsedSince(startedAt: number | undefined): number | undefined {
     return this.elapsedBetween(startedAt, this.readClock())
   }
 
   private elapsedBetween(
     startedAt: number | undefined,
     finishedAt: number | undefined
-  ): { value: number; valid: boolean } {
-    if (startedAt === undefined || finishedAt === undefined) return { value: 0, valid: false }
-    return { value: Math.max(0, finishedAt - startedAt), valid: true }
+  ): number | undefined {
+    if (startedAt === undefined || finishedAt === undefined || finishedAt < startedAt) {
+      return undefined
+    }
+    return finishedAt - startedAt
   }
 
   private emit(observation: AgentInvocationAdmissionObservation): void {

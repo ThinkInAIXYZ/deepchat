@@ -247,21 +247,21 @@ export interface MainLogEventInputMap {
   }
   'agent.admission.granted': MainLogAdmissionCorrelation & {
     acquisitionSeq: number
-    waitMs: number
+    waitMs?: number
     capacity: number
     active: number
     pending: number
   }
   'agent.admission.released': MainLogAdmissionCorrelation & {
     acquisitionSeq: number
-    holdMs: number
+    holdMs?: number
     reason: 'permit_released' | 'lease_suspended' | 'lease_released'
     active: number
     pending: number
   }
   'agent.admission.rejected': MainLogAdmissionCorrelation & {
     acquisitionSeq: number
-    waitMs: number
+    waitMs?: number
     reason: 'queue_full' | 'aborted' | 'closed'
     capacity: number
     active: number
@@ -1009,7 +1009,7 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     project: (input, options) => ({
       ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
-      waitMs: duration('waitMs', input.waitMs),
+      ...(input.waitMs === undefined ? {} : { waitMs: duration('waitMs', input.waitMs) }),
       ...projectAdmissionState(input)
     })
   },
@@ -1029,7 +1029,7 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     project: (input, options) => ({
       ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
-      holdMs: duration('holdMs', input.holdMs),
+      ...(input.holdMs === undefined ? {} : { holdMs: duration('holdMs', input.holdMs) }),
       reason: oneOf('reason', input.reason, RELEASE_REASONS),
       active: count('active', input.active),
       pending: count('pending', input.pending)
@@ -1052,7 +1052,7 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     project: (input, options) => ({
       ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
-      waitMs: duration('waitMs', input.waitMs),
+      ...(input.waitMs === undefined ? {} : { waitMs: duration('waitMs', input.waitMs) }),
       reason: oneOf('reason', input.reason, REJECTION_REASONS),
       ...projectAdmissionState(input)
     })

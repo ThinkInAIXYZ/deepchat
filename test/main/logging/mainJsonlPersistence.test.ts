@@ -105,6 +105,24 @@ describe('MainJsonlPersistence', () => {
     })
   })
 
+  it.skipIf(process.platform === 'win32')(
+    'tightens permissions on an existing log directory and active file',
+    () => {
+      const userData = createUserData()
+      const logDirectory = path.join(userData, 'logs')
+      const activePath = path.join(logDirectory, 'main.jsonl')
+      fs.mkdirSync(logDirectory, { recursive: true })
+      fs.chmodSync(logDirectory, 0o755)
+      fs.writeFileSync(activePath, `${validLine()}\n`)
+      fs.chmodSync(activePath, 0o644)
+      const persistence = createPersistence(userData)
+
+      expect(persistence.enable()).toBe(true)
+      expect(fs.statSync(logDirectory).mode & 0o777).toBe(0o700)
+      expect(fs.statSync(activePath).mode & 0o777).toBe(0o600)
+    }
+  )
+
   it('reuses one validated append descriptor until persistence is disabled', () => {
     const userData = createUserData()
     const openSync = vi.fn((...args: Parameters<typeof fs.openSync>) =>
@@ -114,12 +132,15 @@ describe('MainJsonlPersistence', () => {
     const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
     const persistence = createPersistence(userData, { openSync, fstatSync, closeSync })
     expect(persistence.enable()).toBe(true)
+    openSync.mockClear()
+    fstatSync.mockClear()
+    closeSync.mockClear()
 
     expect(persistence.write('info', validLine())).toBe('written')
     expect(persistence.write('info', validLine(2))).toBe('written')
 
     expect(openSync).toHaveBeenCalledOnce()
-    expect(fstatSync).toHaveBeenCalledOnce()
+    expect(fstatSync).toHaveBeenCalledTimes(process.platform === 'win32' ? 1 : 2)
     expect(closeSync).not.toHaveBeenCalled()
     persistence.disable()
     expect(closeSync).toHaveBeenCalledOnce()
@@ -240,6 +261,9 @@ describe('MainJsonlPersistence', () => {
 
     expect(fs.statSync(archivePath).size).toBe(MAX_FILE_BYTES)
     expect(fs.readFileSync(activePath, 'utf8')).toBe(`${line}\n`)
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(archivePath).mode & 0o777).toBe(0o600)
+    }
   })
 
   it('keeps the validated descriptor open until rotation is complete', () => {
@@ -506,6 +530,7 @@ describe('MainJsonlPersistence', () => {
       openSync
     })
     expect(persistence.enable()).toBe(true)
+    closeSync.mockClear()
 
     expect(persistence.write('info', validLine())).toBe('failed')
     expect(closeSync).toHaveBeenCalledOnce()
@@ -540,7 +565,7 @@ describe('MainJsonlPersistence', () => {
     })
 
     expect(persistence.enable()).toBe(false)
-    expect(closeSync).toHaveBeenCalledOnce()
+    expect(closeSync).toHaveBeenCalledTimes(process.platform === 'win32' ? 1 : 2)
     expect(ftruncateSync).not.toHaveBeenCalled()
     expect(fs.readFileSync(activePath, 'utf8')).toBe(originalContents)
     expect(fs.readFileSync(replacementPath, 'utf8')).toBe(replacementContents)
@@ -557,6 +582,7 @@ describe('MainJsonlPersistence', () => {
     fs.writeFileSync(activePath, originalContents)
     const fstatSync = vi.fn((descriptor: number, options?: { bigint?: boolean }) => {
       const stat = fstatWithOptions(descriptor, options)
+      if (!stat.isFile()) return stat
       return new Proxy(stat, {
         get: (target, property, receiver) =>
           property === 'ino' ? descriptorInode : Reflect.get(target, property, receiver)
@@ -599,6 +625,7 @@ describe('MainJsonlPersistence', () => {
     )
     const persistence = createPersistence(userData, { closeSync, openSync })
     expect(persistence.enable()).toBe(true)
+    closeSync.mockClear()
 
     expect(persistence.write('info', validLine())).toBe('failed')
     expect(closeSync).toHaveBeenCalledOnce()

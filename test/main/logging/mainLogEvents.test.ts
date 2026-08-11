@@ -909,6 +909,54 @@ describe('Main log event projection', () => {
     ).toBe('warn')
   })
 
+  it('round-trips admission events when measured durations are unavailable', () => {
+    const correlation = {
+      kind: 'live_delegation' as const,
+      parentSessionId: 'parent_1',
+      delegationId: 'delegation_1',
+      turnId: 'turn_1',
+      acquisitionSeq: 1
+    }
+    const events = [
+      {
+        event: 'agent.admission.granted' as const,
+        durationField: 'waitMs',
+        projected: projectMainLogEvent('agent.admission.granted', {
+          ...correlation,
+          capacity: 6,
+          active: 1,
+          pending: 0
+        })
+      },
+      {
+        event: 'agent.admission.released' as const,
+        durationField: 'holdMs',
+        projected: projectMainLogEvent('agent.admission.released', {
+          ...correlation,
+          reason: 'permit_released',
+          active: 0,
+          pending: 0
+        })
+      },
+      {
+        event: 'agent.admission.rejected' as const,
+        durationField: 'waitMs',
+        projected: projectMainLogEvent('agent.admission.rejected', {
+          ...correlation,
+          reason: 'closed',
+          capacity: 6,
+          active: 0,
+          pending: 0
+        })
+      }
+    ]
+
+    for (const { durationField, event, projected } of events) {
+      expect(projected.context).not.toHaveProperty(durationField)
+      expect(isProjectedMainLogEvent(event, projected.level, projected.context)).toBe(true)
+    }
+  })
+
   it('validates admission distributions and emits their bounded summaries', () => {
     const projected = projectMainLogEvent('agent.admission.closed', {
       capacity: 6,

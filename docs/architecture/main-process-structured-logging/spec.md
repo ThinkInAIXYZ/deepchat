@@ -216,8 +216,8 @@ and diagnostic clock failures cannot change the durable Run lifecycle.
 distributions:
 
 - `agent.admission.queued`;
-- `agent.admission.granted` with `waitMs`, acquisition sequence, active/pending counts;
-- `agent.admission.released` with active `holdMs` and release reason;
+- `agent.admission.granted` with measured `waitMs`, acquisition sequence, active/pending counts;
+- `agent.admission.released` with measured active `holdMs` and release reason;
 - `agent.admission.rejected` with `queue_full`, `aborted`, or `closed`;
 - `agent.admission.closed` with terminal counts, dropped-observation count, and p50/p95/max
   summaries.
@@ -229,6 +229,10 @@ both granted waits and queued waits abandoned by abort or close, so long rejecte
 artificially lower the distribution. The `closed` event is a close-time snapshot; active permits may
 release afterward. Observations leave the permit critical path through a bounded, ordered queue;
 teardown drains that queue before later infrastructure is closed.
+
+When either monotonic endpoint is unavailable or moves backward, the individual `waitMs` or
+`holdMs` field is omitted and the interval is excluded from distributions. An acquisition rejected
+before entering the queue retains a known `waitMs: 0` without consulting the clock.
 
 When neither JSONL persistence nor the development console is active, admission and delegation
 metrics may continue bounded in-memory accounting but skip observation queue insertion and
@@ -271,6 +275,9 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 
 - Active file: `logs/main.jsonl`.
 - Retained archive: `logs/main.old.jsonl`.
+- On POSIX, the validated log directory is forced to `0700` and each validated active file to
+  `0600`; an archive inherits the active file mode through rename. Windows relies on the effective
+  user-data profile ACLs rather than emulating POSIX modes.
 - Soft active-file limit: 10 MiB.
 - Maximum record: 16 KiB.
 - Writes remain synchronous after event selection keeps volume low. This preserves ordering and

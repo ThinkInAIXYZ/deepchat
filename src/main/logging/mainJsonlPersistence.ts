@@ -11,6 +11,7 @@ type MainLogFs = Pick<
   typeof fs,
   | 'closeSync'
   | 'constants'
+  | 'fchmodSync'
   | 'fstatSync'
   | 'ftruncateSync'
   | 'lstatSync'
@@ -30,6 +31,8 @@ const MAX_MAIN_LOG_FILE_BYTES = 10 * 1024 * 1024
 const TAIL_SCAN_CHUNK_BYTES = 64 * 1024
 const MAX_SAFE_FILE_SIZE = BigInt(Number.MAX_SAFE_INTEGER)
 const MAIN_LOG_IDENTITY_RECHECK_INTERVAL = 64
+const MAIN_LOG_DIRECTORY_MODE = 0o700
+const MAIN_LOG_FILE_MODE = 0o600
 
 export class MainJsonlPersistence implements MainLogPersistence {
   private readonly fs: MainLogFs
@@ -51,11 +54,8 @@ export class MainJsonlPersistence implements MainLogPersistence {
     try {
       const logDirectory = path.join(this.options.getUserDataPath(), 'logs')
       this.logPath = path.join(logDirectory, 'main.jsonl')
-      this.fs.mkdirSync(logDirectory, { recursive: true, mode: 0o700 })
-      const directoryStat = this.fs.lstatSync(logDirectory)
-      if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
-        throw new Error('Main JSONL directory is not a regular directory')
-      }
+      this.fs.mkdirSync(logDirectory, { recursive: true, mode: MAIN_LOG_DIRECTORY_MODE })
+      this.secureLogDirectory(logDirectory)
       const damagedDescriptor = this.repairIncompleteTail(this.logPath)
       if (damagedDescriptor !== undefined) {
         this.archiveDamagedActiveFile(this.logPath, damagedDescriptor)
@@ -137,10 +137,11 @@ export class MainJsonlPersistence implements MainLogPersistence {
         this.fs.constants.O_APPEND |
         this.fs.constants.O_CREAT |
         noFollow,
-      0o600
+      MAIN_LOG_FILE_MODE
     )
     try {
       const descriptorSize = this.validateFileIdentity(this.logPath, descriptor)
+      this.secureActiveFile(this.logPath, descriptor)
       this.descriptor = descriptor
       this.activeSize = descriptorSize
       this.writesSinceIdentityCheck = 0
@@ -188,6 +189,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
     let retainDescriptor = false
     try {
       const size = this.validateFileIdentity(filePath, descriptor)
+      this.secureActiveFile(filePath, descriptor)
       if (size === 0) return undefined
 
       const lastByte = Buffer.allocUnsafe(1)
@@ -274,6 +276,57 @@ export class MainJsonlPersistence implements MainLogPersistence {
     }
 
     return Number(descriptorStat.size)
+  }
+
+  private secureLogDirectory(logDirectory: string): void {
+    if (process.platform === 'win32') {
+      const directoryStat = this.fs.lstatSync(logDirectory)
+      if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+        throw new Error('Main JSONL directory is not a regular directory')
+      }
+      return
+    }
+
+    const noFollow = this.fs.constants.O_NOFOLLOW ?? 0
+    const directoryOnly = this.fs.constants.O_DIRECTORY ?? 0
+    const descriptor = this.fs.openSync(
+      logDirectory,
+      this.fs.constants.O_RDONLY | directoryOnly | noFollow
+    )
+    try {
+      this.validateDirectoryIdentity(logDirectory, descriptor)
+      this.fs.fchmodSync(descriptor, MAIN_LOG_DIRECTORY_MODE)
+      this.validateDirectoryIdentity(logDirectory, descriptor, MAIN_LOG_DIRECTORY_MODE)
+    } finally {
+      this.fs.closeSync(descriptor)
+    }
+  }
+
+  private secureActiveFile(filePath: string, descriptor: number): void {
+    if (process.platform === 'win32') return
+    this.fs.fchmodSync(descriptor, MAIN_LOG_FILE_MODE)
+    this.validateFileIdentity(filePath, descriptor)
+  }
+
+  private validateDirectoryIdentity(
+    directoryPath: string,
+    descriptor: number,
+    expectedMode?: number
+  ): void {
+    const descriptorStat = this.fs.fstatSync(descriptor, { bigint: true })
+    if (!descriptorStat.isDirectory()) {
+      throw new Error('Main JSONL directory descriptor is not a regular directory')
+    }
+    const pathStat = this.fs.lstatSync(directoryPath, { bigint: true })
+    if (pathStat.isSymbolicLink() || !pathStat.isDirectory()) {
+      throw new Error('Main JSONL directory is not a regular directory')
+    }
+    if (pathStat.dev !== descriptorStat.dev || pathStat.ino !== descriptorStat.ino) {
+      throw new Error('Main JSONL directory path does not match the opened descriptor')
+    }
+    if (expectedMode !== undefined && (descriptorStat.mode & 0o777n) !== BigInt(expectedMode)) {
+      throw new Error('Main JSONL directory permissions are not private')
+    }
   }
 
   private fail(): void {

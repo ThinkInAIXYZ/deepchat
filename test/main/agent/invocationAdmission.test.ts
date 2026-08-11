@@ -355,6 +355,11 @@ describe('AgentInvocationAdmission', () => {
         .filter((observation) => observation.type === 'rejected')
         .map((observation) => observation.reason)
     ).toEqual(['queue_full', 'aborted'])
+    expect(
+      observations.find(
+        (observation) => observation.type === 'rejected' && observation.reason === 'queue_full'
+      )
+    ).toMatchObject({ waitMs: 0 })
     expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0, rejected: 2 })
   })
 
@@ -459,7 +464,7 @@ describe('AgentInvocationAdmission', () => {
     ])
   })
 
-  it('excludes invalid clock endpoints from distributions and clamps clock rollback', async () => {
+  it('omits intervals with invalid or backward clock endpoints', async () => {
     const measure = async (clockValues: number[]) => {
       const observations: AgentInvocationAdmissionObservation[] = []
       let clockIndex = 0
@@ -476,24 +481,25 @@ describe('AgentInvocationAdmission', () => {
     const invalidStart = await measure([Number.NaN, 100, 110])
     expect(invalidStart.snapshot.waitMs.samples).toBe(0)
     expect(invalidStart.snapshot.holdMs).toEqual({ samples: 1, p50: 10, p95: 10, max: 10 })
+    expect(invalidStart.observations[0]).not.toHaveProperty('waitMs')
 
     const invalidGrant = await measure([100, Number.NaN, 110])
     expect(invalidGrant.snapshot.waitMs.samples).toBe(0)
     expect(invalidGrant.snapshot.holdMs.samples).toBe(0)
+    expect(invalidGrant.observations[0]).not.toHaveProperty('waitMs')
+    expect(invalidGrant.observations[1]).not.toHaveProperty('holdMs')
 
     const invalidRelease = await measure([100, 100, Number.NaN])
     expect(invalidRelease.snapshot.waitMs.samples).toBe(1)
     expect(invalidRelease.snapshot.holdMs.samples).toBe(0)
+    expect(invalidRelease.observations[0]).toMatchObject({ waitMs: 0 })
+    expect(invalidRelease.observations[1]).not.toHaveProperty('holdMs')
 
     const rollback = await measure([100, 90, 80])
-    expect(rollback.snapshot.waitMs).toEqual({ samples: 1, p50: 0, p95: 0, max: 0 })
-    expect(rollback.snapshot.holdMs).toEqual({ samples: 1, p50: 0, p95: 0, max: 0 })
-    expect(rollback.observations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: 'granted', waitMs: 0 }),
-        expect.objectContaining({ type: 'released', holdMs: 0 })
-      ])
-    )
+    expect(rollback.snapshot.waitMs.samples).toBe(0)
+    expect(rollback.snapshot.holdMs.samples).toBe(0)
+    expect(rollback.observations[0]).not.toHaveProperty('waitMs')
+    expect(rollback.observations[1]).not.toHaveProperty('holdMs')
   })
 
   it('reports correlated close rejections once before its terminal summary', async () => {
