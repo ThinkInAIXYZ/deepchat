@@ -24,6 +24,7 @@ export type MainLogLevel = 'error' | 'warn' | 'info'
 export type MainLogShutdownReason =
   | 'all_windows_closed'
   | 'app_quit'
+  | 'data_reset'
   | 'restart'
   | 'update_install'
   | 'unknown'
@@ -230,6 +231,11 @@ export interface MainLogEventInputMap {
     reason: MainLogShutdownReason
   }
   'app.shutdown.terminal': MainLogAppTerminalInput
+  'app.shutdown.action.failed': {
+    reason: MainLogShutdownReason
+    durationMs: number
+    error: SafeLogError
+  }
   'database.initialization.terminal': MainLogDatabaseInitializationInput
   'agent.run.started': MainLogRunStartedInput
   'agent.run.terminal': MainLogRunTerminalInput
@@ -411,6 +417,7 @@ const STARTUP_OUTCOMES = ['completed', 'failed'] as const
 const SHUTDOWN_REASONS = [
   'all_windows_closed',
   'app_quit',
+  'data_reset',
   'restart',
   'update_install',
   'unknown'
@@ -672,7 +679,7 @@ function nativeErrorName(value: unknown): string | undefined {
   }
 }
 
-function projectFatalError(value: unknown): MainLogContext {
+export function classifyMainLogError(value: unknown): SafeLogError {
   if (utilTypes.isProxy(value)) return { category: 'unknown' }
   const errorName = nativeErrorName(value) ?? ownDataString(value, 'name')
   const name = errorName && errorName.length <= MAX_ERROR_NAME_LENGTH ? errorName : undefined
@@ -683,6 +690,10 @@ function projectFatalError(value: unknown): MainLogContext {
         ? 'timeout'
         : 'unknown'
   return { category }
+}
+
+function projectFatalError(value: unknown): MainLogContext {
+  return { category: classifyMainLogError(value).category }
 }
 
 function projectDistribution(field: string, value: MainLogDistribution): MainLogContext {
@@ -845,6 +856,15 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
         ...(error ? { error } : {})
       }
     }
+  },
+  'app.shutdown.action.failed': {
+    inputFields: ['reason', 'durationMs', 'error'],
+    level: 'error',
+    project: (input) => ({
+      reason: oneOf('reason', input.reason, SHUTDOWN_REASONS),
+      durationMs: duration('durationMs', input.durationMs),
+      error: projectSafeError(input.error)
+    })
   },
   'database.initialization.terminal': {
     inputFields: [

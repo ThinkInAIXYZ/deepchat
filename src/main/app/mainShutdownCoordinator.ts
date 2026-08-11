@@ -5,9 +5,16 @@ export interface MainShutdownTerminalObservation {
   durationMs: number
 }
 
+export interface MainShutdownActionFailureObservation {
+  reason: MainLogShutdownReason
+  durationMs: number
+  error: unknown
+}
+
 export interface MainShutdownObserver {
   started(reason: MainLogShutdownReason): void
   terminal(observation: MainShutdownTerminalObservation): void
+  actionFailed?(observation: MainShutdownActionFailureObservation): void
 }
 
 export interface MainShutdownActionClaim {
@@ -64,6 +71,13 @@ export class MainShutdownCoordinator {
           } catch (error) {
             state = 'released'
             if (this.actionClaim === actionClaim) this.actionClaim = undefined
+            this.observe(() =>
+              this.observer.actionFailed?.({
+                reason,
+                durationMs: this.now() - startedAt,
+                error
+              })
+            )
             throw error
           }
         },

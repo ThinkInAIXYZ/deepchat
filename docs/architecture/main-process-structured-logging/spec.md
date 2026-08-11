@@ -118,6 +118,11 @@ The V1 catalog is deliberately limited to these low-frequency operational bounda
 - durable Run diagnostics and delegation reconciliation terminal outcomes or failures; normal
   resumed recovery is not a terminal event.
 
+`app.shutdown.terminal` reports the shared teardown outcome before the claimed terminal action runs,
+because relaunch, exit, and installer handoff may terminate the process before a later append.
+`app.shutdown.action.failed` records the uncommon case where that claimed action returns an error;
+there is no action-success event.
+
 The catalog must not contain events for individual provider stream chunks, ACP protocol messages,
 PTY chunks, window focus changes, normal queue mutations, or normal refresh loops.
 

@@ -35,14 +35,18 @@ export function setMainLoggingEnabled(enabled: boolean): void {
   mainLogger.setPersistenceEnabled(enabled)
 }
 
+export function reportNativeMainError(message: string, error: unknown): void {
+  try {
+    originalConsole.error(message, error)
+  } catch {
+    // Native diagnostics must not affect Main lifecycle or recovery behavior.
+  }
+}
+
 export function reportMainProcessFatal(
   event: 'process.uncaught_exception' | 'process.unhandled_rejection',
   error: unknown
 ): void {
-  try {
-    originalConsole.error(`[main] ${event}`, error)
-  } catch {
-    // A broken native console must not suppress the structured fatal diagnostic.
-  }
+  reportNativeMainError(`[main] ${event}`, error)
   mainLogger.emit(event, { error } satisfies MainLogEventInputMap[typeof event])
 }

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   isProjectedMainLogEvent,
+  classifyMainLogError,
   MainLogEventProjectionError,
   normalizeMainLogRunStopReason,
   projectMainLogEvent,
@@ -49,6 +50,11 @@ describe('Main log event projection', () => {
       },
       'app.shutdown.started': { reason: 'app_quit' },
       'app.shutdown.terminal': { outcome: 'completed', durationMs: 10 },
+      'app.shutdown.action.failed': {
+        reason: 'restart',
+        durationMs: 11,
+        error: { category: 'unknown' }
+      },
       'database.initialization.terminal': {
         outcome: 'completed',
         durationMs: 10,
@@ -303,6 +309,35 @@ describe('Main log event projection', () => {
       error: { category: 'persistence', retryable: true }
     })
     expect(JSON.stringify(projected)).not.toContain('SECRET_')
+  })
+
+  it('projects shutdown action failures without caught error content', () => {
+    const projected = projectMainLogEvent('app.shutdown.action.failed', {
+      reason: 'data_reset',
+      durationMs: 1250,
+      error: {
+        category: 'persistence',
+        message: 'SECRET_RESET_PATH',
+        stack: 'SECRET_STACK'
+      }
+    } as never)
+
+    expect(projected).toEqual({
+      level: 'error',
+      context: {
+        reason: 'data_reset',
+        durationMs: 1250,
+        error: { category: 'persistence' }
+      }
+    })
+    expect(JSON.stringify(projected)).not.toContain('SECRET_')
+    expect(
+      isProjectedMainLogEvent(
+        'app.shutdown.action.failed',
+        projected.level,
+        JSON.parse(JSON.stringify(projected.context))
+      )
+    ).toBe(true)
   })
 
   it('projects database initialization health without schema or error content', () => {
@@ -577,6 +612,20 @@ describe('Main log event projection', () => {
     expect(abort.context).toEqual({ error: { category: 'aborted' } })
     expect(timeout.context).toEqual({ error: { category: 'timeout' } })
     expect(JSON.stringify([abort, timeout])).not.toContain('SECRET_')
+  })
+
+  it('classifies startup-safe errors without carrying error content', () => {
+    expect(classifyMainLogError(new DOMException('SECRET', 'TimeoutError'))).toEqual({
+      category: 'timeout'
+    })
+    expect(classifyMainLogError(new Error('SECRET'))).toEqual({ category: 'unknown' })
+  })
+
+  it('accepts data reset as an explicit shutdown reason', () => {
+    expect(projectMainLogEvent('app.shutdown.started', { reason: 'data_reset' })).toEqual({
+      level: 'info',
+      context: { reason: 'data_reset' }
+    })
   })
 
   it('uses the native DOMException name without invoking shadowing properties', () => {

@@ -356,9 +356,23 @@ describe('session boundary composition', () => {
       path.resolve(process.cwd(), 'src/main/device/routes.ts'),
       'utf8'
     )
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const restartStart = compositionSource.indexOf('async function restartApplication()')
+    const restartSource = compositionSource.slice(
+      restartStart,
+      compositionSource.indexOf('\n  }', restartStart)
+    )
 
     expect(deviceRoutesSource).toContain('await deps.restartApplication()')
     expect(deviceRoutesSource).not.toContain('await deps.device.restartApp()')
+    expect(restartSource).toContain("const actionClaim = await stop('restart')")
+    expect(restartSource).toContain(
+      "if (!actionClaim) throw new Error('Application shutdown is already owned')"
+    )
+    expect(compositionSource).toContain("actionClaim = await stop('data_reset')")
   })
 
   it('publishes runtime updates through the Session boundary', async () => {

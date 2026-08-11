@@ -12,8 +12,8 @@ import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
 import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
-import { mainLogger, reportMainProcessFatal } from './logging'
-import type { MainLogShutdownReason } from './logging/mainLogEvents'
+import { mainLogger, reportMainProcessFatal, reportNativeMainError } from './logging'
+import { classifyMainLogError, type MainLogShutdownReason } from './logging/mainLogEvents'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -179,11 +179,12 @@ export function startApp(): void {
         durationMs: performance.now() - startupStartedAt
       })
     } catch (error) {
+      reportNativeMainError('main: Application startup failed:', error)
       mainLogger.emit('app.startup.terminal', {
         startupRunId: mainStartupRunId,
         outcome: 'failed',
         durationMs: performance.now() - startupStartedAt,
-        error: { category: 'unknown' }
+        error: classifyMainLogError(error)
       })
       dialog.showErrorBox(
         'Application startup failed',
@@ -229,7 +230,9 @@ export function startApp(): void {
           shutdownReason = 'app_quit'
           return
         }
-      } catch {}
+      } catch (error) {
+        reportNativeMainError('main: Application shutdown teardown failed:', error)
+      }
 
       allowQuit = true
       try {
@@ -238,7 +241,8 @@ export function startApp(): void {
         } else {
           app.quit()
         }
-      } catch {
+      } catch (error) {
+        reportNativeMainError('main: Application shutdown action failed:', error)
         allowQuit = false
         actionClaim?.abandon()
         shutdownPromise = undefined

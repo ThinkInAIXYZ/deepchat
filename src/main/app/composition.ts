@@ -1,6 +1,7 @@
 import logger from '@shared/logger'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
 import {
+  classifyMainLogError,
   normalizeMainLogRunStopReason,
   type MainLogRunStopReason,
   type MainLogShutdownReason,
@@ -3037,6 +3038,13 @@ export async function createMainProcessControl(dependencies: {
           durationMs: observation.durationMs,
           error: { category: 'unknown' }
         })
+      },
+      actionFailed: (observation) => {
+        mainLogger.emit('app.shutdown.action.failed', {
+          reason: observation.reason,
+          durationMs: observation.durationMs,
+          error: classifyMainLogError(observation.error)
+        })
       }
     }
   )
@@ -3176,7 +3184,7 @@ export async function createMainProcessControl(dependencies: {
         cliLauncher: cliLauncherService,
         logger,
         stop: async () => {
-          actionClaim = await stop('restart')
+          actionClaim = await stop('data_reset')
           if (!actionClaim) throw new Error('Application shutdown is already owned')
         },
         resetDataByType: (type) => {
@@ -3192,7 +3200,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function restartApplication(): Promise<void> {
     const actionClaim = await stop('restart')
-    if (!actionClaim) return
+    if (!actionClaim) throw new Error('Application shutdown is already owned')
     await actionClaim.run(() => deviceService.restartApp())
   }
 

@@ -47,21 +47,49 @@ describe('MainShutdownCoordinator', () => {
   })
 
   it('lets a later quit own the terminal action when the winning action fails', async () => {
-    const observer = { started: vi.fn(), terminal: vi.fn() }
-    const coordinator = new MainShutdownCoordinator(async () => undefined, observer)
+    const failure = new Error('restart failed')
+    const observer = { started: vi.fn(), terminal: vi.fn(), actionFailed: vi.fn() }
+    const coordinator = new MainShutdownCoordinator(
+      async () => undefined,
+      observer,
+      () => 10
+    )
 
     const restartClaim = await coordinator.request('restart')
     expect(restartClaim).toBeDefined()
 
     await expect(
       restartClaim?.run(async () => {
-        throw new Error('restart failed')
+        throw failure
       })
     ).rejects.toThrow('restart failed')
     const quitClaim = await coordinator.request('app_quit')
 
     expect(quitClaim).toBeDefined()
     expect(observer.started.mock.calls.map(([reason]) => reason)).toEqual(['restart', 'app_quit'])
+    expect(observer.actionFailed).toHaveBeenCalledWith({
+      reason: 'restart',
+      durationMs: 0,
+      error: failure
+    })
+  })
+
+  it('contains action-failure observer errors without replacing the action error', async () => {
+    const actionError = new Error('install failed')
+    const coordinator = new MainShutdownCoordinator(async () => undefined, {
+      started: vi.fn(),
+      terminal: vi.fn(),
+      actionFailed: vi.fn(() => {
+        throw new Error('observer failed')
+      })
+    })
+    const claim = await coordinator.request('update_install')
+
+    await expect(
+      claim?.run(() => {
+        throw actionError
+      })
+    ).rejects.toBe(actionError)
   })
 
   it('rejects a stale claim after a later request owns the terminal action', async () => {

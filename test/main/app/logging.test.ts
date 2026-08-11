@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { originalConsole } from '@shared/logger'
 import { LoggingService } from '@/app/logging'
-import { mainLogger, reportMainProcessFatal } from '@/logging'
+import { mainLogger, reportMainProcessFatal, reportNativeMainError } from '@/logging'
 
 describe('LoggingService', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -57,5 +57,18 @@ describe('Main process fatal diagnostics', () => {
 
     expect(() => reportMainProcessFatal('process.uncaught_exception', error)).not.toThrow()
     expect(emit).toHaveBeenCalledWith('process.uncaught_exception', { error })
+  })
+
+  it('contains native lifecycle console failures', () => {
+    const error = {
+      [Symbol.for('nodejs.util.inspect.custom')]() {
+        throw new Error('formatting failed')
+      }
+    }
+    vi.mocked(originalConsole.error).mockImplementationOnce(() => {
+      throw new Error('console unavailable')
+    })
+
+    expect(() => reportNativeMainError('main: lifecycle failed:', error)).not.toThrow()
   })
 })
