@@ -279,7 +279,7 @@ export class TapeForkService {
         idempotent: true
       })
     })
-    if (cleanupError) console.warn('[Tape] Failed to delete fork generation')
+    if (cleanupError) console.warn('[Tape] Failed to delete fork generation:', cleanupError)
   }
 
   recordExternalForkMerge(

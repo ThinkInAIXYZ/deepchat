@@ -152,9 +152,9 @@ export class TapeRecallService {
             .search(sessionId, query, searchInput)
             .map((row) => this.toProjectedSearchResult(row, undefined))
         }
-      } catch {
+      } catch (error) {
         skipProjectionSearch = true
-        console.warn('[Tape] Projection search failed; using effective search')
+        console.warn('[Tape] Projection search failed; using effective search:', error)
       }
     }
 
@@ -174,8 +174,8 @@ export class TapeRecallService {
       return preparedProjectionTable
         .search(sessionId, query, searchInput)
         .map((row) => this.toProjectedSearchResult(row, rowByEntryId.get(row.entry_id)))
-    } catch {
-      console.warn('[Tape] Projection search failed; using effective search')
+    } catch (error) {
+      console.warn('[Tape] Projection search failed; using effective search:', error)
       return searchEffectiveTapeRows(rows, query, searchInput).map((row) =>
         this.toSearchResult(row)
       )
@@ -329,8 +329,8 @@ export class TapeRecallService {
           uncoveredSources = []
         }
       }
-    } catch {
-      console.warn('[Tape] Linked projection search failed; using read-only fallback')
+    } catch (error) {
+      console.warn('[Tape] Linked projection search failed; using read-only fallback:', error)
       uncoveredSources = sources
     }
 

@@ -448,10 +448,12 @@ describe('SessionTape forks', () => {
   })
 
   it('keeps a failed fork cleanup isolated and makes its discard receipt fail closed', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const cleanupError = new Error('projection cleanup failed')
     const { table, entries } = createTapeTableMock()
     const projectionTable = {
       deleteBySession: vi.fn(() => {
-        throw new Error('projection cleanup failed')
+        throw cleanupError
       })
     }
     const service = new SessionTape({
@@ -477,6 +479,8 @@ describe('SessionTape forks', () => {
     expect(() => service.createFork('s1', 'fork-cleanup')).toThrow(
       'Fork fork-cleanup has been discarded and cannot be reused.'
     )
+    expect(warning).toHaveBeenCalledWith('[Tape] Failed to delete fork generation:', cleanupError)
+    warning.mockRestore()
   })
 
   it('restores fork entries when the discard receipt cannot be appended', () => {

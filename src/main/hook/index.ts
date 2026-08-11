@@ -262,8 +262,8 @@ export class HookService implements HookObserver {
         projection: projectHookEvent(event, new Date().toISOString()),
         accepted
       })
-    } catch {
-      console.warn('[Hook] Notification observer failed')
+    } catch (error) {
+      console.warn('[Hook] Notification observer failed:', error)
     }
   }
 
@@ -319,8 +319,8 @@ export class HookService implements HookObserver {
     const next = previous.then(async () => {
       try {
         await this.deliver(delivery)
-      } catch {
-        console.warn('[Hook] Dispatch failed')
+      } catch (error) {
+        console.warn('[Hook] Dispatch failed:', error)
       }
     })
 
@@ -351,8 +351,8 @@ export class HookService implements HookObserver {
     // rather than before it.
     for (const hook of this.runnableHooks(projection.event, accepted)) {
       // Per-command isolation: one failing hook must not affect its siblings or the next event.
-      void this.runHookCommand(hook, payload).catch(() => {
-        console.warn('[HooksNotifications] Hook command failed')
+      void this.runHookCommand(hook, payload).catch((error) => {
+        console.warn(`[HooksNotifications] Hook "${hook.name}" failed:`, error)
       })
     }
   }
@@ -395,8 +395,8 @@ export class HookService implements HookObserver {
             resolvedAgentId = session.modelId
           }
         }
-      } catch {
-        console.warn('[HooksNotifications] Failed to load session info')
+      } catch (error) {
+        console.warn('[HooksNotifications] Failed to load session info:', error)
       }
     }
 

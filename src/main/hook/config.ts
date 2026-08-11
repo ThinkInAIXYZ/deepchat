@@ -47,7 +47,7 @@ const warnUnknownKeys = (label: string, value: unknown, allowed: string[]) => {
 
   const unknownKeys = Object.keys(value).filter((key) => !allowed.includes(key))
   if (unknownKeys.length > 0) {
-    console.warn(`[HooksNotifications] Unknown configuration keys at ${label}`)
+    console.warn(`[HooksNotifications] Unknown keys at ${label}: ${unknownKeys.join(', ')}`)
   }
 }
 
@@ -92,7 +92,7 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   const defaults = createDefaultHooksNotificationsConfig()
   const parsed = HooksNotificationsSchema.safeParse(input)
   if (!parsed.success) {
-    console.warn('[HooksNotifications] Invalid configuration; using defaults')
+    console.warn('[HooksNotifications] Invalid config, using defaults:', parsed.error.message)
     return defaults
   }
 
@@ -100,7 +100,9 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   const hooks = rawHooks.reduce<HookCommandItem[]>((items, item, index) => {
     const parsedItem = HookCommandItemSchema.safeParse(item)
     if (!parsedItem.success) {
-      console.warn(`[HooksNotifications] Invalid hook at index ${index}; skipping`)
+      console.warn(
+        `[HooksNotifications] Invalid hook at index ${index}, skipping: ${parsedItem.error.message}`
+      )
       return items
     }
 
