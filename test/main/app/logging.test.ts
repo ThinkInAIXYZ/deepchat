@@ -2,7 +2,16 @@ import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { originalConsole } from '@shared/logger'
 import { LoggingService } from '@/app/logging'
-import { mainLogger, reportMainProcessFatal, reportNativeMainError } from '@/logging'
+import {
+  mainLogger,
+  reportMainProcessFatal,
+  reportMainStartupComponentFailure,
+  reportNativeMainError
+} from '@/logging'
+import {
+  scheduleObservedStartupTask,
+  StartupWorkloadCoordinator
+} from '@/app/startupWorkloadCoordinator'
 
 describe('LoggingService', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -31,6 +40,48 @@ describe('LoggingService', () => {
       expect(restart).toHaveBeenCalledOnce()
     }
   )
+})
+
+describe('Main startup diagnostics', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('reports a rescheduled background failure against the active maintenance run', async () => {
+    const coordinator = new StartupWorkloadCoordinator()
+    const originalRunId = coordinator.createRun('main')
+    const maintenanceRunId = coordinator.createRun('main')
+    const failure = new Error('background failed')
+    const emitted = new Promise<void>((resolve) => {
+      vi.spyOn(mainLogger, 'emit').mockImplementation((event) => {
+        if (event === 'app.startup.component.failed') resolve()
+      })
+    })
+
+    scheduleObservedStartupTask({
+      coordinator,
+      startupRunId: maintenanceRunId,
+      task: {
+        id: 'main:maintenance-background',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.maintenanceBackground',
+        run: async () => {
+          throw failure
+        }
+      },
+      onFailure: (startupRunId) =>
+        reportMainStartupComponentFailure(startupRunId, 'legacy_import', 'persistence')
+    })
+
+    await emitted
+
+    expect(maintenanceRunId).not.toBe(originalRunId)
+    expect(mainLogger.emit).toHaveBeenCalledWith('app.startup.component.failed', {
+      startupRunId: maintenanceRunId,
+      component: 'legacy_import',
+      error: { category: 'persistence' }
+    })
+  })
 })
 
 describe('Main process fatal diagnostics', () => {

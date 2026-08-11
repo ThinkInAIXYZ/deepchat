@@ -435,4 +435,21 @@ export class StartupWorkloadCoordinator {
   }
 }
 
+export function scheduleObservedStartupTask<T>(options: {
+  coordinator: Pick<StartupWorkloadCoordinator, 'scheduleTask'>
+  startupRunId: string
+  task: Omit<StartupWorkloadTaskOptions<T>, 'runId'>
+  onFailure: (startupRunId: string, error: unknown) => void
+}): void {
+  const { coordinator, startupRunId, task, onFailure } = options
+  void coordinator.scheduleTask({ ...task, runId: startupRunId }).catch((error) => {
+    if (isStartupWorkloadCancellation(error)) return
+    try {
+      onFailure(startupRunId, error)
+    } catch {
+      // Diagnostic observers must not create another unhandled startup rejection.
+    }
+  })
+}
+
 export type { StartupWorkloadTaskOptions, StartupWorkloadTaskContext }

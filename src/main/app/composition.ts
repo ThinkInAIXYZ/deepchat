@@ -1,5 +1,10 @@
 import logger from '@shared/logger'
-import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import {
+  mainLogger,
+  reportMainStartupComponentFailure,
+  reportNativeMainError,
+  setMainLoggingEnabled
+} from '@/logging'
 import {
   classifyMainLogError,
   normalizeMainLogRunStopReason,
@@ -213,6 +218,7 @@ import type {
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
 import {
   isStartupWorkloadCancellation,
+  scheduleObservedStartupTask,
   StartupWorkloadCoordinator
 } from '../app/startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
@@ -453,18 +459,6 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
       mainLogger.emit('orchestration.delegation.observations.dropped', observation)
       break
   }
-}
-
-function emitStartupComponentFailure(
-  startupRunId: string,
-  component: MainLogStartupComponent,
-  category: MainLogStartupComponentFailureCategory
-): void {
-  mainLogger.emit('app.startup.component.failed', {
-    startupRunId,
-    component,
-    error: { category }
-  })
 }
 
 function createLivePort<T extends object>(resolve: () => T): T {
@@ -1225,7 +1219,7 @@ export async function createMainProcessControl(dependencies: {
           context
         )
     },
-    () => emitStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
+    () => reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
@@ -2147,18 +2141,23 @@ export async function createMainProcessControl(dependencies: {
     trayPresenter.init()
   }
 
-  function scheduleObservedStartupTask(
-    task: Parameters<StartupWorkloadCoordinator['scheduleTask']>[0],
+  function scheduleMainStartupTask(
+    startupRunId: string,
+    task: Omit<Parameters<StartupWorkloadCoordinator['scheduleTask']>[0], 'runId'>,
     errorMessage: string,
     failure: {
       component: MainLogStartupComponent
       category: MainLogStartupComponentFailureCategory
     }
   ): void {
-    void startupWorkloadCoordinator.scheduleTask(task).catch((error) => {
-      if (isStartupWorkloadCancellation(error)) return
-      emitStartupComponentFailure(dependencies.startupRunId, failure.component, failure.category)
-      console.error(errorMessage, error)
+    scheduleObservedStartupTask({
+      coordinator: startupWorkloadCoordinator,
+      startupRunId,
+      task,
+      onFailure: (failedStartupRunId, error) => {
+        reportMainStartupComponentFailure(failedStartupRunId, failure.component, failure.category)
+        reportNativeMainError(errorMessage, error)
+      }
     })
   }
 
@@ -2173,14 +2172,14 @@ export async function createMainProcessControl(dependencies: {
 
     const providers = providerSettings.getProviders()
     console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      mainRunId,
       {
         id: 'main:floating-button',
         target: 'main',
         phase: 'deferred',
         resource: 'io',
         labelKey: 'startup.main.floatingButton',
-        runId: mainRunId,
         run: async () => {
           await initializeFloatingButton()
         }
@@ -2189,14 +2188,14 @@ export async function createMainProcessControl(dependencies: {
       { component: 'floating_widget', category: 'resource' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      mainRunId,
       {
         id: 'main:skills-sync-scan',
         target: 'main',
         phase: 'background',
         resource: 'cpu',
         labelKey: 'startup.main.skillsSyncScan',
-        runId: mainRunId,
         run: async (taskContext) => {
           await taskContext.yield()
           await initializeSkillSyncScan(taskContext.signal)
@@ -2206,14 +2205,14 @@ export async function createMainProcessControl(dependencies: {
       { component: 'skill_sync', category: 'unknown' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      mainRunId,
       {
         id: 'main:mcp-init',
         target: 'main',
         phase: 'background',
         resource: 'io',
         labelKey: 'startup.main.mcpInit',
-        runId: mainRunId,
         run: async (taskContext) => {
           await taskContext.yield()
           await initializeMcp()
@@ -2223,14 +2222,14 @@ export async function createMainProcessControl(dependencies: {
       { component: 'mcp', category: 'unknown' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      mainRunId,
       {
         id: 'main:remote-runtime',
         target: 'main',
         phase: 'background',
         resource: 'io',
         labelKey: 'startup.main.remoteRuntime',
-        runId: mainRunId,
         run: async (taskContext) => {
           await taskContext.yield()
           await initializeRemoteControl()
@@ -2267,7 +2266,7 @@ export async function createMainProcessControl(dependencies: {
       await floatingButtonPresenter.initialize()
       logger.info('FloatingButtonPresenter initialized successfully')
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'floating_widget', 'resource')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'floating_widget', 'resource')
       console.error('Failed to initialize FloatingButtonPresenter:', error)
     }
   }
@@ -2327,7 +2326,7 @@ export async function createMainProcessControl(dependencies: {
           await skillSyncService.scanAndDetectNewDiscoveries()
           logger.info('SkillSyncService background scan completed')
         } catch (error) {
-          emitStartupComponentFailure(dependencies.startupRunId, 'skill_sync', 'unknown')
+          reportMainStartupComponentFailure(dependencies.startupRunId, 'skill_sync', 'unknown')
           console.error('Failed to run SkillSyncService background scan:', error)
         }
       })()
@@ -2345,21 +2344,21 @@ export async function createMainProcessControl(dependencies: {
     try {
       await initializePlugins()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
       console.error('[PluginHost] Failed to initialize plugins:', error)
     }
 
     try {
       await mcpService.initialize()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
       console.error('Failed to initialize McpService:', error)
       return
     }
     try {
       await pluginRuntimeSupervisor.reconcileAll()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'plugin_runtime', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_runtime', 'unknown')
       console.error('[PluginHost] Failed to reconcile eager plugin runtimes:', error)
     }
 
@@ -2367,7 +2366,7 @@ export async function createMainProcessControl(dependencies: {
       deepChatAgentHarness.refreshToolRegistry()
       deeplinkService.processPendingMcpInstall()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
       console.error('Failed to finish MCP startup integration:', error)
     }
   }
@@ -2376,7 +2375,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await remoteService.initialize()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'remote_runtime', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'remote_runtime', 'unknown')
       console.error('RemoteService.initialize failed:', error)
     }
   }
@@ -2936,7 +2935,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await service.runIfNeeded()
     } catch (error) {
-      emitStartupComponentFailure(
+      reportMainStartupComponentFailure(
         dependencies.startupRunId,
         'acp_registry_migration',
         'persistence'
@@ -2947,7 +2946,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await service.compensateEnabledRegistryAgentInstalls()
     } catch (error) {
-      emitStartupComponentFailure(
+      reportMainStartupComponentFailure(
         dependencies.startupRunId,
         'acp_install_compensation',
         'persistence'
@@ -2956,8 +2955,9 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  function scheduleBackgroundWork(): void {
-    scheduleObservedStartupTask(
+  function scheduleBackgroundWork(startupRunId: string): void {
+    scheduleMainStartupTask(
+      startupRunId,
       {
         id: 'main:legacy-import',
         target: 'main',
@@ -2970,7 +2970,8 @@ export async function createMainProcessControl(dependencies: {
       { component: 'legacy_import', category: 'persistence' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      startupRunId,
       {
         id: 'main:rtk-health-check',
         target: 'main',
@@ -2988,7 +2989,8 @@ export async function createMainProcessControl(dependencies: {
       { component: 'rtk_health_check', category: 'resource' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      startupRunId,
       {
         id: 'main:usage-stats-backfill',
         target: 'main',
@@ -3001,7 +3003,8 @@ export async function createMainProcessControl(dependencies: {
       { component: 'usage_stats_backfill', category: 'persistence' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      startupRunId,
       {
         id: 'main:sqlite-mainline-normalization',
         target: 'main',
@@ -3018,7 +3021,8 @@ export async function createMainProcessControl(dependencies: {
       { component: 'sqlite_mainline_normalization', category: 'persistence' }
     )
 
-    scheduleObservedStartupTask(
+    scheduleMainStartupTask(
+      startupRunId,
       {
         id: 'main:disabled-agent-tool-capability-cleanup',
         target: 'main',
@@ -3161,8 +3165,8 @@ export async function createMainProcessControl(dependencies: {
       await remoteService.initialize()
       liveDelegationService = createLiveDelegationService()
       liveDelegationService.start()
-      startupWorkloadCoordinator.createRun('main')
-      scheduleBackgroundWork()
+      const startupRunId = startupWorkloadCoordinator.createRun('main')
+      scheduleBackgroundWork(startupRunId)
       databaseMaintenanceState = 'running'
     } catch (error) {
       databaseMaintenanceState = 'failed'
@@ -3321,18 +3325,18 @@ export async function createMainProcessControl(dependencies: {
     await artifactSpool.initialize()
     await cliServer.start()
   } catch (error) {
-    emitStartupComponentFailure(dependencies.startupRunId, 'cli_control', 'unknown')
+    reportMainStartupComponentFailure(dependencies.startupRunId, 'cli_control', 'unknown')
     logger.error('[CLI] Failed to start local control server', error)
   }
   if (cliServer.getStatus().running) {
     try {
       await cliLauncherService.ensureInstalled()
     } catch (error) {
-      emitStartupComponentFailure(dependencies.startupRunId, 'cli_launcher', 'unknown')
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'cli_launcher', 'unknown')
       logger.warn('[CLI] Failed to install or refresh the command launcher', error)
     }
   }
   init(dependencies.startupRunId)
-  scheduleBackgroundWork()
+  scheduleBackgroundWork(dependencies.startupRunId)
   return control
 }

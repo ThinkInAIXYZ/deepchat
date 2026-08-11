@@ -244,4 +244,38 @@ describe('StartupWorkloadCoordinator', () => {
       })
     )
   })
+
+  it('suppresses expected cancellation for an observed startup task', async () => {
+    const { scheduleObservedStartupTask, StartupWorkloadCoordinator } =
+      await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    const startupRunId = coordinator.createRun('main')
+    const started = createDeferred<void>()
+    const onFailure = vi.fn()
+
+    scheduleObservedStartupTask({
+      coordinator,
+      startupRunId,
+      task: {
+        id: 'main:cancellable-background',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.cancellableBackground',
+        run: async ({ signal }) => {
+          started.resolve()
+          await new Promise<void>((_, reject) => {
+            signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+          })
+        }
+      },
+      onFailure
+    })
+
+    await started.promise
+    coordinator.cancelTarget('main')
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(onFailure).not.toHaveBeenCalled()
+  })
 })

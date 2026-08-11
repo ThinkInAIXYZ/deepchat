@@ -4,7 +4,11 @@ import { app } from 'electron'
 import { originalConsole } from '@shared/logger'
 import { MainJsonlPersistence } from './mainJsonlPersistence'
 import { MainLogger, type MainLogInternalWarning } from './mainLogger'
-import type { MainLogEventInputMap } from './mainLogEvents'
+import type {
+  MainLogEventInputMap,
+  MainLogStartupComponent,
+  MainLogStartupComponentFailureCategory
+} from './mainLogEvents'
 
 const INTERNAL_WARNING_TEXT: Record<MainLogInternalWarning, string> = {
   event_rejected: '[main] structured log event rejected\n',
@@ -41,6 +45,18 @@ export function reportNativeMainError(message: string, error: unknown): void {
   } catch {
     // Native diagnostics must not affect Main lifecycle or recovery behavior.
   }
+}
+
+export function reportMainStartupComponentFailure(
+  startupRunId: string,
+  component: MainLogStartupComponent,
+  category: MainLogStartupComponentFailureCategory
+): void {
+  mainLogger.emit('app.startup.component.failed', {
+    startupRunId,
+    component,
+    error: { category }
+  })
 }
 
 export function reportMainProcessFatal(

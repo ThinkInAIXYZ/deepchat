@@ -289,21 +289,14 @@ describe('session boundary composition', () => {
     )
   })
 
-  it('observes detached startup task failures without reporting expected cancellation', async () => {
+  it('does not detach startup workload tasks without an observation owner', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/app/composition.ts'),
       'utf8'
     )
-    const helperStart = compositionSource.indexOf('function scheduleObservedStartupTask(')
-    const helperEnd = compositionSource.indexOf('\n  function init(', helperStart)
-    const helperSource = compositionSource.slice(helperStart, helperEnd)
 
-    expect(helperStart).toBeGreaterThanOrEqual(0)
-    expect(helperEnd).toBeGreaterThan(helperStart)
-    expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask({')
-    expect(helperSource).toContain('if (isStartupWorkloadCancellation(error)) return')
-    expect(helperSource).toContain('emitStartupComponentFailure(')
+    expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
   })
 
   it('finishes migrations and Skill initialization before the initial window', async () => {
