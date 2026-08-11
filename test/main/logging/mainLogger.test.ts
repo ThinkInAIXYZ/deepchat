@@ -132,6 +132,7 @@ describe('MainLogger', () => {
     const now = vi.fn(() => new Date('2026-08-10T12:34:56.789Z'))
     const { logger, persistence, warn } = createLogger({ writeConsole: false, now })
     logger.setPersistenceEnabled(false)
+    expect(logger.isOutputEnabled()).toBe(false)
 
     emitShutdown(logger, Number.NaN)
     emitShutdown(logger, 1)
@@ -139,6 +140,7 @@ describe('MainLogger', () => {
     expect(warn).not.toHaveBeenCalled()
 
     logger.setPersistenceEnabled(true)
+    expect(logger.isOutputEnabled()).toBe(true)
     emitShutdown(logger, 2)
 
     expect(parseWrittenLines(persistence)).toEqual([

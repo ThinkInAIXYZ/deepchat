@@ -5,11 +5,10 @@ import {
   summarizeNumberDistribution,
   type NumberDistribution
 } from '@/lib/boundedNumberRing'
+import { BoundedObservationQueue } from '@/lib/boundedObservationQueue'
 
 export const DEFAULT_AGENT_INVOCATION_CAPACITY = 6
 export const DEFAULT_AGENT_INVOCATION_MAX_PENDING = 256
-const MAX_PENDING_OBSERVATIONS = 512
-const OBSERVATION_DRAIN_BATCH_SIZE = 16
 
 export interface AgentInvocationPermit {
   release(): void
@@ -91,6 +90,7 @@ export type AgentInvocationAdmissionObservation =
 
 export interface AgentInvocationAdmissionDiagnosticsOptions {
   observe?: (observation: AgentInvocationAdmissionObservation) => void
+  observationsEnabled?: () => boolean
   now?: () => number
 }
 
@@ -150,13 +150,9 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   private pendingHighWater = 0
   private granted = 0
   private rejected = 0
-  private observationsDropped = 0
-  private readonly pendingObservations: AgentInvocationAdmissionObservation[] = []
-  private observationDrain: NodeJS.Immediate | undefined
-  private readonly observationFlushWaiters = new Set<() => void>()
   private readonly waitSamples = new BoundedNumberRing(MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES)
   private readonly holdSamples = new BoundedNumberRing(MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES)
-  private readonly observe: (observation: AgentInvocationAdmissionObservation) => void
+  private readonly observationQueue: BoundedObservationQueue<AgentInvocationAdmissionObservation>
   private readonly now: () => number
 
   constructor(
@@ -170,7 +166,10 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     if (!Number.isInteger(maxPending) || maxPending < 0) {
       throw new Error('Agent invocation pending limit must be a non-negative integer.')
     }
-    this.observe = diagnostics.observe ?? (() => undefined)
+    this.observationQueue = new BoundedObservationQueue({
+      observe: diagnostics.observe ?? (() => undefined),
+      enabled: diagnostics.observe ? (diagnostics.observationsEnabled ?? (() => true)) : () => false
+    })
     this.now = diagnostics.now ?? performance.now.bind(performance)
   }
 
@@ -290,13 +289,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   }
 
   flushObservations(): Promise<void> {
-    if (this.pendingObservations.length === 0 && !this.observationDrain) {
-      return Promise.resolve()
-    }
-    return new Promise((resolve) => {
-      this.observationFlushWaiters.add(resolve)
-      this.scheduleObservationDrain()
-    })
+    return this.observationQueue.flush()
   }
 
   snapshot(): AgentInvocationAdmissionSnapshot {
@@ -310,7 +303,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       pendingHighWater: this.pendingHighWater,
       granted: this.granted,
       rejected: this.rejected,
-      observationsDropped: this.observationsDropped,
+      observationsDropped: this.observationQueue.droppedCount,
       waitMs: summarizeNumberDistribution(this.waitSamples.snapshot()),
       holdMs: summarizeNumberDistribution(this.holdSamples.snapshot())
     }
@@ -569,39 +562,8 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   }
 
   private emit(observation: AgentInvocationAdmissionObservation): void {
-    if (this.pendingObservations.length >= MAX_PENDING_OBSERVATIONS) {
-      this.pendingObservations.shift()
-      this.observationsDropped += 1
-    }
-    this.pendingObservations.push(
-      observation.type === 'closed'
-        ? { ...observation, observationsDropped: this.observationsDropped }
-        : observation
-    )
-    this.scheduleObservationDrain()
-  }
-
-  private scheduleObservationDrain(): void {
-    if (this.observationDrain || this.pendingObservations.length === 0) return
-    this.observationDrain = setImmediate(() => this.drainObservations())
-  }
-
-  private drainObservations(): void {
-    this.observationDrain = undefined
-    const observations = this.pendingObservations.splice(0, OBSERVATION_DRAIN_BATCH_SIZE)
-    for (const observation of observations) {
-      try {
-        this.observe(observation)
-      } catch {
-        // Diagnostics must not alter admission accounting, fairness, or permit ownership.
-      }
-    }
-    if (this.pendingObservations.length > 0) {
-      this.scheduleObservationDrain()
-      return
-    }
-    for (const resolve of this.observationFlushWaiters) resolve()
-    this.observationFlushWaiters.clear()
+    if (!this.observationQueue.enqueue(observation) || observation.type !== 'closed') return
+    observation.observationsDropped = this.observationQueue.droppedCount
   }
 }
 

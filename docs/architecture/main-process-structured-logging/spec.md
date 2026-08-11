@@ -220,6 +220,11 @@ artificially lower the distribution. The `closed` event is a close-time snapshot
 release afterward. Observations leave the permit critical path through a bounded, ordered queue;
 teardown drains that queue before later infrastructure is closed.
 
+When neither JSONL persistence nor the development console is active, admission and delegation
+metrics may continue bounded in-memory accounting but skip observation queue insertion and
+`setImmediate` scheduling. Re-enabling an output affects subsequent observations only; disabled-time
+payloads are never replayed.
+
 Recent wait and hold distributions retain at most 256 samples. They are process-local diagnostics,
 reset on restart, and are not recovery or accounting facts. The admission implementation owns its
 collector instead of coupling to the Memory diagnostics lifecycle.

@@ -28,6 +28,7 @@ import type {
   AgentInvocationLease
 } from '@/agent/invocationAdmission'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { BoundedObservationQueue } from '@/lib/boundedObservationQueue'
 import type {
   AgentSubagentToolPort,
   AgentToolSessionPort,
@@ -79,8 +80,6 @@ const MAX_MODEL_WAIT_RESPONSE_BYTES = 64 * 1024
 const MAX_MODEL_EVENT_EVALUATION_EVIDENCE = 2
 const MAX_MODEL_TURN_EVALUATION_EVIDENCE = 4
 const LIVE_DELEGATION_OWNER_LIMIT = 5
-const MAX_PENDING_LIFECYCLE_OBSERVATIONS = 512
-const LIFECYCLE_OBSERVATION_DRAIN_BATCH_SIZE = 16
 const HANDOFF_TRUNCATION_NOTICE =
   '[Handoff truncated. Use deepchat_subagents read_result for the complete child answer.]'
 const UNREFERENCED_HANDOFF_TRUNCATION_NOTICE =
@@ -139,6 +138,7 @@ export interface LiveDelegationServiceOptions {
   consent: LiveDelegationConsentVerifier
   onChanged?: (parentSessionId: string, delegationId: string) => void
   observe?: (observation: LiveDelegationLifecycleObservation) => void | Promise<void>
+  observationsEnabled?: () => boolean
   now?: () => number
 }
 
@@ -251,21 +251,22 @@ export class LiveDelegationService {
   private readonly quarantineCancellations = new Set<Promise<void>>()
   private readonly childSafetyTails = new Map<string, Promise<void>>()
   private readonly waiters = new Set<MailboxWaiter>()
-  private readonly pendingObservations: LiveDelegationLifecycleObservation[] = []
-  private readonly observationFlushWaiters = new Set<() => void>()
-  private readonly observe: (
-    observation: LiveDelegationLifecycleObservation
-  ) => void | Promise<void>
+  private readonly observationQueue: BoundedObservationQueue<LiveDelegationLifecycleObservation>
   private readonly now: () => number
-  private observationsDropped = 0
-  private observationDrain: NodeJS.Immediate | undefined
   private unsubscribeRuntime: (() => void) | null = null
   private reconcilePromise: Promise<void> | null = null
   private stopPromise: Promise<void> | null = null
   private started = false
 
   constructor(private readonly options: LiveDelegationServiceOptions) {
-    this.observe = options.observe ?? (() => undefined)
+    this.observationQueue = new BoundedObservationQueue<LiveDelegationLifecycleObservation>({
+      observe: options.observe ?? (() => undefined),
+      enabled: options.observe ? (options.observationsEnabled ?? (() => true)) : () => false,
+      createDroppedObservation: (droppedCount) => ({
+        type: 'observations_dropped',
+        droppedCount
+      })
+    })
     this.now = options.now ?? performance.now.bind(performance)
   }
 
@@ -1948,60 +1949,11 @@ export class LiveDelegationService {
   }
 
   private notifyObserver(observation: LiveDelegationLifecycleObservation): void {
-    if (this.pendingObservations.length >= MAX_PENDING_LIFECYCLE_OBSERVATIONS) {
-      this.pendingObservations.shift()
-      this.observationsDropped += 1
-    }
-    this.pendingObservations.push(observation)
-    this.scheduleObservationDrain()
-  }
-
-  private scheduleObservationDrain(): void {
-    if (this.observationDrain) return
-    this.observationDrain = setImmediate(() => {
-      this.observationDrain = undefined
-      this.drainObservations()
-    })
+    this.observationQueue.enqueue(observation)
   }
 
   private flushObservations(): Promise<void> {
-    if (this.pendingObservations.length === 0 && !this.observationDrain) {
-      return Promise.resolve()
-    }
-    return new Promise((resolve) => {
-      this.observationFlushWaiters.add(resolve)
-      this.scheduleObservationDrain()
-    })
-  }
-
-  private drainObservations(): void {
-    const observations = this.pendingObservations.splice(0, LIFECYCLE_OBSERVATION_DRAIN_BATCH_SIZE)
-    for (const observation of observations) {
-      this.dispatchObservation(observation)
-    }
-    if (this.pendingObservations.length > 0) {
-      this.scheduleObservationDrain()
-      return
-    }
-    if (this.observationsDropped > 0) {
-      const droppedCount = this.observationsDropped
-      this.observationsDropped = 0
-      this.dispatchObservation({ type: 'observations_dropped', droppedCount })
-      if (this.pendingObservations.length > 0) {
-        this.scheduleObservationDrain()
-        return
-      }
-    }
-    for (const resolve of this.observationFlushWaiters) resolve()
-    this.observationFlushWaiters.clear()
-  }
-
-  private dispatchObservation(observation: LiveDelegationLifecycleObservation): void {
-    try {
-      void Promise.resolve(this.observe(observation)).catch(() => undefined)
-    } catch {
-      // Diagnostics must not alter durable delegation state, recovery, or child execution.
-    }
+    return this.observationQueue.flush()
   }
 
   private publishChanged(delegation: LiveDelegation): void {

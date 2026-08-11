@@ -17,6 +17,8 @@
       privacy regression tests using secret-bearing third-party-style Error objects.
 - [x] Add Agent admission wait/hold timing, bounded distributions, correlation context, close
       summary, richer snapshot, observer failure isolation, and race/fairness tests.
+- [x] Share the bounded asynchronous admission/delegation observation queue and skip queue insertion
+      and event-loop scheduling while all diagnostic output is disabled.
 - [x] Add payload-free Run, Turn, child Session, Delegation, suspend/resume, settlement, recovery,
       stale-result, and quarantine events at existing ownership boundaries.
 - [x] Migrate retained persistent call sites to typed events; leave legacy diagnostics on the

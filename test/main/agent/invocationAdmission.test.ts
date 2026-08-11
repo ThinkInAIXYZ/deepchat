@@ -426,6 +426,39 @@ describe('AgentInvocationAdmission', () => {
     expect(observe).toHaveBeenCalled()
   })
 
+  it('skips observation queue work while diagnostics output is disabled', async () => {
+    let observationsEnabled = false
+    let now = 0
+    const observe = vi.fn()
+    const admission = new AgentInvocationAdmission(1, 1, {
+      observe,
+      observationsEnabled: () => observationsEnabled,
+      now: () => now
+    })
+
+    const disabledPermit = await admission.acquire({
+      ownerId: 'disabled',
+      correlation: CORRELATION
+    })
+    now = 10
+    disabledPermit.release()
+    await admission.flushObservations()
+    expect(observe).not.toHaveBeenCalled()
+    expect(admission.snapshot()).toMatchObject({
+      waitMs: { samples: 1, p50: 0, p95: 0, max: 0 },
+      holdMs: { samples: 1, p50: 10, p95: 10, max: 10 }
+    })
+
+    observationsEnabled = true
+    const enabledPermit = await admission.acquire({ ownerId: 'enabled', correlation: CORRELATION })
+    enabledPermit.release()
+    await admission.flushObservations()
+    expect(observe.mock.calls.map(([observation]) => observation.type)).toEqual([
+      'granted',
+      'released'
+    ])
+  })
+
   it('excludes invalid clock endpoints from distributions and clamps clock rollback', async () => {
     const measure = async (clockValues: number[]) => {
       const observations: AgentInvocationAdmissionObservation[] = []

@@ -1295,6 +1295,7 @@ export async function createMainProcessControl(dependencies: {
   })
 
   const agentInvocationAdmission = new AgentInvocationAdmission(undefined, undefined, {
+    observationsEnabled: () => mainLogger.isOutputEnabled(),
     observe: (observation) => {
       switch (observation.type) {
         case 'queued':
@@ -2048,6 +2049,7 @@ export async function createMainProcessControl(dependencies: {
         }
       },
       observe: emitLiveDelegationObservation,
+      observationsEnabled: () => mainLogger.isOutputEnabled(),
       onChanged: (parentSessionId, delegationId) => {
         sessionQuery.notify({ sessionIds: [parentSessionId], reason: 'updated' })
         try {

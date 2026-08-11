@@ -73,8 +73,12 @@ export class MainLogger {
     this.warn = options.warn ?? (() => undefined)
   }
 
+  isOutputEnabled(): boolean {
+    return this.persistenceState !== 'disabled' || this.writeConsole !== undefined
+  }
+
   emit<TEvent extends MainLogEventName>(event: TEvent, input: MainLogEventInputMap[TEvent]): void {
-    if (this.persistenceState === 'disabled' && !this.writeConsole) return
+    if (!this.isOutputEnabled()) return
 
     try {
       const projected = projectMainLogEvent(event, input)
