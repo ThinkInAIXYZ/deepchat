@@ -968,7 +968,6 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (electronFocusedWindow) {
       const windowId = electronFocusedWindow.id
-      logger.info(this.windows)
       const ourWindow = this.windows.get(windowId)
 
       // 验证 Electron 报告的窗口是否在我们管理范围内且有效
