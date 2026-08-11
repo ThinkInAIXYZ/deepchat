@@ -84,9 +84,8 @@
 
 ## Validation Notes
 
-- Renderer validation passes: Project store 15/15, full Session store 83/83, sidebar 64/64, both
-  New Thread suites 42/42, and Project client coverage 43/43. The Session suite requires an 8 GB
-  worker heap because the default 4 GB runner exhausts memory.
+- Renderer validation passes: the full renderer suite passes 2099/2099, including Session store
+  80/80 and sidebar 64/64, with the default Node worker heap.
 - Focused main validation passes 139 tests across Project service, route contracts/dispatch, and
   shared filesystem utilities.
 - The native SQLite preference-table suite is skipped because its optional native runtime is not
