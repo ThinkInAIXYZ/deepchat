@@ -1,3 +1,4 @@
+import { afterEach } from 'vitest'
 import {
   performance,
   describe,
@@ -20,6 +21,8 @@ import {
   createRecord,
   createTapeService
 } from './tapeTestHarness'
+
+afterEach(() => vi.restoreAllMocks())
 
 function providerAttemptProvenance(overrides: Record<string, unknown> = {}) {
   return {
@@ -1334,7 +1337,6 @@ describe('SessionTape recall', () => {
       '[Tape] Projection search failed; using effective search:',
       projectionError
     )
-    warning.mockRestore()
   })
 
   it('appends tape projection rows when the previous projection is an effective prefix', () => {

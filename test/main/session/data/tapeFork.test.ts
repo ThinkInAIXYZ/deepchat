@@ -1,3 +1,4 @@
+import { afterEach } from 'vitest'
 import {
   describe,
   expect,
@@ -13,6 +14,8 @@ import {
   createRecord
 } from './tapeTestHarness'
 import { DeepChatContractStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('SessionTape forks', () => {
   it('keeps fork writes isolated until merge and discards fork entries on discard', () => {
@@ -480,7 +483,6 @@ describe('SessionTape forks', () => {
       'Fork fork-cleanup has been discarded and cannot be reused.'
     )
     expect(warning).toHaveBeenCalledWith('[Tape] Failed to delete fork generation:', cleanupError)
-    warning.mockRestore()
   })
 
   it('restores fork entries when the discard receipt cannot be appended', () => {

@@ -235,6 +235,8 @@ export function startApp(): void {
         }
       } catch (error) {
         reportNativeMainError('main: Application shutdown teardown failed:', error)
+        // Teardown is one-shot and may already have dismantled application services. Continue with
+        // the emergency quit rather than leave a partially stopped process that cannot retry it.
       }
 
       allowQuit = true

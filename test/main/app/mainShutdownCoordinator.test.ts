@@ -130,7 +130,7 @@ describe('MainShutdownCoordinator', () => {
     await expect(coordinator.request('app_quit')).resolves.toBeUndefined()
   })
 
-  it('contains observer failures without changing teardown failure behavior', async () => {
+  it('contains observer failures and keeps teardown failures one-shot', async () => {
     const failure = new Error('teardown failed')
     const observer = {
       started: vi.fn(() => {
@@ -140,12 +140,15 @@ describe('MainShutdownCoordinator', () => {
         throw new Error('observer failed')
       })
     }
-    const coordinator = new MainShutdownCoordinator(async () => {
+    const teardown = vi.fn(async () => {
       throw failure
-    }, observer)
+    })
+    const coordinator = new MainShutdownCoordinator(teardown, observer)
 
     await expect(coordinator.request('restart')).rejects.toBe(failure)
-    expect(observer.started).toHaveBeenCalledOnce()
+    await expect(coordinator.request('app_quit')).rejects.toBe(failure)
+    expect(teardown).toHaveBeenCalledOnce()
+    expect(observer.started).toHaveBeenCalledTimes(2)
     expect(observer.terminal).toHaveBeenCalledWith({
       outcome: 'failed',
       durationMs: expect.any(Number)

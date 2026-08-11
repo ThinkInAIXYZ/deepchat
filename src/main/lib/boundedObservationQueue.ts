@@ -37,10 +37,23 @@ export class BoundedObservationQueue<TObservation> {
   }
 
   enqueue(observation: TObservation): boolean {
+    return this.enqueueWithDroppedCount(() => observation)
+  }
+
+  enqueueWithDroppedCount(
+    createObservation: (totalDroppedAfterEnqueue: number) => TObservation
+  ): boolean {
     if (!this.isEnabled()) return false
-    if (this.pending.length >= this.capacity) {
+    const dropsOnEnqueue = this.pending.length >= this.capacity ? 1 : 0
+    let observation: TObservation
+    try {
+      observation = createObservation(this.totalDropped + dropsOnEnqueue)
+    } catch {
+      return false
+    }
+    if (dropsOnEnqueue > 0) {
       this.pending.shift()
-      this.recordDropped(1)
+      this.recordDropped(dropsOnEnqueue)
     }
     this.pending.push(observation)
     this.scheduleDrain()

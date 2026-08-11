@@ -39,14 +39,18 @@ describe('Main logging boundaries', () => {
       ...(await readSourceFiles(path.join(sourceRoot, 'main'))),
       ...(await readSourceFiles(path.join(sourceRoot, 'shared')))
     ]
+    const violations: string[] = []
 
     for (const { path: filePath, source } of files) {
-      expect(source).not.toMatch(/console\.(?:log|error|warn|info|debug|trace)\s*=/)
-      expect(source).not.toContain('logs/main.log')
-      if (!filePath.endsWith(path.join('main', 'logging', 'mainJsonlPersistence.ts'))) {
-        expect(source).not.toContain('transports.file')
-        expect(source).not.toContain('resolvePathFn')
+      const relativePath = path.relative(sourceRoot, filePath)
+      if (/console\.(?:log|error|warn|info|debug|trace)\s*=(?!=)/.test(source)) {
+        violations.push(`${relativePath}: console reassignment`)
       }
+      if (source.includes('logs/main.log')) violations.push(`${relativePath}: legacy Main log path`)
+      if (source.includes('transports.file')) violations.push(`${relativePath}: transports.file`)
+      if (source.includes('resolvePathFn')) violations.push(`${relativePath}: resolvePathFn`)
     }
+
+    expect(violations).toEqual([])
   })
 })

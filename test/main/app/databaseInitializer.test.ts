@@ -397,10 +397,17 @@ describe('DatabaseInitializer', () => {
     const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
     const observe = vi.fn().mockRejectedValue(new Error('diagnostic sink failed'))
     const { initializer } = await createInitializerWithMocks({ MainDatabase, observe })
+    const unhandledRejection = vi.fn()
+    process.on('unhandledRejection', unhandledRejection)
 
-    await expect(initializer.initialize()).resolves.toBe(presenterInstance)
-    await Promise.resolve()
-    expect(observe).toHaveBeenCalledOnce()
+    try {
+      await expect(initializer.initialize()).resolves.toBe(presenterInstance)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(observe).toHaveBeenCalledOnce()
+      expect(unhandledRejection).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandledRejection)
+    }
   })
 
   it('omits duration when the monotonic clock moves backwards', async () => {

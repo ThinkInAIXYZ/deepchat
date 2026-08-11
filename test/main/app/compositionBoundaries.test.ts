@@ -251,34 +251,41 @@ describe('session boundary composition', () => {
     )
     const destroyStart = compositionSource.indexOf('async function destroy(): Promise<void>')
     const destroyEnd = compositionSource.indexOf('async function runDestroyStep', destroyStart)
+    expect(destroyStart).toBeGreaterThanOrEqual(0)
+    expect(destroyEnd).toBeGreaterThan(destroyStart)
     const destroySource = compositionSource.slice(destroyStart, destroyEnd)
+    const destroyStepIndex = (step: string): number => {
+      const index = destroySource.indexOf(`'${step}'`)
+      expect(index, `Missing destroy step: ${step}`).toBeGreaterThanOrEqual(0)
+      return index
+    }
 
-    expect(destroySource.indexOf("'remoteService.destroy'")).toBeLessThan(
-      destroySource.indexOf("'sessionRuntimes.suspend'")
+    expect(destroyStepIndex('remoteService.destroy')).toBeLessThan(
+      destroyStepIndex('sessionRuntimes.suspend')
     )
-    expect(destroySource.indexOf("'liveDelegationService.stop'")).toBeLessThan(
-      destroySource.indexOf("'agentInvocationAdmission.close'")
+    expect(destroyStepIndex('liveDelegationService.stop')).toBeLessThan(
+      destroyStepIndex('agentInvocationAdmission.close')
     )
-    expect(destroySource.indexOf("'agentInvocationAdmission.close'")).toBeLessThan(
-      destroySource.indexOf("'agentInvocationAdmission.flushObservations'")
+    expect(destroyStepIndex('agentInvocationAdmission.close')).toBeLessThan(
+      destroyStepIndex('agentInvocationAdmission.flushObservations')
     )
-    expect(destroySource.indexOf("'agentInvocationAdmission.flushObservations'")).toBeLessThan(
-      destroySource.indexOf("'cronJobs.destroy'")
+    expect(destroyStepIndex('agentInvocationAdmission.flushObservations')).toBeLessThan(
+      destroyStepIndex('cronJobs.destroy')
     )
-    expect(destroySource.indexOf("'sessionRuntimes.suspend'")).toBeLessThan(
-      destroySource.indexOf("'skillInitialization.drain'")
+    expect(destroyStepIndex('sessionRuntimes.suspend')).toBeLessThan(
+      destroyStepIndex('skillInitialization.drain')
     )
-    expect(destroySource.indexOf("'skillInitialization.drain'")).toBeLessThan(
-      destroySource.indexOf("'pluginService.shutdown'")
+    expect(destroyStepIndex('skillInitialization.drain')).toBeLessThan(
+      destroyStepIndex('pluginService.shutdown')
     )
-    expect(destroySource.indexOf("'skillSyncScan.drain'")).toBeLessThan(
-      destroySource.indexOf("'skillSyncService.destroy'")
+    expect(destroyStepIndex('skillSyncScan.drain')).toBeLessThan(
+      destroyStepIndex('skillSyncService.destroy')
     )
     expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
     expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
-    expect(destroySource.indexOf("'windowPresenter.destroyWindows'")).toBeLessThan(
-      destroySource.indexOf("'mainDatabase.close'")
+    expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
+      destroyStepIndex('mainDatabase.close')
     )
   })
 
@@ -361,10 +368,10 @@ describe('session boundary composition', () => {
       'utf8'
     )
     const restartStart = compositionSource.indexOf('async function restartApplication()')
-    const restartSource = compositionSource.slice(
-      restartStart,
-      compositionSource.indexOf('\n  }', restartStart)
-    )
+    const restartEnd = compositionSource.indexOf('\n  }', restartStart)
+    expect(restartStart).toBeGreaterThanOrEqual(0)
+    expect(restartEnd).toBeGreaterThan(restartStart)
+    const restartSource = compositionSource.slice(restartStart, restartEnd)
 
     expect(deviceRoutesSource).toContain('await deps.restartApplication()')
     expect(deviceRoutesSource).not.toContain('await deps.device.restartApp()')

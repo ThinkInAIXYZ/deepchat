@@ -70,6 +70,25 @@ describe('BoundedObservationQueue', () => {
     expect(scheduler.schedule).toHaveBeenCalledTimes(3)
   })
 
+  it('constructs an observation with the drop caused by its own enqueue', async () => {
+    const observations: Array<Readonly<{ droppedCount: number }>> = []
+    const scheduler = createManualScheduler()
+    const queue = new BoundedObservationQueue<Readonly<{ droppedCount: number }>>({
+      capacity: 1,
+      observe: (observation) => observations.push(observation),
+      schedule: scheduler.schedule
+    })
+    queue.enqueue({ droppedCount: 0 })
+    queue.enqueueWithDroppedCount((droppedCount) => Object.freeze({ droppedCount }))
+
+    const flushed = queue.flush()
+    scheduler.drainAll()
+    await flushed
+
+    expect(queue.droppedCount).toBe(1)
+    expect(observations).toEqual([{ droppedCount: 1 }])
+  })
+
   it('flushes without awaiting asynchronous observers', async () => {
     const scheduler = createManualScheduler()
     const observe = vi.fn(() => new Promise<void>(() => undefined))

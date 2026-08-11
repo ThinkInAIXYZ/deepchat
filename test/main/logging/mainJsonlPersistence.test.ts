@@ -143,10 +143,11 @@ describe('MainJsonlPersistence', () => {
   it('recovers after a bounded scan of an oversized incomplete tail', () => {
     const userData = createUserData()
     const activePath = path.join(userData, 'logs/main.jsonl')
+    const oversizedFileBytes = MAX_FILE_BYTES + 1
     fs.mkdirSync(path.dirname(activePath), { recursive: true })
     const descriptor = fs.openSync(activePath, 'w')
     try {
-      fs.ftruncateSync(descriptor, MAX_FILE_BYTES * 100)
+      fs.ftruncateSync(descriptor, oversizedFileBytes)
     } finally {
       fs.closeSync(descriptor)
     }
@@ -166,7 +167,7 @@ describe('MainJsonlPersistence', () => {
     expect(readSync.mock.calls.reduce((total, call) => total + call[3], 0)).toBeLessThanOrEqual(
       MAX_MAIN_LOG_RECORD_BYTES + 2
     )
-    expect(fs.statSync(path.join(userData, 'logs/main.old.jsonl')).size).toBe(MAX_FILE_BYTES * 100)
+    expect(fs.statSync(path.join(userData, 'logs/main.old.jsonl')).size).toBe(oversizedFileBytes)
     expect(fs.existsSync(activePath)).toBe(false)
 
     expect(persistence.write('info', validLine())).toBe('written')

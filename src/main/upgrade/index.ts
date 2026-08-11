@@ -469,7 +469,7 @@ export class UpgradeService {
       await autoUpdater.checkForUpdates()
       this._lastCheckTime = Date.now()
       this._automaticCheckFailureActive = false
-    } catch (error: Error | unknown) {
+    } catch (error: unknown) {
       this.notifyUpdaterFailure('check', 'unknown')
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
@@ -537,7 +537,7 @@ export class UpgradeService {
             this.markUpdateDownloaded()
           }
         })
-        .catch((error: Error | unknown) => {
+        .catch((error: unknown) => {
           this.notifyUpdaterFailure('download', 'provider')
           this._lock = false
           this._status = 'error'
@@ -552,7 +552,7 @@ export class UpgradeService {
           this._downloadOperationActive = false
         })
       return true
-    } catch (error: Error | unknown) {
+    } catch (error: unknown) {
       this._downloadOperationActive = false
       this.notifyUpdaterFailure('download', 'unknown')
       this._status = 'error'

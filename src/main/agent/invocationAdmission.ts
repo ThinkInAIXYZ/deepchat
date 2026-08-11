@@ -562,8 +562,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   }
 
   private emit(observation: AgentInvocationAdmissionObservation): void {
-    if (!this.observationQueue.enqueue(observation) || observation.type !== 'closed') return
-    observation.observationsDropped = this.observationQueue.droppedCount
+    if (observation.type !== 'closed') {
+      this.observationQueue.enqueue(observation)
+      return
+    }
+    this.observationQueue.enqueueWithDroppedCount((observationsDropped) => ({
+      ...observation,
+      observationsDropped
+    }))
   }
 }
 

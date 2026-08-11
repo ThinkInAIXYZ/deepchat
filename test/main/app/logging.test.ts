@@ -1,3 +1,4 @@
+import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { originalConsole } from '@shared/logger'
 import { LoggingService } from '@/app/logging'
@@ -65,8 +66,8 @@ describe('Main process fatal diagnostics', () => {
         throw new Error('formatting failed')
       }
     }
-    vi.mocked(originalConsole.error).mockImplementationOnce(() => {
-      throw new Error('console unavailable')
+    vi.mocked(originalConsole.error).mockImplementationOnce((_message, value) => {
+      inspect(value)
     })
 
     expect(() => reportNativeMainError('main: lifecycle failed:', error)).not.toThrow()

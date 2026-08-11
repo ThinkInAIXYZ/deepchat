@@ -148,7 +148,7 @@ Once all persistent call sites use the typed API:
 - migrate fatal process handlers and the remaining direct `electron-log` imports;
 - move logger ownership from `src/shared` to Main;
 - switch the active path to `logs/main.jsonl`;
-- add a source-boundary guard allowing `electron-log` only in the adapter;
+- add a source-boundary guard rejecting `electron-log` imports in Main and shared runtime code;
 - update test setup mocks to the typed API;
 - update the maintained user-data profile contract and renderer performance references.
 
