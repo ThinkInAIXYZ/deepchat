@@ -20,6 +20,11 @@ export const MAIN_LOG_ERROR_CATEGORIES = [
 ] as const
 
 export type MainLogErrorCategory = (typeof MAIN_LOG_ERROR_CATEGORIES)[number]
+const FATAL_ERROR_CATEGORIES = [
+  'aborted',
+  'timeout',
+  'unknown'
+] as const satisfies readonly MainLogErrorCategory[]
 export type MainLogLevel = 'error' | 'warn' | 'info'
 export type MainLogShutdownReason =
   | 'all_windows_closed'
@@ -683,7 +688,7 @@ export function classifyMainLogError(value: unknown): SafeLogError {
   if (utilTypes.isProxy(value)) return { category: 'unknown' }
   const errorName = nativeErrorName(value) ?? ownDataString(value, 'name')
   const name = errorName && errorName.length <= MAX_ERROR_NAME_LENGTH ? errorName : undefined
-  const category: MainLogErrorCategory =
+  const category: (typeof FATAL_ERROR_CATEGORIES)[number] =
     name === 'AbortError'
       ? 'aborted'
       : name?.toLowerCase().includes('timeout')
@@ -1247,9 +1252,8 @@ function isProjectedFatalContext(context: unknown): context is MainLogContext {
   const error = context.error
   if (!isPlainRecord(error)) return false
   if (
-    error.category !== 'aborted' &&
-    error.category !== 'timeout' &&
-    error.category !== 'unknown'
+    typeof error.category !== 'string' ||
+    !(FATAL_ERROR_CATEGORIES as readonly string[]).includes(error.category)
   ) {
     return false
   }

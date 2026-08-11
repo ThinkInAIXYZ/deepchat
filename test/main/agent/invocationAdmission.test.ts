@@ -416,6 +416,23 @@ describe('AgentInvocationAdmission', () => {
     expect(observe).not.toHaveBeenCalled()
   })
 
+  it.each(['parentSessionId', 'delegationId', 'turnId'] as const)(
+    'drops correlation snapshots with an oversized %s',
+    async (field) => {
+      const observe = vi.fn()
+      const admission = new AgentInvocationAdmission(1, 1, { observe })
+      const permit = await admission.acquire({
+        ownerId: 'owner',
+        correlation: { ...CORRELATION, [field]: 'x'.repeat(257) }
+      })
+
+      permit.release()
+      await admission.flushObservations()
+
+      expect(observe).not.toHaveBeenCalled()
+    }
+  )
+
   it('dispatches permits before draining potentially slow observations', async () => {
     const observe = vi.fn()
     const admission = new AgentInvocationAdmission(1, 1, { observe })

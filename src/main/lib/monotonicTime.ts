@@ -13,12 +13,27 @@ export function readMonotonicNow(now: MonotonicClock = defaultMonotonicClock): n
   }
 }
 
+export function elapsedMonotonicBetween(
+  startedAt: number | undefined,
+  completedAt: number | undefined
+): number | undefined {
+  if (
+    startedAt === undefined ||
+    !Number.isFinite(startedAt) ||
+    startedAt < 0 ||
+    completedAt === undefined ||
+    !Number.isFinite(completedAt) ||
+    completedAt < startedAt
+  ) {
+    return undefined
+  }
+  return completedAt - startedAt
+}
+
 export function elapsedMonotonicMs(
   startedAt: number | undefined,
   now: MonotonicClock = defaultMonotonicClock
 ): number | undefined {
   if (startedAt === undefined || !Number.isFinite(startedAt) || startedAt < 0) return undefined
-  const completedAt = readMonotonicNow(now)
-  if (completedAt === undefined || completedAt < startedAt) return undefined
-  return completedAt - startedAt
+  return elapsedMonotonicBetween(startedAt, readMonotonicNow(now))
 }

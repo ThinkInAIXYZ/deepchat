@@ -709,6 +709,19 @@ describe('Main log event projection', () => {
     expect(JSON.stringify([abort, timeout])).not.toContain('SECRET_')
   })
 
+  it('accepts every fatal error classification in persisted-context validation', () => {
+    const errors = [
+      new DOMException('SECRET', 'AbortError'),
+      new DOMException('SECRET', 'TimeoutError'),
+      new Error('SECRET')
+    ]
+
+    for (const error of errors) {
+      const context = { error: classifyMainLogError(error) }
+      expect(isProjectedMainLogEvent('process.unhandled_rejection', 'error', context)).toBe(true)
+    }
+  })
+
   it('classifies startup-safe errors without carrying error content', () => {
     expect(classifyMainLogError(new DOMException('SECRET', 'TimeoutError'))).toEqual({
       category: 'timeout'

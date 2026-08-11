@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
+import { elapsedMonotonicBetween, elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
 
 describe('monotonic time diagnostics', () => {
   it('returns elapsed time for valid monotonic readings', () => {
     expect(readMonotonicNow(() => 10)).toBe(10)
+    expect(elapsedMonotonicBetween(10, 25)).toBe(15)
     expect(elapsedMonotonicMs(10, () => 25)).toBe(15)
   })
 
@@ -21,6 +22,7 @@ describe('monotonic time diagnostics', () => {
 
     expect(readMonotonicNow(throwingClock)).toBeUndefined()
     expect(elapsedMonotonicMs(10, throwingClock)).toBeUndefined()
+    expect(elapsedMonotonicBetween(10, 9)).toBeUndefined()
     expect(elapsedMonotonicMs(10, () => 9)).toBeUndefined()
   })
 

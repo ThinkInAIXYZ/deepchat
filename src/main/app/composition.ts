@@ -2147,6 +2147,21 @@ export async function createMainProcessControl(dependencies: {
     trayPresenter.init()
   }
 
+  function scheduleObservedStartupTask(
+    task: Parameters<StartupWorkloadCoordinator['scheduleTask']>[0],
+    errorMessage: string,
+    failure: {
+      component: MainLogStartupComponent
+      category: MainLogStartupComponentFailureCategory
+    }
+  ): void {
+    void startupWorkloadCoordinator.scheduleTask(task).catch((error) => {
+      if (isStartupWorkloadCancellation(error)) return
+      emitStartupComponentFailure(dependencies.startupRunId, failure.component, failure.category)
+      console.error(errorMessage, error)
+    })
+  }
+
   function init(mainRunId: string) {
     if (hasInitialized) {
       console.info('[Startup][Main] Main startup skipped because startup already ran')
@@ -2158,56 +2173,72 @@ export async function createMainProcessControl(dependencies: {
 
     const providers = providerSettings.getProviders()
     console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
-    void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:floating-button',
-      target: 'main',
-      phase: 'deferred',
-      resource: 'io',
-      labelKey: 'startup.main.floatingButton',
-      runId: mainRunId,
-      run: async () => {
-        await initializeFloatingButton()
-      }
-    })
+    scheduleObservedStartupTask(
+      {
+        id: 'main:floating-button',
+        target: 'main',
+        phase: 'deferred',
+        resource: 'io',
+        labelKey: 'startup.main.floatingButton',
+        runId: mainRunId,
+        run: async () => {
+          await initializeFloatingButton()
+        }
+      },
+      'Failed to schedule floating button initialization:',
+      { component: 'floating_widget', category: 'resource' }
+    )
 
-    void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:skills-sync-scan',
-      target: 'main',
-      phase: 'background',
-      resource: 'cpu',
-      labelKey: 'startup.main.skillsSyncScan',
-      runId: mainRunId,
-      run: async (taskContext) => {
-        await taskContext.yield()
-        await initializeSkillSyncScan(taskContext.signal)
-      }
-    })
+    scheduleObservedStartupTask(
+      {
+        id: 'main:skills-sync-scan',
+        target: 'main',
+        phase: 'background',
+        resource: 'cpu',
+        labelKey: 'startup.main.skillsSyncScan',
+        runId: mainRunId,
+        run: async (taskContext) => {
+          await taskContext.yield()
+          await initializeSkillSyncScan(taskContext.signal)
+        }
+      },
+      'Failed to schedule SkillSyncService background scan:',
+      { component: 'skill_sync', category: 'unknown' }
+    )
 
-    void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:mcp-init',
-      target: 'main',
-      phase: 'background',
-      resource: 'io',
-      labelKey: 'startup.main.mcpInit',
-      runId: mainRunId,
-      run: async (taskContext) => {
-        await taskContext.yield()
-        await initializeMcp()
-      }
-    })
+    scheduleObservedStartupTask(
+      {
+        id: 'main:mcp-init',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.mcpInit',
+        runId: mainRunId,
+        run: async (taskContext) => {
+          await taskContext.yield()
+          await initializeMcp()
+        }
+      },
+      'Failed to schedule MCP initialization:',
+      { component: 'mcp', category: 'unknown' }
+    )
 
-    void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:remote-runtime',
-      target: 'main',
-      phase: 'background',
-      resource: 'io',
-      labelKey: 'startup.main.remoteRuntime',
-      runId: mainRunId,
-      run: async (taskContext) => {
-        await taskContext.yield()
-        await initializeRemoteControl()
-      }
-    })
+    scheduleObservedStartupTask(
+      {
+        id: 'main:remote-runtime',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.remoteRuntime',
+        runId: mainRunId,
+        run: async (taskContext) => {
+          await taskContext.yield()
+          await initializeRemoteControl()
+        }
+      },
+      'Failed to schedule remote runtime initialization:',
+      { component: 'remote_runtime', category: 'unknown' }
+    )
 
     void startupWorkloadCoordinator
       .whenIdle('main', async () => {
@@ -2226,6 +2257,7 @@ export async function createMainProcessControl(dependencies: {
         })
       })
       .catch((error) => {
+        if (isStartupWorkloadCancellation(error)) return
         console.error('Failed to schedule idle provider warmup:', error)
       })
   }
@@ -2925,27 +2957,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   function scheduleBackgroundWork(): void {
-    const schedule = (
-      task: Parameters<StartupWorkloadCoordinator['scheduleTask']>[0],
-      errorMessage: string,
-      failure: {
-        component: MainLogStartupComponent
-        category: MainLogStartupComponentFailureCategory
-      }
-    ) => {
-      void startupWorkloadCoordinator.scheduleTask(task).catch((error) => {
-        if (!isStartupWorkloadCancellation(error)) {
-          emitStartupComponentFailure(
-            dependencies.startupRunId,
-            failure.component,
-            failure.category
-          )
-        }
-        console.error(errorMessage, error)
-      })
-    }
-
-    schedule(
+    scheduleObservedStartupTask(
       {
         id: 'main:legacy-import',
         target: 'main',
@@ -2958,7 +2970,7 @@ export async function createMainProcessControl(dependencies: {
       { component: 'legacy_import', category: 'persistence' }
     )
 
-    schedule(
+    scheduleObservedStartupTask(
       {
         id: 'main:rtk-health-check',
         target: 'main',
@@ -2976,7 +2988,7 @@ export async function createMainProcessControl(dependencies: {
       { component: 'rtk_health_check', category: 'resource' }
     )
 
-    schedule(
+    scheduleObservedStartupTask(
       {
         id: 'main:usage-stats-backfill',
         target: 'main',
@@ -2989,7 +3001,7 @@ export async function createMainProcessControl(dependencies: {
       { component: 'usage_stats_backfill', category: 'persistence' }
     )
 
-    schedule(
+    scheduleObservedStartupTask(
       {
         id: 'main:sqlite-mainline-normalization',
         target: 'main',
@@ -3006,7 +3018,7 @@ export async function createMainProcessControl(dependencies: {
       { component: 'sqlite_mainline_normalization', category: 'persistence' }
     )
 
-    schedule(
+    scheduleObservedStartupTask(
       {
         id: 'main:disabled-agent-tool-capability-cleanup',
         target: 'main',

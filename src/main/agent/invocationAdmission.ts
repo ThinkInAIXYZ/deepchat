@@ -6,9 +6,11 @@ import {
   type NumberDistribution
 } from '@/lib/boundedNumberRing'
 import { BoundedObservationQueue } from '@/lib/boundedObservationQueue'
+import { elapsedMonotonicBetween, readMonotonicNow } from '@/lib/monotonicTime'
 
 export const DEFAULT_AGENT_INVOCATION_CAPACITY = 6
 export const DEFAULT_AGENT_INVOCATION_MAX_PENDING = 256
+const MAX_AGENT_INVOCATION_IDENTIFIER_LENGTH = 256
 
 export interface AgentInvocationPermit {
   release(): void
@@ -183,7 +185,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       return Promise.reject(error)
     }
     const acquisitionSeq = this.nextAcquisitionSequence()
-    const startedAt = this.readClock()
+    const startedAt = readMonotonicNow(this.now)
     const correlation = this.snapshotCorrelation(options.correlation)
     if (this.closedError) {
       this.recordImmediateRejection(correlation, acquisitionSeq, 'closed')
@@ -422,8 +424,8 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     this.activeByOwner.set(ownerId, this.getActiveForOwner(ownerId) + 1)
     this.activeHighWater = Math.max(this.activeHighWater, this.active)
     this.granted += 1
-    const grantedAt = this.readClock()
-    const waitMs = this.elapsedBetween(startedAt, grantedAt)
+    const grantedAt = readMonotonicNow(this.now)
+    const waitMs = elapsedMonotonicBetween(startedAt, grantedAt)
     if (waitMs !== undefined) this.waitSamples.push(waitMs)
     if (correlation) {
       this.emit({
@@ -492,13 +494,13 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
         kind.value !== 'live_delegation' ||
         !parentSessionId ||
         !('value' in parentSessionId) ||
-        typeof parentSessionId.value !== 'string' ||
+        !isBoundedAdmissionIdentifier(parentSessionId.value) ||
         !delegationId ||
         !('value' in delegationId) ||
-        typeof delegationId.value !== 'string' ||
+        !isBoundedAdmissionIdentifier(delegationId.value) ||
         !turnId ||
         !('value' in turnId) ||
-        typeof turnId.value !== 'string'
+        !isBoundedAdmissionIdentifier(turnId.value)
       ) {
         return undefined
       }
@@ -540,27 +542,8 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     return this.acquisitionSequence
   }
 
-  private readClock(): number | undefined {
-    try {
-      const value = this.now()
-      return Number.isFinite(value) && value >= 0 ? value : undefined
-    } catch {
-      return undefined
-    }
-  }
-
   private elapsedSince(startedAt: number | undefined): number | undefined {
-    return this.elapsedBetween(startedAt, this.readClock())
-  }
-
-  private elapsedBetween(
-    startedAt: number | undefined,
-    finishedAt: number | undefined
-  ): number | undefined {
-    if (startedAt === undefined || finishedAt === undefined || finishedAt < startedAt) {
-      return undefined
-    }
-    return finishedAt - startedAt
+    return elapsedMonotonicBetween(startedAt, readMonotonicNow(this.now))
   }
 
   private emit(observation: AgentInvocationAdmissionObservation): void {
@@ -692,10 +675,20 @@ function forwardAbortSignals(
 
 function normalizeOwnerId(ownerId: string): string {
   const normalized = ownerId.trim()
-  if (!normalized || normalized.length > 256) {
-    throw new Error('Agent invocation ownerId must contain 1 to 256 characters.')
+  if (!normalized || normalized.length > MAX_AGENT_INVOCATION_IDENTIFIER_LENGTH) {
+    throw new Error(
+      `Agent invocation ownerId must contain 1 to ${MAX_AGENT_INVOCATION_IDENTIFIER_LENGTH} characters.`
+    )
   }
   return normalized
+}
+
+function isBoundedAdmissionIdentifier(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAX_AGENT_INVOCATION_IDENTIFIER_LENGTH
+  )
 }
 
 function normalizeOwnerLimit(requested: number | undefined, capacity: number): number {
