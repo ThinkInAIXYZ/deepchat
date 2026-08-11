@@ -5,6 +5,9 @@ import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const mainDatabaseModule = Database ? await import('@/data/mainDatabase').catch(() => null) : null
+const pendingInputsModule = Database
+  ? await import('@/session/data/tables/deepchatPendingInputs').catch(() => null)
+  : null
 const liveDelegationsModule = Database
   ? await import('@/orchestration/data/tables/liveDelegations').catch(() => null)
   : null
@@ -13,9 +16,13 @@ const LATEST_DATABASE_SCHEMA_VERSION =
   liveDelegationsModule?.LIVE_DELEGATION_EVALUATION_DATABASE_SCHEMA_VERSION
 const CONTRACT_DATABASE_SCHEMA_VERSION =
   liveDelegationsModule?.LIVE_DELEGATION_CONTRACT_DATABASE_SCHEMA_VERSION
+const CURRENT_DATABASE_SCHEMA_VERSION = Math.max(
+  LATEST_DATABASE_SCHEMA_VERSION ?? 0,
+  pendingInputsModule?.PENDING_INPUT_RETRY_SCHEMA_VERSION ?? 0
+)
 const DatabaseCtor = Database!
 const describeIfSqlite = nativeSqliteDescribeIf(
-  Boolean(MainDatabaseCtor && LATEST_DATABASE_SCHEMA_VERSION && CONTRACT_DATABASE_SCHEMA_VERSION),
+  Boolean(MainDatabaseCtor && CURRENT_DATABASE_SCHEMA_VERSION && CONTRACT_DATABASE_SCHEMA_VERSION),
   'Live delegation migration modules are unavailable'
 )
 
@@ -46,7 +53,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LATEST_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(CURRENT_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -68,7 +75,7 @@ describeIfSqlite('live delegation schema migration', () => {
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
     ).toEqual({
-      version: LATEST_DATABASE_SCHEMA_VERSION
+      version: CURRENT_DATABASE_SCHEMA_VERSION
     })
     verification.close()
   })
@@ -101,7 +108,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LATEST_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(CURRENT_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -116,7 +123,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ effect_state: 'none', effect_evidence_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -151,7 +158,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LATEST_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(CURRENT_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -166,7 +173,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ result_summary: 'Done.', result_ref_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -203,7 +210,7 @@ describeIfSqlite('live delegation schema migration', () => {
     expect(columns.some((column) => column.name === 'result_ref_json')).toBe(true)
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -320,7 +327,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ content: 'Continue.', evaluation_json: null, evaluation_ref_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -347,7 +354,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LATEST_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(CURRENT_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -363,7 +370,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual([])
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -405,7 +412,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LATEST_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(CURRENT_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -420,7 +427,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ content: 'Done.', evaluation_json: null, evaluation_ref_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LATEST_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: CURRENT_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 })

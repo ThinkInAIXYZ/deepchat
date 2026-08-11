@@ -2,6 +2,8 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { PendingSessionInputState } from '@shared/types/agent-interface'
 
+export const PENDING_INPUT_RETRY_SCHEMA_VERSION = 67
+
 export interface DeepChatPendingInputRow {
   id: string
   session_id: string
@@ -11,6 +13,7 @@ export interface DeepChatPendingInputRow {
   message_ids_json: string
   assistant_message_id: string | null
   blocking_json: string | null
+  retry_required_at: number | null
   queue_order: number | null
   claimed_at: number | null
   consumed_at: number | null
@@ -34,6 +37,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
         message_ids_json TEXT NOT NULL DEFAULT '[]',
         assistant_message_id TEXT,
         blocking_json TEXT,
+        retry_required_at INTEGER,
         queue_order INTEGER,
         claimed_at INTEGER,
         consumed_at INTEGER,
@@ -60,11 +64,30 @@ export class DeepChatPendingInputsTable extends BaseTable {
           ADD COLUMN assistant_message_id TEXT;
       `
     }
+    if (version === PENDING_INPUT_RETRY_SCHEMA_VERSION) {
+      return 'ALTER TABLE deepchat_pending_inputs ADD COLUMN retry_required_at INTEGER;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 46
+    return PENDING_INPUT_RETRY_SCHEMA_VERSION
+  }
+
+  finalizeMigration(version: number): void {
+    if (version === PENDING_INPUT_RETRY_SCHEMA_VERSION) {
+      this.normalizeRetryRequiredRows()
+    }
+  }
+
+  normalizeRetryRequiredRows(): void {
+    this.db.exec(`
+      UPDATE deepchat_pending_inputs
+      SET state = 'blocked',
+          retry_required_at = COALESCE(retry_required_at, updated_at, created_at),
+          blocking_json = NULL
+      WHERE state = 'retry_required';
+    `)
   }
 
   insert(row: {
@@ -76,6 +99,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
     messageIdsJson?: string
     assistantMessageId?: string | null
     blockingJson?: string | null
+    retryRequiredAt?: number | null
     queueOrder?: number | null
     claimedAt?: number | null
     consumedAt?: number | null
@@ -96,12 +120,13 @@ export class DeepChatPendingInputsTable extends BaseTable {
           message_ids_json,
           assistant_message_id,
           blocking_json,
+          retry_required_at,
           queue_order,
           claimed_at,
           consumed_at,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -112,6 +137,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
         row.messageIdsJson ?? '[]',
         row.assistantMessageId ?? null,
         row.blockingJson ?? null,
+        row.retryRequiredAt ?? null,
         row.queueOrder ?? null,
         row.claimedAt ?? null,
         row.consumedAt ?? null,
@@ -196,6 +222,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
         | 'message_ids_json'
         | 'assistant_message_id'
         | 'blocking_json'
+        | 'retry_required_at'
         | 'queue_order'
         | 'claimed_at'
         | 'consumed_at'
@@ -228,6 +255,10 @@ export class DeepChatPendingInputsTable extends BaseTable {
     if (fields.blocking_json !== undefined) {
       setClauses.push('blocking_json = ?')
       params.push(fields.blocking_json)
+    }
+    if (fields.retry_required_at !== undefined) {
+      setClauses.push('retry_required_at = ?')
+      params.push(fields.retry_required_at)
     }
     if (fields.queue_order !== undefined) {
       setClauses.push('queue_order = ?')

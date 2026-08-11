@@ -337,7 +337,7 @@ describe('PendingInputAdmissionCoordinator', () => {
     expect(test.pendingInputs.retryReleasedQueueInput).toHaveBeenCalledOnce()
   })
 
-  it('rejects retry for a non-head Queue item without mutating it', async () => {
+  it('accepts retry for a non-head Queue item and leaves dispatch ordering to the pump', async () => {
     const test = createHarness()
     test.harness.input = {
       ...test.harness.input!,
@@ -351,13 +351,14 @@ describe('PendingInputAdmissionCoordinator', () => {
     ])
 
     await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
-      accepted: false,
+      accepted: true,
       started: false
     })
 
-    expect(test.pendingInputs.retryReleasedQueueInput).not.toHaveBeenCalled()
-    expect(test.pump.drain).not.toHaveBeenCalled()
-    expect(test.harness.input?.state).toBe('retry_required')
+    expect(test.pendingInputs.retryReleasedQueueInput).toHaveBeenCalledWith(SESSION_ID, 'input')
+    expect(test.pump.drain).toHaveBeenCalledWith(SESSION_ID, 'manual')
+    expect(test.pump.schedule).toHaveBeenCalledWith(SESSION_ID, 'enqueue')
+    expect(test.harness.input?.state).toBe('pending')
   })
 
   it('keeps an accepted retry successful when the immediate drain fails', async () => {

@@ -229,15 +229,19 @@ export class SessionPendingInputs {
   }
 
   moveQueuedInput(sessionId: string, itemId: string, toIndex: number): PendingSessionInputRecord[] {
-    this.assertQueueInput(sessionId, itemId)
-    const records = this.store.moveQueueInput(sessionId, itemId, toIndex)
+    const records = this.store.runInTransaction(() => {
+      this.assertQueueInput(sessionId, itemId)
+      return this.store.moveQueueInput(sessionId, itemId, toIndex)
+    })
     this.emitUpdated(sessionId)
     return records
   }
 
   deletePendingInput(sessionId: string, itemId: string): void {
-    this.assertDeletablePendingInput(sessionId, itemId)
-    this.store.deleteInput(itemId)
+    this.store.runInTransaction(() => {
+      this.assertDeletablePendingInput(sessionId, itemId)
+      this.store.deleteInput(itemId)
+    })
     this.emitUpdated(sessionId)
   }
 
@@ -363,8 +367,10 @@ export class SessionPendingInputs {
   }
 
   consumeQueuedInput(sessionId: string, itemId: string): void {
-    this.assertQueueInputForSession(sessionId, itemId)
-    this.store.consumeQueueInput(itemId)
+    this.store.runInTransaction(() => {
+      this.assertQueueInputForSession(sessionId, itemId)
+      this.store.consumeQueueInput(itemId)
+    })
     this.emitUpdated(sessionId)
   }
 

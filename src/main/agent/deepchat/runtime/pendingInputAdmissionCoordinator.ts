@@ -445,13 +445,6 @@ export class PendingInputAdmissionCoordinator {
     if (input.state !== 'retry_required') {
       return { accepted: false, started: false }
     }
-    const queueHead = this.ports.pendingInputs
-      .listPendingInputs(sessionId)
-      .filter((item) => item.mode === 'queue')
-      .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))[0]
-    if (queueHead?.id !== itemId) {
-      return { accepted: false, started: false }
-    }
 
     try {
       this.ports.pendingInputs.retryReleasedQueueInput(sessionId, itemId)

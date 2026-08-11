@@ -222,6 +222,7 @@ function createMockSqlitePresenter() {
         message_ids_json: input.messageIdsJson ?? input.message_ids_json ?? '[]',
         assistant_message_id: input.assistantMessageId ?? input.assistant_message_id ?? null,
         blocking_json: input.blockingJson ?? input.blocking_json ?? null,
+        retry_required_at: input.retryRequiredAt ?? input.retry_required_at ?? null,
         queue_order: input.queueOrder ?? input.queue_order ?? null,
         claimed_at: input.claimedAt ?? input.claimed_at ?? null,
         consumed_at: input.consumedAt ?? input.consumed_at ?? null,
@@ -7990,8 +7991,15 @@ describe('DeepChatAgentHarness', () => {
       })
     })
 
-    it('releases an immediately claimed input when entry validation rejects it', async () => {
+    it('retries a rejected question follow-up behind an older Queue draft', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('older-queue-draft')
+        .mockReturnValueOnce('question-follow-up')
+      const older = sessionData.pendingInputs.queuePendingInput('s1', {
+        text: 'Older Queue draft',
+        files: []
+      })
       const interactionRow = {
         ...makeDeepchatAssistantRow(1, '', 'interaction-message', 'pending'),
         content: JSON.stringify([
@@ -8033,6 +8041,7 @@ describe('DeepChatAgentHarness', () => {
 
         await vi.waitFor(async () => {
           expect(await agent.listPendingInputs('s1')).toEqual([
+            expect.objectContaining({ id: older.id, state: 'pending' }),
             expect.objectContaining({ id: claimed.id, state: 'retry_required' })
           ])
         })
@@ -8042,12 +8051,20 @@ describe('DeepChatAgentHarness', () => {
         sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([])
         agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.replacePendingInteractions([])
         setRuntimeStatus(agent, 's1', 'idle')
-        await agent.updateQueuedInput('s1', claimed.id, claimed.payload)
+        sqlitePresenter.deepchatPendingInputsTable.update.mockClear()
+        await expect(agent.retryPendingQueueInput('s1', claimed.id)).resolves.toMatchObject({
+          accepted: true
+        })
 
         await vi.waitFor(async () => {
-          expect(processStream).toHaveBeenCalledOnce()
+          expect(processStream).toHaveBeenCalledTimes(2)
           expect(await agent.listPendingInputs('s1')).toEqual([])
         })
+        expect(
+          sqlitePresenter.deepchatPendingInputsTable.update.mock.calls
+            .filter(([, fields]: [string, { state?: string }]) => fields.state === 'claimed')
+            .map(([itemId]: [string]) => itemId)
+        ).toEqual([older.id, claimed.id])
       } finally {
         errorSpy.mockRestore()
       }

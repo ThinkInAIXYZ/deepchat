@@ -134,6 +134,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
   it('rejects deleting an accepted Steer message', () => {
     const steer = createPending('steer-1', 'session-1', 'steer')
     const store = {
+      runInTransaction: vi.fn((operation: () => unknown) => operation()),
       listPendingInputs: vi.fn(() => [steer]),
       deleteInput: vi.fn()
     }
@@ -150,6 +151,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
 
   it('rejects deleting a pending input that does not exist', () => {
     const store = {
+      runInTransaction: vi.fn((operation: () => unknown) => operation()),
       listPendingInputs: vi.fn(() => []),
       deleteInput: vi.fn()
     }

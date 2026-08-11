@@ -30,15 +30,23 @@ separate restart-held Queue and Resume Queue semantics that this fix must preser
 
 ## Fix Design
 
-- Add durable `retry_required` to `PendingSessionInputState`. SQLite already stores unconstrained
-  text, so no schema migration is required.
+- Add durable `retry_required` to `PendingSessionInputState`. Schema version 67 adds
+  `retry_required_at`; the row is stored as the legacy-safe `blocked` state plus that marker and is
+  projected as `retry_required` by the current store. Migration rewrites prerelease raw
+  `retry_required` values to this representation. A downgraded binary therefore fences the row and
+  can release it through its existing blocked-input Retry path instead of dispatching past an
+  unknown state.
 - Failed DeepChat Queue settlements transition `claimed -> retry_required`. Intentional temporary
   release for Queue-to-Steer mutation and cold-start repair continue to transition to `pending`.
-- Keep `retry_required` in Queue ordering while excluding it from claimable work. This makes it the
-  authoritative FIFO head without adding a renderer flag or process-local retry set.
+- Keep `retry_required` in Queue ordering while excluding it from claimable work. Claimed Queue
+  rows retain their occupied order slot during move, delete, and Queue-to-Steer resequencing, so a
+  later release cannot create duplicate order values or let another row overtake it.
 - Add an idempotent per-item DeepChat retry operation under the existing Session operation gate.
   The first request transitions `retry_required -> pending` and asks the existing pump to drain;
-  stale repeated requests are no-ops.
+  stale repeated requests are no-ops. The addressed row need not be the current head: an explicit
+  Send can be claimed behind an older restart-held draft or as a question follow-up, then fail
+  before committing its user fact. Retry authorizes that exact row while the pump continues to
+  enforce FIFO execution of any earlier rows.
 - Preserve restart behavior: an existing `retry_required` row remains retry-required and is not
   added to the restart hold. Ordinary pending rows and recovered claimed rows remain restart-held.
   Resume Queue is available only when the actual FIFO head is restart-held.
@@ -53,14 +61,17 @@ separate restart-held Queue and Resume Queue semantics that this fix must preser
 
 1. Ordinary live Queue drafts remain `pending` and retain their existing actions.
 2. A later Queue row is never claimed while a retry-required row is ahead of it.
-3. Duplicate Retry requests create at most one state transition, claim, and turn.
-4. Retry schedules only the addressed Session and never claims directly from the route.
-5. A manually resumed Queue item retains its consume-before-provider marker if a pre-user-fact
+3. Claimed Queue rows keep a unique occupied order slot across every waiting-row resequence.
+4. Duplicate Retry requests create at most one state transition, claim, and turn.
+5. Retry schedules only the addressed Session and never claims directly from the route.
+6. A manually resumed Queue item retains its consume-before-provider marker if a pre-user-fact
    failure makes it retry-required.
-6. A mixed restart queue with a retry-required head and restart-held tail cannot release the tail
+7. A mixed restart queue with a retry-required head and restart-held tail cannot release the tail
    through Resume Queue.
-7. Attachment-blocked Retry and Send without image content keep their existing state machine.
-8. No message text, attachment path, or payload is added to diagnostics.
+8. Attachment-blocked Retry and Send without image content keep their existing state machine.
+9. Downgrade sees retry-required rows as blocked work; an old Retry changes the persisted state to
+   `pending`, which the current projection honors even if the additive marker remains.
+10. No message text, attachment path, or payload is added to diagnostics.
 
 ## Tasks
 
