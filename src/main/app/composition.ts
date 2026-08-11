@@ -16,7 +16,6 @@ import {
   liveDelegationChangedEvent,
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
-import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
 import { app, ipcMain } from 'electron'
@@ -272,6 +271,7 @@ import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
 import { createSessionPermissionPort } from './sessionPermissionAdapter'
 import { MainShutdownCoordinator, type MainShutdownActionClaim } from './mainShutdownCoordinator'
+import { elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
 import {
   EpisodeRegistry,
   TimeoutNotificationScheduler,
@@ -342,7 +342,7 @@ function emitRunJournalObservation(observation: RunJournalObservation): void {
         runKind: 'loop',
         outcome: 'error',
         stopReason,
-        durationMs: observation.durationMs,
+        ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
         logicalRounds: observation.logicalRounds,
         toolCalls: observation.toolCalls,
         error: classifyRunError(stopReason)
@@ -356,7 +356,7 @@ function emitRunJournalObservation(observation: RunJournalObservation): void {
       runKind: 'loop',
       outcome: observation.outcome,
       stopReason,
-      durationMs: observation.durationMs,
+      ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
       logicalRounds: observation.logicalRounds,
       toolCalls: observation.toolCalls
     })
@@ -371,7 +371,7 @@ function emitRunJournalObservation(observation: RunJournalObservation): void {
       runKind: 'deferred_tool',
       outcome: 'error',
       stopReason,
-      durationMs: observation.durationMs,
+      ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
       error: classifyRunError(stopReason)
     })
     return
@@ -383,7 +383,7 @@ function emitRunJournalObservation(observation: RunJournalObservation): void {
     runKind: 'deferred_tool',
     outcome: observation.outcome,
     stopReason,
-    durationMs: observation.durationMs
+    ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs })
   })
 }
 
@@ -2487,17 +2487,23 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
-    const startedAt = performance.now()
+    const startedAt = readMonotonicNow()
     logger.info(`[Main] destroy.${stepName} begin`)
     try {
       await step()
+      const durationMs = elapsedMonotonicMs(startedAt)
       logger.info(
-        `[Main] destroy.${stepName} done durationMs=${(performance.now() - startedAt).toFixed(1)}`
+        durationMs === undefined
+          ? `[Main] destroy.${stepName} done`
+          : `[Main] destroy.${stepName} done durationMs=${durationMs.toFixed(1)}`
       )
     } catch (error) {
       shutdownStepFailures += 1
+      const durationMs = elapsedMonotonicMs(startedAt)
       logger.warn(
-        `[Main] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
+        durationMs === undefined
+          ? `[Main] destroy.${stepName} failed`
+          : `[Main] destroy.${stepName} failed durationMs=${durationMs.toFixed(1)}`,
         error
       )
     }
@@ -3029,20 +3035,20 @@ export async function createMainProcessControl(dependencies: {
         if (observation.outcome === 'completed') {
           mainLogger.emit('app.shutdown.terminal', {
             outcome: 'completed',
-            durationMs: observation.durationMs
+            ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs })
           })
           return
         }
         mainLogger.emit('app.shutdown.terminal', {
           outcome: 'failed',
-          durationMs: observation.durationMs,
+          ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
           error: { category: 'unknown' }
         })
       },
       actionFailed: (observation) => {
         mainLogger.emit('app.shutdown.action.failed', {
           reason: observation.reason,
-          durationMs: observation.durationMs,
+          ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
           error: classifyMainLogError(observation.error)
         })
       }

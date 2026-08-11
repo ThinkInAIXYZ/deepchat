@@ -281,6 +281,32 @@ describe('DeferredToolExecutor Execution Journal', () => {
     expect(executionJournal.commitRunTerminal).toHaveBeenCalledOnce()
   })
 
+  it.each(['start', 'terminal'] as const)(
+    'keeps deferred execution durable when the %s diagnostic clock read fails',
+    async (failingRead) => {
+      const { dependencies, execute, executionJournal } = createHarness()
+      dependencies.diagnosticNow =
+        failingRead === 'start'
+          ? vi.fn(() => {
+              throw new Error('clock unavailable')
+            })
+          : vi
+              .fn<() => number>()
+              .mockReturnValueOnce(10)
+              .mockImplementation(() => {
+                throw new Error('clock unavailable')
+              })
+
+      await expect(execute()).resolves.toMatchObject({ responseText: 'done', isError: false })
+
+      expect(executionJournal.commitRunStarted).toHaveBeenCalledOnce()
+      expect(executionJournal.commitRunTerminal).toHaveBeenCalledOnce()
+      const terminalObservation = vi.mocked(dependencies.runJournalObserver!).mock.calls[1][0]
+      expect(terminalObservation).toMatchObject({ type: 'terminal', outcome: 'completed' })
+      expect(terminalObservation).not.toHaveProperty('durationMs')
+    }
+  )
+
   it('uses the originating provider View identity while journaling a distinct deferred run', async () => {
     const { dependencies, executionJournal, executor } = createHarness()
     const executionContract = buildContract()

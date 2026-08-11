@@ -58,7 +58,7 @@ export type RunJournalObservation =
       type: 'terminal'
       outcome: ExecutionRunOutcome
       stopReason: string
-      durationMs: number
+      durationMs?: number
     } & (
         | {
             runKind: 'loop'

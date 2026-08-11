@@ -1,13 +1,14 @@
 import type { MainLogShutdownReason } from '@/logging/mainLogEvents'
+import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
 
 export interface MainShutdownTerminalObservation {
   outcome: 'completed' | 'failed'
-  durationMs: number
+  durationMs?: number
 }
 
 export interface MainShutdownActionFailureObservation {
   reason: MainLogShutdownReason
-  durationMs: number
+  durationMs?: number
   error: unknown
 }
 
@@ -31,7 +32,7 @@ export class MainShutdownCoordinator {
   constructor(
     private readonly teardown: () => Promise<MainShutdownTeardownOutcome | void>,
     private readonly observer: MainShutdownObserver,
-    private readonly now: () => number = performance.now.bind(performance)
+    private readonly now?: MonotonicClock
   ) {}
 
   async cleanup(): Promise<void> {
@@ -46,12 +47,16 @@ export class MainShutdownCoordinator {
 
     const actionClaim = Symbol(reason)
     this.actionClaim = actionClaim
-    const startedAt = this.now()
+    const startedAt = readMonotonicNow(this.now)
     this.observe(() => this.observer.started(reason))
     try {
       const teardownOutcome = (await this.ensureTeardown()) ?? 'completed'
+      const durationMs = elapsedMonotonicMs(startedAt, this.now)
       this.observe(() =>
-        this.observer.terminal({ outcome: teardownOutcome, durationMs: this.now() - startedAt })
+        this.observer.terminal({
+          outcome: teardownOutcome,
+          ...(durationMs === undefined ? {} : { durationMs })
+        })
       )
       let state: 'ready' | 'running' | 'succeeded' | 'released' = 'ready'
       const abandon = () => {
@@ -71,10 +76,11 @@ export class MainShutdownCoordinator {
           } catch (error) {
             state = 'released'
             if (this.actionClaim === actionClaim) this.actionClaim = undefined
+            const durationMs = elapsedMonotonicMs(startedAt, this.now)
             this.observe(() =>
               this.observer.actionFailed?.({
                 reason,
-                durationMs: this.now() - startedAt,
+                ...(durationMs === undefined ? {} : { durationMs }),
                 error
               })
             )
@@ -85,8 +91,12 @@ export class MainShutdownCoordinator {
       }
     } catch (error) {
       if (this.actionClaim === actionClaim) this.actionClaim = undefined
+      const durationMs = elapsedMonotonicMs(startedAt, this.now)
       this.observe(() =>
-        this.observer.terminal({ outcome: 'failed', durationMs: this.now() - startedAt })
+        this.observer.terminal({
+          outcome: 'failed',
+          ...(durationMs === undefined ? {} : { durationMs })
+        })
       )
       throw error
     }

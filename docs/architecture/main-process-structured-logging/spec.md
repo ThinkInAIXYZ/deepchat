@@ -133,6 +133,8 @@ correlation identifiers. They never accept arbitrary objects.
 
 Finite non-negative durations are rounded to microsecond precision and clamped at 30 days. The cap
 keeps the V1 numeric contract bounded without dropping long-lived process or permit diagnostics.
+Terminal events omit an optional duration instead of inventing zero when a safe monotonic start or
+end reading is unavailable; diagnostic clock failures must not change application behavior.
 
 The following content is prohibited from every persisted event, including error and debug paths:
 
@@ -198,15 +200,15 @@ creation. A generic `sessionId` must not be used when parent and child ownership
 
 `agent.run.started` and `agent.run.terminal` are emitted only after the matching Execution Journal
 commit returns a newly-created receipt. A failed or conflicting Journal commit produces no matching
-diagnostic event. Loop terminal events include monotonic duration, logical-round count, and tool-call
-count for that Run; resumed Runs subtract the message-level accounting present before the Run.
-Deferred-tool terminal events include monotonic duration only.
+diagnostic event. Loop terminal events include logical-round and tool-call counts for that Run;
+resumed Runs subtract the message-level accounting present before the Run. Loop and deferred-tool
+terminal events include monotonic duration only when both safe clock readings are available.
 
-The internal observer receives identities, kind, outcome, the durable stop reason, duration, and
-counts. It never receives Journal payloads, prompts, tool input/output, or terminal error text. The
-Main logging adapter maps unknown durable stop reasons to the explicit `unknown` diagnostic value
-before persistence rather than attributing them to a known subsystem. Observation failures cannot
-change the durable Run lifecycle.
+The internal observer receives identities, kind, outcome, the durable stop reason, optional
+duration, and counts. It never receives Journal payloads, prompts, tool input/output, or terminal
+error text. The Main logging adapter maps unknown durable stop reasons to the explicit `unknown`
+diagnostic value before persistence rather than attributing them to a known subsystem. Observation
+and diagnostic clock failures cannot change the durable Run lifecycle.
 
 ## Admission Diagnostics
 

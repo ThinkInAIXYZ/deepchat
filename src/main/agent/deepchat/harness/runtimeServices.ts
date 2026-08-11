@@ -36,6 +36,7 @@ import type {
   RunJournalObserver
 } from '@/agent/deepchat/runtime/types'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
+import type { MonotonicClock } from '@/lib/monotonicTime'
 
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
@@ -77,6 +78,7 @@ export interface DeepChatHarnessDependencies {
   taskContractContext: DeepChatTaskContractContextPort
   commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
   runJournalObserver?: RunJournalObserver
+  diagnosticNow?: MonotonicClock
 }
 
 /**

@@ -403,7 +403,7 @@ describe('DatabaseInitializer', () => {
     expect(observe).toHaveBeenCalledOnce()
   })
 
-  it('uses zero duration when the monotonic clock moves backwards', async () => {
+  it('omits duration when the monotonic clock moves backwards', async () => {
     const presenterInstance = {
       runTransaction: vi.fn().mockResolvedValue(undefined),
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
@@ -416,7 +416,25 @@ describe('DatabaseInitializer', () => {
     await initializer.initialize()
 
     expect(observe).toHaveBeenCalledOnce()
-    expect(observe).toHaveBeenCalledWith(expect.objectContaining({ durationMs: 0 }))
+    expect(observe.mock.calls[0][0]).not.toHaveProperty('durationMs')
+  })
+
+  it('keeps database initialization running when the diagnostic clock throws', async () => {
+    const presenterInstance = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
+      close: vi.fn()
+    }
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const now = vi.fn(() => {
+      throw new Error('clock unavailable')
+    })
+    const { initializer, observe } = await createInitializerWithMocks({ MainDatabase, now })
+
+    await expect(initializer.initialize()).resolves.toBe(presenterInstance)
+
+    expect(observe).toHaveBeenCalledOnce()
+    expect(observe.mock.calls[0][0]).not.toHaveProperty('durationMs')
   })
 
   it('bounds duration before notifying the initialization observer', async () => {

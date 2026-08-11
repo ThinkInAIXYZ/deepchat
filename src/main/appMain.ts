@@ -14,6 +14,7 @@ import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
 import { mainLogger, reportMainProcessFatal, reportNativeMainError } from './logging'
 import { classifyMainLogError, type MainLogShutdownReason } from './logging/mainLogEvents'
+import { elapsedMonotonicMs, readMonotonicNow } from './lib/monotonicTime'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -128,7 +129,7 @@ export function startApp(): void {
 
   const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
   const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
-  const startupStartedAt = performance.now()
+  const startupStartedAt = readMonotonicNow()
   mainLogger.emit('app.startup.started', {
     startupRunId: mainStartupRunId,
     argumentCount: process.argv.length,
@@ -173,17 +174,19 @@ export function startApp(): void {
         mainStartupRunId,
         requestUpdateInstall
       )
+      const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {
         startupRunId: mainStartupRunId,
         outcome: 'completed',
-        durationMs: performance.now() - startupStartedAt
+        ...(durationMs === undefined ? {} : { durationMs })
       })
     } catch (error) {
       reportNativeMainError('main: Application startup failed:', error)
+      const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {
         startupRunId: mainStartupRunId,
         outcome: 'failed',
-        durationMs: performance.now() - startupStartedAt,
+        ...(durationMs === undefined ? {} : { durationMs }),
         error: classifyMainLogError(error)
       })
       dialog.showErrorBox(

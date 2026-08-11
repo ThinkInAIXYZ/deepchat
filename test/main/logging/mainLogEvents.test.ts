@@ -158,6 +158,73 @@ describe('Main log event projection', () => {
     }
   })
 
+  it('round-trips terminal events when diagnostic duration is unavailable', () => {
+    const projectedEvents = [
+      [
+        'app.startup.terminal',
+        projectMainLogEvent('app.startup.terminal', {
+          startupRunId: 'startup_1',
+          outcome: 'completed'
+        })
+      ],
+      [
+        'app.shutdown.terminal',
+        projectMainLogEvent('app.shutdown.terminal', { outcome: 'completed' })
+      ],
+      [
+        'app.shutdown.action.failed',
+        projectMainLogEvent('app.shutdown.action.failed', {
+          reason: 'restart',
+          error: { category: 'unknown' }
+        })
+      ],
+      [
+        'database.initialization.terminal',
+        projectMainLogEvent('database.initialization.terminal', {
+          outcome: 'completed',
+          repairAttempted: false,
+          schemaDiagnosis: 'completed',
+          repairableIssueCount: 0,
+          manualIssueCount: 0
+        })
+      ],
+      [
+        'agent.run.terminal',
+        projectMainLogEvent('agent.run.terminal', {
+          runId: 'run_1',
+          sessionId: 'session_1',
+          messageId: 'message_1',
+          runKind: 'loop',
+          outcome: 'completed',
+          stopReason: 'complete',
+          logicalRounds: 1,
+          toolCalls: 0
+        })
+      ]
+    ] as const
+
+    for (const [event, projected] of projectedEvents) {
+      expect(projected.context).not.toHaveProperty('durationMs')
+      expect(
+        isProjectedMainLogEvent(
+          event,
+          projected.level,
+          JSON.parse(JSON.stringify(projected.context))
+        ),
+        event
+      ).toBe(true)
+    }
+  })
+
+  it('still rejects a supplied invalid optional duration', () => {
+    expect(() =>
+      projectMainLogEvent('app.shutdown.terminal', {
+        outcome: 'completed',
+        durationMs: -1
+      })
+    ).toThrow(MainLogEventProjectionError)
+  })
+
   it('normalizes unknown durable stop reasons without persisting their text', () => {
     expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'completed')).toBe('unknown')
     expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'paused')).toBe('unknown')

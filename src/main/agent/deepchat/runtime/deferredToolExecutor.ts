@@ -28,6 +28,7 @@ import {
 import type { DeepChatToolResolver } from './toolResolver'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
+import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
@@ -75,6 +76,7 @@ export interface DeferredToolExecutorDependencies {
   executionJournal: ExecutionJournalWriter
   commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
   runJournalObserver?: RunJournalObserver
+  diagnosticNow?: MonotonicClock
 }
 
 function throwIfAbortRequested(signal?: AbortSignal): void {
@@ -136,7 +138,7 @@ export class DeferredToolExecutor {
     let invoked = false
     let runId: string | null = null
     let runStartedCommitted = false
-    let observedRunStartedAt: number | null = null
+    let observedRunStartedAt: number | undefined
     let terminalCommitAttempted = false
     let terminalCommitted = false
     let dispatchCommitted = false
@@ -186,6 +188,10 @@ export class DeferredToolExecutor {
         )
       }
       terminalCommitted = true
+      const durationMs = elapsedMonotonicMs(
+        observedRunStartedAt,
+        this.dependencies.diagnosticNow
+      )
       notifyRunJournalObserver(this.dependencies.runJournalObserver, {
         type: 'terminal',
         runKind: 'deferred_tool',
@@ -194,10 +200,7 @@ export class DeferredToolExecutor {
         messageId,
         outcome: input.outcome,
         stopReason: input.stopReason,
-        durationMs:
-          observedRunStartedAt === null
-            ? 0
-            : Math.max(0, performance.now() - observedRunStartedAt)
+        ...(durationMs === undefined ? {} : { durationMs })
       })
     }
     const releaseOutcomeProjections = (): void => {
@@ -417,7 +420,7 @@ export class DeferredToolExecutor {
         )
       }
       runStartedCommitted = true
-      observedRunStartedAt = performance.now()
+      observedRunStartedAt = readMonotonicNow(this.dependencies.diagnosticNow)
       notifyRunJournalObserver(this.dependencies.runJournalObserver, {
         type: 'started',
         runKind: 'deferred_tool',

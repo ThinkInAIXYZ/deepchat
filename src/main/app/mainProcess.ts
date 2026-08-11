@@ -65,7 +65,7 @@ export async function startMainProcess(
       password,
       observe: (observation) => {
         const context = {
-          durationMs: observation.durationMs,
+          ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
           repairAttempted: observation.repairAttempted,
           schemaDiagnosis: observation.schemaDiagnosis,
           repairableIssueCount: observation.repairableIssueCount,

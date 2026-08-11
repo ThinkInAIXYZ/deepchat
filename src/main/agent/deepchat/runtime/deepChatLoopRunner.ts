@@ -92,6 +92,7 @@ import type {
   ProviderRequestTraceContext,
   ProviderRequestTracePayload
 } from '@/provider/requestTrace'
+import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
 import type { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import type { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -270,6 +271,7 @@ export interface DeepChatLoopRunnerPorts {
   hookSink: Pick<RuntimeHookSink, 'scope'>
   compaction: Pick<CompactionRuntimeCoordinator, 'apply'>
   runJournalObserver?: RunJournalObserver
+  diagnosticNow?: MonotonicClock
 }
 
 function createAbortError(): Error {
@@ -571,7 +573,7 @@ export class DeepChatLoopRunner {
         `Execution Journal run identity ${loopRun.runId} was already committed.`
       )
     }
-    const observedRunStartedAt = performance.now()
+    const observedRunStartedAt = readMonotonicNow(this.ports.diagnosticNow)
     const observedLogicalRoundBaseline = normalizeObservedLogicalRound(
       initialAccounting?.providerRounds
     )
@@ -624,6 +626,7 @@ export class DeepChatLoopRunner {
         )
       }
       committedTerminal = { ...selection }
+      const durationMs = elapsedMonotonicMs(observedRunStartedAt, this.ports.diagnosticNow)
       notifyRunJournalObserver(this.ports.runJournalObserver, {
         type: 'terminal',
         runKind: 'loop',
@@ -632,7 +635,7 @@ export class DeepChatLoopRunner {
         messageId,
         outcome: selection.outcome,
         stopReason: selection.stopReason,
-        durationMs: Math.max(0, performance.now() - observedRunStartedAt),
+        ...(durationMs === undefined ? {} : { durationMs }),
         logicalRounds: Math.max(0, loopRun.logicalRound - observedLogicalRoundBaseline),
         toolCalls: Math.max(0, loopRun.streamState.toolCallCount - observedToolCallBaseline)
       })

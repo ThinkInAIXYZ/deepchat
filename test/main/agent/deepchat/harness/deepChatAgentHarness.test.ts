@@ -959,6 +959,7 @@ describe('DeepChatAgentHarness', () => {
   let agent: DeepChatAgentHarness
   let runtimeDependencies: ReturnType<typeof createRuntimeDependencies>
   let runJournalObserver: ReturnType<typeof vi.fn>
+  let diagnosticNow: ReturnType<typeof vi.fn<() => number>>
   let transcriptMutations: SessionTranscriptMutations
   let sessionData: ReturnType<typeof createSessionData>
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
@@ -1257,6 +1258,7 @@ describe('DeepChatAgentHarness', () => {
       memoryPort: createDelegatingMemoryRuntimePort(() => installedMemoryPort)
     })
     runJournalObserver = vi.fn()
+    diagnosticNow = vi.fn(() => 100)
     agent = createDeepChatAgentHarness({
       ...runtimeDependencies,
       providerRuntime: llmProvider,
@@ -1266,7 +1268,8 @@ describe('DeepChatAgentHarness', () => {
       sessionData: sessionData,
       toolService: toolService,
       hookObserver: createHookObserver(hookDispatcher),
-      runJournalObserver
+      runJournalObserver,
+      diagnosticNow
     })
     transcriptMutations = new SessionTranscriptMutations({
       transcript: sessionData.transcript,
@@ -2988,6 +2991,26 @@ describe('DeepChatAgentHarness', () => {
           toolCalls: 0
         })
       )
+    })
+
+    it('keeps the durable Run lifecycle intact when the diagnostic clock throws', async () => {
+      diagnosticNow.mockImplementation(() => {
+        throw new Error('clock unavailable')
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).resolves.toMatchObject({
+        requestId: 'mock-msg-id'
+      })
+
+      const journalRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.name?.startsWith('execution/'))
+      expect(journalRows).toHaveLength(2)
+      expect(runJournalObserver).toHaveBeenCalledTimes(2)
+      const terminalObservation = runJournalObserver.mock.calls[1][0]
+      expect(terminalObservation).toMatchObject({ type: 'terminal', outcome: 'completed' })
+      expect(terminalObservation).not.toHaveProperty('durationMs')
     })
 
     it('does not register or terminally project a Run when its start commit fails', async () => {

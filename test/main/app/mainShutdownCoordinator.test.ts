@@ -167,4 +167,39 @@ describe('MainShutdownCoordinator', () => {
     expect(observer.terminal).toHaveBeenCalledWith({ outcome: 'failed', durationMs: 0 })
     expect(action).toHaveBeenCalledOnce()
   })
+
+  it('keeps shutdown ownership usable when the diagnostic clock throws', async () => {
+    const actionError = new Error('restart failed')
+    const observer = { started: vi.fn(), terminal: vi.fn(), actionFailed: vi.fn() }
+    const now = vi.fn(() => {
+      throw new Error('clock unavailable')
+    })
+    const coordinator = new MainShutdownCoordinator(async () => undefined, observer, now)
+
+    const restartClaim = await coordinator.request('restart')
+    expect(observer.started).toHaveBeenCalledWith('restart')
+    expect(observer.terminal).toHaveBeenCalledWith({ outcome: 'completed' })
+
+    await expect(
+      restartClaim?.run(() => {
+        throw actionError
+      })
+    ).rejects.toBe(actionError)
+    expect(observer.actionFailed).toHaveBeenCalledWith({ reason: 'restart', error: actionError })
+    await expect(coordinator.request('app_quit')).resolves.toBeDefined()
+  })
+
+  it('omits duration when only the terminal clock reading fails', async () => {
+    const observer = { started: vi.fn(), terminal: vi.fn() }
+    const now = vi
+      .fn<() => number>()
+      .mockReturnValueOnce(10)
+      .mockImplementation(() => {
+        throw new Error('clock unavailable')
+      })
+    const coordinator = new MainShutdownCoordinator(async () => undefined, observer, now)
+
+    await expect(coordinator.request('app_quit')).resolves.toBeDefined()
+    expect(observer.terminal).toHaveBeenCalledWith({ outcome: 'completed' })
+  })
 })

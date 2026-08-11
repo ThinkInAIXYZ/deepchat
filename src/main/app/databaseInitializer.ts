@@ -12,18 +12,19 @@ import { getStartupSchemaCatalog } from '@/data/schemaCatalog'
 import { classifySchemaError } from '@/data/schemaErrorClassifier'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { MAX_MAIN_LOG_DURATION_MS } from '@/logging/mainLogEvents'
+import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
 
 type DatabaseInitializerOptions = {
   password?: string
   dbPath?: string
   observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
-  now?: () => number
+  now?: MonotonicClock
 }
 
 export type DatabaseSchemaDiagnosisOutcome = 'completed' | 'unavailable' | 'not_completed'
 
 export type DatabaseInitializationObservation = {
-  durationMs: number
+  durationMs?: number
   repairAttempted: boolean
   schemaDiagnosis: DatabaseSchemaDiagnosisOutcome
   repairableIssueCount: number
@@ -63,7 +64,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   private password?: string
   private database?: MainDatabase
   private readonly observe: (observation: DatabaseInitializationObservation) => void | Promise<void>
-  private readonly now: () => number
+  private readonly now?: MonotonicClock
 
   constructor(options?: DatabaseInitializerOptions) {
     // Initialize database path
@@ -71,14 +72,14 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
     this.password = options?.password
     this.observe = options?.observe ?? (() => undefined)
-    this.now = options?.now ?? performance.now.bind(performance)
+    this.now = options?.now
   }
 
   /**
    * Initialize the database connection and perform setup
    */
   async initialize(): Promise<MainDatabase> {
-    const startedAt = this.readMonotonicNow()
+    const startedAt = readMonotonicNow(this.now)
     let repairAttempted = false
     let schemaDiagnosis: DatabaseSchemaDiagnosisOutcome = 'not_completed'
     let repairableIssueCount = 0
@@ -109,7 +110,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
             logger.info('DatabaseInitializer: Database initialization completed successfully')
             this.notifyInitializationObserver({
               outcome: 'completed',
-              durationMs: this.elapsedSince(startedAt),
+              ...this.durationContext(startedAt),
               repairAttempted,
               schemaDiagnosis,
               repairableIssueCount,
@@ -135,7 +136,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
               )
               this.notifyInitializationObserver({
                 outcome: 'completed',
-                durationMs: this.elapsedSince(startedAt),
+                ...this.durationContext(startedAt),
                 repairAttempted,
                 schemaDiagnosis,
                 repairableIssueCount,
@@ -161,7 +162,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
           logger.info('DatabaseInitializer: Database initialization completed successfully')
           this.notifyInitializationObserver({
             outcome: 'completed',
-            durationMs: this.elapsedSince(startedAt),
+            ...this.durationContext(startedAt),
             repairAttempted,
             schemaDiagnosis,
             repairableIssueCount,
@@ -193,7 +194,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       console.error('DatabaseInitializer: Database initialization failed:', error)
       this.notifyInitializationObserver({
         outcome: 'failed',
-        durationMs: this.elapsedSince(startedAt),
+        ...this.durationContext(startedAt),
         repairAttempted,
         schemaDiagnosis,
         repairableIssueCount,
@@ -253,7 +254,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       return { outcome: 'unavailable' }
     }
 
-    const start = performance.now()
+    const start = readMonotonicNow()
     try {
       const catalog = getStartupSchemaCatalog()
       return {
@@ -268,20 +269,16 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       )
       return { outcome: 'unavailable' }
     } finally {
-      logger.info(
-        `DatabaseInitializer: phase=diagnose duration=${(performance.now() - start).toFixed(2)}ms`
-      )
+      this.logPhaseDuration('diagnose', start)
     }
   }
 
   private repairStartupSchema(catalog: SchemaTableSpec[]): void {
-    const start = performance.now()
+    const start = readMonotonicNow()
     try {
       repairSQLiteDatabaseFile(this.dbPath, this.password, { catalog })
     } finally {
-      logger.info(
-        `DatabaseInitializer: phase=repair duration=${(performance.now() - start).toFixed(2)}ms`
-      )
+      this.logPhaseDuration('repair', start)
     }
   }
 
@@ -297,20 +294,18 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     )
   }
 
-  private readMonotonicNow(): number | undefined {
-    try {
-      const value = this.now()
-      return Number.isFinite(value) && value >= 0 ? value : undefined
-    } catch {
-      return undefined
-    }
+  private durationContext(startedAt: number | undefined): { durationMs?: number } {
+    const elapsed = elapsedMonotonicMs(startedAt, this.now)
+    return elapsed === undefined ? {} : { durationMs: Math.min(elapsed, MAX_MAIN_LOG_DURATION_MS) }
   }
 
-  private elapsedSince(startedAt: number | undefined): number {
-    if (startedAt === undefined) return 0
-    const completedAt = this.readMonotonicNow()
-    if (completedAt === undefined || completedAt < startedAt) return 0
-    return Math.min(completedAt - startedAt, MAX_MAIN_LOG_DURATION_MS)
+  private logPhaseDuration(phase: 'diagnose' | 'repair', startedAt: number | undefined): void {
+    const elapsed = elapsedMonotonicMs(startedAt)
+    logger.info(
+      elapsed === undefined
+        ? `DatabaseInitializer: phase=${phase} completed`
+        : `DatabaseInitializer: phase=${phase} duration=${elapsed.toFixed(2)}ms`
+    )
   }
 
   private notifyInitializationObserver(observation: DatabaseInitializationObservation): void {

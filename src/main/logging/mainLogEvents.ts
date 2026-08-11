@@ -128,16 +128,16 @@ export type MainLogRunStopReason =
 type MainLogAppTerminalInput =
   | {
       outcome: 'completed'
-      durationMs: number
+      durationMs?: number
     }
   | {
       outcome: 'failed'
-      durationMs: number
+      durationMs?: number
       error: SafeLogError
     }
 
 type MainLogDatabaseInitializationInput = {
-  durationMs: number
+  durationMs?: number
   repairAttempted: boolean
   schemaDiagnosis: 'completed' | 'unavailable' | 'not_completed'
   repairableIssueCount: number
@@ -176,7 +176,7 @@ type MainLogRunStartedInput = MainLogRunIdentity &
 interface MainLogRunTerminalBase extends MainLogRunIdentity {
   runKind: ExecutionRunKind
   stopReason: MainLogRunStopReason
-  durationMs: number
+  durationMs?: number
 }
 
 type MainLogRunTerminalInput = MainLogRunTerminalBase &
@@ -233,7 +233,7 @@ export interface MainLogEventInputMap {
   'app.shutdown.terminal': MainLogAppTerminalInput
   'app.shutdown.action.failed': {
     reason: MainLogShutdownReason
-    durationMs: number
+    durationMs?: number
     error: SafeLogError
   }
   'database.initialization.terminal': MainLogDatabaseInitializationInput
@@ -817,7 +817,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       return {
         startupRunId: identifier('startupRunId', input.startupRunId),
         outcome,
-        durationMs: duration('durationMs', input.durationMs),
+        ...(input.durationMs === undefined
+          ? {}
+          : { durationMs: duration('durationMs', input.durationMs) }),
         ...(error ? { error } : {})
       }
     }
@@ -852,7 +854,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       const error = failureError(outcome === 'failed', 'error' in input ? input.error : undefined)
       return {
         outcome,
-        durationMs: duration('durationMs', input.durationMs),
+        ...(input.durationMs === undefined
+          ? {}
+          : { durationMs: duration('durationMs', input.durationMs) }),
         ...(error ? { error } : {})
       }
     }
@@ -862,7 +866,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     level: 'error',
     project: (input) => ({
       reason: oneOf('reason', input.reason, SHUTDOWN_REASONS),
-      durationMs: duration('durationMs', input.durationMs),
+      ...(input.durationMs === undefined
+        ? {}
+        : { durationMs: duration('durationMs', input.durationMs) }),
       error: projectSafeError(input.error)
     })
   },
@@ -892,7 +898,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       )
       return {
         outcome,
-        durationMs: duration('durationMs', input.durationMs),
+        ...(input.durationMs === undefined
+          ? {}
+          : { durationMs: duration('durationMs', input.durationMs) }),
         repairAttempted: booleanValue('repairAttempted', input.repairAttempted),
         schemaDiagnosis: oneOf(
           'schemaDiagnosis',
@@ -951,7 +959,9 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
         runKind,
         outcome,
         stopReason: oneOf('stopReason', input.stopReason, RUN_STOP_REASONS),
-        durationMs: duration('durationMs', input.durationMs),
+        ...(input.durationMs === undefined
+          ? {}
+          : { durationMs: duration('durationMs', input.durationMs) }),
         ...(runKind === 'loop'
           ? {
               logicalRounds: count(
