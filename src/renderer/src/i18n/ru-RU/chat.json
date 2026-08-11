@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. Пропущено аудиофайлов: {count}."
   },
   "pendingInput": {
+    "resume": "Возобновить очередь",
+    "resumeFailed": "Не удалось возобновить очередь",
+    "retry": "Повторить",
+    "retryRequired": "Требуется повторная попытка",
+    "retryRequiredDescription": "Это сообщение не было отправлено. Повторите его, чтобы продолжить очередь.",
+    "retryFailed": "Не удалось повторить сообщение в очереди",
     "steer": "Направление",
     "queueCount": "В ожидании {count}/{max}",
     "toSteer": "Прервать и отправить",
@@ -348,6 +354,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Добавить рабочее пространство",
+    "emptyWorkspace": "Пусто",
+    "addWorkspaceFailed": "Не удалось добавить рабочее пространство",
     "searchLoadedRangeDescription": "Показаны совпадения из загруженных бесед. Прокрутите, чтобы загрузить больше истории."
   },
   "floatingWidget": {

@@ -3,8 +3,10 @@ import { request as httpRequest } from 'node:http'
 import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { z } from 'zod'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cliVersionRoute, type DeepchatRouteName } from '@shared/contracts/routes'
+import { defineRouteContract } from '@shared/contracts/contract'
 import type { JsonValue } from '@shared/contracts/json'
 import {
   LOCAL_CONTROL_PROTOCOL_VERSION,
@@ -277,6 +279,7 @@ async function createTestServer(
   dispatch: ReturnType<typeof vi.fn>
   dispatchUpload: ReturnType<typeof vi.fn>
   authorize: ReturnType<typeof vi.fn>
+  log: Readonly<{ warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> }>
 }> {
   const userDataPath = await createTemporaryDirectory()
   let server: CliServer
@@ -295,6 +298,7 @@ async function createTestServer(
   )
   const dispatchUpload = vi.fn(options.dispatchUpload ?? (async () => ({})))
   const authorize = vi.fn(options.authorize ?? (async () => ({ release: () => undefined })))
+  const log = { warn: vi.fn(), error: vi.fn() }
   server = new CliServer({
     userDataPath,
     appVersion: '1.2.3',
@@ -326,11 +330,11 @@ async function createTestServer(
     dispatchUpload,
     ...(options.authorize ? { authorize } : {}),
     surface: options.surface,
-    log: { warn: vi.fn(), error: vi.fn() }
+    log
   })
   servers.push(server)
   const descriptor = await server.start()
-  return { userDataPath, server, descriptor, dispatch, dispatchUpload, authorize }
+  return { userDataPath, server, descriptor, dispatch, dispatchUpload, authorize, log }
 }
 
 afterEach(async () => {
@@ -442,10 +446,15 @@ describe('CLI local transport', () => {
   it('enforces protocol versions and the explicit surface before dispatch', async () => {
     const { descriptor, dispatch } = await createTestServer()
 
-    const incompatible = await rpcRequest(descriptor, { protocolVersion: 2 })
+    const incompatibleProtocol = await rpcRequest(descriptor, { protocolVersion: 2 })
+    const legacySurface = await rpcRequest(descriptor, { surfaceVersion: 1 })
     const hidden = await rpcRequest(descriptor, { method: 'settings.getSnapshot' })
 
-    expect(incompatible).toMatchObject({
+    expect(incompatibleProtocol).toMatchObject({
+      status: 409,
+      body: { ok: false, error: { code: 'unsupported_version' } }
+    })
+    expect(legacySurface).toMatchObject({
       status: 409,
       body: { ok: false, error: { code: 'unsupported_version' } }
     })
@@ -504,6 +513,55 @@ describe('CLI local transport', () => {
       status: 500,
       body: { ok: false, error: { code: 'internal_error' } }
     })
+  })
+
+  it('rejects route output that passes its contract but is not a JSON value', async () => {
+    const sentinel = 'secret-route-key'
+    const contract = defineRouteContract({
+      name: 'test.optionalRecord',
+      input: z.object({}).default({}),
+      output: z.object({ values: z.record(z.string(), z.string().optional()) })
+    })
+    const output = { values: { [sentinel]: undefined } }
+    const surface = new Map<string, CliSurfaceEntry>([
+      [
+        contract.name,
+        {
+          contract,
+          effect: 'read',
+          callers: ['human'],
+          scopes: ['system:read'],
+          transport: 'rpc',
+          approval: 'never',
+          limits: { maxBodyBytes: 1024, timeoutMs: 5_000 }
+        }
+      ]
+    ])
+    expect(contract.output.safeParse(output).success).toBe(true)
+    const { descriptor, log } = await createTestServer({
+      surface,
+      dispatchOutput: () => output
+    })
+
+    const response = await rpcRequest(descriptor, {
+      method: contract.name,
+      params: {}
+    })
+
+    expect(response).toMatchObject({
+      status: 500,
+      body: { ok: false, error: { code: 'internal_error' } }
+    })
+    expect(log.error).toHaveBeenCalledWith(
+      '[CLI] Route returned invalid output',
+      expect.objectContaining({
+        method: contract.name,
+        stage: 'json',
+        issueCount: expect.any(Number),
+        issueCodes: expect.any(Array)
+      })
+    )
+    expect(JSON.stringify(log.error.mock.calls)).not.toContain(sentinel)
   })
 
   it('releases policy admission after a route contract failure', async () => {

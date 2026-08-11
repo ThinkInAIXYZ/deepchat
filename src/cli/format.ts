@@ -93,8 +93,9 @@ export function formatHumanResult(
     }
     case 'runs.get': {
       const result = contract.output.parse(value)
+      const interaction = result.phase === 'awaiting_interaction' ? ', awaiting interaction' : ''
       return [
-        `Run ${result.runId} (${result.status})`,
+        `Run ${result.runId} (${result.status}${interaction})`,
         `Agent: ${result.agentId}`,
         `Model: ${result.providerId}/${result.modelId}`,
         ...result.messages.flatMap((message) => [

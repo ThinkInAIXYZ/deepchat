@@ -51,6 +51,7 @@ function createMockSqlitePresenter() {
     newEnvironmentPreferencesTable: {
       list: vi.fn().mockReturnValue([]),
       get: vi.fn(),
+      activateAtTop: vi.fn(),
       reorderActive: vi.fn(),
       markActive: vi.fn(),
       markArchived: vi.fn(),
@@ -143,6 +144,7 @@ describe('ProjectService', () => {
       expect(initial.archivedEnvironments.map((item) => item.path)).toEqual(['/work/archived'])
       expect(initial.removedEnvironments.map((item) => item.path)).toEqual(['/work/removed'])
       expect(initial.defaultProjectPath).toBe('/work/default')
+      expect(initial.defaultChatWorkspacePath).toBeNull()
       expect(updated.version).toBe(1)
     })
 
@@ -422,6 +424,34 @@ describe('ProjectService', () => {
   })
 
   describe('getEnvironments', () => {
+    it('includes an active preference before the workspace has any sessions', async () => {
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/new',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 1000
+        }
+      ])
+
+      await expect(presenter.getEnvironments()).resolves.toEqual([
+        {
+          path: '/work/new',
+          name: 'new',
+          sessionCount: 0,
+          lastUsedAt: 1000,
+          isTemp: false,
+          exists: true,
+          status: 'active',
+          sortOrder: 0,
+          archivedAt: null,
+          removedAt: null
+        }
+      ])
+    })
+
     it('maps environment rows with temp and exists metadata', async () => {
       sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
         {
@@ -567,8 +597,9 @@ describe('ProjectService', () => {
     })
 
     it('archives an environment through environment preferences', async () => {
-      await presenter.archiveEnvironment('/work/app')
+      const version = await presenter.archiveEnvironment('/work/app')
 
+      expect(version).toBe(1)
       expect(sqlitePresenter.newEnvironmentPreferencesTable.markArchived).toHaveBeenCalledWith(
         '/work/app'
       )
@@ -654,7 +685,7 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBeNull()
+      expect(result).toEqual({ path: null, version: 0 })
     })
 
     it('returns null when no path selected', async () => {
@@ -662,10 +693,10 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBeNull()
+      expect(result).toEqual({ path: null, version: 0 })
     })
 
-    it('upserts project and returns path on selection', async () => {
+    it('registers a new directory at the top of the active order', async () => {
       deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/Users/test/my-project']
@@ -673,14 +704,60 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBe('/Users/test/my-project')
+      expect(result).toEqual({ path: '/Users/test/my-project', version: 1 })
       expect(sqlitePresenter.newProjectsTable.upsert).toHaveBeenCalledWith(
         '/Users/test/my-project',
         'my-project'
       )
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
         '/Users/test/my-project'
       )
+      expect(sqlitePresenter.getDatabase).toHaveBeenCalledTimes(1)
+      expect(existsSyncMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps the persisted order when selecting an already active directory', async () => {
+      deviceService.selectDirectory.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/work/existing']
+      })
+
+      await presenter.selectDirectory()
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
+        '/work/existing'
+      )
+    })
+
+    it('reactivates an archived directory at the top of the active order', async () => {
+      deviceService.selectDirectory.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/work/archived']
+      })
+
+      await presenter.selectDirectory()
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
+        '/work/archived'
+      )
+    })
+
+    it('keeps concurrent selections on distinct snapshot versions', async () => {
+      deviceService.selectDirectory
+        .mockResolvedValueOnce({ canceled: false, filePaths: ['/work/first'] })
+        .mockResolvedValueOnce({ canceled: false, filePaths: ['/work/second'] })
+
+      const results = await Promise.all([presenter.selectDirectory(), presenter.selectDirectory()])
+
+      expect(results).toEqual([
+        { path: '/work/first', version: 1 },
+        { path: '/work/second', version: 2 }
+      ])
+      expect(
+        sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop.mock.calls.map(
+          ([environmentPath]) => environmentPath
+        )
+      ).toEqual(['/work/first', '/work/second'])
     })
   })
 })

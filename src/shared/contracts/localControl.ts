@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { JsonValueSchema, TimestampMsSchema, type JsonValue } from './json'
 
 export const LOCAL_CONTROL_PROTOCOL_VERSION = 1 as const
-export const LOCAL_CONTROL_SURFACE_VERSION = 1 as const
+export const LOCAL_CONTROL_SURFACE_VERSION = 2 as const
 export const LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS = 30 * 60_000
 export const LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES = 16 * 1024 * 1024
 export const LOCAL_CONTROL_MAX_STREAM_RECORD_BYTES = 20 * 1024 * 1024

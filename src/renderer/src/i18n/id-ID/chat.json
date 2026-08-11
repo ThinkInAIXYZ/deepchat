@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "Model {model} tidak mendukung input audio, lampiran audio {count} telah diabaikan."
   },
   "pendingInput": {
+    "resume": "Lanjutkan antrean",
+    "resumeFailed": "Gagal melanjutkan antrean",
+    "retry": "Coba lagi",
+    "retryRequired": "Perlu dicoba lagi",
+    "retryRequiredDescription": "Pesan ini tidak terkirim. Coba lagi untuk melanjutkan antrean.",
+    "retryFailed": "Gagal mencoba kembali pesan dalam antrean",
     "steer": "panduan",
     "queueCount": "Siap dikirim {count}/{max}",
     "toSteer": "Sela & kirim",
@@ -364,6 +370,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Tambah ruang kerja",
+    "emptyWorkspace": "Kosong",
+    "addWorkspaceFailed": "Gagal menambahkan ruang kerja",
     "searchLoadedRangeDescription": "Menampilkan kecocokan dari percakapan yang dimuat. Gulir untuk memuat riwayat lainnya."
   },
   "spotlight": {

@@ -48,6 +48,8 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResolveBlockedPendingInputRoute,
+  sessionsResumePendingQueueRoute,
+  sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
@@ -154,8 +156,15 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   async function listPendingInputs(sessionId: string) {
-    const result = await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
-    return result.items
+    return await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
+  }
+
+  async function resumePendingQueue(sessionId: string) {
+    return await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
+  }
+
+  async function retryPendingQueueInput(sessionId: string, itemId: string) {
+    return await bridge.invoke(sessionsRetryPendingQueueInputRoute.name, { sessionId, itemId })
   }
 
   async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
@@ -586,6 +595,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     getLightweightByIds,
     ensureAcpDraftSession,
     listPendingInputs,
+    resumePendingQueue,
+    retryPendingQueueInput,
     queuePendingInput,
     updateQueuedInput,
     moveQueuedInput,

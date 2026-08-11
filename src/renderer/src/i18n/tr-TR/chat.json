@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "{model} modeli ses girişini desteklemez. {count} ses ekleri yoksayıldı."
   },
   "pendingInput": {
+    "resume": "Kuyruğu sürdür",
+    "resumeFailed": "Kuyruk sürdürülemedi",
+    "retry": "Yeniden dene",
+    "retryRequired": "Yeniden deneme gerekli",
+    "retryRequiredDescription": "Bu mesaj gönderilmedi. Kuyruğa devam etmek için yeniden deneyin.",
+    "retryFailed": "Kuyruktaki mesaj yeniden denenemedi",
     "steer": "Yönlendir",
     "queueCount": "Sıraya alındı ​​{count}/{max}",
     "toSteer": "Kes ve gönder",
@@ -364,6 +370,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Çalışma alanı ekle",
+    "emptyWorkspace": "Boş",
+    "addWorkspaceFailed": "Çalışma alanı eklenemedi",
     "searchLoadedRangeDescription": "Yüklenen konuşmalardaki eşleşmeler gösteriliyor. Daha fazla geçmiş yüklemek için kaydırın."
   },
   "spotlight": {

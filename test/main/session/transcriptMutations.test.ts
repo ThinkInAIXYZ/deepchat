@@ -2,6 +2,34 @@ import { describe, expect, it, vi } from 'vitest'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 describe('SessionTranscriptMutations', () => {
+  it('allows a failed Steer retry to coexist with restart-held Queue drafts', async () => {
+    const message = {
+      id: 'steer-1',
+      sessionId: 's1',
+      orderSeq: 3,
+      role: 'user',
+      content: JSON.stringify({ text: 'Retry steer', files: [] }),
+      status: 'error',
+      metadata: JSON.stringify({ inputReceipt: { mode: 'steer', readAt: null } })
+    }
+    const runtime = {
+      prepareRetry: vi.fn().mockResolvedValue({ projectDir: '/repo' })
+    }
+    const mutations = new SessionTranscriptMutations({
+      transcript: { getMessage: vi.fn(() => message) },
+      runtime
+    } as any)
+
+    await expect(mutations.prepareRetryMessage('s1', 'steer-1')).resolves.toEqual({
+      content: { text: 'Retry steer', files: [], search: false },
+      projectDir: '/repo',
+      sourceOrderSeq: 3
+    })
+    expect(runtime.prepareRetry).toHaveBeenCalledWith('s1', {
+      allowRestartHeldQueue: true
+    })
+  })
+
   it('rolls pending inputs and transcript deletion back when Tape reset fails', async () => {
     const state = { pendingInputs: 1, transcriptMessages: 2, tapeEntries: 3 }
     const runtime = {

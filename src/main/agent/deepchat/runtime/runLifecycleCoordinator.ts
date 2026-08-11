@@ -29,7 +29,7 @@ import type { MessageProjectionService } from './messageProjectionService'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId'
 import type { ProcessResult } from './types'
 
-export type PendingInputWakeReason = 'enqueue' | 'completed'
+export type PendingInputWakeReason = 'enqueue' | 'completed' | 'manual'
 
 type RunLifecycleTranscript = Pick<
   SessionTranscript,

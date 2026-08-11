@@ -83,7 +83,9 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
         (record) =>
           record.sessionId === sessionId &&
           record.mode === mode &&
-          (record.state === 'pending' || record.state === 'blocked')
+          (record.state === 'pending' ||
+            record.state === 'blocked' ||
+            record.state === 'retry_required')
       )
       .sort((left, right) => {
         if (mode === 'queue') {
@@ -109,6 +111,15 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
     const record = requireRecord(sessionId, itemId)
     if (record.state !== 'claimed') throw new Error(`Pending input ${itemId} is not claimed.`)
     return replaceRecord(itemId, { state: 'pending', claimedAt: null, blocking: null })
+  }
+  const releaseForRetry = (sessionId: string, itemId: string): PendingSessionInputRecord => {
+    const record = requireRecord(sessionId, itemId)
+    if (record.state !== 'claimed') throw new Error(`Pending input ${itemId} is not claimed.`)
+    return replaceRecord(itemId, {
+      state: 'retry_required',
+      claimedAt: null,
+      blocking: null
+    })
   }
   const consumeQueue = (sessionId: string, itemId: string): void => {
     const record = requireRecord(sessionId, itemId)
@@ -181,6 +192,11 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
       const record = requireRecord(sessionId, itemId)
       if (record.mode !== 'queue') throw new Error(`Pending input ${itemId} is not a queue input.`)
       return release(sessionId, itemId)
+    }),
+    releaseClaimedQueueInputForRetry: vi.fn((sessionId: string, itemId: string) => {
+      const record = requireRecord(sessionId, itemId)
+      if (record.mode !== 'queue') throw new Error(`Pending input ${itemId} is not a queue input.`)
+      return releaseForRetry(sessionId, itemId)
     })
   }
 
@@ -257,6 +273,142 @@ function createDeferred<T>() {
 describe('PendingInputPump', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('keeps a restarted Queue head held across automatic wakeups until manual resume', async () => {
+    const queue = createInput('queue', 'queue')
+    const test = createHarness([queue])
+    test.pump.holdRestartedQueueInputs([queue.id])
+
+    await expect(test.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
+    await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(false)
+    expect(test.pendingInputs.store.claimQueuedInput).not.toHaveBeenCalled()
+    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    expect(test.pump.hasOnlyRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+
+    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
+    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
+    await expect(test.pump.drain(SESSION_ID, 'manual')).resolves.toBe(true)
+    expect(test.pendingInputs.store.claimQueuedInput).toHaveBeenCalledWith(SESSION_ID, queue.id)
+  })
+
+  it('keeps a restart-held tail behind a retry-required Queue head', async () => {
+    const released = {
+      ...createInput('released', 'queue', 1),
+      state: 'retry_required' as const
+    }
+    const heldTail = createInput('held-tail', 'queue', 2)
+    const test = createHarness([released, heldTail])
+    test.pump.holdRestartedQueueInputs([heldTail.id])
+
+    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
+    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(false)
+    await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(false)
+
+    test.pendingInputs.records.set(released.id, { ...released, state: 'pending' })
+    await expect(test.pump.drain(SESSION_ID, 'manual')).resolves.toBe(true)
+    await vi.waitFor(() => expect(test.scope.instance.isPendingQueueDraining()).toBe(false))
+
+    expect(test.turnStarter.start).toHaveBeenCalledOnce()
+    expect(test.pendingInputs.records.has(released.id)).toBe(false)
+    expect(test.pendingInputs.records.get(heldTail.id)?.state).toBe('pending')
+    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+  })
+
+  it('keeps manual Queue consumption semantics after an attachment-resolution wake', async () => {
+    const attachmentPreparation: AttachmentPreparationSummary = {
+      status: 'needs_user_action',
+      issues: [{ attachmentIndex: 0, reason: 'ocr_failed' }],
+      suggestedActions: ['retry', 'send_without_image_content']
+    }
+    const contexts: PendingInputTurnContext[] = []
+    const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(
+      async (_sessionId, _content, context) => {
+        contexts.push(context)
+        return contexts.length === 1
+          ? completion(context, { kind: 'block', attachmentPreparation })
+          : completion(context, { kind: 'consume' })
+      }
+    )
+    const queue = createInput('queue', 'queue')
+    const test = createHarness([queue], start)
+    test.pump.holdRestartedQueueInputs([queue.id])
+    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
+
+    await expect(test.pump.drain(SESSION_ID, 'manual')).resolves.toBe(true)
+    await vi.waitFor(() => expect(test.pendingInputs.records.get(queue.id)?.state).toBe('blocked'))
+    expect(contexts[0].consumeClaimBeforeProviderStream).toBe(true)
+
+    const blocked = test.pendingInputs.records.get(queue.id)!
+    test.pendingInputs.records.set(queue.id, {
+      ...blocked,
+      state: 'pending',
+      blocking: null
+    })
+    await expect(test.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2))
+
+    expect(contexts[1].consumeClaimBeforeProviderStream).toBe(true)
+    await vi.waitFor(() => expect(test.pendingInputs.records.has(queue.id)).toBe(false))
+  })
+
+  it('lets an explicit composer Send start without releasing a restarted Queue hold', () => {
+    const queue = createInput('queue', 'queue')
+    const test = createHarness([queue])
+    test.pump.holdRestartedQueueInputs([queue.id])
+
+    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'send')).toBe(true)
+    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'queue')).toBe(false)
+    expect(test.pump.hasOnlyRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+  })
+
+  it('does not let new input bypass a retry-required Queue head', () => {
+    const retryRequired = {
+      ...createInput('retry', 'queue'),
+      state: 'retry_required' as const
+    }
+    const test = createHarness([retryRequired])
+    const followUpBlock: AssistantMessageBlock = {
+      type: 'action',
+      action_type: 'question_request',
+      status: 'success',
+      timestamp: 2,
+      content: 'Answer in chat',
+      extra: {
+        needsUserAction: false,
+        questionResolution: 'replied',
+        questionFollowUpPending: true
+      }
+    }
+    test.messages.push(
+      {
+        id: 'user-before-question',
+        sessionId: SESSION_ID,
+        orderSeq: 1,
+        role: 'user',
+        content: 'Ask me',
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'question',
+        sessionId: SESSION_ID,
+        orderSeq: 2,
+        role: 'assistant',
+        content: JSON.stringify([followUpBlock]),
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: 2,
+        updatedAt: 2
+      }
+    )
+
+    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'send')).toBe(false)
+    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'queue')).toBe(false)
   })
 
   it('claims steer input before an older queued input', async () => {
@@ -349,7 +501,7 @@ describe('PendingInputPump', () => {
     expect(harness.scope.instance.isPendingQueueDraining()).toBe(false)
   })
 
-  it('replays a wake deferred behind the active drain lease', async () => {
+  it('does not replay a deferred wake through a retry-required Queue head', async () => {
     const firstTurn = createDeferred<TurnCompletion>()
     let firstContext: PendingInputTurnContext | undefined
     const start: PendingInputPumpPorts['turnStarter']['start'] = vi
@@ -374,9 +526,9 @@ describe('PendingInputPump', () => {
       claimedInputDisposition: disposition
     })
 
-    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
-    expect(harness.pendingInputs.records.has('retry')).toBe(false)
+    expect(start).toHaveBeenCalledOnce()
+    expect(harness.pendingInputs.records.get('retry')?.state).toBe('retry_required')
   })
 
   it('does not replay an enqueue accepted while the active turn is still generating', async () => {
@@ -499,8 +651,8 @@ describe('PendingInputPump', () => {
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
 
-    expect(harness.pendingInputs.records.get('queue')?.state).toBe('pending')
-    expect(harness.pendingInputs.store.releaseClaimedQueueInput).toHaveBeenCalledWith(
+    expect(harness.pendingInputs.records.get('queue')?.state).toBe('retry_required')
+    expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).toHaveBeenCalledWith(
       SESSION_ID,
       'queue'
     )
@@ -524,8 +676,8 @@ describe('PendingInputPump', () => {
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
 
-    expect(harness.pendingInputs.records.get('queue')?.state).toBe('pending')
-    expect(harness.pendingInputs.store.releaseClaimedQueueInput).toHaveBeenCalledWith(
+    expect(harness.pendingInputs.records.get('queue')?.state).toBe('retry_required')
+    expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).toHaveBeenCalledWith(
       SESSION_ID,
       'queue'
     )
@@ -569,16 +721,18 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
 
     if (mode === 'queue') {
-      expect(harness.pendingInputs.store.releaseClaimedQueueInput).toHaveBeenCalledWith(
+      expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).toHaveBeenCalledWith(
         SESSION_ID,
         mode
       )
       expect(harness.pendingInputs.store.releaseClaimedInput).not.toHaveBeenCalled()
     } else {
       expect(harness.pendingInputs.store.releaseClaimedInput).toHaveBeenCalledWith(SESSION_ID, mode)
-      expect(harness.pendingInputs.store.releaseClaimedQueueInput).not.toHaveBeenCalled()
+      expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).not.toHaveBeenCalled()
     }
-    expect(harness.pendingInputs.records.get(mode)?.state).toBe('pending')
+    expect(harness.pendingInputs.records.get(mode)?.state).toBe(
+      mode === 'queue' ? 'retry_required' : 'pending'
+    )
   })
 
   it('blocks a claimed head without draining later inputs', async () => {
@@ -621,7 +775,7 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
 
     expect(start).toHaveBeenCalledOnce()
-    expect(harness.pendingInputs.records.get('retry')?.state).toBe('pending')
+    expect(harness.pendingInputs.records.get('retry')?.state).toBe('retry_required')
     expect(harness.pendingInputs.records.get('later')?.state).toBe('pending')
   })
 

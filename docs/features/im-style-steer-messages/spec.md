@@ -25,8 +25,10 @@ Queue = mutable draft, normal admission time, no receipt
 Steer = immutable sent message, interrupt admission time, Unread -> Read receipt
 ```
 
-The receipt has only two named states: `Unread` and `Read`. It disappears after `Read`; disappearance
-is presentation, not a third state. User-facing Chinese copy is `未读` / `已读`.
+The live receipt has only two named states: `Unread` and `Read`. It disappears after `Read`;
+disappearance is presentation, not a third live state. User-facing Chinese copy is `未读` / `已读`.
+Cold restart before claim terminalizes the message internally as `error` and suppresses the receipt;
+it does not add a third delivery label or a recovery-specific action.
 
 ## Problem
 
@@ -135,6 +137,7 @@ Promoting a Queue item to Steer is a one-way admission transition:
 | `pending` | `pending` | `readAt: null` | `Unread` | Copy |
 | `claimed` | `pending` | `readAt: <timestamp>` | `Read`, then disappears | Copy |
 | `consumed` | `sent` | Original `readAt` retained | No receipt after timeout | Normal message actions |
+| Cold restart before claim | `error` | `readAt: null` retained | No receipt | Normal message actions |
 
 `ChatMessageRecord.status = 'pending'` prevents an accepted-but-unsettled Steer from entering later
 context as historical input. `isContextHistoryRecord` already excludes pending user messages.
@@ -158,6 +161,12 @@ comprehension.
 The claim transition is irreversible for UI semantics. A failure after claim produces a terminal
 assistant error or interruption below the Steer; it does not move the message back to `Unread` or
 silently delete it.
+
+A cold restart before claim is different from a live failure after claim. The accepting runtime no
+longer exists, so startup consumes the active Steer row and recovers its linked user messages to
+`error`. The renderer uses that status to hide the stale live receipt and otherwise keeps the normal
+user-message rendering. The standard toolbar Retry action starts a normal turn because there is no
+active turn left to steer.
 
 ### Rapid consecutive Steers
 
@@ -455,12 +464,13 @@ It receives no `Unread` / `Read` receipt.
 | Persistence fails before acceptance | No partial pending row or message; keep draft and show error |
 | Renderer misses acceptance event | Route result inserts the persisted message; later restore is authoritative |
 | Renderer misses claim event | Session restore reconstructs `readAt` and the new assistant row |
-| App restarts during pre-stream handoff | Keep the materialized source user fact, consume its claimed Queue record, and resume the `Unread` Steer |
+| App restarts during pre-stream handoff before Steer claim | Keep the materialized source user fact, consume its claimed Queue record, and terminalize the Steer internally as `error` without a receipt |
 | Previous DeepChat turn errors | Open the safe boundary and drain the durable Steer unless an interaction blocks it |
 | Previous ACP turn cancellation fails | Keep Steer `Unread`; do not claim until the old operation is terminal |
 | Runtime fails after claim | Keep user messages `Read`; settle a new assistant error row; do not delete or retry silently |
-| App restarts before claim | Restore the Steer as `Unread` and resume normal pending-input drain |
+| App restarts before claim | Atomically fail linked user messages, append Tape replacements, consume the Steer row, hide the receipt, and leave the standard toolbar Retry action available |
 | App restarts after claim | Restore the persisted `Read` receipt and settlement facts; never duplicate user rows |
+| App restarts with Queue drafts | Keep rows in Queue and hold them from automatic drain until explicit `Resume queue`; once the manually resumed head enters the provider Run, consume it so a provider error cannot restore it to Queue |
 | Session is switched | Keep lifecycle in main; active renderer derives the state when restored |
 | Session is deleted | Delete transcript and pending-input facts through the existing session deletion transaction |
 
@@ -477,10 +487,15 @@ It receives no `Unread` / `Read` receipt.
 7. The claimed batch payload is supplied exactly once as the new loop input.
 8. Settlement marks all linked user messages `sent` and appends the corresponding Tape replacement
    facts.
-9. Search and transcript restore may show an accepted `Unread` Steer because it is a real sent fact.
+9. Reload in the same process may show an accepted `Unread` Steer because it is a real sent fact;
+   cold-start recovery terminalizes an unclaimed Steer as `error` and shows no receipt instead.
 10. Event delivery is a cache update, never the source of truth.
 11. Pre-stream acceptance materializes and links the current claimed Queue user fact in the same
     transaction as the Steer, before assigning the Steer's `orderSeq`.
+12. Normal claimed Queue materialization also creates the user fact and links its pending row in one
+    transaction.
+13. Restart terminalization changes every unread Steer message to `error`, appends its Tape
+    replacement, and consumes the Steer row in one transaction.
 
 ## Acceptance Criteria
 
@@ -502,6 +517,10 @@ It receives no `Unread` / `Read` receipt.
 - Queue items remain editable and reorderable in the bottom lane.
 - Queue promotion creates a visible `Unread` Steer only after successful preparation.
 - Normal Queue drain creates no receipt.
+- Queue drafts retained across cold restart do not drain from hydration or lifecycle wakes and expose
+  `Resume queue` only when the backend reports an actual restart hold while the Session is idle.
+- A manually resumed Queue head is consumed before its provider Run and does not return to Queue
+  after a provider error, including after attachment Retry or Send without image content.
 
 ### Reliability
 
@@ -509,6 +528,9 @@ It receives no `Unread` / `Read` receipt.
   the last bubble.
 - A Steer accepted after claim belongs below the newly reserved assistant message.
 - Reload and restart never duplicate, hide, or reorder accepted Steer messages.
+- Cold restart never executes an unclaimed Steer implicitly; it renders without a receipt and the
+  standard toolbar Retry action starts one normal turn.
+- Retrying a restart-failed Steer does not release retained Queue drafts.
 - A post-claim failure never removes or reverts the user message.
 - DeepChat and ACP satisfy the same visible ordering contract.
 

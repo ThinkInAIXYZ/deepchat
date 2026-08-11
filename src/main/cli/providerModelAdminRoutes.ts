@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import {
-  PublicModelConfigSchema,
   PublicProviderSummarySchema,
   modelsGetPublicConfigRoute,
   modelsSetPublicConfigRoute,
@@ -15,7 +14,12 @@ import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderRuntime } from '@/provider'
 import type { ProviderQueryScheduler } from '@/provider/providerService'
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { createRouteMap, type DeepchatRouteMap, type RouteCaller } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  projectJsonRouteOutput,
+  type DeepchatRouteMap,
+  type RouteCaller
+} from '@/routes/routeRegistry'
 import { CliRequestError } from './errors'
 
 type PublicProviderSettings = Pick<
@@ -257,10 +261,8 @@ export function createCliProviderModelAdminRoutes(
         requireCliCaller(context.caller)
         const input = modelsGetPublicConfigRoute.input.parse(rawInput)
         requireModel(input.providerId, input.modelId)
-        return modelsGetPublicConfigRoute.output.parse({
-          config: PublicModelConfigSchema.parse(
-            dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
-          )
+        return projectJsonRouteOutput(modelsGetPublicConfigRoute.output, {
+          config: dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
         })
       }
     ],
@@ -277,10 +279,9 @@ export function createCliProviderModelAdminRoutes(
             input.config
           )
         )
-        const config = PublicModelConfigSchema.parse(
-          dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
-        )
-        return modelsSetPublicConfigRoute.output.parse({ config })
+        return projectJsonRouteOutput(modelsSetPublicConfigRoute.output, {
+          config: dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
+        })
       }
     ]
   ])

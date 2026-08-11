@@ -2,6 +2,10 @@ import { computed, effectScope, nextTick, ref, shallowReactive } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
+import {
+  loadComposerDraftFromStorage,
+  saveComposerDraftToStorage
+} from '@/features/chat-page/model/composerDraftPersistence'
 import type {
   AttachmentPreparationSummary,
   ChatMessageRecord,
@@ -191,7 +195,10 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     schedulePostSubmitScrollToBottom,
     openModelPicker,
     notify,
-    stop: () => scope.stop()
+    stop: () => {
+      actions.dispose()
+      scope.stop()
+    }
   }
 }
 
@@ -218,6 +225,7 @@ const blockedSummary = (): AttachmentPreparationSummary => ({
 describe('useComposerSubmit attachment preflight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
   })
 
   it('preserves a rejected draft and sends only after explicit degradation', async () => {
@@ -1012,5 +1020,115 @@ describe('useComposerSubmit attachment preflight', () => {
     refreshedCapability.resolve({ supportsAudioInput: true, supportsSearch: false })
     await vi.waitFor(() => expect(harness.actions.isSearchAvailable.value).toBe(false))
     harness.stop()
+  })
+
+  it('persists the typed draft to storage after the debounce', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    try {
+      harness.actions.message.value = 'persist me'
+      await vi.advanceTimersByTimeAsync(400)
+
+      const stored = JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.s1') ?? 'null')
+      expect(stored?.rawMessage).toBe('persist me')
+    } finally {
+      harness.stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it('restores a persisted draft during initial mount', () => {
+    saveComposerDraftToStorage('s1', {
+      revision: 2,
+      rawMessage: 'draft from previous mount',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'draft from previous mount' }] }
+        ]
+      }
+    })
+
+    const harness = createHarness()
+
+    expect(harness.actions.message.value).toBe('draft from previous mount')
+    harness.stop()
+    expect(loadComposerDraftFromStorage('s1')?.rawMessage).toBe('draft from previous mount')
+  })
+
+  it('restores a persisted draft when switching to its session', () => {
+    const harness = createHarness()
+    saveComposerDraftToStorage('s2', {
+      revision: 2,
+      rawMessage: 'draft from previous run',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'draft from previous run' }] }
+        ]
+      }
+    })
+
+    harness.actions.switchComposerSession('s1', 's2')
+
+    expect(harness.actions.message.value).toBe('draft from previous run')
+    harness.stop()
+  })
+
+  it('persists the outgoing draft when switching away from a session', () => {
+    const harness = createHarness()
+    harness.actions.message.value = 'switch away'
+    harness.actions.attachedFiles.value = []
+
+    harness.actions.switchComposerSession('s1', 's2')
+
+    const stored = JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.s1') ?? 'null')
+    expect(stored?.rawMessage).toBe('switch away')
+    harness.stop()
+  })
+
+  it('restores a draft flushed on unmount when the same session is mounted again', () => {
+    // ChatPage is keyed by sessionId, so switching conversations unmounts the old page. The
+    // dispose() flush must persist the draft so a later mount of the same session restores it.
+    const first = createHarness()
+    first.actions.message.value = 'draft before unmount'
+    first.stop()
+
+    const second = createHarness()
+    second.actions.switchComposerSession(undefined, 's1')
+
+    expect(second.actions.message.value).toBe('draft before unmount')
+    second.stop()
+  })
+
+  it('removes the stored draft after an accepted submission clears the composer', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    try {
+      saveComposerDraftToStorage('s1', {
+        revision: 1,
+        rawMessage: 'to be sent',
+        files: [],
+        activeSkills: [],
+        document: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'to be sent' }] }]
+        }
+      })
+      harness.actions.message.value = 'to be sent'
+
+      await harness.actions.onSubmit()
+
+      expect(harness.actions.message.value).toBe('')
+      await vi.advanceTimersByTimeAsync(400)
+      expect(localStorage.getItem('deepchat.composerDraft.v1.s1')).toBeNull()
+    } finally {
+      harness.stop()
+      vi.useRealTimers()
+    }
   })
 })

@@ -167,7 +167,13 @@
     "limitReached": "Waiting lane is full (max {max}).",
     "remove": "Remove",
     "steerUnavailable": "Can't interrupt right now",
-    "steerFailed": "Couldn't interrupt this turn"
+    "steerFailed": "Couldn't interrupt this turn",
+    "resume": "Resume queue",
+    "resumeFailed": "Couldn't resume the queue",
+    "retry": "Retry",
+    "retryRequired": "Retry required",
+    "retryRequiredDescription": "This message wasn't sent. Retry it to continue the queue.",
+    "retryFailed": "Couldn't retry the queued message"
   },
   "features": {
     "webSearch": "Web Search",
@@ -425,6 +431,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Add workspace",
+    "emptyWorkspace": "Empty",
+    "addWorkspaceFailed": "Failed to add workspace",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",

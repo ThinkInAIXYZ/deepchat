@@ -4,7 +4,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcCopyButton } from '@dc-ui/components'
 
 interface Props {
   content: string

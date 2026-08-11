@@ -239,6 +239,43 @@ export function isInternalAssistantToolCallBlock(block: DisplayAssistantMessageB
   )
 }
 
+export type ResolvedPermissionStatus = 'granted' | 'denied'
+
+export function getResolvedPermissionStatus(
+  block: DisplayAssistantMessageBlock
+): ResolvedPermissionStatus | null {
+  if (block.type !== 'action' || block.action_type !== 'tool_call_permission') {
+    return null
+  }
+  return block.status === 'granted' || block.status === 'denied' ? block.status : null
+}
+
+/**
+ * Maps tool call ids to their broker-resolved permission outcome, restricted to
+ * permission blocks whose tool card exists in the same block list so the outcome
+ * can be merged into that card instead of rendering a separate action card.
+ */
+export function buildResolvedPermissionStatusByToolCallId(
+  blocks: DisplayAssistantMessageBlock[]
+): Record<string, ResolvedPermissionStatus> {
+  const toolCallIds = new Set<string>()
+  for (const block of blocks) {
+    if (block.type === 'tool_call' && block.tool_call?.id) {
+      toolCallIds.add(block.tool_call.id)
+    }
+  }
+
+  const statusByToolCallId: Record<string, ResolvedPermissionStatus> = {}
+  for (const block of blocks) {
+    const status = getResolvedPermissionStatus(block)
+    const toolCallId = block.tool_call?.id
+    if (status && toolCallId && toolCallIds.has(toolCallId)) {
+      statusByToolCallId[toolCallId] = status
+    }
+  }
+  return statusByToolCallId
+}
+
 export function isRenderableAssistantBlock(block: DisplayAssistantMessageBlock): boolean {
   if (block.type === 'plan') {
     return false

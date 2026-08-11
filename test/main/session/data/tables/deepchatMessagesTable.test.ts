@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAssistantBlocksTable } from '@/session/data/tables/deepchatAssistantBlocks'
-import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
+import {
+  DeepChatMessagesTable,
+  type DeepChatMessageRow
+} from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
@@ -8,14 +11,14 @@ import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 const DatabaseCtor = Database!
 const describeIfNativeSqlite = nativeSqliteDescribeIf()
 
-function createMessageRow(orderSeq: number) {
+function createMessageRow(orderSeq: number): DeepChatMessageRow {
   return {
     id: `m${orderSeq}`,
     session_id: 's1',
     order_seq: orderSeq,
-    role: 'user' as const,
+    role: 'user',
     content: '{}',
-    status: 'sent' as const,
+    status: 'sent',
     is_context_edge: 0,
     metadata: '{}',
     created_at: orderSeq,
@@ -24,9 +27,25 @@ function createMessageRow(orderSeq: number) {
   }
 }
 
-function createMockDb(rows: ReturnType<typeof createMessageRow>[]) {
+function createMockDb(rows: DeepChatMessageRow[]) {
   return {
     prepare: vi.fn((sql: string) => {
+      if (sql.includes("role = 'assistant'") && sql.includes("status = 'pending'")) {
+        return {
+          all: (sessionId: string) =>
+            rows
+              .filter(
+                (row) =>
+                  row.session_id === sessionId &&
+                  row.role === 'assistant' &&
+                  row.status === 'pending'
+              )
+              .sort(
+                (left, right) => left.order_seq - right.order_seq || left.id.localeCompare(right.id)
+              )
+        }
+      }
+
       if (sql.includes('FROM deepchat_messages m') && sql.includes('ORDER BY m.order_seq DESC')) {
         return {
           all: (
@@ -80,6 +99,25 @@ describe('DeepChatMessagesTable', () => {
     expect(page).toHaveLength(501)
     expect(page[0]?.order_seq).toBe(502)
     expect(page[500]?.order_seq).toBe(2)
+  })
+
+  it('queries only pending assistant messages for the requested session', () => {
+    const rows = [
+      { ...createMessageRow(2), role: 'assistant', status: 'pending' },
+      { ...createMessageRow(1), role: 'assistant', status: 'pending' },
+      { ...createMessageRow(3), role: 'assistant', status: 'sent' },
+      { ...createMessageRow(4), status: 'pending' },
+      {
+        ...createMessageRow(5),
+        id: 'other',
+        session_id: 's2',
+        role: 'assistant',
+        status: 'pending'
+      }
+    ] satisfies DeepChatMessageRow[]
+    const table = new DeepChatMessagesTable(createMockDb(rows))
+
+    expect(table.getPendingAssistantBySession('s1').map((row) => row.id)).toEqual(['m1', 'm2'])
   })
 })
 
@@ -143,6 +181,28 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
       expect(rows.map((row) => row.id)).toEqual(['m1', 'm2'])
       expect(rows.every((row) => row.trace_count === undefined)).toBe(true)
       expect(table.get('m1')?.trace_count).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('loads only pending assistant messages for one session', () => {
+    const { db, table } = createTable()
+    try {
+      for (const row of [
+        { id: 'pending-2', sessionId: 's1', orderSeq: 2, role: 'assistant', status: 'pending' },
+        { id: 'pending-1', sessionId: 's1', orderSeq: 1, role: 'assistant', status: 'pending' },
+        { id: 'sent', sessionId: 's1', orderSeq: 3, role: 'assistant', status: 'sent' },
+        { id: 'user', sessionId: 's1', orderSeq: 4, role: 'user', status: 'pending' },
+        { id: 'other', sessionId: 's2', orderSeq: 1, role: 'assistant', status: 'pending' }
+      ] as const) {
+        table.insert({ ...row, content: '[]' })
+      }
+
+      expect(table.getPendingAssistantBySession('s1').map((row) => row.id)).toEqual([
+        'pending-1',
+        'pending-2'
+      ])
     } finally {
       db.close()
     }
@@ -270,7 +330,9 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
     try {
       const plan = db
         .prepare(
-          'EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq'
+          `EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages
+           WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
+           ORDER BY order_seq, id`
         )
         .all('s1') as Array<{ detail: string }>
 

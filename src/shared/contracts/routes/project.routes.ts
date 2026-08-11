@@ -10,7 +10,8 @@ export const ProjectSnapshotSchema = z.object({
   environments: z.array(EnvironmentSummarySchema),
   archivedEnvironments: z.array(EnvironmentSummarySchema),
   removedEnvironments: z.array(EnvironmentSummarySchema),
-  defaultProjectPath: z.string().nullable()
+  defaultProjectPath: z.string().nullable(),
+  defaultChatWorkspacePath: z.string().nullable()
 })
 
 export const projectGetSnapshotRoute = defineRouteContract({
@@ -57,7 +58,8 @@ export const projectArchiveEnvironmentRoute = defineRouteContract({
     path: z.string().trim().min(1)
   }),
   output: z.object({
-    updated: z.boolean()
+    updated: z.boolean(),
+    version: RevisionSchema
   })
 })
 
@@ -105,6 +107,7 @@ export const projectSelectDirectoryRoute = defineRouteContract({
   name: 'project.selectDirectory',
   input: z.object({}).default({}),
   output: z.object({
-    path: z.string().nullable()
+    path: z.string().nullable(),
+    version: RevisionSchema
   })
 })

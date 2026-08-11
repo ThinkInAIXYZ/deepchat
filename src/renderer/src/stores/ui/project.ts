@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { createProjectClient } from '@api/ProjectClient'
 import { createConfigClient } from '../../../api/ConfigClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 
 export interface UIProject {
   name: string
@@ -14,6 +15,10 @@ export interface UIProject {
 
 type ProjectSelectionSource = 'none' | 'manual' | 'default'
 
+type OpenFolderPickerOptions = {
+  select?: boolean
+}
+
 type ProjectSnapshot = {
   version: number
   projects: Project[]
@@ -21,6 +26,7 @@ type ProjectSnapshot = {
   archivedEnvironments: EnvironmentSummary[]
   removedEnvironments: EnvironmentSummary[]
   defaultProjectPath: string | null
+  defaultChatWorkspacePath: string | null
 }
 
 export const useProjectStore = defineStore('project', () => {
@@ -33,6 +39,7 @@ export const useProjectStore = defineStore('project', () => {
   const selectedProjectPath = ref<string | null>(null)
   const defaultProjectPath = ref<string | null>(null)
   const defaultChatWorkspacePath = ref<string | null>(null)
+  const snapshotReady = ref(false)
   const selectionSource = ref<ProjectSelectionSource>('none')
   const error = ref<string | null>(null)
   let listenersRegistered = false
@@ -46,7 +53,7 @@ export const useProjectStore = defineStore('project', () => {
 
   const normalizePath = (path: string | null | undefined): string | null => path?.trim() || null
   const createSyntheticProject = (projectPath: string): UIProject => ({
-    name: projectPath.split(/[/\\]/).pop() ?? projectPath,
+    name: projectPath.split(/[/\\]/).pop() || projectPath,
     path: projectPath,
     icon: null,
     exists: true,
@@ -91,6 +98,22 @@ export const useProjectStore = defineStore('project', () => {
     if (snapshot.version < committedSnapshotVersion) return false
     committedSnapshotVersion = snapshot.version
     defaultProjectPath.value = normalizePath(snapshot.defaultProjectPath)
+    defaultChatWorkspacePath.value = normalizePath(snapshot.defaultChatWorkspacePath)
+    environments.value = snapshot.environments
+    archivedEnvironments.value = snapshot.archivedEnvironments
+    removedEnvironments.value = snapshot.removedEnvironments
+    if (
+      selectedProjectPath.value &&
+      selectionSource.value === 'manual' &&
+      [...archivedEnvironments.value, ...removedEnvironments.value].some(
+        (environment) =>
+          normalizeWorkspacePath(environment.path) ===
+          normalizeWorkspacePath(selectedProjectPath.value)
+      )
+    ) {
+      selectedProjectPath.value = null
+      selectionSource.value = 'none'
+    }
     projects.value = reconcileProjects(
       snapshot.projects.map((project) => ({
         name: project.name,
@@ -99,9 +122,6 @@ export const useProjectStore = defineStore('project', () => {
         exists: project.exists
       }))
     )
-    environments.value = snapshot.environments
-    archivedEnvironments.value = snapshot.archivedEnvironments
-    removedEnvironments.value = snapshot.removedEnvironments
     if (
       selectedProjectPath.value &&
       selectionSource.value !== 'manual' &&
@@ -111,44 +131,57 @@ export const useProjectStore = defineStore('project', () => {
       selectionSource.value = 'none'
     }
     applyDefaultSelection()
+    snapshotReady.value = true
     error.value = null
     return true
   }
 
-  async function refreshProjectSnapshot(minVersion = 0): Promise<void> {
+  async function refreshProjectSnapshot(minVersion = 0): Promise<boolean> {
     requestedSnapshotVersion = Math.max(requestedSnapshotVersion, minVersion)
-    if (refreshPromise) {
-      return refreshPromise
-    }
-
-    refreshPromise = (async () => {
-      do {
-        const targetVersion = requestedSnapshotVersion
-        try {
-          const snapshot = (await projectClient.getSnapshot()) as ProjectSnapshot
-          if (snapshot.version >= targetVersion && snapshot.version >= committedSnapshotVersion) {
-            applySnapshot(snapshot)
-          } else {
-            // Events can become visible before their corresponding snapshot
-            // projection. Do not spin on a successful but incomplete read;
-            // leave the last committed state intact until a later refresh.
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        do {
+          const targetVersion = requestedSnapshotVersion
+          try {
+            const snapshot = (await projectClient.getSnapshot()) as ProjectSnapshot
+            if (snapshot.version >= targetVersion && snapshot.version >= committedSnapshotVersion) {
+              applySnapshot(snapshot)
+            } else {
+              if (requestedSnapshotVersion > targetVersion) {
+                continue
+              }
+              // Events can become visible before their corresponding snapshot
+              // projection. Do not spin on a successful but incomplete read;
+              // leave the last committed state intact until a later refresh.
+              return
+            }
+          } catch (cause) {
+            // A versioned notification may arrive while the older read fails. In
+            // that case this single refresh owner must consume the newer target
+            // instead of publishing a stale failure that strands the store.
+            if (requestedSnapshotVersion > targetVersion) {
+              continue
+            }
+            error.value = `Failed to load project snapshot: ${cause}`
             return
           }
-        } catch (cause) {
-          // A versioned notification may arrive while the older read fails. In
-          // that case this single refresh owner must consume the newer target
-          // instead of publishing a stale failure that strands the store.
-          if (requestedSnapshotVersion > targetVersion) {
-            continue
-          }
-          error.value = `Failed to load project snapshot: ${cause}`
-          return
-        }
-      } while (committedSnapshotVersion < requestedSnapshotVersion)
-    })().finally(() => {
-      refreshPromise = null
-    })
-    return refreshPromise
+        } while (committedSnapshotVersion < requestedSnapshotVersion)
+      })().finally(() => {
+        refreshPromise = null
+      })
+    }
+
+    await refreshPromise
+    return committedSnapshotVersion >= minVersion && error.value === null
+  }
+
+  async function requireProjectSnapshot(minVersion = 0): Promise<void> {
+    const committed = await refreshProjectSnapshot(minVersion)
+    if (!committed || error.value) {
+      const message = error.value ?? `Project snapshot version ${minVersion} was not committed`
+      error.value = message
+      throw new Error(message)
+    }
   }
 
   function ensureListenersRegistered(): void {
@@ -181,14 +214,12 @@ export const useProjectStore = defineStore('project', () => {
     path: string | null | undefined,
     chatWorkspacePath?: string | null
   ): void {
-    // The workspace hint is bootstrap-only, while defaultProjectPath belongs to
-    // the versioned project snapshot. A delayed bootstrap response therefore
-    // must not roll back an already committed snapshot.
-    defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
     if (committedSnapshotVersion >= 0) {
       return
     }
 
+    // A delayed bootstrap response must not roll back a committed Project snapshot.
+    defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
     defaultProjectPath.value = normalizePath(path)
     projects.value = reconcileProjects(projects.value)
     applyDefaultSelection()
@@ -197,7 +228,7 @@ export const useProjectStore = defineStore('project', () => {
   async function setDefaultProject(path: string | null): Promise<void> {
     try {
       await configClient.setDefaultProjectPath(normalizePath(path))
-      await refreshProjectSnapshot()
+      await requireProjectSnapshot()
     } catch (cause) {
       error.value = `Failed to update default project path: ${cause}`
       throw cause
@@ -214,7 +245,7 @@ export const useProjectStore = defineStore('project', () => {
     if (orderedPaths.length === 0) return
     try {
       await projectClient.reorderEnvironments(orderedPaths)
-      await refreshProjectSnapshot()
+      await requireProjectSnapshot()
     } catch (cause) {
       error.value = `Failed to reorder environments: ${cause}`
       await refreshProjectSnapshot()
@@ -224,8 +255,19 @@ export const useProjectStore = defineStore('project', () => {
 
   async function archiveEnvironment(path: string): Promise<void> {
     try {
-      await projectClient.archiveEnvironment(path)
-      await refreshProjectSnapshot()
+      const result = await projectClient.archiveEnvironment(path)
+      await requireProjectSnapshot(result.version)
+      const pathIdentity = normalizeWorkspacePath(path)
+      if (
+        environments.value.some(
+          (environment) => normalizeWorkspacePath(environment.path) === pathIdentity
+        ) ||
+        !archivedEnvironments.value.some(
+          (environment) => normalizeWorkspacePath(environment.path) === pathIdentity
+        )
+      ) {
+        throw new Error('Archived environment is missing from the committed project snapshot')
+      }
     } catch (cause) {
       error.value = `Failed to archive environment: ${cause}`
       throw cause
@@ -235,7 +277,7 @@ export const useProjectStore = defineStore('project', () => {
   async function restoreEnvironment(path: string): Promise<void> {
     try {
       await projectClient.restoreEnvironment(path)
-      await refreshProjectSnapshot()
+      await requireProjectSnapshot()
     } catch (cause) {
       error.value = `Failed to restore environment: ${cause}`
       throw cause
@@ -245,7 +287,7 @@ export const useProjectStore = defineStore('project', () => {
   async function removeEnvironment(path: string): Promise<{ clearedSessionIds: string[] }> {
     try {
       const result = await projectClient.removeEnvironment(path)
-      await refreshProjectSnapshot()
+      await requireProjectSnapshot()
       return result
     } catch (cause) {
       error.value = `Failed to remove environment: ${cause}`
@@ -262,15 +304,46 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  async function openFolderPicker(): Promise<void> {
+  async function openFolderPicker(options: OpenFolderPickerOptions = {}): Promise<string | null> {
+    let selection: Awaited<ReturnType<typeof projectClient.selectDirectoryWithVersion>>
     try {
-      const selectedPath = await projectClient.selectDirectory()
-      if (selectedPath) {
-        selectProject(selectedPath, 'manual')
-        await refreshProjectSnapshot()
-      }
+      selection = await projectClient.selectDirectoryWithVersion()
     } catch (cause) {
       error.value = `Failed to open folder picker: ${cause}`
+      throw cause
+    }
+
+    const selectedPath = selection.path
+    if (!selectedPath) {
+      return null
+    }
+
+    const shouldSelect = options.select !== false
+    const previousSelectedProjectPath = selectedProjectPath.value
+    const previousSelectionSource = selectionSource.value
+    if (shouldSelect) {
+      selectProject(selectedPath, 'manual')
+    }
+
+    try {
+      await requireProjectSnapshot(selection.version)
+      const selectedPathIdentity = normalizeWorkspacePath(selectedPath)
+      if (
+        !environments.value.some(
+          (environment) => normalizeWorkspacePath(environment.path) === selectedPathIdentity
+        )
+      ) {
+        error.value = 'Selected workspace is missing from the project snapshot'
+        throw new Error(error.value)
+      }
+      return selectedPath
+    } catch (cause) {
+      if (shouldSelect) {
+        selectedProjectPath.value = previousSelectedProjectPath
+        selectionSource.value = previousSelectionSource
+        projects.value = reconcileProjects(projects.value)
+      }
+      throw cause
     }
   }
 
@@ -288,6 +361,7 @@ export const useProjectStore = defineStore('project', () => {
     selectedProjectPath,
     defaultProjectPath,
     defaultChatWorkspacePath,
+    snapshotReady,
     selectionSource,
     error,
     selectedProject,

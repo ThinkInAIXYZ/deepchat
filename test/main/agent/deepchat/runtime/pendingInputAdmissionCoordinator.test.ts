@@ -117,6 +117,8 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
         case 'release-before-user-fact':
         case 'release-after-rollback':
           return replaceInput({ state: 'pending', claimedAt: null })
+        case 'release-for-mutation':
+          return replaceInput({ state: 'pending', claimedAt: null })
       }
     }
   }
@@ -129,8 +131,16 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     getInput: vi.fn((_sessionId, itemId) =>
       harness.input?.id === itemId ? harness.input : null
     ),
+    getNextQueueInput: vi.fn(() =>
+      harness.input?.mode === 'queue' &&
+      harness.input.state !== 'claimed' &&
+      harness.input.state !== 'consumed'
+        ? harness.input
+        : null
+    ),
     hasActiveInputs: vi.fn(() => harness.input !== null),
     hasBlockingInput: vi.fn(() => harness.input?.state === 'blocked'),
+    hasClaimedInput: vi.fn(() => harness.input?.state === 'claimed'),
     isAtCapacity: vi.fn(() => false),
     listPendingInputs: vi.fn(() =>
       harness.input && harness.input.state !== 'claimed' && harness.input.state !== 'consumed'
@@ -166,6 +176,12 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
       }
       return harness.input
     }),
+    retryReleasedQueueInput: vi.fn(() => {
+      if (harness.input?.state !== 'retry_required') {
+        throw new Error('Pending queue item is not waiting for retry.')
+      }
+      return replaceInput({ state: 'pending' })
+    }),
     retryBlockedInput: vi.fn(() => replaceInput({ state: 'pending', blocking: null })),
     updateQueuedInput: vi.fn((_sessionId, _itemId, input) => replaceInput({ payload: input }))
   }
@@ -183,7 +199,11 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     claimQueuedInputForPreparation: vi.fn(() => {
       replaceInput({ state: 'claimed', claimedAt: 2 })
       return claim
-    })
+    }),
+    releaseRestartHoldForInput: vi.fn(),
+    releaseRestartHoldForSession: vi.fn(() => true),
+    hasRestartHeldQueueInputs: vi.fn(() => true),
+    hasOnlyRestartHeldQueueInputs: vi.fn(() => false)
   }
 
   const ports: PendingInputAdmissionCoordinatorPorts = {
@@ -258,6 +278,147 @@ function createDeferred<T>() {
 }
 
 describe('PendingInputAdmissionCoordinator', () => {
+  it('lists pending Steer inputs without scheduling execution', () => {
+    const test = createHarness()
+    test.harness.input = createInput('steer', 'steer')
+
+    expect(test.coordinator.list(SESSION_ID)).toEqual([test.harness.input])
+    expect(test.pump.schedule).not.toHaveBeenCalled()
+  })
+
+  it('releases the restart hold and requests one manual Queue drain', async () => {
+    const test = createHarness()
+    vi.mocked(test.pump.drain).mockResolvedValueOnce(true)
+
+    await expect(test.coordinator.resumePendingQueue(SESSION_ID)).resolves.toBe(true)
+
+    expect(test.pump.releaseRestartHoldForSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(test.pump.drain).toHaveBeenCalledWith(SESSION_ID, 'manual')
+  })
+
+  it('reports resume availability from the restart hold owner', () => {
+    const test = createHarness()
+
+    expect(test.coordinator.isPendingQueueResumeAvailable(SESSION_ID)).toBe(true)
+    expect(test.pump.hasRestartHeldQueueInputs).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('does not drain when no restart hold was released', async () => {
+    const test = createHarness()
+    vi.mocked(test.pump.releaseRestartHoldForSession).mockReturnValueOnce(false)
+
+    await expect(test.coordinator.resumePendingQueue(SESSION_ID)).resolves.toBe(false)
+
+    expect(test.pump.drain).not.toHaveBeenCalled()
+  })
+
+  it('atomically accepts an explicit retry and requests a manual drain', async () => {
+    const test = createHarness()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'retry_required'
+    }
+    vi.mocked(test.pump.hasRestartHeldQueueInputs).mockReturnValue(false)
+    vi.mocked(test.pump.drain).mockResolvedValueOnce(true)
+
+    await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
+      accepted: true,
+      started: true
+    })
+
+    expect(test.pendingInputs.retryReleasedQueueInput).toHaveBeenCalledWith(SESSION_ID, 'input')
+    expect(test.pump.drain).toHaveBeenCalledWith(SESSION_ID, 'manual')
+    expect(test.harness.input?.state).toBe('pending')
+
+    await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
+      accepted: false,
+      started: false
+    })
+    expect(test.pendingInputs.retryReleasedQueueInput).toHaveBeenCalledOnce()
+  })
+
+  it('accepts retry for a non-head Queue item and leaves dispatch ordering to the pump', async () => {
+    const test = createHarness()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'retry_required',
+      queueOrder: 2
+    }
+    const earlier = createInput('earlier')
+    vi.mocked(test.pendingInputs.listPendingInputs).mockReturnValueOnce([
+      earlier,
+      test.harness.input
+    ])
+
+    await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
+      accepted: true,
+      started: false
+    })
+
+    expect(test.pendingInputs.retryReleasedQueueInput).toHaveBeenCalledWith(SESSION_ID, 'input')
+    expect(test.pump.drain).toHaveBeenCalledWith(SESSION_ID, 'manual')
+    expect(test.pump.schedule).toHaveBeenCalledWith(SESSION_ID, 'enqueue')
+    expect(test.harness.input?.state).toBe('pending')
+  })
+
+  it('keeps an accepted retry successful when the immediate drain fails', async () => {
+    const test = createHarness()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'retry_required'
+    }
+    vi.mocked(test.pump.drain).mockRejectedValueOnce(new Error('state unavailable'))
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
+      accepted: true,
+      started: false
+    })
+
+    expect(test.harness.input.state).toBe('pending')
+    expect(test.pump.schedule).toHaveBeenCalledWith(SESSION_ID, 'enqueue')
+    expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
+  it('continues an accepted retry when publication fails after persistence', async () => {
+    const test = createHarness()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'retry_required'
+    }
+    vi.mocked(test.pendingInputs.retryReleasedQueueInput).mockImplementationOnce(() => {
+      test.harness.input = {
+        ...test.harness.input!,
+        state: 'pending'
+      }
+      throw new Error('publication unavailable')
+    })
+    vi.mocked(test.pump.drain).mockResolvedValueOnce(true)
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
+      accepted: true,
+      started: true
+    })
+
+    expect(test.pump.drain).toHaveBeenCalledWith(SESSION_ID, 'manual')
+    expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
+  it('allows retry mutation only when every active input is a restart-held Queue draft', () => {
+    const test = createHarness()
+
+    expect(() => test.coordinator.assertNoActiveInputs(SESSION_ID)).toThrow(
+      'Please clear the waiting lane before mutating chat history.'
+    )
+    vi.mocked(test.pump.hasOnlyRestartHeldQueueInputs).mockReturnValueOnce(true)
+    expect(() =>
+      test.coordinator.assertNoActiveInputs(SESSION_ID, { allowRestartHeldQueue: true })
+    ).not.toThrow()
+  })
+
   it('accepts steer before the assistant stream starts and ends preparation', async () => {
     const test = createHarness()
     test.harness.preStreamController = new AbortController()

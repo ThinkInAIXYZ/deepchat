@@ -94,4 +94,56 @@ describeIfSqlite('NewEnvironmentPreferencesTable', () => {
     })
     expect(table.get('/work/remove')?.removed_at).toEqual(expect.any(Number))
   })
+
+  it('reactivates one existing path without resetting its explicit order', () => {
+    table.reorderActive(['/work/a', '/work/b'])
+    table.markArchived('/work/a')
+    table.markRemoved('/work/b')
+
+    table.markActive('/work/a')
+    table.markActive('/work/b')
+    table.markActive('/work/a')
+
+    expect(table.list()).toHaveLength(2)
+    expect(table.get('/work/a')).toMatchObject({
+      status: 'active',
+      sort_order: 0,
+      archived_at: null,
+      removed_at: null
+    })
+    expect(table.get('/work/b')).toMatchObject({
+      status: 'active',
+      sort_order: 1,
+      archived_at: null,
+      removed_at: null
+    })
+  })
+
+  it('assigns unique top positions without moving an active duplicate', () => {
+    table.reorderActive(['/work/a', '/work/b'])
+
+    table.activateAtTop('/work/new')
+    expect(table.get('/work/new')).toMatchObject({ status: 'active', sort_order: -1 })
+
+    table.activateAtTop('/work/newer')
+    expect(table.get('/work/newer')).toMatchObject({ status: 'active', sort_order: -2 })
+
+    table.activateAtTop('/work/b')
+    expect(table.get('/work/b')).toMatchObject({ status: 'active', sort_order: 1 })
+
+    table.markArchived('/work/a')
+    table.activateAtTop('/work/a')
+    expect(table.get('/work/a')).toMatchObject({
+      status: 'active',
+      sort_order: -3,
+      archived_at: null,
+      removed_at: null
+    })
+    expect(
+      table
+        .list()
+        .filter((row) => row.status === 'active')
+        .map((row) => row.sort_order)
+    ).toEqual(expect.arrayContaining([-3, -2, -1, 1]))
+  })
 })

@@ -89,7 +89,7 @@
               icon="lucide:folder-open"
               :label="t('common.project.openFolder')"
               class="text-xs py-1.5 px-2"
-              @select="projectStore.openFolderPicker()"
+              @select="handleOpenFolderPicker"
             />
           </DropdownMenuContent>
         </DropdownMenu>
@@ -224,6 +224,7 @@ import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
@@ -404,11 +405,9 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const normalizeComparableProjectPath = (value: string | null | undefined) =>
-  normalizeProjectPath(value)?.replace(/[\\/]+$/, '') ?? null
 const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
-  const chatWorkspacePath = normalizeComparableProjectPath(projectStore.defaultChatWorkspacePath)
-  return Boolean(chatWorkspacePath) && normalizeComparableProjectPath(path) === chatWorkspacePath
+  const chatWorkspacePath = normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
+  return Boolean(chatWorkspacePath) && normalizeWorkspacePath(path) === chatWorkspacePath
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
 const archivedProjectPaths = computed(
@@ -1315,6 +1314,20 @@ function onPendingSkillsChange(skills: string[]) {
 
 function clearSelectedProject() {
   projectStore.selectProject(null, 'manual')
+}
+
+async function handleOpenFolderPicker() {
+  try {
+    await projectStore.openFolderPicker()
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to open folder picker:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.selectFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
 }
 
 const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {

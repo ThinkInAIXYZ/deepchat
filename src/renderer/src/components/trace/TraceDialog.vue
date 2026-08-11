@@ -318,7 +318,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { DcBadge } from '@dc-ui/components/badge'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcCopyButton } from '@dc-ui/components'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'

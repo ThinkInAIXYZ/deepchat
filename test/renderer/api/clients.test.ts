@@ -947,15 +947,16 @@ describe('renderer api clients', () => {
             case 'project.listEnvironments':
               return { environments: [] }
             case 'project.reorderEnvironments':
-            case 'project.archiveEnvironment':
             case 'project.restoreEnvironment':
               return { updated: true }
+            case 'project.archiveEnvironment':
+              return { updated: true, version: 1 }
             case 'project.removeEnvironment':
               return { clearedSessionIds: [] }
             case 'project.pathExists':
               return { exists: true }
             case 'project.selectDirectory':
-              return { path: '/workspace' }
+              return { path: '/workspace', version: 1 }
             case 'tools.listDefinitions':
               return { tools: [] }
             case 'memory.add':
@@ -2878,11 +2879,12 @@ describe('renderer api clients', () => {
     await projectClient.listRecent(8)
     await projectClient.listEnvironments('archived')
     await projectClient.reorderEnvironments(['/workspace', '/other'])
-    await projectClient.archiveEnvironment('/workspace')
+    const archiveResult = await projectClient.archiveEnvironment('/workspace')
     await projectClient.restoreEnvironment('/workspace')
     await projectClient.removeEnvironment('/workspace')
     await projectClient.pathExists('/workspace')
-    await projectClient.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
+    const selectResult = await projectClient.selectDirectoryWithVersion()
     const unsubscribe = projectClient.onEnvironmentsChanged(() => undefined)
     await toolClient.getConfigurableAgentToolDefinitions({ chatMode: 'agent' })
 
@@ -2904,6 +2906,7 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'project.archiveEnvironment', {
       path: '/workspace'
     })
+    expect(archiveResult).toEqual({ updated: true, version: 1 })
     expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'project.restoreEnvironment', {
       path: '/workspace'
     })
@@ -2914,9 +2917,12 @@ describe('renderer api clients', () => {
       path: '/workspace'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'project.selectDirectory', {})
+    expect(selectedPath).toBe('/workspace')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'project.selectDirectory', {})
+    expect(selectResult).toEqual({ path: '/workspace', version: 1 })
     expect(bridge.on).toHaveBeenCalledWith('project:environments-changed', expect.any(Function))
     expect(unsubscribe).toEqual(expect.any(Function))
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'tools.listDefinitions', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'tools.listDefinitions', {
       chatMode: 'agent'
     })
   })

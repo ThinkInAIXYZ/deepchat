@@ -451,4 +451,19 @@ describe('MessageItemUser', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBeUndefined()
   })
+
+  it('hides recovery-specific UI for a restart-failed Steer message', () => {
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage({
+          status: 'error',
+          inputReceipt: { mode: 'steer', readAt: null }
+        })
+      },
+      ...globalMountOptions
+    })
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBeUndefined()
+    expect(wrapper.find('[data-testid="failed-steer-retry"]').exists()).toBe(false)
+  })
 })

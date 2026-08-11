@@ -287,6 +287,11 @@
           <div v-if="chatSectionGroup" class="pt-4">
             <div
               class="group flex w-full items-center gap-1 rounded-md pr-1 text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
+              :class="
+                revealedWorkspaceGroupId === CHAT_SECTION_GROUP_ID
+                  ? 'bg-accent/70 ring-1 ring-primary/20'
+                  : ''
+              "
             >
               <button
                 type="button"
@@ -342,24 +347,38 @@
             <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
               {{ t('chat.sidebar.workspace') }}
             </div>
-            <DcButton
-              size="icon-sm"
-              icon="lucide:folder-kanban"
-              icon-size="4"
-              :tooltip="
-                sessionStore.groupMode === 'project'
-                  ? t('chat.sidebar.groupByDate')
-                  : t('chat.sidebar.groupByProject')
-              "
-              variant="ghost"
-              class="flex items-center justify-center rounded-md transition-all duration-150"
-              :class="
-                sessionStore.groupMode === 'project'
-                  ? 'bg-accent/80 text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              "
-              @click="sessionStore.toggleGroupMode()"
-            />
+            <div class="flex items-center gap-0.5">
+              <DcButton
+                size="icon-sm"
+                icon="lucide:folder-plus"
+                icon-size="4"
+                data-testid="window-sidebar-add-workspace-button"
+                :tooltip="t('chat.sidebar.addWorkspace')"
+                :aria-label="t('chat.sidebar.addWorkspace')"
+                :disabled="isAddingWorkspace"
+                variant="ghost"
+                class="flex items-center justify-center rounded-md text-muted-foreground transition-all duration-150 hover:bg-accent/50 hover:text-foreground"
+                @click="handleAddWorkspace"
+              />
+              <DcButton
+                size="icon-sm"
+                icon="lucide:folder-kanban"
+                icon-size="4"
+                :tooltip="
+                  sessionStore.groupMode === 'project'
+                    ? t('chat.sidebar.groupByDate')
+                    : t('chat.sidebar.groupByProject')
+                "
+                variant="ghost"
+                class="flex items-center justify-center rounded-md transition-all duration-150"
+                :class="
+                  sessionStore.groupMode === 'project'
+                    ? 'bg-accent/80 text-foreground'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                "
+                @click="sessionStore.toggleGroupMode()"
+              />
+            </div>
           </div>
 
           <draggable
@@ -379,7 +398,12 @@
               <div>
                 <div
                   class="group mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
-                  :class="isProjectGroupDragging ? 'pointer-events-none' : ''"
+                  :class="[
+                    isProjectGroupDragging ? 'pointer-events-none' : '',
+                    revealedWorkspaceGroupId === getGroupIdentifier(group)
+                      ? 'bg-accent/70 ring-1 ring-primary/20'
+                      : ''
+                  ]"
                 >
                   <button
                     type="button"
@@ -390,8 +414,8 @@
                         : ''
                     "
                     :data-group-id="getGroupIdentifier(group)"
-                    :aria-expanded="!isGroupCollapsed(group)"
-                    @click="toggleGroup(group)"
+                    :aria-expanded="getWorkspaceGroupAriaExpanded(group)"
+                    @click="handleWorkspaceGroupClick(group)"
                   >
                     <span class="shrink-0 size-6 flex items-center justify-center">
                       <Icon
@@ -404,10 +428,40 @@
                     <span class="truncate">
                       {{ getGroupLabel(group) }}
                     </span>
+                    <span
+                      v-if="isTrueEmptyWorkspaceGroup(group)"
+                      data-testid="window-sidebar-empty-workspace-label"
+                      class="ms-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
+                    >
+                      {{ t('chat.sidebar.emptyWorkspace') }}
+                    </span>
+                    <span
+                      v-if="isWorkspaceUnavailable(group)"
+                      class="ms-auto flex shrink-0 items-center"
+                      :title="
+                        t('chat.input.workspaceUnavailableTooltip', {
+                          path: getWorkspacePath(group)
+                        })
+                      "
+                    >
+                      <Icon
+                        icon="lucide:circle-alert"
+                        data-testid="window-sidebar-workspace-unavailable"
+                        aria-hidden="true"
+                        class="size-3.5 text-amber-500"
+                      />
+                    </span>
+                    <span v-if="isWorkspaceUnavailable(group)" class="sr-only">
+                      {{
+                        t('chat.input.workspaceUnavailableTooltip', {
+                          path: getWorkspacePath(group)
+                        })
+                      }}
+                    </span>
                   </button>
 
                   <DcButton
-                    v-if="isProjectDirectoryGroup(group)"
+                    v-if="canStartConversationInProjectGroup(group)"
                     type="button"
                     data-testid="window-sidebar-project-new-button"
                     size="icon-sm"
@@ -415,16 +469,18 @@
                     icon-size="3.5"
                     variant="ghost"
                     :tooltip="t('common.newChat')"
-                    class="flex items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-                    @click.stop="handleNewChatForProject(group.id)"
+                    class="flex items-center justify-center rounded-md text-muted-foreground transition-all duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100"
+                    :class="
+                      isTrueEmptyWorkspaceGroup(group)
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                    "
+                    @click.stop="handleNewChatForProject(getWorkspacePath(group))"
                   />
 
-                  <DropdownMenu
-                    v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
-                  >
+                  <DropdownMenu v-if="isActiveProjectDirectoryGroup(group)">
                     <DropdownMenuTrigger as-child>
                       <DcButton
-                        v-if="isProjectDirectoryGroup(group)"
                         type="button"
                         size="icon-sm"
                         icon="lucide:ellipsis"
@@ -458,6 +514,14 @@
                         @select="handleMoveProjectGroup(group, 'bottom')"
                       >
                         {{ t('chat.sidebar.moveProjectGroupBottom') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        data-testid="window-sidebar-archive-workspace-menu-item"
+                        :disabled="isArchivingWorkspace"
+                        @select="requestWorkspaceArchive(group)"
+                      >
+                        {{ t('settings.environments.actions.archive') }}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -543,6 +607,45 @@
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <Dialog v-model:open="archiveWorkspaceDialogOpen">
+    <DialogContent data-testid="window-sidebar-archive-workspace-dialog">
+      <DialogHeader>
+        <DialogTitle>
+          {{
+            t('settings.environments.confirm.archiveTitle', {
+              name: archiveTargetWorkspace?.name ?? ''
+            })
+          }}
+        </DialogTitle>
+        <DialogDescription>
+          {{ t('settings.environments.confirm.archiveDescription') }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <DcButton
+          data-testid="window-sidebar-archive-workspace-cancel"
+          variant="outline"
+          :disabled="isArchivingWorkspace"
+          @click="archiveWorkspaceDialogOpen = false"
+        >
+          {{ t('common.cancel') }}
+        </DcButton>
+        <DcButton
+          data-testid="window-sidebar-archive-workspace-confirm"
+          :disabled="isArchivingWorkspace"
+          @click="handleArchiveWorkspaceConfirm"
+        >
+          <Icon
+            v-if="isArchivingWorkspace"
+            icon="lucide:loader-circle"
+            class="mr-2 size-4 animate-spin"
+          />
+          {{ t('settings.environments.actions.archive') }}
+        </DcButton>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -568,11 +671,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createDeviceClient } from '@api/DeviceClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import {
@@ -583,7 +688,9 @@ import {
 } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
+import type { EnvironmentSummary } from '@shared/types/agent-interface'
 import type { RemoteChannel, RemoteRuntimeState } from '@shared/types/remote'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
@@ -609,6 +716,10 @@ const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
 type SessionItemRegion = 'pinned' | 'grouped'
 type ShortcutPlatform = 'mac' | 'other'
 type ProjectGroupMoveTarget = 'top' | 'up' | 'down' | 'bottom'
+type WorkspaceArchiveTarget = Pick<EnvironmentSummary, 'path' | 'name'>
+type SidebarWorkspaceGroup = SessionGroup & {
+  environment?: EnvironmentSummary
+}
 type SessionItemRect = {
   left: number
   top: number
@@ -672,6 +783,7 @@ let sessionListScrollFrame: number | null = null
 let sessionListFillFrame: number | null = null
 let sessionListResizeObserver: ResizeObserver | null = null
 let shortcutBadgeTimer: number | null = null
+let workspaceRevealTimer: number | null = null
 const shortcutPlatform = ref<ShortcutPlatform>(
   navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
 )
@@ -796,7 +908,6 @@ const matchesSessionSearch = (session: UISession) => {
 }
 const isProjectGroupDragging = ref(false)
 const projectGroupDragScrollTop = ref<number | null>(null)
-const projectEnvironmentMetadataReady = ref(false)
 const pinnedSessions = computed(() =>
   sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
 )
@@ -811,19 +922,40 @@ const baseFilteredGroups = computed(() =>
     }))
     .filter((group) => group.sessions.length > 0)
 )
-const projectOrderIndex = computed(
-  () => new Map(projectStore.environments.map((environment, index) => [environment.path, index]))
-)
-const archivedProjectPathSet = computed(
-  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
-)
-const normalizeProjectPath = (projectPath: string | null | undefined) =>
-  projectPath?.trim().replace(/[\\/]+$/, '') ?? ''
 const defaultChatWorkspacePath = computed(() =>
-  normalizeProjectPath(projectStore.defaultChatWorkspacePath)
+  normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
+)
+const projectOrderIndex = computed(
+  () =>
+    new Map(
+      projectStore.environments.map((environment, index) => [
+        normalizeWorkspacePath(environment.path),
+        index
+      ])
+    )
+)
+const activeProjectEnvironmentByPath = computed(
+  () =>
+    new Map(
+      projectStore.environments.map((environment) => [
+        normalizeWorkspacePath(environment.path),
+        environment
+      ])
+    )
+)
+const historicalProjectEnvironmentByPath = computed(
+  () =>
+    new Map(
+      [...projectStore.archivedEnvironments, ...projectStore.removedEnvironments].map(
+        (environment) => [normalizeWorkspacePath(environment.path), environment]
+      )
+    )
+)
+const selectableProjectPathSet = computed(
+  () => new Set(projectStore.projects.map((project) => normalizeWorkspacePath(project.path)))
 )
 const isChatSession = (session: UISession) => {
-  const projectPath = normalizeProjectPath(session.projectDir)
+  const projectPath = normalizeWorkspacePath(session.projectDir)
   return (
     projectPath.length === 0 ||
     (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
@@ -832,53 +964,106 @@ const isChatSession = (session: UISession) => {
 const isChatProjectGroup = (group: SessionGroup) =>
   group.id === NO_PROJECT_GROUP_ID ||
   (defaultChatWorkspacePath.value.length > 0 &&
-    normalizeProjectPath(group.id) === defaultChatWorkspacePath.value)
+    normalizeWorkspacePath(group.id) === defaultChatWorkspacePath.value)
 const isProjectDirectoryGroup = (group: SessionGroup) =>
   sessionStore.groupMode === 'project' &&
   group.id !== NO_PROJECT_GROUP_ID &&
   !group.labelKey &&
   !isChatProjectGroup(group)
+const getWorkspaceEnvironment = (group: SessionGroup) =>
+  (group as SidebarWorkspaceGroup).environment
 const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
-  isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
-const getProjectGroupRank = (group: SessionGroup) => {
-  if (!isProjectDirectoryGroup(group)) {
-    return 2
-  }
-
-  return archivedProjectPathSet.value.has(group.id) ? 1 : 0
+  isProjectDirectoryGroup(group) && getWorkspaceEnvironment(group)?.status === 'active'
+const isWorkspaceUnavailable = (group: SessionGroup) =>
+  isActiveProjectDirectoryGroup(group) && getWorkspaceEnvironment(group)?.exists === false
+const canStartConversationInProjectGroup = (group: SessionGroup) =>
+  isActiveProjectDirectoryGroup(group) && !isWorkspaceUnavailable(group)
+const isTrueEmptyWorkspaceGroup = (group: SessionGroup) => {
+  const environment = getWorkspaceEnvironment(group)
+  return (
+    canStartConversationInProjectGroup(group) &&
+    environment?.sessionCount === 0 &&
+    group.sessions.length === 0
+  )
 }
 const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
-  const leftRank = getProjectGroupRank(left)
-  const rightRank = getProjectGroupRank(right)
+  const leftRank = isActiveProjectDirectoryGroup(left) ? 0 : 1
+  const rightRank = isActiveProjectDirectoryGroup(right) ? 0 : 1
 
   if (leftRank !== rightRank) {
     return leftRank - rightRank
   }
 
-  if (leftRank !== 0) {
-    return 0
-  }
-
-  const leftOrder = projectOrderIndex.value.get(left.id) ?? Number.MAX_SAFE_INTEGER
-  const rightOrder = projectOrderIndex.value.get(right.id) ?? Number.MAX_SAFE_INTEGER
+  const leftOrder =
+    projectOrderIndex.value.get(normalizeWorkspacePath(left.id)) ?? Number.MAX_SAFE_INTEGER
+  const rightOrder =
+    projectOrderIndex.value.get(normalizeWorkspacePath(right.id)) ?? Number.MAX_SAFE_INTEGER
   if (leftOrder !== rightOrder) {
     return leftOrder - rightOrder
   }
 
   return 0
 }
-const orderedFilteredGroups = computed(() => {
+const decorateWorkspaceGroup = (
+  group: SessionGroup,
+  environment: EnvironmentSummary | undefined
+): SidebarWorkspaceGroup => ({
+  ...group,
+  ...(environment ? { environment } : {})
+})
+const sortProjectGroups = (groups: SidebarWorkspaceGroup[]) =>
+  [...groups].sort(compareProjectGroups)
+const mergeProjectWorkspaceGroups = (sessionGroups: SessionGroup[]) => {
+  const decoratedSessionGroups = sessionGroups.map((group) => {
+    const pathIdentity = normalizeWorkspacePath(group.id)
+    const environment =
+      activeProjectEnvironmentByPath.value.get(pathIdentity) ??
+      historicalProjectEnvironmentByPath.value.get(pathIdentity)
+    return decorateWorkspaceGroup(group, environment)
+  })
+
+  if (!projectStore.snapshotReady || normalizedSessionSearchQuery.value.length > 0) {
+    return sortProjectGroups(decoratedSessionGroups)
+  }
+
+  const sessionGroupByPath = new Map(
+    decoratedSessionGroups.map((group) => [normalizeWorkspacePath(group.id), group])
+  )
+  const activeGroups = projectStore.environments
+    .filter(
+      (environment) =>
+        normalizeWorkspacePath(environment.path) !== defaultChatWorkspacePath.value &&
+        (!environment.isTemp ||
+          selectableProjectPathSet.value.has(normalizeWorkspacePath(environment.path)) ||
+          sessionGroupByPath.has(normalizeWorkspacePath(environment.path)))
+    )
+    .map((environment): SidebarWorkspaceGroup => {
+      const pathIdentity = normalizeWorkspacePath(environment.path)
+      const sessionGroup = sessionGroupByPath.get(pathIdentity)
+      sessionGroupByPath.delete(pathIdentity)
+      return {
+        id: environment.path,
+        label: sessionGroup?.label ?? environment.name,
+        labelKey: sessionGroup?.labelKey,
+        sessions: sessionGroup?.sessions ?? [],
+        environment
+      }
+    })
+  const historicalGroups = decoratedSessionGroups.filter((group) =>
+    sessionGroupByPath.has(normalizeWorkspacePath(group.id))
+  )
+
+  return [...activeGroups, ...historicalGroups]
+}
+const orderedFilteredGroups = computed<SidebarWorkspaceGroup[]>(() => {
   const groups = baseFilteredGroups.value
   if (sessionStore.groupMode !== 'project') {
     return groups
   }
 
-  return groups
-    .map((group, index) => ({ group, index }))
-    .sort(
-      (left, right) => compareProjectGroups(left.group, right.group) || left.index - right.index
-    )
-    .map(({ group }) => group)
+  const chatGroups = groups.filter(isChatProjectGroup)
+  const workspaceSessionGroups = groups.filter(isProjectDirectoryGroup)
+  return [...chatGroups, ...mergeProjectWorkspaceGroups(workspaceSessionGroups)]
 })
 const compareSidebarSessions = (left: UISession, right: UISession) => {
   const leftUpdatedAt = Number.isFinite(left.updatedAt) ? left.updatedAt : 0
@@ -969,13 +1154,17 @@ const canReorderProjectGroups = computed(
     sessionStore.groupMode === 'project' &&
     normalizedSessionSearchQuery.value.length === 0 &&
     !pinFlightSessionId.value &&
-    projectEnvironmentMetadataReady.value &&
+    projectStore.snapshotReady &&
     sessionStore.hasLoadedInitialPage &&
     !sessionStore.loading &&
     projectReorderableGroups.value.length > 1
 )
+const isAddingWorkspace = ref(false)
+const revealedWorkspaceGroupId = ref<string | null>(null)
 const sessionListRef = ref<HTMLElement | null>(null)
 const deleteTargetSession = ref<UISession | null>(null)
+const archiveTargetWorkspace = ref<WorkspaceArchiveTarget | null>(null)
+const isArchivingWorkspace = ref(false)
 
 const deleteDialogOpen = computed({
   get: () => deleteTargetSession.value !== null,
@@ -986,14 +1175,30 @@ const deleteDialogOpen = computed({
   }
 })
 
-const getGroupIdentifier = (group: SessionGroup) => group.id
+const archiveWorkspaceDialogOpen = computed({
+  get: () => archiveTargetWorkspace.value !== null,
+  set: (open: boolean) => {
+    if (!open && !isArchivingWorkspace.value) {
+      archiveTargetWorkspace.value = null
+    }
+  }
+})
+
+const getGroupIdentifier = (group: SessionGroup) => normalizeWorkspacePath(group.id)
+const getWorkspacePath = (group: SessionGroup) => getWorkspaceEnvironment(group)?.path ?? group.id
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
 const getGroupIcon = (group: SessionGroup) =>
-  isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
+  isTrueEmptyWorkspaceGroup(group)
+    ? 'lucide:folder'
+    : isGroupCollapsed(group)
+      ? 'lucide:folder-closed'
+      : 'lucide:folder-open'
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
+const getWorkspaceGroupAriaExpanded = (group: SessionGroup) =>
+  isTrueEmptyWorkspaceGroup(group) ? undefined : !isGroupCollapsed(group)
 
 const canAutoFillSessionList = computed(
   () =>
@@ -1079,18 +1284,27 @@ const toggleGroup = (group: SessionGroup) => {
   scheduleSessionListFillCheck()
 }
 
+const handleWorkspaceGroupClick = (group: SessionGroup) => {
+  if (isTrueEmptyWorkspaceGroup(group)) {
+    void handleNewChatForProject(getWorkspacePath(group))
+    return
+  }
+
+  toggleGroup(group)
+}
+
 const isProjectGroupReorderTarget = (group: SessionGroup) => isActiveProjectDirectoryGroup(group)
 
 const getCurrentProjectOrderPaths = () => {
   const environmentPaths = projectStore.environments.map((environment) => environment.path)
   return environmentPaths.length > 0
     ? environmentPaths
-    : projectReorderableGroups.value.map((group) => group.id)
+    : projectReorderableGroups.value.map(getWorkspacePath)
 }
 
 const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
   const currentOrder = getCurrentProjectOrderPaths()
-  const previousVisiblePaths = projectReorderableGroups.value.map((group) => group.id)
+  const previousVisiblePaths = projectReorderableGroups.value.map(getWorkspacePath)
   const previousVisiblePathSet = new Set(previousVisiblePaths)
   const nextOrder = [...currentOrder]
   let nextVisibleIndex = 0
@@ -1121,7 +1335,7 @@ const handleProjectGroupModelUpdate = (nextGroups: SessionGroup[]) => {
     return
   }
 
-  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map((group) => group.id)
+  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map(getWorkspacePath)
   void commitVisibleProjectGroupOrder(nextVisiblePaths).catch((error) => {
     console.warn('[WindowSideBar] Failed to reorder project groups:', error)
   })
@@ -1133,7 +1347,9 @@ const canMoveProjectGroup = (group: SessionGroup, delta: -1 | 1) => {
   }
 
   const groups = projectReorderableGroups.value
-  const index = groups.findIndex((candidate) => candidate.id === group.id)
+  const index = groups.findIndex(
+    (candidate) => getGroupIdentifier(candidate) === getGroupIdentifier(group)
+  )
   if (index < 0) {
     return false
   }
@@ -1146,8 +1362,8 @@ const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTar
     return
   }
 
-  const paths = projectReorderableGroups.value.map((candidate) => candidate.id)
-  const currentIndex = paths.indexOf(group.id)
+  const paths = projectReorderableGroups.value.map(getWorkspacePath)
+  const currentIndex = paths.indexOf(getWorkspacePath(group))
   if (currentIndex < 0) {
     return
   }
@@ -1166,6 +1382,40 @@ const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTar
   void commitVisibleProjectGroupOrder(paths).catch((error) => {
     console.warn('[WindowSideBar] Failed to move project group:', error)
   })
+}
+
+const requestWorkspaceArchive = (group: SessionGroup) => {
+  const environment = getWorkspaceEnvironment(group)
+  if (environment?.status !== 'active' || isArchivingWorkspace.value) {
+    return
+  }
+
+  archiveTargetWorkspace.value = {
+    path: environment.path,
+    name: environment.name
+  }
+}
+
+const handleArchiveWorkspaceConfirm = async () => {
+  const target = archiveTargetWorkspace.value
+  if (!target || isArchivingWorkspace.value) {
+    return
+  }
+
+  isArchivingWorkspace.value = true
+  try {
+    await projectStore.archiveEnvironment(target.path)
+    archiveTargetWorkspace.value = null
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to archive workspace:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.archive.failed',
+      title: t('settings.environments.errors.archiveTitle')
+    })
+  } finally {
+    isArchivingWorkspace.value = false
+  }
 }
 
 const handleProjectGroupDragStart = () => {
@@ -1205,7 +1455,9 @@ watch(
       return
     }
 
-    const validGroupIds = new Set(groups.map(getGroupIdentifier))
+    const validGroupIds = new Set(
+      groups.filter((group) => !isTrueEmptyWorkspaceGroup(group)).map(getGroupIdentifier)
+    )
     const nextCollapsedGroupIds = new Set(
       [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
     )
@@ -1306,12 +1558,61 @@ const refreshRemoteControlStatus = async (): Promise<boolean> => {
   }
 }
 
-const refreshProjectEnvironmentMetadata = async () => {
+const revealWorkspaceGroup = async (projectPath: string) => {
+  await nextTick()
+  const pathIdentity = normalizeWorkspacePath(projectPath)
+  const isChatWorkspace = pathIdentity === defaultChatWorkspacePath.value
+  const groupId = isChatWorkspace ? CHAT_SECTION_GROUP_ID : pathIdentity
+  const groupTarget = Array.from(
+    sessionListRef.value?.querySelectorAll<HTMLElement>('[data-group-id]') ?? []
+  ).find((element) => element.dataset.groupId === groupId)
+  const target =
+    groupTarget ??
+    (isChatWorkspace
+      ? sessionListRef.value
+          ?.closest<HTMLElement>('[data-testid="window-sidebar"]')
+          ?.querySelector<HTMLElement>('[data-testid="app-new-chat-button"]')
+      : null)
+
+  target?.scrollIntoView?.({ block: 'nearest' })
+  target?.focus()
+  if (target && !prefersReducedMotion()) {
+    if (workspaceRevealTimer !== null) {
+      window.clearTimeout(workspaceRevealTimer)
+    }
+    revealedWorkspaceGroupId.value = groupId
+    workspaceRevealTimer = window.setTimeout(() => {
+      revealedWorkspaceGroupId.value = null
+      workspaceRevealTimer = null
+    }, 900)
+  }
+}
+
+const handleAddWorkspace = async () => {
+  if (isAddingWorkspace.value) {
+    return
+  }
+
+  isAddingWorkspace.value = true
   try {
-    await projectStore.fetchEnvironments()
-    projectEnvironmentMetadataReady.value = true
+    const selectedPath = await projectStore.openFolderPicker({ select: false })
+    if (!selectedPath) {
+      return
+    }
+
+    sessionSearchQuery.value = ''
+    await sessionStore.setGroupMode('project')
+    await revealWorkspaceGroup(selectedPath)
   } catch (error) {
-    console.warn('[WindowSideBar] Failed to refresh project environment metadata:', error)
+    console.warn('[WindowSideBar] Failed to add workspace:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.registrationFailed',
+      title: t('common.error.operationFailed'),
+      description: t('chat.sidebar.addWorkspaceFailed')
+    })
+  } finally {
+    isAddingWorkspace.value = false
   }
 }
 
@@ -1983,7 +2284,7 @@ const handleDeleteConfirm = async () => {
 
 onMounted(() => {
   remoteControlStatusUnmounted = false
-  void refreshProjectEnvironmentMetadata()
+  void projectStore.fetchEnvironments()
   void loadShortcutPlatform()
   window.addEventListener('keydown', handleWindowShortcutKeydown)
   window.addEventListener('keyup', handleWindowShortcutKeyup)
@@ -2021,6 +2322,12 @@ onUnmounted(() => {
     window.cancelAnimationFrame(sessionListFillFrame)
     sessionListFillFrame = null
   }
+
+  if (workspaceRevealTimer !== null) {
+    window.clearTimeout(workspaceRevealTimer)
+    workspaceRevealTimer = null
+  }
+  revealedWorkspaceGroupId.value = null
 
   if (sessionListResizeObserver) {
     sessionListResizeObserver.disconnect()

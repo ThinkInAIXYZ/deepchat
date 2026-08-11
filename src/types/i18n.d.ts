@@ -1400,6 +1400,9 @@ declare module 'vue-i18n' {
     history: string
     minimize: string
     maximize: string
+    showValue: string
+    hideValue: string
+    scrollToBottom: string
     restore: string
     browser: {
       back: string
@@ -2138,6 +2141,29 @@ declare module 'vue-i18n' {
     'settings-memory': string
     'settings-debug': string
     common: {
+      commandShell: {
+        title: string
+        auto: string
+        windowsPowerShell: string
+        gitBash: string
+        executable: string
+        autoDetect: string
+        browse: string
+        clearOverride: string
+        checking: string
+        available: string
+        refresh: string
+        updateFailed: string
+        checkFailed: string
+        browseFailed: string
+        loadFailed: string
+        errors: {
+          'unsupported-platform': string
+          'override-invalid': string
+          'not-found': string
+          'validation-failed': string
+        }
+      }
       title: string
       resetData: string
       language: string
@@ -2363,6 +2389,16 @@ declare module 'vue-i18n' {
       subagentLimit: string
       addSubagentSlot: string
       toolsTitle: string
+      outputLimitsTitle: string
+      outputLimitsDescription: string
+      outputLimitsSafetyHint: string
+      outputLimitsReset: string
+      outputLimitsReadFile: string
+      outputLimitsReadFileHint: string
+      outputLimitsTool: string
+      outputLimitsToolHint: string
+      outputLimitsCommand: string
+      outputLimitsCommandHint: string
       compactionTitle: string
       compactionEnabled: string
       compactionDescription: string
@@ -4196,6 +4232,8 @@ declare module 'vue-i18n' {
     terminalOutput: string
     badge: {
       rtk: string
+      allowed: string
+      denied: string
     }
     replacementsCount: string
     fileOperation: string

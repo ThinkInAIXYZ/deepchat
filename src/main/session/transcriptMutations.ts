@@ -3,11 +3,15 @@ import type { SessionPendingInputs } from './data/pendingInputs'
 import type { SessionSettingsStore } from './data/settings'
 import type { SessionTranscript } from './data/transcript'
 import { buildEditedUserContent, extractUserMessageInput } from './data/userMessageContent'
+import { parseMessageMetadata } from './usageStats'
 
 export interface SessionTranscriptRuntimePort {
   prepareClearMessages(sessionId: string): Promise<void>
   finishClearMessages(sessionId: string): void
-  prepareRetry(sessionId: string): Promise<{ projectDir: string | null }>
+  prepareRetry(
+    sessionId: string,
+    options?: { allowRestartHeldQueue?: boolean }
+  ): Promise<{ projectDir: string | null }>
   assertNoActivePendingInputs(sessionId: string): void
   cancelForTranscriptMutation(sessionId: string): Promise<void>
   invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
@@ -40,13 +44,18 @@ export class SessionTranscriptMutations {
     sessionId: string,
     messageId: string
   ): Promise<{ content: SendMessageInput; projectDir: string | null; sourceOrderSeq: number }> {
-    const { projectDir } = await this.dependencies.runtime.prepareRetry(sessionId)
     const target = this.requireMessage(sessionId, messageId)
     const sourceUserMessage =
       target.role === 'user'
         ? target
         : this.dependencies.transcript.getLastUserMessageBeforeOrAt(sessionId, target.orderSeq)
     if (!sourceUserMessage) throw new Error('No user message found for retry.')
+    const sourceMetadata = parseMessageMetadata(sourceUserMessage.metadata)
+    const allowRestartHeldQueue =
+      target.status === 'error' && sourceMetadata.inputReceipt?.mode === 'steer'
+    const { projectDir } = await this.dependencies.runtime.prepareRetry(sessionId, {
+      allowRestartHeldQueue
+    })
 
     const content = extractUserMessageInput(sourceUserMessage.content)
     if (!content.text.trim() && (content.files?.length ?? 0) === 0) {

@@ -78,6 +78,12 @@
     "audioInputUnsupportedDescription": "Modellen {model} understøtter ikke lydinput. {count} lydvedhæftning(er) blev ignoreret."
   },
   "pendingInput": {
+    "resume": "Fortsæt kø",
+    "resumeFailed": "Kunne ikke fortsætte køen",
+    "retry": "Prøv igen",
+    "retryRequired": "Kræver nyt forsøg",
+    "retryRequiredDescription": "Denne besked blev ikke sendt. Prøv igen for at fortsætte køen.",
+    "retryFailed": "Kunne ikke prøve beskeden igen",
     "steer": "Styring",
     "queueCount": "Afventer {count}/{max}",
     "toSteer": "Afbryd og send",
@@ -348,6 +354,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Tilføj arbejdsområde",
+    "emptyWorkspace": "Tom",
+    "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
     "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
   },
   "floatingWidget": {

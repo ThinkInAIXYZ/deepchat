@@ -158,6 +158,16 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
+  getPendingAssistantBySession(sessionId: string): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM deepchat_messages
+         WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
+         ORDER BY order_seq, id`
+      )
+      .all(sessionId) as DeepChatMessageRow[]
+  }
+
   hasBySession(sessionId: string): boolean {
     return Boolean(
       this.db.prepare('SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1').get(sessionId)

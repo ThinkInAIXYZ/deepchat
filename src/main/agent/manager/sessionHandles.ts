@@ -83,6 +83,9 @@ export interface DeepChatControlFacet {
   setModel(providerId: string, modelId: string): Promise<void>
   getCompactionState(): Promise<SessionCompactionState>
   compact(): Promise<{ compacted: boolean; state: SessionCompactionState }>
+  isPendingQueueResumeAvailable(): Promise<boolean>
+  resumePendingQueue(): Promise<boolean>
+  retryPendingQueueInput(itemId: string): Promise<{ accepted: boolean; started: boolean }>
 }
 
 export interface DeepChatSessionHandle extends AgentSessionHandle {

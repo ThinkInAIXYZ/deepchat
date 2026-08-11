@@ -41,9 +41,11 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
+  sessionsResumePendingQueueRoute,
   sessionsRestoreRoute,
   sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
+  sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
   sessionsSetAcpSessionConfigOptionRoute,
@@ -245,9 +247,32 @@ export function createSessionRoutes(deps: {
       sessionsListPendingInputsRoute.name,
       async (rawInput) => {
         const input = sessionsListPendingInputsRoute.input.parse(rawInput)
+        const [items, resumeAvailable] = await Promise.all([
+          deps.turn.listPendingInputs(input.sessionId),
+          deps.turn.isPendingQueueResumeAvailable(input.sessionId)
+        ])
         return sessionsListPendingInputsRoute.output.parse({
-          items: await deps.turn.listPendingInputs(input.sessionId)
+          items,
+          resumeAvailable
         })
+      }
+    ],
+    [
+      sessionsResumePendingQueueRoute.name,
+      async (rawInput) => {
+        const input = sessionsResumePendingQueueRoute.input.parse(rawInput)
+        return sessionsResumePendingQueueRoute.output.parse({
+          started: await deps.turn.resumePendingQueue(input.sessionId)
+        })
+      }
+    ],
+    [
+      sessionsRetryPendingQueueInputRoute.name,
+      async (rawInput) => {
+        const input = sessionsRetryPendingQueueInputRoute.input.parse(rawInput)
+        return sessionsRetryPendingQueueInputRoute.output.parse(
+          await deps.turn.retryPendingQueueInput(input.sessionId, input.itemId)
+        )
       }
     ],
     [

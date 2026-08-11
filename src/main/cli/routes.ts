@@ -83,7 +83,7 @@ export function createCliRoutes(deps: {
           {
             id: 'surface' as const,
             status: capabilities.length > 0 ? ('ok' as const) : ('error' as const),
-            message: `${capabilities.length} V1 methods are registered`
+            message: `${capabilities.length} surface V${LOCAL_CONTROL_SURFACE_VERSION} methods are registered`
           },
           {
             id: 'renderer' as const,

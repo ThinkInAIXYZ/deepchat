@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 
 import { SessionPendingInputStore } from '@/session/data/pendingInputStore'
-import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendingInputs'
+import {
+  DeepChatPendingInputsTable,
+  PENDING_INPUT_RETRY_SCHEMA_VERSION
+} from '@/session/data/tables/deepchatPendingInputs'
 import { createSessionData } from '@/session/data'
 import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
@@ -10,9 +16,9 @@ const DatabaseCtor = Database!
 const describeIfNativeSqlite = nativeSqliteDescribeIf()
 
 describe('DeepChatPendingInputsTable migrations', () => {
-  it('adds body-free blocking metadata at global schema version 43', () => {
+  it('declares attachment and retry recovery migrations', () => {
     const table = new DeepChatPendingInputsTable({} as never)
-    expect(table.getLatestVersion()).toBe(46)
+    expect(table.getLatestVersion()).toBe(PENDING_INPUT_RETRY_SCHEMA_VERSION)
     expect(table.getMigrationSQL(43)).toBe(
       'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
     )
@@ -20,6 +26,9 @@ describe('DeepChatPendingInputsTable migrations', () => {
       "ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]'"
     )
     expect(table.getMigrationSQL(46)).toContain('ADD COLUMN assistant_message_id TEXT')
+    expect(table.getMigrationSQL(PENDING_INPUT_RETRY_SCHEMA_VERSION)).toContain(
+      'ADD COLUMN retry_required_at INTEGER'
+    )
   })
 })
 
@@ -63,6 +72,129 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       expect(store.getNextPendingQueueInput('s1')?.id).toBe(first.id)
     } finally {
       db.close()
+    }
+  })
+
+  it('persists explicit retry state across store reconstruction without dispatching past it', () => {
+    const { db, store, table } = createStore()
+    try {
+      const first = store.createQueueInputWithState(
+        's1',
+        { text: 'retry me', files: [] },
+        'claimed'
+      )
+      const second = store.createQueueInput('s1', { text: 'later', files: [] })
+
+      store.releaseClaimedQueueInputForRetry(first.id)
+      const reconstructed = new SessionPendingInputStore({
+        deepchatPendingInputsTable: table
+      } as never)
+
+      expect(reconstructed.getInput(first.id)?.state).toBe('retry_required')
+      expect(reconstructed.getNextPendingQueueInput('s1')).toBeNull()
+      expect(reconstructed.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        first.id,
+        second.id
+      ])
+
+      expect(reconstructed.retryReleasedQueueInput(first.id).state).toBe('pending')
+      expect(reconstructed.getNextPendingQueueInput('s1')?.id).toBe(first.id)
+      expect(() => reconstructed.retryReleasedQueueInput(first.id)).toThrow(
+        `Pending queue item ${first.id} does not require retry.`
+      )
+    } finally {
+      db.close()
+    }
+  })
+
+  it('migrates raw retry states to a downgrade-safe blocked marker', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatPendingInputsTable(db)
+    try {
+      const legacySchema = table
+        .getCreateTableSQL()
+        .replace('        retry_required_at INTEGER,\n', '')
+      db.exec(legacySchema)
+      db.prepare(
+        `INSERT INTO deepchat_pending_inputs (
+          id, session_id, mode, state, payload_json, message_ids_json, blocking_json,
+          queue_order, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        'released',
+        's1',
+        'queue',
+        'retry_required',
+        '{"text":"retry","files":[]}',
+        '[]',
+        null,
+        1,
+        10,
+        11
+      )
+
+      db.exec(table.getMigrationSQL(PENDING_INPUT_RETRY_SCHEMA_VERSION)!)
+      table.finalizeMigration(PENDING_INPUT_RETRY_SCHEMA_VERSION)
+
+      expect(table.get('released')).toMatchObject({
+        state: 'blocked',
+        retry_required_at: 11,
+        blocking_json: null
+      })
+      const reconstructed = new SessionPendingInputStore({
+        deepchatPendingInputsTable: table
+      } as never)
+      expect(reconstructed.getInput('released')?.state).toBe('retry_required')
+
+      db.prepare("UPDATE deepchat_pending_inputs SET state = 'pending' WHERE id = ?").run(
+        'released'
+      )
+      expect(reconstructed.getInput('released')?.state).toBe('pending')
+
+      db.prepare("UPDATE deepchat_pending_inputs SET state = 'blocked' WHERE id = ?").run(
+        'released'
+      )
+      expect(reconstructed.retryReleasedQueueInput('released').state).toBe('pending')
+      expect(table.get('released')).toMatchObject({
+        state: 'pending',
+        retry_required_at: null
+      })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('runs retry-state normalization through MainDatabase v67 migration', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-pending-retry-'))
+    const databasePath = path.join(directory, 'agent.db')
+    try {
+      const current = new MainDatabase(databasePath)
+      current.close()
+
+      const bootstrap = new DatabaseCtor(databasePath)
+      bootstrap.exec(`
+        ALTER TABLE deepchat_pending_inputs DROP COLUMN retry_required_at;
+        DELETE FROM schema_versions;
+        INSERT INTO schema_versions (version, applied_at) VALUES (66, 1);
+        INSERT INTO deepchat_pending_inputs (
+          id, session_id, mode, state, payload_json, message_ids_json, blocking_json,
+          queue_order, created_at, updated_at
+        ) VALUES (
+          'released', 's1', 'queue', 'retry_required', '{"text":"retry","files":[]}',
+          '[]', NULL, 1, 10, 11
+        );
+      `)
+      bootstrap.close()
+
+      const migrated = new MainDatabase(databasePath)
+      expect(migrated.getLatestSchemaVersion()).toBe(PENDING_INPUT_RETRY_SCHEMA_VERSION)
+      expect(migrated.deepchatPendingInputsTable.get('released')).toMatchObject({
+        state: 'blocked',
+        retry_required_at: 11
+      })
+      migrated.close()
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
     }
   })
 
@@ -121,6 +253,52 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       ])
     } finally {
       db.close()
+    }
+  })
+
+  it('rolls back every order update when claimed-slot resequencing fails', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+    const originalUpdate = DeepChatPendingInputsTable.prototype.update
+    let queueOrderUpdates = 0
+    const update = vi
+      .spyOn(DeepChatPendingInputsTable.prototype, 'update')
+      .mockImplementation(function (itemId, fields) {
+        if (fields.queue_order !== undefined && ++queueOrderUpdates === 3) {
+          throw new Error('resequence failed')
+        }
+        return originalUpdate.call(this, itemId, fields)
+      })
+
+    try {
+      const claimed = data.pendingInputs.queuePendingInput(
+        's1',
+        { text: 'claimed', files: [] },
+        { state: 'claimed' }
+      )
+      const second = data.pendingInputs.queuePendingInput('s1', { text: 'second', files: [] })
+      const third = data.pendingInputs.queuePendingInput('s1', { text: 'third', files: [] })
+
+      expect(() => data.pendingInputs.moveQueuedInput('s1', third.id, 0)).toThrow(
+        'resequence failed'
+      )
+
+      expect(
+        connection.deepchatPendingInputsTable
+          .listActiveBySession('s1')
+          .filter((row) => row.mode === 'queue')
+          .map((row) => [row.id, row.queue_order])
+      ).toEqual([
+        [claimed.id, 1],
+        [second.id, 2],
+        [third.id, 3]
+      ])
+    } finally {
+      update.mockRestore()
+      connection.close()
     }
   })
 
@@ -282,6 +460,119 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
 })
 
 describeIfNativeSqlite('Steer message lifecycle', () => {
+  it('rolls back claimed Queue message materialization when linking fails', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const queue = data.pendingInputs.queuePendingInput(
+        's1',
+        { text: 'atomic queue', files: [] },
+        { state: 'claimed' }
+      )
+      const originalUpdate = connection.deepchatPendingInputsTable.update.bind(
+        connection.deepchatPendingInputsTable
+      )
+      const update = vi
+        .spyOn(connection.deepchatPendingInputsTable, 'update')
+        .mockImplementation((itemId, fields) => {
+          if (fields.message_ids_json) {
+            throw new Error('link failed')
+          }
+          return originalUpdate(itemId, fields)
+        })
+
+      expect(() =>
+        data.pendingInputs.createClaimedQueueUserMessage('s1', queue.id, {
+          text: 'atomic queue',
+          files: [],
+          links: [],
+          search: false,
+          think: false
+        })
+      ).toThrow('link failed')
+      expect(data.transcript.getMessages('s1')).toEqual([])
+      expect(data.pendingInputs.getInput('s1', queue.id)?.messageIds).toEqual([])
+
+      update.mockRestore()
+      const messageId = data.pendingInputs.createClaimedQueueUserMessage('s1', queue.id, {
+        text: 'atomic queue',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      expect(data.pendingInputs.getInput('s1', queue.id)?.messageIds).toEqual([messageId])
+      expect(data.transcript.getMessages('s1').map((message) => message.id)).toEqual([messageId])
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('rolls back every unread Steer transition when terminalization fails', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const first = data.pendingInputs.acceptSteerMessage('s1', {
+        text: 'first',
+        files: []
+      })
+      const second = data.pendingInputs.acceptSteerMessage(
+        's1',
+        { text: 'second', files: [] },
+        { mergeItemId: first.pendingInput.id }
+      )
+      const tapeCountBeforeRecovery = connection.deepchatTapeEntriesTable.getBySession('s1').length
+      const originalUpdateStatus = connection.deepchatMessagesTable.updateStatus.bind(
+        connection.deepchatMessagesTable
+      )
+      let failedStatusUpdates = 0
+      const updateStatus = vi
+        .spyOn(connection.deepchatMessagesTable, 'updateStatus')
+        .mockImplementation((messageId, status) => {
+          originalUpdateStatus(messageId, status)
+          if (status === 'error' && ++failedStatusUpdates === 1) {
+            throw new Error('terminalization failed')
+          }
+        })
+
+      expect(() => data.pendingInputs.recoverInputsAfterRestart()).toThrow('terminalization failed')
+      expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
+        'pending',
+        'pending'
+      ])
+      expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('pending')
+      expect(data.pendingInputs.listPendingInputs('s1')).toHaveLength(1)
+      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+        tapeCountBeforeRecovery
+      )
+
+      updateStatus.mockRestore()
+      data.pendingInputs.recoverInputsAfterRestart()
+      expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
+        'error',
+        'error'
+      ])
+      expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('consumed')
+      expect(data.pendingInputs.listPendingInputs('s1')).toEqual([])
+      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+        tapeCountBeforeRecovery + 2
+      )
+      expect(second.pendingInput.messageIds).toEqual([first.message.id, second.message.id])
+    } finally {
+      connection.close()
+    }
+  })
+
   it('persists separate user messages and one read-boundary assistant row', () => {
     const connection = new MainDatabase(':memory:')
     const publishedMessages: string[][] = []

@@ -148,7 +148,7 @@ Main atomically replaces a descriptor with this public shape:
 ```ts
 type LocalControlDescriptorV1 = {
   protocolVersion: 1
-  surfaceVersion: 1
+  surfaceVersion: 2
   appVersion: string
   endpoint: { kind: 'unix'; path: string } | { kind: 'pipe'; name: string }
   pid: number
@@ -215,7 +215,7 @@ expose those temporary paths.
 
 ## Contract Ownership and Surface
 
-`CLI_SURFACE_V1` is a readonly registry whose entries reference the same `RouteContract` objects used
+`CLI_SURFACE_V2` is a readonly registry whose entries reference the same `RouteContract` objects used
 by renderer IPC. A surface entry adds only transport and policy metadata:
 
 ```ts
@@ -241,7 +241,7 @@ Public method names describe their domain (`models.invoke`, `providers.listPubli
 `sessions.runDetached`). The `cli.*` namespace is reserved for behavior that exists only to operate
 or diagnose the bundled CLI.
 
-### V1 Capability Matrix
+### V2 Capability Matrix
 
 `H` means an authenticated human CLI connection. `A` means a short-lived Agent connection with the
 listed scope. “Policy” means the renderer-only effect policy may be required; it never means a CLI
@@ -540,7 +540,11 @@ existing lifecycle, then starts the initial turn. It returns a durable run/sessi
 streaming. Disconnect does not destroy a detached run; status/messages can be recovered from session
 state and event cursors. If initial-turn startup fails, the response and run event retain that durable
 identity but expose only a stable failure message; upstream error text is excluded from public output
-and logs. `runs.cancel` is idempotent and ownership checked.
+and logs. `runs.get` projects `running`, `awaiting_interaction`, or `terminal` separately from the
+Session status so a valid permission or question pause remains observable. `run watch` treats
+provider-round `chat.stream.completed` and `chat.stream.failed` events as progress only; it exits
+after the root Session reaches `idle` or `error`, never when a descendant Session or one provider
+round finishes. `runs.cancel` is idempotent and ownership checked.
 
 `events.subscribe` is human-only in V1. An Agent can own only its currently executing conversation,
 so waiting on that run from its bash tool would deadlock the run on itself. Agent callers may use the

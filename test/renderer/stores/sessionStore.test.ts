@@ -15,7 +15,7 @@ type SessionListTestItem = {
 type SetupStoreOptions = {
   initialSettings?: Record<string, unknown>
   failGetSetting?: boolean
-  failSetSetting?: boolean
+  getSettingPromise?: Promise<unknown>
   selectedAgentId?: string | null
   enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   onboardingCurrentStepId?:
@@ -274,12 +274,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       if (options.failGetSetting) {
         throw new Error('failed to read setting')
       }
+      if (options.getSettingPromise) {
+        return (await options.getSettingPromise) as T
+      }
       return settings[key] as T | undefined
     }),
     setSetting: vi.fn(async <T>(key: string, value: T) => {
-      if (options.failSetSetting) {
-        throw new Error('failed to write setting')
-      }
       settings[key] = value
     })
   }
@@ -515,51 +515,44 @@ describe('sessionStore.getFilteredGroups', () => {
     expect(groups[0]?.label).toBe('workspace')
   })
 
-  it('keeps a stable unique id for project groups with the same folder name', async () => {
+  it('preserves normalized project path identities', async () => {
     const { store } = await setupStore()
     const now = Date.now()
 
     await store.fetchSessions()
     store.sessions.value = [
-      {
+      createSession({
         id: 'project-1',
         title: 'Workspace A',
-        agentId: 'deepchat',
-        status: 'none',
         projectDir: '/tmp/company-a/deepchat',
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        isPinned: false,
-        isDraft: false,
-        createdAt: now,
         updatedAt: now
-      },
-      {
+      }),
+      createSession({
         id: 'project-2',
         title: 'Workspace B',
-        agentId: 'deepchat',
-        status: 'none',
         projectDir: '/tmp/company-b/deepchat',
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        isPinned: false,
-        isDraft: false,
-        createdAt: now - 1,
         updatedAt: now - 1
-      }
+      }),
+      createSession({ id: 'posix-root', projectDir: '/' }),
+      createSession({ id: 'windows-root', projectDir: 'C:\\' }),
+      createSession({ id: 'trailing-a', projectDir: '/work/a/' }),
+      createSession({ id: 'trailing-b', projectDir: '/work/a' })
     ]
 
     const groups = store.getFilteredGroups(null)
+    const groupById = new Map(
+      groups.map((group: SessionListTestItem) => [group.id, group] as const)
+    )
 
-    expect(groups).toHaveLength(2)
-    expect(groups.map((group: SessionListTestItem) => group.id)).toEqual([
-      '/tmp/company-a/deepchat',
-      '/tmp/company-b/deepchat'
-    ])
-    expect(groups.map((group: SessionListTestItem) => group.label)).toEqual([
-      'deepchat',
-      'deepchat'
-    ])
+    expect(groups).toHaveLength(5)
+    expect(
+      groups
+        .filter((group: SessionListTestItem) => group.label === 'deepchat')
+        .map((group: SessionListTestItem) => group.id)
+    ).toEqual(['/tmp/company-a/deepchat', '/tmp/company-b/deepchat'])
+    expect(groupById.get('/')?.label).toBe('/')
+    expect(groupById.get('C:\\')?.label).toBe('C:\\')
+    expect(groupById.get('/work/a')?.sessions).toHaveLength(2)
   })
 
   it('sorts sessions inside project groups by most recent update', async () => {
@@ -778,6 +771,10 @@ describe('sessionStore group mode preferences', () => {
     const { store, settings, configClient } = await setupStore()
 
     await store.fetchSessions()
+    await store.setGroupMode('project')
+
+    expect(configClient.setSetting).not.toHaveBeenCalled()
+
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('time')
@@ -785,16 +782,46 @@ describe('sessionStore group mode preferences', () => {
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
   })
 
-  it('rolls back the group mode when persistence fails', async () => {
+  it('does not let a delayed saved preference overwrite an explicit project-mode request', async () => {
+    const savedPreference = createDeferred<unknown>()
     const { store, configClient } = await setupStore({
-      failSetSetting: true
+      getSettingPromise: savedPreference.promise
     })
 
-    await store.fetchSessions()
-    await store.toggleGroupMode()
+    const request = store.setGroupMode('project')
+    savedPreference.resolve('time')
+    await request
 
     expect(store.groupMode.value).toBe('project')
-    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'project')
+  })
+
+  it('rolls failed writes back and propagates failures to queued callers', async () => {
+    const { store, configClient } = await setupStore()
+    const write = createDeferred<void>()
+
+    await store.fetchSessions()
+    configClient.setSetting.mockReturnValueOnce(write.promise)
+
+    const firstWrite = store.setGroupMode('time')
+    const secondWrite = store.setGroupMode('time')
+    write.reject(new Error('failed to write setting'))
+
+    await expect(firstWrite).rejects.toThrow('failed to write setting')
+    await expect(secondWrite).rejects.toThrow('failed to write setting')
+    expect(configClient.setSetting).toHaveBeenCalledTimes(1)
+    expect(store.groupMode.value).toBe('project')
+
+    configClient.setSetting.mockReset()
+    configClient.setSetting.mockRejectedValue(new Error('failed to write setting'))
+
+    const queuedTimeWrite = store.setGroupMode('time')
+    const queuedProjectWrite = store.setGroupMode('project')
+
+    await expect(queuedTimeWrite).rejects.toThrow('failed to write setting')
+    await expect(queuedProjectWrite).rejects.toThrow('failed to write setting')
+    expect(configClient.setSetting).toHaveBeenCalledTimes(2)
+    expect(store.groupMode.value).toBe('project')
   })
 
   it('serializes concurrent group mode writes and persists the last toggle', async () => {

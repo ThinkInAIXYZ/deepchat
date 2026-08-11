@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEEPCHAT_ROUTE_CATALOG } from '@shared/contracts/routes'
 import {
-  CLI_SURFACE_V1,
+  CLI_SURFACE_V2,
   getCliSurfaceEntry,
   listCliSurfaceCapabilities,
   resolveCliSurfaceEffect
@@ -10,9 +10,9 @@ import {
 const humanApprovalCaller = { principal: 'human' } as const
 const agentApprovalCaller = { principal: 'agent' } as const
 
-describe('CLI surface V1', () => {
+describe('CLI surface V2', () => {
   it('contains only explicit canonical route contracts', () => {
-    const methods = Array.from(CLI_SURFACE_V1.keys()).sort()
+    const methods = Array.from(CLI_SURFACE_V2.keys()).sort()
 
     expect(methods).toEqual([
       'artifacts.delete',
@@ -62,7 +62,7 @@ describe('CLI surface V1', () => {
       'speech.generate',
       'videos.generate'
     ])
-    for (const [method, entry] of CLI_SURFACE_V1) {
+    for (const [method, entry] of CLI_SURFACE_V2) {
       expect(entry.contract).toBe(
         DEEPCHAT_ROUTE_CATALOG[method as keyof typeof DEEPCHAT_ROUTE_CATALOG]
       )
@@ -79,7 +79,7 @@ describe('CLI surface V1', () => {
   })
 
   it('keeps Agent mutation policy as an explicit operation opt-in', () => {
-    const policies = Array.from(CLI_SURFACE_V1, ([method, entry]) => ({ method, entry })).filter(
+    const policies = Array.from(CLI_SURFACE_V2, ([method, entry]) => ({ method, entry })).filter(
       ({ entry }) => entry.agentPolicy !== undefined
     )
 

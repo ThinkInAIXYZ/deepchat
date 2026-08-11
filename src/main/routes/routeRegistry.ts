@@ -1,5 +1,6 @@
 import type { DeepchatRouteName } from '@shared/contracts/routes'
 import type { LocalControlScope } from '@shared/contracts/localControl'
+import type { z } from 'zod'
 
 export type RendererRouteCaller = Readonly<{
   kind: 'renderer'
@@ -67,6 +68,19 @@ export function requireRendererCaller(context: RouteContext): RendererRouteCalle
 export type DeepchatRouteHandler = (rawInput: unknown, context: RouteContext) => Promise<unknown>
 
 export type DeepchatRouteMap = ReadonlyMap<DeepchatRouteName, DeepchatRouteHandler>
+
+export function projectJsonRouteOutput<OutputSchema extends z.ZodType>(
+  outputSchema: OutputSchema,
+  rawOutput: unknown
+): z.output<OutputSchema> {
+  // Project through the public contract before serialization can observe unknown/private fields.
+  const publicOutput = outputSchema.parse(rawOutput)
+  const serializedOutput = JSON.stringify(publicOutput)
+  if (serializedOutput === undefined) {
+    throw new TypeError('Route output cannot be represented as JSON')
+  }
+  return outputSchema.parse(JSON.parse(serializedOutput))
+}
 
 export function createRouteMap(
   entries: ReadonlyArray<readonly [DeepchatRouteName, DeepchatRouteHandler]>

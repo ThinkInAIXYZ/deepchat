@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
+    "resume": "繼續佇列",
+    "resumeFailed": "無法繼續佇列",
+    "retry": "重試",
+    "retryRequired": "需要重試",
+    "retryRequiredDescription": "此訊息未能傳送，請重試以繼續佇列。",
+    "retryFailed": "無法重試佇列訊息",
     "steer": "打斷",
     "queueCount": "待發 {count}/{max}",
     "toSteer": "打斷並發送",
@@ -348,6 +354,9 @@
     "searchCommand": "搜尋",
     "chatSection": "Chat",
     "workspace": "工作區",
+    "addWorkspace": "新增工作區",
+    "emptyWorkspace": "空白",
+    "addWorkspaceFailed": "新增工作區失敗",
     "searchLoadedRangeDescription": "正在顯示已載入對話中的相符結果。向下捲動以載入更多記錄。"
   },
   "floatingWidget": {

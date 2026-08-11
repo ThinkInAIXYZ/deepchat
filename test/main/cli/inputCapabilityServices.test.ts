@@ -270,7 +270,7 @@ describe('CLI audio transcription and OCR services', () => {
         inputBytes: bytes.length,
         appVersion: '1.2.3',
         protocolVersion: 1,
-        surfaceVersion: 1
+        surfaceVersion: 2
       },
       engine: {
         requestedBackend: 'auto',

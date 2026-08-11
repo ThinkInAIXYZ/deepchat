@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "Model {model} không hỗ trợ đầu vào âm thanh. Đã bỏ qua (các) tệp đính kèm âm thanh {count}."
   },
   "pendingInput": {
+    "resume": "Tiếp tục hàng đợi",
+    "resumeFailed": "Không thể tiếp tục hàng đợi",
+    "retry": "Thử lại",
+    "retryRequired": "Cần thử lại",
+    "retryRequiredDescription": "Tin nhắn này chưa được gửi. Hãy thử lại để tiếp tục hàng đợi.",
+    "retryFailed": "Không thể thử lại tin nhắn trong hàng đợi",
     "steer": "Chỉ đạo",
     "queueCount": "Đang chờ gửi {count}/{max}",
     "toSteer": "Ngắt & gửi",
@@ -364,6 +370,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Thêm không gian làm việc",
+    "emptyWorkspace": "Trống",
+    "addWorkspaceFailed": "Không thể thêm không gian làm việc",
     "searchLoadedRangeDescription": "Đang hiển thị kết quả khớp từ các cuộc trò chuyện đã tải. Cuộn để tải thêm lịch sử."
   },
   "spotlight": {

@@ -58,7 +58,10 @@ export class TranscriptMutationCoordinator {
     )
   }
 
-  async prepareRetry(sessionId: string): Promise<{ projectDir: string | null }> {
+  async prepareRetry(
+    sessionId: string,
+    options?: { allowRestartHeldQueue?: boolean }
+  ): Promise<{ projectDir: string | null }> {
     const instance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
     const state = await this.deps.sessionState.get(sessionId)
     if (!state) {
@@ -71,7 +74,7 @@ export class TranscriptMutationCoordinator {
     if (this.deps.runLifecycle.hasPendingInteractions(sessionId)) {
       throw new Error('Please resolve pending tool interactions before retrying.')
     }
-    this.assertNoActivePendingInputs(sessionId)
+    this.deps.admission.assertNoActiveInputs(sessionId, options)
     this.deps.runLifecycle.assertCurrentInstance(sessionId, instance)
     return {
       projectDir: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, instance)

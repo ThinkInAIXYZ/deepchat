@@ -109,6 +109,7 @@ export class ProjectService {
     archivedEnvironments: EnvironmentSummary[]
     removedEnvironments: EnvironmentSummary[]
     defaultProjectPath: string | null
+    defaultChatWorkspacePath: string | null
   }> {
     // All reads are synchronous SQLite/settings reads in this process. Keep them in
     // one uninterrupted turn and stamp the resulting projection with its version.
@@ -150,7 +151,8 @@ export class ProjectService {
       environments: byStatus('active'),
       archivedEnvironments: byStatus('archived'),
       removedEnvironments: byStatus('removed'),
-      defaultProjectPath: this.getDefaultProjectPath()
+      defaultProjectPath: this.getDefaultProjectPath(),
+      defaultChatWorkspacePath: this.getDefaultChatWorkspacePath()
     }
   }
 
@@ -166,18 +168,17 @@ export class ProjectService {
     this.bumpSnapshotVersion()
   }
 
-  async archiveEnvironment(environmentPath: string): Promise<void> {
+  async archiveEnvironment(environmentPath: string): Promise<number> {
     const normalizedPath = this.normalizeEnvironmentPath(environmentPath)
     if (!normalizedPath) {
-      return
+      return this.snapshotVersion
     }
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.markArchived(normalizedPath)
     if (this.getDefaultProjectPath() === normalizedPath) {
-      this.setDefaultProjectPath(null)
-      return
+      return this.setDefaultProjectPath(null)
     }
-    this.bumpSnapshotVersion()
+    return this.bumpSnapshotVersion()
   }
 
   async restoreEnvironment(environmentPath: string): Promise<void> {
@@ -244,17 +245,24 @@ export class ProjectService {
     return version
   }
 
-  async selectDirectory(): Promise<string | null> {
+  async selectDirectory(): Promise<{ path: string | null; version: number }> {
     const result = await this.deviceService.selectDirectory()
-    if (result.canceled || result.filePaths.length === 0) return null
+    if (result.canceled || result.filePaths.length === 0) {
+      return { path: null, version: this.snapshotVersion }
+    }
 
-    const dirPath = result.filePaths[0]
-    const dirName = path.basename(dirPath)
+    const dirPath = this.normalizeEnvironmentPath(result.filePaths[0])
+    if (!dirPath) {
+      return { path: null, version: this.snapshotVersion }
+    }
 
-    this.sqlitePresenter.newProjectsTable.upsert(dirPath, dirName)
-    this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(dirPath)
-    this.bumpSnapshotVersion()
-    return dirPath
+    const dirName = path.basename(dirPath) || dirPath
+    this.sqlitePresenter.getDatabase().transaction(() => {
+      this.sqlitePresenter.newProjectsTable.upsert(dirPath, dirName)
+      this.sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop(dirPath)
+    })()
+    const version = this.bumpSnapshotVersion()
+    return { path: dirPath, version }
   }
 
   async ensureDefaultWorkspace(): Promise<string | null> {
@@ -294,6 +302,17 @@ export class ProjectService {
   getDefaultProjectPath(): string | null {
     const projectPath = this.settings.get<string | null>('defaultProjectPath')
     return projectPath?.trim() || null
+  }
+
+  getDefaultChatWorkspacePath(): string | null {
+    const projectPath = this.getDefaultProjectPath()
+    if (!projectPath) {
+      return null
+    }
+
+    return this.isDefaultWorkspaceCandidate(projectPath, this.getDefaultWorkspaceCandidates())
+      ? projectPath
+      : null
   }
 
   setDefaultProjectPath(projectPath: string | null): number {

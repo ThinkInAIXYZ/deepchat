@@ -742,4 +742,101 @@ describe('MessageItemAssistant', () => {
 
     expect(memoryActivity.openTurnMemories).not.toHaveBeenCalled()
   })
+
+  describe('resolved permission projection', () => {
+    const createPermissionActionBlock = (
+      status: DisplayAssistantMessageBlock['status'],
+      toolCallId = 'tc1'
+    ): DisplayAssistantMessageBlock => ({
+      type: 'action',
+      action_type: 'tool_call_permission',
+      status,
+      timestamp: 1,
+      tool_call: { id: toolCallId, name: 'run_command' }
+    })
+
+    const ToolCallStub = defineComponent({
+      name: 'MessageBlockToolCall',
+      props: {
+        permissionStatus: {
+          type: String,
+          default: undefined
+        }
+      },
+      template:
+        '<div data-testid="tool-call-stub" :data-permission-status="permissionStatus ?? \'\'" />'
+    })
+
+    const mountWith = (content: DisplayAssistantMessageBlock[]) =>
+      mount(MessageItemAssistant, {
+        props: {
+          message: createMessage('pending', content),
+          isCapturingImage: false,
+          isInGeneratingThread: true
+        },
+        global: {
+          ...global,
+          stubs: {
+            ...global.stubs,
+            MessageBlockToolCall: ToolCallStub
+          }
+        }
+      })
+
+    it('merges the granted outcome into the tool card and hides the action card', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('granted'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('granted')
+    })
+
+    it('merges the denied outcome into the tool card', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('denied'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('denied')
+    })
+
+    it('merges the outcome only into the tool call with the matching id', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('granted', 'tc2'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } }),
+        createToolCallBlock({ tool_call: { id: 'tc2', name: 'write_file' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      const stubs = wrapper.findAll('[data-testid="tool-call-stub"]')
+      expect(stubs).toHaveLength(2)
+      expect(stubs[0].attributes('data-permission-status')).toBe('')
+      expect(stubs[1].attributes('data-permission-status')).toBe('granted')
+    })
+
+    it('keeps the standalone action card when the tool card is missing', () => {
+      const wrapper = mountWith([createPermissionActionBlock('denied', 'tc-missing')])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(true)
+    })
+
+    it('keeps pending permission action blocks visible and unmerged', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('pending'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(true)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('')
+    })
+  })
 })

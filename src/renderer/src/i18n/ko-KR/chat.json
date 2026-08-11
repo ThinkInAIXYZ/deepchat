@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "모델 {model}은 오디오 입력을 지원하지 않습니다. 오디오 첨부 {count}개를 무시했습니다."
   },
   "pendingInput": {
+    "resume": "대기열 재개",
+    "resumeFailed": "대기열을 재개하지 못했습니다",
+    "retry": "다시 시도",
+    "retryRequired": "다시 시도 필요",
+    "retryRequiredDescription": "이 메시지는 전송되지 않았습니다. 대기열을 계속하려면 다시 시도하세요.",
+    "retryFailed": "대기 중인 메시지를 다시 시도하지 못했습니다",
     "steer": "유도",
     "queueCount": "전송 대기 {count}/{max}",
     "toSteer": "중단하고 보내기",
@@ -348,6 +354,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "작업 공간 추가",
+    "emptyWorkspace": "비어 있음",
+    "addWorkspaceFailed": "작업 공간을 추가하지 못했습니다",
     "searchLoadedRangeDescription": "불러온 대화의 일치 항목을 표시하고 있습니다. 스크롤하여 이전 기록을 더 불러오세요."
   },
   "floatingWidget": {

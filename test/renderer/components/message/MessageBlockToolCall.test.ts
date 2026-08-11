@@ -1073,4 +1073,118 @@ describe('MessageBlockToolCall', () => {
 
     expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
   })
+
+  it('renders the resolved permission badge on the tool pill', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock(),
+        permissionStatus: 'granted'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders a denied permission badge distinct from success styling', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({ status: 'error' }),
+        permissionStatus: 'denied'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
+
+  it('renders no permission badge when no permission outcome is associated', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock()
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-permission-badge"]').exists()).toBe(false)
+  })
+
+  it('renders the granted outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'granted',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders the denied outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'denied',
+        block: createBlock({
+          status: 'error',
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: ''
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-pending"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
 })

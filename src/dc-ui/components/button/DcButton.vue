@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { PrimitiveProps } from 'reka-ui'
-import type { HTMLAttributes } from 'vue'
 import { computed, useSlots } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Primitive } from 'reka-ui'
@@ -12,32 +10,9 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { dcButtonVariants, type DcButtonVariants } from './index'
+import { dcButtonVariants, DcButtonProps } from './props'
 
-type DcIconSize = '3' | '3.5' | '4'
-type DcTooltipSide = 'top' | 'bottom' | 'left' | 'right'
-
-interface Props extends PrimitiveProps {
-  variant?: DcButtonVariants['variant']
-  size?: DcButtonVariants['size']
-  icon?: string
-  iconSize?: DcIconSize
-  iconClass?: HTMLAttributes['class']
-  loading?: boolean
-  disabled?: boolean
-  active?: boolean
-  /** Visible tooltip. `label` alone only provides the accessible name. */
-  tooltip?: string
-  tooltipSide?: DcTooltipSide
-  tooltipSideOffset?: number
-  tooltipDelayDuration?: number
-  tooltipContentClass?: HTMLAttributes['class']
-  tooltipIgnoreNonKeyboardFocus?: boolean
-  label?: string
-  class?: HTMLAttributes['class']
-}
-
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<DcButtonProps>(), {
   as: 'button',
   iconSize: '4',
   disabled: false,
@@ -98,7 +73,7 @@ if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value && !slots.d
           :class="buttonClass"
         >
           <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
-          <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
+          <Icon v-else-if="icon" :key="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
           <slot />
         </Primitive>
       </TooltipTrigger>
@@ -121,7 +96,7 @@ if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value && !slots.d
       :class="buttonClass"
     >
       <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
-      <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
+      <Icon v-else-if="icon" :key="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
       <slot />
     </Primitive>
   </TooltipProvider>

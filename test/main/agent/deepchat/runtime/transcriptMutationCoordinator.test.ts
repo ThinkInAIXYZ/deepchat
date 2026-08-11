@@ -121,6 +121,16 @@ describe('TranscriptMutationCoordinator', () => {
     )
   })
 
+  it('forwards the narrow restart-held Queue retry exception to admission', async () => {
+    const { coordinator, deps } = createHarness()
+
+    await coordinator.prepareRetry(SESSION_ID, { allowRestartHeldQueue: true })
+
+    expect(deps.admission.assertNoActiveInputs).toHaveBeenCalledWith(SESSION_ID, {
+      allowRestartHeldQueue: true
+    })
+  })
+
   it('fences transcript mutation cancel against a replaced runtime instance', async () => {
     const { coordinator, deps, runtime } = createHarness()
     vi.mocked(deps.runLifecycle.cancel).mockImplementationOnce(async () => {

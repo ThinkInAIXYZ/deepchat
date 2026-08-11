@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "המודל {model} לא תומך בקלט אודיו. {count} קובץ/י אודיו צורף/ו והתעלמנו מהם."
   },
   "pendingInput": {
+    "resume": "המשך תור",
+    "resumeFailed": "לא ניתן להמשיך את התור",
+    "retry": "נסה שוב",
+    "retryRequired": "נדרש ניסיון חוזר",
+    "retryRequiredDescription": "ההודעה לא נשלחה. נסה שוב כדי להמשיך את התור.",
+    "retryFailed": "לא ניתן היה לנסות שוב את ההודעה שבתור",
     "steer": "הכוונה",
     "queueCount": "ממתין לשליחה {count}/{max}",
     "toSteer": "להפסיק ולשלוח",
@@ -348,6 +354,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "הוספת סביבת עבודה",
+    "emptyWorkspace": "ריק",
+    "addWorkspaceFailed": "הוספת סביבת העבודה נכשלה",
     "searchLoadedRangeDescription": "מוצגות התאמות משיחות שנטענו. גלול כדי לטעון היסטוריה נוספת."
   },
   "floatingWidget": {

@@ -109,6 +109,7 @@
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
         :is-read-only="effectiveReadOnly"
+        :copy-text="copyText"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -324,6 +325,8 @@ const getCopyText = () => {
   return props.message.content.text || ''
 }
 
+const copyText = computed(() => getCopyText())
+
 const cancelEdit = () => {
   isEditMode.value = false
 }
@@ -396,13 +399,17 @@ watch(
 )
 
 watch(
-  () => [props.message.id, props.message.inputReceipt?.readAt] as const,
-  ([, readAt]) => {
+  () => [props.message.id, props.message.status, props.message.inputReceipt?.readAt] as const,
+  ([, status, readAt]) => {
     if (receiptTimer) {
       clearTimeout(receiptTimer)
       receiptTimer = null
     }
     if (!props.message.inputReceipt) {
+      receipt.value = null
+      return
+    }
+    if (status === 'error') {
       receipt.value = null
       return
     }

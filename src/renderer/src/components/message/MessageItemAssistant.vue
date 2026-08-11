@@ -48,6 +48,7 @@
                 :reasoning-count="item.reasoningCount"
                 :tool-call-count="item.toolCallCount"
                 :read-only="isReadOnly"
+                :permission-status-by-tool-call-id="permissionStatusByToolCallId"
                 @toggle-collapse="handleCollapseToggle"
               />
               <MessageBlockToolCall
@@ -88,6 +89,11 @@
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
                 :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
+                :permission-status="
+                  item.block.tool_call?.id
+                    ? permissionStatusByToolCallId[item.block.tool_call.id]
+                    : undefined
+                "
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -136,6 +142,7 @@
             :show-trace="showTrace"
             :show-memory="memoryActivity.enabled && !isReadOnly"
             :is-read-only="isReadOnly"
+            :copy-text="copyText"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
             @copy="handleAction('copy')"
@@ -217,7 +224,9 @@ import { ref, computed, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
+  buildResolvedPermissionStatusByToolCallId,
   filterRenderableAssistantBlocks,
+  getResolvedPermissionStatus,
   isInternalAssistantToolCallBlock
 } from '@/features/chat-page/model/displayMessage'
 import MessageBlockContent from './MessageBlockContent.vue'
@@ -415,6 +424,31 @@ const currentContent = computed(() => {
   return filterRenderableAssistantBlocks(blocks ?? [])
 })
 
+const copyText = computed(() =>
+  currentContent.value
+    .filter((block) => {
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        !uiSettingsStore.copyWithCotEnabled
+      ) {
+        return false
+      }
+      return true
+    })
+    .map((block) => {
+      const trimmedContent = (block.content ?? '').trim()
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        uiSettingsStore.copyWithCotEnabled
+      ) {
+        return `<think>\n${trimmedContent}\n</think>`
+      }
+      return trimmedContent
+    })
+    .join('\n')
+    .trim()
+)
+
 const promotedImageSources = computed(() =>
   Array.from(
     new Set(
@@ -437,9 +471,23 @@ const shouldGroupActivity = computed(() => {
   return currentMessage.value.status !== 'pending'
 })
 
+const permissionStatusByToolCallId = computed(() =>
+  buildResolvedPermissionStatusByToolCallId(currentContent.value)
+)
+
+// Resolved permission outcomes merge into their tool card; the standalone
+// action card only remains as a fallback when the tool card is missing.
+const currentVisibleContent = computed(() =>
+  currentContent.value.filter((block) => {
+    const status = getResolvedPermissionStatus(block)
+    const toolCallId = block.tool_call?.id
+    return !(status && toolCallId && permissionStatusByToolCallId.value[toolCallId])
+  })
+)
+
 const currentRenderItems = computed(() =>
   buildAssistantRenderItems({
-    blocks: currentContent.value,
+    blocks: currentVisibleContent.value,
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
@@ -642,30 +690,7 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    deviceClient.copyText(
-      currentContent.value
-        .filter((block) => {
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            !uiSettingsStore.copyWithCotEnabled
-          ) {
-            return false
-          }
-          return true
-        })
-        .map((block) => {
-          const trimmedContent = (block.content ?? '').trim()
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            uiSettingsStore.copyWithCotEnabled
-          ) {
-            return `<think>\n${trimmedContent}\n</think>`
-          }
-          return trimmedContent
-        })
-        .join('\n')
-        .trim()
-    )
+    deviceClient.copyText(copyText.value)
   } else if (action === 'prev' || action === 'next') {
     if (!useLegacyActions.value) {
       return

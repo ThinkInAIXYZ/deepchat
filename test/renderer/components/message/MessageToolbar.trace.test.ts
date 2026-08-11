@@ -26,7 +26,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock(
-  '@dc-ui/components/button',
+  '@dc-ui/components',
   () => ({
     DcButton: {
       name: 'Button',
@@ -34,6 +34,14 @@ vi.mock(
       props: ['icon'],
       template:
         '<button v-bind="$attrs" @click="$emit(\'click\')"><span v-if="icon" :data-icon="icon"></span><slot /></button>'
+    },
+    DcCopyButton: {
+      name: 'CopyButton',
+      inheritAttrs: false,
+      props: ['icon', 'copyText'],
+      emits: ['copied'],
+      template:
+        '<button v-bind="$attrs" @click="$emit(\'copied\')"><span :data-icon="icon || \'lucide:copy\'"></span><slot /></button>'
     }
   }),
   { virtual: true }
@@ -79,7 +87,8 @@ const baseProps = {
   isCapturingImage: false,
   showTrace: true,
   isInGeneratingThread: false,
-  isReadOnly: false
+  isReadOnly: false,
+  copyText: 'copy me'
 }
 
 const mountToolbar = () =>
@@ -112,6 +121,14 @@ describe('MessageToolbar trace button visibility', () => {
 
     expect(wrapper.emitted().copyImage).toHaveLength(2)
     expect(wrapper.emitted().copyImageFromTop).toHaveLength(2)
+  })
+
+  it('preserves the copy event contract', async () => {
+    const wrapper = mountToolbar()
+
+    await wrapper.find('[data-icon="lucide:copy"]').trigger('click')
+
+    expect(wrapper.emitted().copy).toHaveLength(1)
   })
 
   it('shows trace button only when trace debug is enabled and message allows trace', async () => {

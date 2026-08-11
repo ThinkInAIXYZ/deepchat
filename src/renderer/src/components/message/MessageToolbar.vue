@@ -12,7 +12,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:check"
-              icon-size="3"
               :tooltip="t('thread.toolbar.save')"
               :tooltip-delay-duration="200"
               class="w-4 h-4 min-w-0 min-h-0 p-0 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
@@ -22,7 +21,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:x"
-              icon-size="3"
               :tooltip="t('thread.toolbar.cancel')"
               :tooltip-delay-duration="200"
               class="w-4 h-4 min-w-0 min-h-0 p-0 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
@@ -37,7 +35,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:refresh-cw"
-              icon-size="3"
               :tooltip="t('thread.toolbar.retry')"
               :tooltip-delay-duration="200"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
@@ -49,7 +46,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:chevron-left"
-              icon-size="3"
               :tooltip="t('thread.toolbar.previousVariant')"
               :tooltip-delay-duration="200"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
@@ -64,35 +60,25 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:chevron-right"
-              icon-size="3"
               :tooltip="t('thread.toolbar.nextVariant')"
               :tooltip-delay-duration="200"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('next')"
             />
-            <DcButton
+            <DcCopyButton
               size="icon-sm"
-              icon="lucide:copy"
-              icon-size="3"
               variant="ghost"
               :tooltip="t('thread.toolbar.copy')"
               :tooltip-ignore-non-keyboard-focus="true"
+              :copy-text="copyText"
               class="relative text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-              @click="handleCopy"
-            >
-              <span
-                v-if="showCopyTip"
-                class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
-              >
-                {{ t('common.copySuccess') }}
-              </span>
-            </DcButton>
+              @copied="emit('copy')"
+            />
             <DcButton
               v-if="isAssistant"
               variant="ghost"
               size="icon-sm"
               icon="lucide:images"
-              icon-size="3"
               :loading="isCapturingImage"
               :disabled="isCapturingImage"
               :tooltip="
@@ -125,7 +111,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:refresh-cw"
-              icon-size="3"
               :tooltip="t('thread.toolbar.retry')"
               :tooltip-delay-duration="200"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
@@ -136,7 +121,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:bug"
-              icon-size="3"
               :tooltip="t('thread.toolbar.trace')"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('trace')"
@@ -146,7 +130,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:brain"
-              icon-size="3"
               :tooltip="t('chat.memory.toolbar')"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('memory')"
@@ -156,7 +139,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:git-branch"
-              icon-size="3"
               :tooltip="t('thread.toolbar.fork')"
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('fork')"
@@ -176,7 +158,6 @@
               variant="ghost"
               size="icon-sm"
               icon="lucide:trash-2"
-              icon-size="3"
               :tooltip="t('thread.toolbar.delete')"
               class="text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('delete')"
@@ -201,7 +182,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { DcButton } from '@dc-ui/components/button'
+import { DcCopyButton, DcButton } from '@dc-ui/components'
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useI18n } from 'vue-i18n'
@@ -212,14 +193,12 @@ const uiSettingsStore = useUiSettingsStore()
 
 const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
 
-const showCopyTip = ref(false)
 const showCopyImageTip = ref(false)
 const showCopyFromTopTip = ref(false)
 
 let copyImagePressTimer: number | null = null
-type TipTimerKey = 'copy' | 'copyImage' | 'copyFromTop'
+type TipTimerKey = 'copyImage' | 'copyFromTop'
 const tipTimers: Record<TipTimerKey, number | null> = {
-  copy: null,
   copyImage: null,
   copyFromTop: null
 }
@@ -234,11 +213,6 @@ const flashTip = (tip: Ref<boolean>, timerKey: TipTimerKey) => {
     tip.value = false
     tipTimers[timerKey] = null
   }, TIP_DURATION)
-}
-
-const handleCopy = () => {
-  emit('copy')
-  flashTip(showCopyTip, 'copy')
 }
 
 const handleCopyImageStart = () => {
@@ -300,6 +274,7 @@ const props = defineProps<{
   isCapturingImage: boolean
   showTrace?: boolean
   showMemory?: boolean
+  copyText: string
   isReadOnly?: boolean
 }>()
 const emit = defineEmits<{

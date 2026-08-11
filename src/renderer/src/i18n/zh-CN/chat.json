@@ -167,7 +167,13 @@
     "limitReached": "等待区已满（最多 {max} 条）。",
     "remove": "删除",
     "steerUnavailable": "当前无法打断",
-    "steerFailed": "打断失败"
+    "steerFailed": "打断失败",
+    "resume": "继续队列",
+    "resumeFailed": "无法继续队列",
+    "retry": "重试",
+    "retryRequired": "需要重试",
+    "retryRequiredDescription": "此消息未能发送，请重试以继续队列。",
+    "retryFailed": "无法重试队列消息"
   },
   "features": {
     "webSearch": "联网搜索",
@@ -425,6 +431,9 @@
     "searchCommand": "搜索",
     "chatSection": "Chat",
     "workspace": "工作区",
+    "addWorkspace": "添加工作区",
+    "emptyWorkspace": "空",
+    "addWorkspaceFailed": "添加工作区失败",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",

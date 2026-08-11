@@ -98,11 +98,11 @@ fence that matches their operation.
   existing order: `sessions.status.changed`, `sessions.updated`, internal session update, then UI
   refresh.
 - `PendingInputAdmissionCoordinator` owns send/steer normalization, attachment acceptance lanes,
-  capacity and interaction gates, queue mutation commands, steer promotion, and interrupt
-  requests.
+  capacity and interaction gates, queue mutation commands, steer promotion, explicit Queue resume,
+  and interrupt requests. Listing pending inputs is a pure read.
 - `PendingInputPump` owns steer-before-queue selection, per-session single-flight drain, claim,
-  release, consume, recovery, and starting a claimed turn. Durable input records remain owned by
-  `SessionPendingInputs`.
+  release, consume, process-local restart holds, recovery, and starting a claimed turn. Durable
+  input records remain owned by `SessionPendingInputs`.
 - `TurnCoordinator` continues to own the distinct initial and resume preparation algorithms, but
   delegates lifecycle settlement and pending-input disposition instead of mutating those owners
   through parent callbacks.
@@ -125,6 +125,32 @@ The pump and turn lifecycle form a real feedback loop. They communicate through 
 event bus is not used because claim settlement and the next drain must observe a deterministic
 order. Public `MessageStartResult`, including `attachmentPreparation`, remains unchanged and is
 mapped losslessly from the internal completion.
+
+### Pending Input Restart Boundary
+
+Harness construction reconciles active pending inputs before transcript recovery and before any
+Session scope is hydrated. `SessionPendingInputs` returns the affected Session IDs and Queue input
+IDs that must be held. It terminalizes unread Steer messages, their Tape replacements, and their
+pending rows atomically instead of handing them to a later global recovery phase.
+
+The pump installs Queue IDs in a process-local hold set. Automatic `enqueue` and `completed` wakes
+stop at a held Queue FIFO head; pending-input listing and Session hydration never schedule a drain.
+An explicit composer Send may start without releasing historical drafts. The typed
+`sessions.resumePendingQueue` operation validates normal Session gates, releases the Session hold,
+and drains with a `manual` wake reason. Before that manually resumed turn enters the provider Run,
+the pump consumes its Queue claim; a returned provider error therefore cannot restore the same item
+to Queue. Manual intent is tracked by Queue item ID, so attachment block and resolution cannot erase
+that boundary. The pending-input list projects authoritative resume availability, and Resume returns
+`false` without draining when no hold exists. Failures before the provider boundary still release
+safely. Durable Queue rows remain the only ordering and content source, and a later restart derives
+a new hold from whatever rows remain.
+
+An unclaimed Steer belongs to the previous process's interrupted delivery attempt. Startup changes
+its linked messages to retryable `error`, appends their Tape replacements, and consumes its pending
+row in one transaction. The renderer hides its receipt and adds no recovery-specific action; the
+standard message toolbar remains unchanged. A claimed Steer keeps its sent user message and exposes
+the interruption through the assistant error. Neither path adds a persisted recovery marker, age
+policy, schema migration, or hydration-triggered execution.
 
 ### Test Boundary
 

@@ -426,7 +426,7 @@ const mediaEntry = (contract: RouteContract): CliSurfaceEntry => ({
   }
 })
 
-const CLI_SURFACE_V1_ENTRIES = [
+const CLI_SURFACE_V2_ENTRIES = [
   {
     contract: modelsInvokeRoute,
     effect: 'compute',
@@ -1002,14 +1002,14 @@ function createSurfaceRegistry(
   return registry
 }
 
-export const CLI_SURFACE_V1 = createSurfaceRegistry(CLI_SURFACE_V1_ENTRIES)
+export const CLI_SURFACE_V2 = createSurfaceRegistry(CLI_SURFACE_V2_ENTRIES)
 
 export function getCliSurfaceEntry(method: string): CliSurfaceEntry | undefined {
-  return CLI_SURFACE_V1.get(method)
+  return CLI_SURFACE_V2.get(method)
 }
 
 export function listCliSurfaceCapabilities(): CliCapability[] {
-  return Array.from(CLI_SURFACE_V1.values(), (entry) => ({
+  return Array.from(CLI_SURFACE_V2.values(), (entry) => ({
     method: entry.contract.name,
     possibleEffects: [...listCliSurfaceEffects(entry)],
     callers: [...entry.callers],

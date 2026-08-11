@@ -362,6 +362,30 @@ describe('main kernel contracts', () => {
         version: -1
       })
     ).toThrow()
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['project.archiveEnvironment'].output.parse({
+        updated: true,
+        version: 7
+      })
+    ).toEqual({ updated: true, version: 7 })
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['project.archiveEnvironment'].output.parse({
+        updated: true,
+        version: -1
+      })
+    ).toThrow()
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['project.selectDirectory'].output.parse({
+        path: '/workspace',
+        version: 7
+      })
+    ).toEqual({ path: '/workspace', version: 7 })
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['project.selectDirectory'].output.parse({
+        path: '/workspace',
+        version: -1
+      })
+    ).toThrow()
 
     expect(
       configLanguageChangedEvent.payload.parse({

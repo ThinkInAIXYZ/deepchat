@@ -225,9 +225,20 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       message_ids_json:
         "ALTER TABLE deepchat_pending_inputs ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]';",
       assistant_message_id:
-        'ALTER TABLE deepchat_pending_inputs ADD COLUMN assistant_message_id TEXT;'
+        'ALTER TABLE deepchat_pending_inputs ADD COLUMN assistant_message_id TEXT;',
+      retry_required_at: 'ALTER TABLE deepchat_pending_inputs ADD COLUMN retry_required_at INTEGER;'
     },
-    typeCheckedColumns: ['blocking_json', 'message_ids_json', 'assistant_message_id']
+    typeCheckedColumns: [
+      'blocking_json',
+      'message_ids_json',
+      'assistant_message_id',
+      'retry_required_at'
+    ],
+    afterRepair: (db, addedColumns) => {
+      if (addedColumns.has('retry_required_at')) {
+        new DeepChatPendingInputsTable(db).normalizeRetryRequiredRows()
+      }
+    }
   },
   {
     name: 'deepchat_usage_stats',

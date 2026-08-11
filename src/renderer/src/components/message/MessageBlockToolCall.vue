@@ -8,6 +8,7 @@
       :details-id="detailsId"
       :details-expanded="isExpanded"
       :read-only="readOnly"
+      :permission-status="permissionStatus"
       @toggle-details="toggleExpanded"
     />
     <button
@@ -43,6 +44,21 @@
           {{ summaryText }}
         </span>
       </div>
+      <span
+        v-if="permissionStatus"
+        data-testid="tool-call-permission-badge"
+        :data-permission-status="permissionStatus"
+        :class="[
+          'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
+          permissionStatus === 'granted'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300'
+        ]"
+      >
+        {{
+          permissionStatus === 'granted' ? t('toolCall.badge.allowed') : t('toolCall.badge.denied')
+        }}
+      </span>
       <span
         v-if="showRtkBadge"
         data-testid="tool-call-rtk-badge"
@@ -248,7 +264,7 @@ import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/di
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcCopyButton } from '@dc-ui/components'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
@@ -263,6 +279,7 @@ const props = defineProps<{
   threadId?: string
   readOnly?: boolean
   renderMode?: 'full' | 'tool-only' | 'app-only'
+  permissionStatus?: 'granted' | 'denied'
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null

@@ -66,6 +66,7 @@ import {
 } from '@shared/contracts/routes'
 import {
   createRouteMap,
+  projectJsonRouteOutput,
   requireRendererCaller,
   type DeepchatRouteMap
 } from '@/routes/routeRegistry'
@@ -519,7 +520,7 @@ export function createProviderRoutes(deps: {
       modelsListRuntimeRoute.name,
       async (rawInput) => {
         const input = modelsListRuntimeRoute.input.parse(rawInput)
-        return modelsListRuntimeRoute.output.parse({
+        return projectJsonRouteOutput(modelsListRuntimeRoute.output, {
           models: await providerRuntime.getModelList(input.providerId)
         })
       }

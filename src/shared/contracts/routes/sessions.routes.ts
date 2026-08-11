@@ -221,7 +221,30 @@ export const sessionsListPendingInputsRoute = defineRouteContract({
     sessionId: EntityIdSchema
   }),
   output: z.object({
-    items: z.array(PendingSessionInputRecordSchema)
+    items: z.array(PendingSessionInputRecordSchema),
+    resumeAvailable: z.boolean()
+  })
+})
+
+export const sessionsResumePendingQueueRoute = defineRouteContract({
+  name: 'sessions.resumePendingQueue',
+  input: z.object({
+    sessionId: EntityIdSchema
+  }),
+  output: z.object({
+    started: z.boolean()
+  })
+})
+
+export const sessionsRetryPendingQueueInputRoute = defineRouteContract({
+  name: 'sessions.retryPendingQueueInput',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    itemId: EntityIdSchema
+  }),
+  output: z.object({
+    accepted: z.boolean(),
+    started: z.boolean()
   })
 })
 

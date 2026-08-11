@@ -181,7 +181,9 @@ deepchat run cancel --run <run-id> --json
 ```
 
 `agent run` 先创建 durable detached Session，再启动首轮。CLI 断开不会删除 run；可以通过
-`run get` 恢复消息，human caller 可通过 cursor 续接 `run watch`。Agent caller 自身不能递归执行
+`run get` 恢复消息和 `running | awaiting_interaction | terminal` phase，human caller 可通过 cursor
+续接 `run watch`。一次 provider stream 完成或失败不会提前结束 watch；只有 root Session 进入
+`idle`/`error` 才是整个 detached run 的终态。Agent caller 自身不能递归执行
 `agent run`，也不能等待当前正在执行的自身 run；Agent 仅可使用非阻塞的 `run get` 与幂等的
 `run cancel`。
 
@@ -218,7 +220,7 @@ Agent 调用额外经过以下控制：
 
 1. shell command permission；
 2. main 签发的短期 scoped token；
-3. deny-by-default `CLI_SURFACE_V1` caller/scope policy；
+3. deny-by-default `CLI_SURFACE_V2` caller/scope policy；
 4. effect policy 与 renderer-only approval；
 5. ownership、rate、call/byte quota 与脱敏审计。
 

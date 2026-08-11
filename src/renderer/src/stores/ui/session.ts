@@ -33,6 +33,7 @@ import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
 import { bindSessionStoreIpc } from './sessionIpc'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
 
@@ -189,7 +190,7 @@ function groupByTime(sessions: UISession[]): SessionGroup[] {
 }
 
 function normalizeProjectGroupId(projectDir: string): string {
-  const normalizedDir = projectDir.trim().replace(/[\\/]+$/, '')
+  const normalizedDir = normalizeWorkspacePath(projectDir)
   return normalizedDir || NO_PROJECT_GROUP_ID
 }
 
@@ -201,7 +202,7 @@ function getProjectGroupLabel(projectGroupId: string): { label: string; labelKey
     }
   }
 
-  const label = projectGroupId.split(/[\\/]/).pop() ?? projectGroupId
+  const label = projectGroupId.split(/[\\/]/).pop() || projectGroupId
   return { label }
 }
 
@@ -321,9 +322,11 @@ export const useSessionStore = defineStore('session', () => {
   const liveDelegationStore = useLiveDelegationStore()
   const myWebContentsId = ref<number | null>(null)
   let groupModeLoadPromise: Promise<void> | null = null
-  let groupModeWritePromise: Promise<void> = Promise.resolve()
+  let groupModeWriteQueue: Promise<void> = Promise.resolve()
+  let latestGroupModeWrite: Promise<void> = Promise.resolve()
   let hasLoadedGroupMode = false
-  let groupModeUpdateVersion = 0
+  let persistedGroupMode: GroupMode = DEFAULT_GROUP_MODE
+  let requestedGroupMode: GroupMode = DEFAULT_GROUP_MODE
   let initialPageRequestId = 0
   let nextPageRequestId = 0
   // A list epoch protects the first-page/pagination cursor chain. Targeted updates
@@ -399,19 +402,15 @@ export const useSessionStore = defineStore('session', () => {
     value === 'time' || value === 'project' ? value : DEFAULT_GROUP_MODE
 
   const loadGroupModePreference = async (): Promise<void> => {
-    const loadVersion = groupModeUpdateVersion
-
     try {
       const savedGroupMode = await configClient.getSetting(SIDEBAR_GROUP_MODE_KEY)
-      if (groupModeUpdateVersion === loadVersion) {
-        groupMode.value = normalizeGroupMode(savedGroupMode)
-      }
+      persistedGroupMode = normalizeGroupMode(savedGroupMode)
     } catch (loadError) {
-      if (groupModeUpdateVersion === loadVersion) {
-        groupMode.value = DEFAULT_GROUP_MODE
-      }
+      persistedGroupMode = DEFAULT_GROUP_MODE
       console.warn('[sessionStore] Failed to load sidebar group mode:', loadError)
     } finally {
+      requestedGroupMode = persistedGroupMode
+      groupMode.value = persistedGroupMode
       hasLoadedGroupMode = true
     }
   }
@@ -1289,26 +1288,45 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function toggleGroupMode(): Promise<void> {
-    const previousMode = groupMode.value
-    groupMode.value = previousMode === 'time' ? 'project' : 'time'
-    const localVersion = ++groupModeUpdateVersion
+  async function setGroupMode(mode: GroupMode): Promise<void> {
+    if (!hasLoadedGroupMode) {
+      await ensureGroupModeLoaded()
+    }
+    if (requestedGroupMode === mode) {
+      await latestGroupModeWrite
+      return
+    }
 
-    groupModeWritePromise = groupModeWritePromise.then(async () => {
+    requestedGroupMode = mode
+    groupMode.value = mode
+    const writePromise = groupModeWriteQueue.then(async () => {
       try {
-        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
-        if (localVersion !== groupModeUpdateVersion) {
-          return
-        }
+        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, mode)
+        persistedGroupMode = mode
       } catch (persistError) {
-        if (localVersion === groupModeUpdateVersion) {
-          groupMode.value = previousMode
+        if (requestedGroupMode === mode) {
+          requestedGroupMode = persistedGroupMode
+          groupMode.value = persistedGroupMode
         }
         console.warn('[sessionStore] Failed to persist sidebar group mode:', persistError)
+        throw persistError
       }
     })
 
-    await groupModeWritePromise
+    latestGroupModeWrite = writePromise
+    groupModeWriteQueue = writePromise.catch(() => undefined)
+    await writePromise
+  }
+
+  async function toggleGroupMode(): Promise<void> {
+    try {
+      if (!hasLoadedGroupMode) {
+        await ensureGroupModeLoaded()
+      }
+      await setGroupMode(groupMode.value === 'time' ? 'project' : 'time')
+    } catch {
+      // setGroupMode already restores the visible state and records the failure.
+    }
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
@@ -1412,6 +1430,7 @@ export const useSessionStore = defineStore('session', () => {
     deleteSession,
     setSessionProjectDir,
     moveSessionToAgent,
+    setGroupMode,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

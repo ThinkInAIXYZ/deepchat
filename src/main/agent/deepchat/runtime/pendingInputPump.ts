@@ -46,6 +46,7 @@ export type PendingInputPumpStorePort = Pick<
   | 'listPendingInputs'
   | 'releaseClaimedInput'
   | 'releaseClaimedQueueInput'
+  | 'releaseClaimedQueueInputForRetry'
 >
 
 type PendingInputPumpLifecyclePort = Pick<
@@ -75,6 +76,7 @@ export interface PendingInputTurnStarter {
 export interface PendingInputTurnContext {
   projectDir: string | null
   claimedInput: ClaimedPendingInputHandle
+  consumeClaimBeforeProviderStream: boolean
 }
 
 export interface PendingInputPumpPorts {
@@ -159,11 +161,15 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
           this.id,
           disposition.attachmentPreparation
         )
+      case 'release-for-mutation':
+        return this.source === 'steer'
+          ? this.pendingInputs.releaseClaimedInput(this.sessionId, this.id)
+          : this.pendingInputs.releaseClaimedQueueInput(this.sessionId, this.id)
       case 'release-before-user-fact':
       case 'release-after-rollback':
         return this.source === 'steer'
           ? this.pendingInputs.releaseClaimedInput(this.sessionId, this.id)
-          : this.pendingInputs.releaseClaimedQueueInput(this.sessionId, this.id)
+          : this.pendingInputs.releaseClaimedQueueInputForRetry(this.sessionId, this.id)
     }
   }
 
@@ -196,9 +202,14 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
           : record === null
       case 'block':
         return record?.mode === expectedMode && record.state === 'blocked'
+      case 'release-for-mutation':
+        return record?.mode === expectedMode && record.state === 'pending'
       case 'release-before-user-fact':
       case 'release-after-rollback':
-        return record?.mode === expectedMode && record.state === 'pending'
+        return (
+          record?.mode === expectedMode &&
+          record.state === (this.source === 'queue' ? 'retry_required' : 'pending')
+        )
     }
   }
 }
@@ -206,8 +217,69 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
 export class PendingInputPump {
   private readonly launchedDrains = new Map<string, LaunchedPendingInputDrain>()
   private readonly deferredWakeups = new Map<string, PendingInputWakeReason>()
+  private readonly restartHeldQueueInputIds = new Set<string>()
+  private readonly manuallyResumedQueueInputIds = new Set<string>()
 
   constructor(private readonly ports: PendingInputPumpPorts) {}
+
+  holdRestartedQueueInputs(inputIds: Iterable<string>): void {
+    for (const inputId of inputIds) {
+      this.restartHeldQueueInputIds.add(inputId)
+    }
+  }
+
+  releaseRestartHoldForInput(itemId: string): void {
+    this.restartHeldQueueInputIds.delete(itemId)
+    this.manuallyResumedQueueInputIds.delete(itemId)
+  }
+
+  releaseRestartHoldForSession(sessionId: string): boolean {
+    const queueInputs = this.ports.pendingInputs
+      .listPendingInputs(sessionId)
+      .filter((input) => input.mode === 'queue')
+      .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))
+    const resumedHead = queueInputs[0]
+    if (
+      !resumedHead ||
+      resumedHead.state !== 'pending' ||
+      !this.restartHeldQueueInputIds.has(resumedHead.id)
+    ) {
+      return false
+    }
+    for (const input of queueInputs) {
+      if (this.restartHeldQueueInputIds.has(input.id)) {
+        this.restartHeldQueueInputIds.delete(input.id)
+      }
+    }
+    this.manuallyResumedQueueInputIds.add(resumedHead.id)
+    return true
+  }
+
+  hasRestartHeldQueueInputs(sessionId: string): boolean {
+    const head = this.ports.pendingInputs
+      .listPendingInputs(sessionId)
+      .filter((input) => input.mode === 'queue')
+      .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))[0]
+    return Boolean(
+      head?.state === 'pending' && this.restartHeldQueueInputIds.has(head.id)
+    )
+  }
+
+  hasOnlyRestartHeldQueueInputs(sessionId: string): boolean {
+    if (
+      this.ports.pendingInputs.hasBlockingInput(sessionId) ||
+      this.ports.pendingInputs.hasClaimedInput(sessionId)
+    ) {
+      return false
+    }
+    const inputs = this.ports.pendingInputs.listPendingInputs(sessionId)
+    return (
+      inputs.length > 0 &&
+      inputs.every(
+        (input) => input.mode === 'queue' && this.restartHeldQueueInputIds.has(input.id)
+      )
+    )
+  }
 
   hasInteractionBlocker(sessionId: string): boolean {
     const snapshot = this.readGateSnapshot(sessionId)
@@ -236,15 +308,23 @@ export class PendingInputPump {
       !this.ports.pendingInputs.hasBlockingInput(sessionId) &&
       !this.ports.pendingInputs.hasClaimedInput(sessionId) &&
       !instance?.isPendingQueueDraining()
+    const hasRetryRequiredInput = this.ports.pendingInputs
+      .listPendingInputs(sessionId)
+      .some((input) => input.mode === 'queue' && input.state === 'retry_required')
 
-    if (isUnclaimedQuestionFollowUp) {
+    if (isUnclaimedQuestionFollowUp && !hasRetryRequiredInput) {
       return true
     }
     if (!this.canDrainWithSnapshot(sessionId, status, 'enqueue', snapshot)) {
       return false
     }
+    const hasWaitingTurnInput =
+      hasRetryRequiredInput ||
+      (source === 'send'
+        ? this.hasExecutablePendingTurnInput(sessionId)
+        : this.ports.pendingInputs.hasPendingTurnInput(sessionId))
     return (
-      !this.ports.pendingInputs.hasPendingTurnInput(sessionId) &&
+      !hasWaitingTurnInput &&
       !this.ports.pendingInputs.hasBlockingInput(sessionId) &&
       !this.ports.pendingInputs.hasClaimedInput(sessionId)
     )
@@ -353,6 +433,9 @@ export class PendingInputPump {
       const nextQueuedInput = nextSteerInput
         ? null
         : this.ports.pendingInputs.getNextQueuedInput(sessionId)
+      if (nextQueuedInput && this.restartHeldQueueInputIds.has(nextQueuedInput.id)) {
+        return false
+      }
       const nextPendingInput = nextSteerInput ?? nextQueuedInput
       if (!nextPendingInput) {
         return false
@@ -436,7 +519,9 @@ export class PendingInputPump {
     try {
       turn = this.ports.turnStarter.start(claimedInput.sessionId, claimedInput.payload, {
         projectDir,
-        claimedInput: claim
+        claimedInput: claim,
+        consumeClaimBeforeProviderStream:
+          claim.source === 'queue' && this.manuallyResumedQueueInputIds.has(claimedInput.id)
       })
     } catch (error) {
       turn = Promise.reject(error)
@@ -466,6 +551,9 @@ export class PendingInputPump {
             'unsettled-claim',
             new Error(`Turn left pending input ${claimedInput.id} unsettled.`)
           )
+        }
+        if (claim.disposition?.kind === 'consume') {
+          this.manuallyResumedQueueInputIds.delete(claimedInput.id)
         }
         this.clearLaunchedDrain(claimedInput.sessionId, scope.instance, drainLease)
         scope.instance.releasePendingQueueDrain(drainLease)
@@ -508,11 +596,15 @@ export class PendingInputPump {
     reason: PendingInputWakeReason
   ): Promise<void> {
     try {
-      const releasedInputIsWaitingForRetry = this.ports.pendingInputs
+      const releasedInputIsStillWaiting = this.ports.pendingInputs
         .listPendingInputs(sessionId)
-        .some((item) => item.id === claimedInputId && item.state === 'pending')
+        .some(
+          (item) =>
+            item.id === claimedInputId &&
+            (item.state === 'pending' || item.state === 'retry_required')
+        )
       if (
-        !releasedInputIsWaitingForRetry &&
+        !releasedInputIsStillWaiting &&
         this.ports.pendingInputs.hasPendingTurnInput(sessionId) &&
         (await this.ports.sessionState.get(sessionId))?.status === 'idle' &&
         !this.hasInteractionBlocker(sessionId)
@@ -534,9 +626,14 @@ export class PendingInputPump {
 
   private rememberDeferredWakeup(sessionId: string, reason: PendingInputWakeReason): void {
     const current = this.deferredWakeups.get(sessionId)
+    const priority: Record<PendingInputWakeReason, number> = {
+      completed: 0,
+      enqueue: 1,
+      manual: 2
+    }
     this.deferredWakeups.set(
       sessionId,
-      current === 'enqueue' || reason === 'enqueue' ? 'enqueue' : 'completed'
+      !current || priority[reason] > priority[current] ? reason : current
     )
   }
 
@@ -643,7 +740,15 @@ export class PendingInputPump {
     status: DeepChatSessionState['status'],
     reason: PendingInputWakeReason
   ): boolean {
-    return status === 'idle' || (reason === 'enqueue' && status === 'error')
+    return status === 'idle' || (reason !== 'completed' && status === 'error')
+  }
+
+  private hasExecutablePendingTurnInput(sessionId: string): boolean {
+    if (this.ports.pendingInputs.getNextSteerInput(sessionId)) {
+      return true
+    }
+    const nextQueueInput = this.ports.pendingInputs.getNextQueuedInput(sessionId)
+    return Boolean(nextQueueInput && !this.restartHeldQueueInputIds.has(nextQueueInput.id))
   }
 
   private logDrainError(

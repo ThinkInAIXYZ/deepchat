@@ -147,11 +147,17 @@
               :queue-items="pendingInputStore.queueItems"
               :disable-steer-action="pendingInputStore.isAtCapacity"
               :disable-queue-steer-action="disableQueueSteerAction"
+              :show-resume-action="showPendingQueueResume"
+              :resume-disabled="disablePendingQueueResume"
+              :resume-loading="pendingInputStore.resumingQueue"
+              :retrying-item-id="pendingInputStore.retryingItemId"
               class="mx-auto mb-1.5 max-w-4xl"
               @update-queue="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
               @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"
+              @resume-queue="onPendingInputResume"
+              @retry-queue="onPendingInputRetry"
               @resolve-blocked="onPendingInputResolve"
             />
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
@@ -1274,6 +1280,8 @@ const {
   onPendingInputMove,
   onPendingInputDelete,
   onPendingInputSteer,
+  onPendingInputResume,
+  onPendingInputRetry,
   onPendingInputResolve
 } = usePendingInputActions({
   sessionId: () => props.sessionId,
@@ -1287,6 +1295,25 @@ const {
   notify: notifyRenderer,
   t
 })
+
+const showPendingQueueResume = computed(() => {
+  const activeSession = sessionStore.activeSession
+  return (
+    activeSession?.id === props.sessionId &&
+    activeSession.providerId !== 'acp' &&
+    isSessionViewCommitted.value &&
+    !isGenerating.value &&
+    pendingInputStore.currentSessionId === props.sessionId &&
+    pendingInputStore.resumeAvailable
+  )
+})
+const disablePendingQueueResume = computed(
+  () =>
+    pendingInputStore.resumingQueue ||
+    pendingInputStore.queueItems.some((item) => item.state === 'blocked') ||
+    Boolean(activePendingInteraction.value) ||
+    isHandlingInteraction.value
+)
 
 const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useChatPageEventBridge({
   sessionId: () => props.sessionId,

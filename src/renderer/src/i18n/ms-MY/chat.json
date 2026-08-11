@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "Model {model} tidak menyokong input audio, lampiran audio {count} telah diabaikan."
   },
   "pendingInput": {
+    "resume": "Sambung baris gilir",
+    "resumeFailed": "Gagal menyambung baris gilir",
+    "retry": "Cuba lagi",
+    "retryRequired": "Percubaan semula diperlukan",
+    "retryRequiredDescription": "Mesej ini tidak dihantar. Cuba lagi untuk meneruskan baris gilir.",
+    "retryFailed": "Gagal mencuba semula mesej dalam baris gilir",
     "steer": "panduan",
     "queueCount": "Sedia untuk menghantar {count}/{max}",
     "toSteer": "Ganggu & hantar",
@@ -364,6 +370,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Tambah ruang kerja",
+    "emptyWorkspace": "Kosong",
+    "addWorkspaceFailed": "Gagal menambah ruang kerja",
     "searchLoadedRangeDescription": "Memaparkan padanan daripada perbualan yang dimuatkan. Tatal untuk memuatkan lebih banyak sejarah."
   },
   "spotlight": {

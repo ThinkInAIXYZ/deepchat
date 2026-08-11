@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "O modelo {model} não oferece suporte a entrada de áudio. {count} anexo(s) de áudio foram ignorados."
   },
   "pendingInput": {
+    "resume": "Retomar fila",
+    "resumeFailed": "Não foi possível retomar a fila",
+    "retry": "Tentar novamente",
+    "retryRequired": "Nova tentativa necessária",
+    "retryRequiredDescription": "Esta mensagem não foi enviada. Tente novamente para continuar a fila.",
+    "retryFailed": "Não foi possível tentar novamente a mensagem na fila",
     "steer": "Direcionamento",
     "queueCount": "Pendentes {count}/{max}",
     "toSteer": "Interromper e enviar",
@@ -348,6 +354,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Adicionar espaço de trabalho",
+    "emptyWorkspace": "Vazio",
+    "addWorkspaceFailed": "Falha ao adicionar espaço de trabalho",
     "searchLoadedRangeDescription": "Mostrando resultados das conversas carregadas. Role para carregar mais histórico."
   },
   "floatingWidget": {

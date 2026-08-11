@@ -24,6 +24,7 @@ function createQueueRow(
     message_ids_json: '[]',
     assistant_message_id: null,
     blocking_json: null,
+    retry_required_at: null,
     queue_order: queueOrder,
     claimed_at: state === 'claimed' ? now : null,
     consumed_at: state === 'consumed' ? now : null,
@@ -47,6 +48,7 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
         message_ids_json: row.messageIdsJson ?? '[]',
         assistant_message_id: row.assistantMessageId ?? null,
         blocking_json: row.blockingJson ?? null,
+        retry_required_at: row.retryRequiredAt ?? null,
         queue_order: row.queueOrder ?? null,
         claimed_at: row.claimedAt ?? null,
         consumed_at: row.consumedAt ?? null,
@@ -183,6 +185,93 @@ describe('SessionPendingInputStore', () => {
     )
     expect(deepchatPendingInputsTable.update).not.toHaveBeenCalled()
     expect(store.getInput(row.id)?.payload.text).toBe(row.id)
+  })
+
+  it('keeps a released Queue head durable and excludes later rows from dispatch', () => {
+    const { store, deepchatPendingInputsTable } = createStore([
+      createQueueRow('released-1', 'session-1', 1, 'claimed'),
+      createQueueRow('pending-2', 'session-1', 2, 'pending')
+    ])
+
+    const released = store.releaseClaimedQueueInputForRetry('released-1')
+
+    expect(released).toMatchObject({ state: 'retry_required', claimedAt: null })
+    expect(store.listPendingInputs('session-1').map((item) => item.id)).toEqual([
+      'released-1',
+      'pending-2'
+    ])
+    expect(store.getNextPendingQueueInput('session-1')).toBeNull()
+    expect(store.countActive('session-1')).toBe(2)
+    expect(deepchatPendingInputsTable.get('released-1')).toMatchObject({
+      state: 'blocked',
+      retry_required_at: expect.any(Number)
+    })
+  })
+
+  it('accepts only one retry transition and preserves edit-as-retry compatibility', () => {
+    const released = createQueueRow('released-1', 'session-1', 1, 'retry_required')
+    const { store } = createStore([released])
+
+    expect(store.retryReleasedQueueInput(released.id).state).toBe('pending')
+    expect(() => store.retryReleasedQueueInput(released.id)).toThrow(
+      `Pending queue item ${released.id} does not require retry.`
+    )
+
+    const rereleased = createQueueRow('released-2', 'session-1', 2, 'retry_required')
+    const secondStore = createStore([rereleased]).store
+    expect(
+      secondStore.updateQueueInput(rereleased.id, { text: 'edited retry', files: [] })
+    ).toMatchObject({ state: 'pending', payload: { text: 'edited retry' } })
+  })
+
+  it('retries a released Queue item behind an earlier Queue row without bypassing FIFO', () => {
+    const { store } = createStore([
+      createQueueRow('pending-1', 'session-1', 1, 'pending'),
+      createQueueRow('released-2', 'session-1', 2, 'retry_required')
+    ])
+
+    expect(store.retryReleasedQueueInput('released-2').state).toBe('pending')
+    expect(store.getNextPendingQueueInput('session-1')?.id).toBe('pending-1')
+  })
+
+  it.each([
+    [
+      'move',
+      (store: SessionPendingInputStore) => store.moveQueueInput('session-1', 'pending-3', 0)
+    ],
+    ['delete', (store: SessionPendingInputStore) => store.deleteInput('pending-2')],
+    [
+      'Queue-to-Steer conversion',
+      (store: SessionPendingInputStore) => store.convertQueueInputToSteer('pending-2')
+    ]
+  ])('preserves a claimed Queue slot across %s resequencing', (_operation, mutate) => {
+    const { store } = createStore([
+      createQueueRow('claimed-1', 'session-1', 1, 'claimed'),
+      createQueueRow('pending-2', 'session-1', 2, 'pending'),
+      createQueueRow('pending-3', 'session-1', 3, 'pending')
+    ])
+
+    mutate(store)
+    store.releaseClaimedQueueInputForRetry('claimed-1')
+
+    const queue = store.listPendingInputs('session-1').filter((item) => item.mode === 'queue')
+    expect(queue[0]).toMatchObject({ id: 'claimed-1', state: 'retry_required', queueOrder: 1 })
+    expect(new Set(queue.map((item) => item.queueOrder)).size).toBe(queue.length)
+    expect(store.getNextPendingQueueInput('session-1')).toBeNull()
+  })
+
+  it('prevents reordering around a retry-required Queue head', () => {
+    const { store } = createStore([
+      createQueueRow('released-1', 'session-1', 1, 'retry_required'),
+      createQueueRow('pending-2', 'session-1', 2, 'pending')
+    ])
+
+    expect(() => store.moveQueueInput('session-1', 'pending-2', 0)).toThrow(
+      'Retry or edit the released queue input before reordering the queue.'
+    )
+    expect(() => store.convertQueueInputToSteer('released-1')).toThrow(
+      'Pending queue item released-1 is not steerable.'
+    )
   })
 
   it('rejects queue updates for steer items', () => {

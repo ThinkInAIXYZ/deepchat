@@ -15,6 +15,7 @@ export const RUN_MAX_MESSAGE_PAGE_SIZE = 100
 
 export const RunIdSchema = EntityIdSchema.max(128)
 export const RunEventCursorSchema = LocalControlEventCursorSchema
+export const PublicRunPhaseSchema = z.enum(['running', 'awaiting_interaction', 'terminal'])
 
 const BoundedIdentifierSchema = z.string().trim().min(1).max(256)
 const PublicRunMessageTextSchema = z
@@ -54,6 +55,7 @@ export const PublicRunSnapshotSchema = z
     agentId: EntityIdSchema,
     title: z.string(),
     status: SessionStatusSchema,
+    phase: PublicRunPhaseSchema,
     providerId: z.string(),
     modelId: z.string(),
     createdAt: TimestampMsSchema,
@@ -144,6 +146,7 @@ export const eventsSubscribeRoute = defineRouteContract({
 })
 
 export type PublicRunMessage = z.infer<typeof PublicRunMessageSchema>
+export type PublicRunPhase = z.infer<typeof PublicRunPhaseSchema>
 export type PublicRunSnapshot = z.infer<typeof PublicRunSnapshotSchema>
 export type RunDetachedInput = z.infer<typeof sessionsRunDetachedRoute.input>
 export type RunDetachedOutput = z.infer<typeof sessionsRunDetachedRoute.output>

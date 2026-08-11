@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.0 (2026-08-11)
+- Added proactive multi-Agent collaboration with live child Sessions, progress controls, result handoff, durable execution journaling, and contract-bound delegation recovery
+- Added a bundled local `deepchat` CLI for inference, media, OCR, artifacts, Agent runs, provider and model administration, Settings, Skills, and MCP operations
+- Expanded Agent Memory with time-aware Directives, persistent corrections and deletions, incremental maintenance, and more reliable vector storage and recovery
+- Added fully offline OCR for image and PDF attachments, with per-attachment modes, cancellation, caching, page-aware truncation, and reuse across history, retry, export, and search
+- Gave every Agent an isolated Skills catalog with explicit imports, and added MCP v2 ecosystem support, a built-in McDonald's server, larger tool catalogs, and resilient schema handling
+- Added native DeepSeek web search and built-in support for AMD GPU Cloud, DaoXE, GreenPT, Modelsell, OrcaRouter, Routerra, Straico, StepFun Token Plan, and Grok OAuth
+- Upgraded Computer Use to 0.19.2 with snapshot-bound targeting, post-action verification, new window, menu, and clipboard tools, native picture-in-picture previews, and stronger runtime integrity checks
+- Added browser session import, sidebar workspace management, persistent composer drafts, configurable Agent output limits, and Windows command shell profiles
+- Improved chat and Agent recovery for pending or released inputs, permission outcomes, interrupted sessions, truncated tool calls, transient provider failures, and long-context prompt caching
+- Refined notifications, Steer conversations, Settings, startup visuals, UI controls, motion, scrolling, search, and message actions while reducing renderer and dashboard overhead
+- Added Linux ARM64 packages and a branded macOS installer, hardened updater metadata and native distribution verification, and rebuilt release assembly around reproducible, fail-closed checks
+- Upgraded Electron to 41.10.4, the bundled Node.js runtime to 24.18.0, Light OCR to 0.5.7, and patched YAML and Mermaid security issues
+- 新增主动式多 Agent 协作，支持实时子会话、进度控制、结果回传、持久化执行日志，以及受契约约束的委派恢复
+- 新增内置本地 `deepchat` CLI，覆盖推理、媒体生成、OCR、产物管理、Agent 运行、Provider 与模型管理、设置、Skills 和 MCP 操作
+- 扩展 Agent Memory，新增具备时间感知能力的 Directives、可持久生效的纠正与删除、增量维护，以及更可靠的向量存储与恢复机制
+- 新增完全离线的图片与 PDF 附件 OCR，支持逐附件模式、取消、缓存、按页截断，以及在历史、重试、导出和搜索中复用结果
+- 为每个 Agent 提供隔离的 Skills 目录与显式导入，并新增 MCP v2 生态、内置 McDonald's 服务器、大型工具目录支持和稳健的 Schema 兼容处理
+- 新增 DeepSeek 原生联网搜索，并内置支持 AMD GPU Cloud、DaoXE、GreenPT、Modelsell、OrcaRouter、Routerra、Straico、StepFun Token Plan 和 Grok OAuth
+- 将 Computer Use 升级至 0.19.2，新增基于快照的目标定位、操作后验证、窗口、菜单与剪贴板工具、原生画中画预览，并强化运行时完整性校验
+- 新增浏览器会话导入、侧边栏工作区管理、输入框草稿持久化、Agent 输出上限配置，以及 Windows 命令行 Shell 配置
+- 改进待处理或已释放输入、权限结果、中断会话、截断工具调用、瞬时 Provider 故障和长上下文提示词缓存的恢复与可靠性
+- 优化通知反馈、Steer 对话、设置页、启动视觉、UI 控件、动效、滚动、搜索和消息操作，并降低渲染器与 Dashboard 开销
+- 新增 Linux ARM64 安装包和品牌化 macOS 安装器，强化更新元数据与原生分发校验，并以可复现、失败即关闭的检查重构发布组装流程
+- 将 Electron 升级至 41.10.4、内置 Node.js 运行时升级至 24.18.0、Light OCR 升级至 0.5.7，并修复 YAML 与 Mermaid 安全问题
+
 ## v1.1.0-beta.12 (2026-08-07)
 - Added proactive multi-Agent collaboration with live child Sessions, progress tracking, controls, and result handoff
 - Added a bundled local `deepchat` CLI for inference, media, OCR, artifacts, Agent runs, provider and model administration, Settings, Skills, and MCP operations

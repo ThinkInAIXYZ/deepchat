@@ -35,7 +35,24 @@
       {{ t('components.messageBlockAction.continue') }}
     </DcButton>
     <div
-      v-if="!block.extra?.needContinue && block.action_type !== 'rate_limit'"
+      v-if="resolvedPermissionStatus"
+      data-testid="permission-resolved-label"
+      :data-permission-status="resolvedPermissionStatus"
+      class="text-xs flex flex-row gap-2 items-center"
+      :class="resolvedPermissionStatus === 'granted' ? 'text-emerald-600' : 'text-red-500'"
+    >
+      <Icon
+        :icon="resolvedPermissionStatus === 'granted' ? 'lucide:shield-check' : 'lucide:shield-x'"
+        class="w-4 h-4"
+      />
+      {{
+        resolvedPermissionStatus === 'granted'
+          ? t('components.messageBlockPermissionRequest.granted')
+          : t('components.messageBlockPermissionRequest.denied')
+      }}
+    </div>
+    <div
+      v-else-if="!block.extra?.needContinue && block.action_type !== 'rate_limit'"
       class="text-xs text-gray-500 flex flex-row gap-2 items-center"
     >
       <Icon icon="lucide:check" class="w-4 h-4" />{{ t('components.messageBlockAction.continued') }}
@@ -48,7 +65,10 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import {
+  type DisplayAssistantMessageBlock,
+  getResolvedPermissionStatus
+} from '@/features/chat-page/model/displayMessage'
 
 const { t } = useI18n()
 
@@ -67,6 +87,7 @@ const progressTimer = ref<number | null>(null)
 const currentTime = ref(Date.now())
 const isReadOnly = computed(() => props.isReadOnly === true)
 const isRateLimitBlock = computed(() => props.block.action_type === 'rate_limit')
+const resolvedPermissionStatus = computed(() => getResolvedPermissionStatus(props.block))
 const elapsedSeconds = computed(() => {
   if (!isRateLimitBlock.value) {
     return 0

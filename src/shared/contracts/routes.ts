@@ -480,8 +480,10 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
+  sessionsResumePendingQueueRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
+  sessionsRetryPendingQueueInputRoute,
   sessionsResolveBlockedPendingInputRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
@@ -915,6 +917,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsGetActiveRoute.name]: sessionsGetActiveRoute,
   [sessionsEnsureAcpDraftRoute.name]: sessionsEnsureAcpDraftRoute,
   [sessionsListPendingInputsRoute.name]: sessionsListPendingInputsRoute,
+  [sessionsResumePendingQueueRoute.name]: sessionsResumePendingQueueRoute,
+  [sessionsRetryPendingQueueInputRoute.name]: sessionsRetryPendingQueueInputRoute,
   [sessionsQueuePendingInputRoute.name]: sessionsQueuePendingInputRoute,
   [sessionsUpdateQueuedInputRoute.name]: sessionsUpdateQueuedInputRoute,
   [sessionsMoveQueuedInputRoute.name]: sessionsMoveQueuedInputRoute,

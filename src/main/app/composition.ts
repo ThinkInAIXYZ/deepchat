@@ -1884,7 +1884,10 @@ export async function createMainProcessControl(dependencies: {
               compaction: {
                 getState: () => handle.deepchat.getCompactionState(),
                 compact: () => handle.deepchat.compact()
-              }
+              },
+              isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
+              resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
+              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
             }
           : { ...turn, kind: handle.kind }
       }
@@ -1949,6 +1952,16 @@ export async function createMainProcessControl(dependencies: {
     turn: sessionTurn,
     projection: sessionQuery,
     sessions: appSessionService,
+    getPendingAssistantMessages: (runId) =>
+      sessionData.transcript.getPendingAssistantMessages(runId),
+    hasWaitingDescendantInteraction: (runId) =>
+      liveDelegationRepository
+        .listActiveTurns()
+        .some(
+          ({ delegation, turn }) =>
+            (turn.status === 'waiting_permission' || turn.status === 'waiting_question') &&
+            resolveSessionRunId(delegation.parentSessionId) === runId
+        ),
     eventHub: typedEventHub,
     log: logger
   })

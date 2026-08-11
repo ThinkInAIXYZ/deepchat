@@ -10,6 +10,7 @@ export type PendingInputTurnSource = PendingInputEnqueueSource | 'steer'
 export type ClaimedInputDisposition =
   | { kind: 'consume' }
   | { kind: 'block'; attachmentPreparation: AttachmentPreparationSummary }
+  | { kind: 'release-for-mutation' }
   | { kind: 'release-before-user-fact' }
   | { kind: 'release-after-rollback' }
 

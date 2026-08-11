@@ -71,6 +71,12 @@
     "audioInputUnsupportedDescription": "Il modello {model} non supporta input audio. {count} allegati audio ignorati."
   },
   "pendingInput": {
+    "resume": "Riprendi coda",
+    "resumeFailed": "Impossibile riprendere la coda",
+    "retry": "Riprova",
+    "retryRequired": "Nuovo tentativo richiesto",
+    "retryRequiredDescription": "Questo messaggio non è stato inviato. Riprova per continuare la coda.",
+    "retryFailed": "Impossibile riprovare il messaggio in coda",
     "steer": "Guida",
     "queueCount": "In attesa {count}/{max}",
     "toSteer": "Interrompi e invia",
@@ -364,6 +370,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Aggiungi area di lavoro",
+    "emptyWorkspace": "Vuoto",
+    "addWorkspaceFailed": "Impossibile aggiungere l’area di lavoro",
     "searchLoadedRangeDescription": "Visualizzazione delle corrispondenze dalle conversazioni caricate. Scorri per caricare altra cronologia."
   },
   "spotlight": {

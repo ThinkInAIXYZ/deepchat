@@ -363,6 +363,26 @@ export class SessionTranscript {
     return messageIds.map((messageId) => this.requireMessage(messageId))
   }
 
+  failPendingSteerMessages(messageIds: string[]): ChatMessageRecord[] {
+    for (const messageId of messageIds) {
+      const message = this.getMessage(messageId)
+      if (!message || message.role !== 'user' || message.status !== 'pending') {
+        throw new Error(`Pending steer message not found: ${messageId}`)
+      }
+      const metadata = parseMessageMetadata(message.metadata)
+      if (metadata.inputReceipt?.mode !== 'steer' || metadata.inputReceipt.readAt !== null) {
+        throw new Error(`Message ${messageId} is not an unread steer message.`)
+      }
+      this.database.deepchatMessagesTable.updateStatus(messageId, 'error')
+      const updated = this.requireMessage(messageId)
+      this.tapeFacts.appendMessageReplacement(updated, {
+        reason: 'steer_message_restart_failed',
+        revisionKind: 'record'
+      })
+    }
+    return messageIds.map((messageId) => this.requireMessage(messageId))
+  }
+
   finalizeAssistantMessage(
     messageId: string,
     blocks: AssistantMessageBlock[],
@@ -422,6 +442,11 @@ export class SessionTranscript {
 
   getMessages(sessionId: string): ChatMessageRecord[] {
     const rows = this.database.deepchatMessagesTable.getBySession(sessionId)
+    return this.toRecords(rows)
+  }
+
+  getPendingAssistantMessages(sessionId: string): ChatMessageRecord[] {
+    const rows = this.database.deepchatMessagesTable.getPendingAssistantBySession(sessionId)
     return this.toRecords(rows)
   }
 
