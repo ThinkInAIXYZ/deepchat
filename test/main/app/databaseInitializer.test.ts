@@ -312,7 +312,63 @@ describe('DatabaseInitializer', () => {
       schemaDiagnosis: 'not_completed',
       repairableIssueCount: 0,
       manualIssueCount: 0,
-      errorCategory: 'integrity'
+      error: { category: 'integrity' }
+    })
+  })
+
+  it('classifies schema failures without persisting schema object names', async () => {
+    const MainDatabase = vi.fn().mockImplementation(() => {
+      throw new Error('no such column: private_column_name')
+    })
+    const classifySchemaError = vi.fn().mockReturnValue({
+      reason: 'missing-column',
+      dedupeKey: 'missing-column:private_column_name'
+    })
+
+    const { initializer, observe } = await createInitializerWithMocks({
+      MainDatabase,
+      classifySchemaError
+    })
+
+    await expect(initializer.initialize()).rejects.toThrow('no such column')
+    expect(observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'failed',
+        error: { category: 'schema', reason: 'missing-column' }
+      })
+    )
+    expect(JSON.stringify(observe.mock.calls)).not.toContain('private_column_name')
+  })
+
+  it('reports only the terminal attempt schema diagnosis after a repair retry', async () => {
+    const driftedPresenter = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue({
+        checkedAt: 1,
+        isHealthy: false,
+        issues: [missingDraftIssue],
+        repairableIssues: [missingDraftIssue],
+        manualIssues: []
+      }),
+      close: vi.fn()
+    }
+    const MainDatabase = vi
+      .fn()
+      .mockImplementationOnce(() => driftedPresenter)
+      .mockImplementationOnce(() => {
+        throw new Error('database is locked')
+      })
+    const { initializer, observe } = await createInitializerWithMocks({ MainDatabase })
+
+    await expect(initializer.initialize()).rejects.toThrow('database is locked')
+    expect(observe).toHaveBeenCalledWith({
+      outcome: 'failed',
+      durationMs: 0,
+      repairAttempted: true,
+      schemaDiagnosis: 'not_completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0,
+      error: { category: 'persistence' }
     })
   })
 

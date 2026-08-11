@@ -338,7 +338,32 @@ describe('Main log event projection', () => {
     })
     expect(failed.level).toBe('error')
     expect(failed.context.error).toEqual({ category: 'integrity' })
-    expect(JSON.stringify([degraded, failed])).not.toContain('SECRET_')
+
+    const schemaFailure = projectMainLogEvent('database.initialization.terminal', {
+      outcome: 'failed',
+      durationMs: 12,
+      repairAttempted: true,
+      schemaDiagnosis: 'not_completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0,
+      error: {
+        category: 'schema',
+        reason: 'missing-column',
+        objectName: 'SECRET_SCHEMA_OBJECT'
+      }
+    } as never)
+    expect(schemaFailure.context.error).toEqual({
+      category: 'schema',
+      reason: 'missing-column'
+    })
+    expect(
+      isProjectedMainLogEvent(
+        'database.initialization.terminal',
+        schemaFailure.level,
+        JSON.parse(JSON.stringify(schemaFailure.context))
+      )
+    ).toBe(true)
+    expect(JSON.stringify([degraded, failed, schemaFailure])).not.toContain('SECRET_')
   })
 
   it('projects fixed startup component failures without source error content', () => {
@@ -475,6 +500,10 @@ describe('Main log event projection', () => {
       ...broadCategory,
       error: { category: 'persistence', code: 'SECRET_COLUMN', retryable: true }
     }
+    const schemaWithoutReason = {
+      ...broadCategory,
+      error: { category: 'schema' }
+    }
 
     expect(() =>
       projectMainLogEvent('database.initialization.terminal', broadCategory as never)
@@ -486,6 +515,9 @@ describe('Main log event projection', () => {
     expect(projected.context.error).toEqual({ category: 'persistence' })
     expect(JSON.stringify(projected)).not.toContain('SECRET_COLUMN')
     expect(projected.context.error).not.toHaveProperty('retryable')
+    expect(() =>
+      projectMainLogEvent('database.initialization.terminal', schemaWithoutReason as never)
+    ).toThrow(MainLogEventProjectionError)
   })
 
   it('projects fatal errors as category-only even when message text resembles a stack frame', () => {

@@ -75,7 +75,7 @@ export async function startMainProcess(
           mainLogger.emit('database.initialization.terminal', {
             ...context,
             outcome: 'failed',
-            error: { category: observation.errorCategory }
+            error: observation.error
           })
         } else {
           mainLogger.emit('database.initialization.terminal', {

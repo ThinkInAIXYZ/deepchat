@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { types as utilTypes } from 'node:util'
+import type { DatabaseRepairReason } from '@shared/notifications'
 import type { ExecutionRunKind, ExecutionRunOutcome } from '@/tape/domain/executionJournal'
 import { MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES } from '@/lib/boundedNumberRing'
 
@@ -32,9 +33,9 @@ export interface SafeLogError {
   retryable?: boolean
 }
 
-interface MainLogDatabaseError {
-  category: 'integrity' | 'persistence'
-}
+type MainLogDatabaseError =
+  | { category: 'integrity' | 'persistence' }
+  | { category: 'schema'; reason: DatabaseRepairReason }
 
 export type MainLogStartupComponentFailureCategory =
   | 'configuration'
@@ -416,6 +417,13 @@ const SHUTDOWN_REASONS = [
 ] as const satisfies readonly MainLogShutdownReason[]
 const DATABASE_INITIALIZATION_OUTCOMES = ['completed', 'failed'] as const
 const DATABASE_SCHEMA_DIAGNOSIS_OUTCOMES = ['completed', 'unavailable', 'not_completed'] as const
+const DATABASE_SCHEMA_FAILURE_REASON_VALUES = {
+  'missing-table': 'missing-table',
+  'missing-column': 'missing-column',
+  'column-count-mismatch': 'column-count-mismatch',
+  'type-mismatch': 'type-mismatch'
+} as const satisfies Record<DatabaseRepairReason, DatabaseRepairReason>
+const DATABASE_SCHEMA_FAILURE_REASONS = Object.values(DATABASE_SCHEMA_FAILURE_REASON_VALUES)
 const STARTUP_COMPONENTS = [
   'acp_install_compensation',
   'acp_registry_migration',
@@ -598,9 +606,27 @@ function failureError(required: boolean, value: unknown): MainLogContext | undef
 
 function databaseFailureError(required: boolean, value: unknown): MainLogContext | undefined {
   if (!required) return undefined
-  const snapshot = snapshotDataObject('error', value as MainLogDatabaseError, ['category'])
+  const snapshot = snapshotDataObject('error', value as MainLogDatabaseError, [
+    'category',
+    'reason'
+  ])
+  const category = oneOf('error.category', snapshot.category, [
+    'integrity',
+    'persistence',
+    'schema'
+  ] as const)
+  if (category === 'schema') {
+    return {
+      category,
+      reason: oneOf(
+        'error.reason',
+        'reason' in snapshot ? snapshot.reason : undefined,
+        DATABASE_SCHEMA_FAILURE_REASONS
+      )
+    }
+  }
   return {
-    category: oneOf('error.category', snapshot.category, ['integrity', 'persistence'] as const)
+    category
   }
 }
 

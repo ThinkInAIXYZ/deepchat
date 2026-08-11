@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
 import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/types/databaseSchema'
+import type { DatabaseRepairReason } from '@shared/notifications'
 import { app } from 'electron'
 import path from 'path'
 import {
@@ -27,7 +28,15 @@ export type DatabaseInitializationObservation = {
   schemaDiagnosis: DatabaseSchemaDiagnosisOutcome
   repairableIssueCount: number
   manualIssueCount: number
-} & ({ outcome: 'completed' } | { outcome: 'failed'; errorCategory: 'integrity' | 'persistence' })
+} & (
+  | { outcome: 'completed' }
+  | {
+      outcome: 'failed'
+      error:
+        | { category: 'integrity' | 'persistence' }
+        | { category: 'schema'; reason: DatabaseRepairReason }
+    }
+)
 
 type StartupSchemaDiagnosisResult =
   | {
@@ -79,6 +88,9 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       logger.info('DatabaseInitializer: Starting database initialization')
 
       while (true) {
+        schemaDiagnosis = 'not_completed'
+        repairableIssueCount = 0
+        manualIssueCount = 0
         try {
           this.database = new MainDatabase(this.dbPath, this.password)
 
@@ -186,7 +198,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
         schemaDiagnosis,
         repairableIssueCount,
         manualIssueCount,
-        errorCategory: this.classifyInitializationFailure(error)
+        error: this.classifyInitializationFailure(error)
       })
       throw error
     }
@@ -309,13 +321,19 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     }
   }
 
-  private classifyInitializationFailure(error: unknown): 'integrity' | 'persistence' {
+  private classifyInitializationFailure(
+    error: unknown
+  ):
+    | { category: 'integrity' | 'persistence' }
+    | { category: 'schema'; reason: DatabaseRepairReason } {
     try {
-      return isDestructiveDatabaseError(error) || classifySchemaError(error)
-        ? 'integrity'
-        : 'persistence'
+      if (isDestructiveDatabaseError(error)) return { category: 'integrity' }
+      const schemaError = classifySchemaError(error)
+      return schemaError
+        ? { category: 'schema', reason: schemaError.reason }
+        : { category: 'persistence' }
     } catch {
-      return 'persistence'
+      return { category: 'persistence' }
     }
   }
 }
