@@ -8,6 +8,7 @@
       :details-id="detailsId"
       :details-expanded="isExpanded"
       :read-only="readOnly"
+      :permission-status="permissionStatus"
       @toggle-details="toggleExpanded"
     />
     <button

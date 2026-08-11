@@ -807,6 +807,20 @@ describe('MessageItemAssistant', () => {
       ).toBe('denied')
     })
 
+    it('merges the outcome only into the tool call with the matching id', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('granted', 'tc2'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } }),
+        createToolCallBlock({ tool_call: { id: 'tc2', name: 'write_file' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      const stubs = wrapper.findAll('[data-testid="tool-call-stub"]')
+      expect(stubs).toHaveLength(2)
+      expect(stubs[0].attributes('data-permission-status')).toBe('')
+      expect(stubs[1].attributes('data-permission-status')).toBe('granted')
+    })
+
     it('keeps the standalone action card when the tool card is missing', () => {
       const wrapper = mountWith([createPermissionActionBlock('denied', 'tc-missing')])
 

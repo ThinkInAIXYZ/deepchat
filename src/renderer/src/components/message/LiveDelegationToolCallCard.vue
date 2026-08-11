@@ -15,6 +15,21 @@
         </p>
       </div>
       <span
+        v-if="permissionStatus"
+        data-testid="tool-call-permission-badge"
+        :data-permission-status="permissionStatus"
+        :class="[
+          'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
+          permissionStatus === 'granted'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300'
+        ]"
+      >
+        {{
+          permissionStatus === 'granted' ? t('toolCall.badge.allowed') : t('toolCall.badge.denied')
+        }}
+      </span>
+      <span
         class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
         :class="statusBadgeClass"
         aria-live="polite"
@@ -98,6 +113,7 @@ const props = defineProps<{
   detailsId: string
   detailsExpanded: boolean
   readOnly?: boolean
+  permissionStatus?: 'granted' | 'denied'
 }>()
 
 const emit = defineEmits<{ toggleDetails: [] }>()
