@@ -21,7 +21,6 @@ const scrollWritePatterns: ReadonlyArray<[ScrollWriteKind, RegExp]> = [
 // These target independent surfaces such as the sidebar, editor, popovers, page capture,
 // or document anchors. Any new direct renderer scroll API must be reviewed explicitly.
 const allowedDirectScrollWrites: Record<string, ScrollWriteKind[]> = {
-  'src/renderer/src/components/WindowSideBar.vue': ['scrollTop'],
   'src/renderer/src/components/chat/ChatInputBox.vue': ['scrollIntoView', 'scrollIntoView'],
   'src/renderer/src/components/chat/mentions/SuggestionList.vue': ['scrollIntoView'],
   'src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts': [
@@ -29,6 +28,7 @@ const allowedDirectScrollWrites: Record<string, ScrollWriteKind[]> = {
     'scrollIntoView'
   ],
   'src/renderer/src/components/spotlight/SpotlightOverlay.vue': ['scrollIntoView'],
+  'src/renderer/src/composables/sidebar/useSessionListAutoFill.ts': ['scrollTop'],
   'src/renderer/src/composables/usePageCapture.ts': ['scrollTop', 'scrollTo'],
   'src/renderer/src/lib/chatSearch.ts': ['scrollIntoView', 'scrollIntoView']
 }
