@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   isProjectedMainLogEvent,
@@ -241,6 +242,46 @@ describe('Main log event projection', () => {
       'MainLogEventProjectionError: Invalid Main log event field: runId'
     )
     expect(String(projectionError)).not.toContain('SECRET_VALUE')
+  })
+
+  it('fingerprints unsafe opaque correlation identifiers without changing business IDs', () => {
+    const unsafeSessionId = `legacy-session-conversation / 雪 ${'x'.repeat(300)}`
+    const unsafeMessageId = 'legacy-msg-message / 雪'
+    const sessionFingerprint = `sha256:${createHash('sha256')
+      .update(unsafeSessionId, 'utf8')
+      .digest('hex')}`
+    const messageFingerprint = `sha256:${createHash('sha256')
+      .update(unsafeMessageId, 'utf8')
+      .digest('hex')}`
+    const projected = projectMainLogEvent('agent.run.started', {
+      runId: 'run_1',
+      sessionId: unsafeSessionId,
+      messageId: unsafeMessageId,
+      runKind: 'loop',
+      initialRequestSeq: 0
+    })
+
+    expect(projected.context).toMatchObject({
+      runId: 'run_1',
+      sessionId: sessionFingerprint,
+      messageId: messageFingerprint
+    })
+    expect(isProjectedMainLogEvent('agent.run.started', 'info', projected.context)).toBe(true)
+    expect(JSON.stringify(projected)).not.toContain('conversation /')
+    expect(JSON.stringify(projected)).not.toContain('message /')
+
+    const reservedSourceId = sessionFingerprint
+    const reservedProjection = projectMainLogEvent('agent.run.started', {
+      runId: 'run_2',
+      sessionId: reservedSourceId,
+      messageId: 'message_2',
+      runKind: 'loop',
+      initialRequestSeq: 0
+    })
+    expect(reservedProjection.context.sessionId).not.toBe(sessionFingerprint)
+    expect(isProjectedMainLogEvent('agent.run.started', 'info', reservedProjection.context)).toBe(
+      true
+    )
   })
 
   it('retains only allowlisted safe Error fields', () => {

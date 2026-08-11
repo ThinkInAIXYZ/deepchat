@@ -144,6 +144,9 @@ The following content is prohibited from every persisted event, including error 
 Paths are represented as controlled logical categories when required. URLs are represented only by
 an allowlisted provider/channel identity or a normalized host when the event explicitly permits it.
 Counts and byte lengths are preferred to hashes; content hashes are not a general privacy boundary.
+Opaque Session and Message correlation IDs that do not satisfy the bounded identifier grammar are
+projected as deterministic SHA-256 fingerprints. This narrow correlation fallback does not change
+durable business IDs and never persists the raw foreign representation.
 
 ## Error Contract
 

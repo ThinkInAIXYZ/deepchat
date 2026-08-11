@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { types as utilTypes } from 'node:util'
 import type { ExecutionRunKind, ExecutionRunOutcome } from '@/tape/domain/executionJournal'
 import { MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES } from '@/lib/boundedNumberRing'
@@ -341,7 +342,11 @@ export interface ProjectedMainLogEvent {
 interface MainLogEventDefinition<TInput> {
   inputFields: readonly StringKeyOf<TInput>[]
   level: MainLogLevel | ((input: TInput) => MainLogLevel)
-  project: (input: TInput) => MainLogContext
+  project: (input: TInput, options: MainLogProjectionOptions) => MainLogContext
+}
+
+interface MainLogProjectionOptions {
+  acceptCorrelationFingerprints: boolean
 }
 
 type StringKeyOf<T> = T extends unknown ? Extract<keyof T, string> : never
@@ -352,7 +357,15 @@ type MainLogEventDefinitions = {
 
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/
 const MAX_IDENTIFIER_LENGTH = 256
+const CORRELATION_FINGERPRINT_PREFIX = 'sha256:'
+const CORRELATION_FINGERPRINT_PATTERN = /^sha256:[0-9a-f]{64}$/
 const MAX_ERROR_NAME_LENGTH = 128
+const EMISSION_PROJECTION_OPTIONS: MainLogProjectionOptions = {
+  acceptCorrelationFingerprints: false
+}
+const VALIDATION_PROJECTION_OPTIONS: MainLogProjectionOptions = {
+  acceptCorrelationFingerprints: true
+}
 export const MAX_MAIN_LOG_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 const DOM_EXCEPTION_NAME_GETTER =
   typeof DOMException === 'undefined'
@@ -473,6 +486,29 @@ function identifier(field: string, value: unknown): string {
     throw new MainLogEventProjectionError(field)
   }
   return value
+}
+
+function correlationIdentifier(
+  field: string,
+  value: unknown,
+  options: MainLogProjectionOptions
+): string {
+  if (typeof value !== 'string' || value.length < 1) {
+    throw new MainLogEventProjectionError(field)
+  }
+  if (options.acceptCorrelationFingerprints && CORRELATION_FINGERPRINT_PATTERN.test(value)) {
+    return value
+  }
+  if (
+    value.length <= MAX_IDENTIFIER_LENGTH &&
+    IDENTIFIER_PATTERN.test(value) &&
+    !value.startsWith(CORRELATION_FINGERPRINT_PREFIX)
+  ) {
+    return value
+  }
+  return `${CORRELATION_FINGERPRINT_PREFIX}${createHash('sha256')
+    .update(value, 'utf8')
+    .digest('hex')}`
 }
 
 function count(field: string, value: unknown): number {
@@ -658,10 +694,13 @@ function projectDistribution(field: string, value: MainLogDistribution): MainLog
   }
 }
 
-function projectAdmissionCorrelation(input: MainLogAdmissionCorrelation): MainLogContext {
+function projectAdmissionCorrelation(
+  input: MainLogAdmissionCorrelation,
+  options: MainLogProjectionOptions
+): MainLogContext {
   return {
     kind: oneOf('kind', input.kind, ['live_delegation'] as const),
-    parentSessionId: identifier('parentSessionId', input.parentSessionId),
+    parentSessionId: correlationIdentifier('parentSessionId', input.parentSessionId, options),
     delegationId: identifier('delegationId', input.delegationId),
     turnId: identifier('turnId', input.turnId)
   }
@@ -678,17 +717,22 @@ function projectAdmissionState(input: {
   return { capacity, active, pending: count('pending', input.pending) }
 }
 
-function projectDelegationIdentity(input: {
-  parentSessionId: string
-  childSessionId?: string
-  delegationId: string
-  turnId: string
-}): MainLogContext {
+function projectDelegationIdentity(
+  input: {
+    parentSessionId: string
+    childSessionId?: string
+    delegationId: string
+    turnId: string
+  },
+  options: MainLogProjectionOptions
+): MainLogContext {
   return {
-    parentSessionId: identifier('parentSessionId', input.parentSessionId),
+    parentSessionId: correlationIdentifier('parentSessionId', input.parentSessionId, options),
     ...(input.childSessionId === undefined
       ? {}
-      : { childSessionId: identifier('childSessionId', input.childSessionId) }),
+      : {
+          childSessionId: correlationIdentifier('childSessionId', input.childSessionId, options)
+        }),
     delegationId: identifier('delegationId', input.delegationId),
     turnId: identifier('turnId', input.turnId)
   }
@@ -818,12 +862,12 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
   'agent.run.started': {
     inputFields: ['runId', 'sessionId', 'messageId', 'runKind', 'initialRequestSeq'],
     level: 'info',
-    project: (input) => {
+    project: (input, options) => {
       const runKind = oneOf('runKind', input.runKind, RUN_KINDS)
       return {
         runId: identifier('runId', input.runId),
-        sessionId: identifier('sessionId', input.sessionId),
-        messageId: identifier('messageId', input.messageId),
+        sessionId: correlationIdentifier('sessionId', input.sessionId, options),
+        messageId: correlationIdentifier('messageId', input.messageId, options),
         runKind,
         ...(runKind === 'loop'
           ? {
@@ -850,14 +894,14 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'error'
     ],
     level: (input) => (input.outcome === 'error' ? 'error' : 'info'),
-    project: (input) => {
+    project: (input, options) => {
       const runKind = oneOf('runKind', input.runKind, RUN_KINDS)
       const outcome = oneOf('outcome', input.outcome, RUN_OUTCOMES)
       const error = failureError(outcome === 'error', 'error' in input ? input.error : undefined)
       return {
         runId: identifier('runId', input.runId),
-        sessionId: identifier('sessionId', input.sessionId),
-        messageId: identifier('messageId', input.messageId),
+        sessionId: correlationIdentifier('sessionId', input.sessionId, options),
+        messageId: correlationIdentifier('messageId', input.messageId, options),
         runKind,
         outcome,
         stopReason: oneOf('stopReason', input.stopReason, RUN_STOP_REASONS),
@@ -887,8 +931,8 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'pending'
     ],
     level: 'info',
-    project: (input) => ({
-      ...projectAdmissionCorrelation(input),
+    project: (input, options) => ({
+      ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
       ...projectAdmissionState(input)
     })
@@ -906,8 +950,8 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'pending'
     ],
     level: 'info',
-    project: (input) => ({
-      ...projectAdmissionCorrelation(input),
+    project: (input, options) => ({
+      ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
       waitMs: duration('waitMs', input.waitMs),
       ...projectAdmissionState(input)
@@ -926,8 +970,8 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'pending'
     ],
     level: 'info',
-    project: (input) => ({
-      ...projectAdmissionCorrelation(input),
+    project: (input, options) => ({
+      ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
       holdMs: duration('holdMs', input.holdMs),
       reason: oneOf('reason', input.reason, RELEASE_REASONS),
@@ -949,8 +993,8 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'pending'
     ],
     level: (input) => (input.reason === 'aborted' ? 'info' : 'warn'),
-    project: (input) => ({
-      ...projectAdmissionCorrelation(input),
+    project: (input, options) => ({
+      ...projectAdmissionCorrelation(input, options),
       acquisitionSeq: positiveCount('acquisitionSeq', input.acquisitionSeq),
       waitMs: duration('waitMs', input.waitMs),
       reason: oneOf('reason', input.reason, REJECTION_REASONS),
@@ -996,36 +1040,36 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
   'orchestration.delegation.turn.queued': {
     inputFields: ['parentSessionId', 'delegationId', 'turnId', 'turnKind'],
     level: 'info',
-    project: (input) => ({
-      ...projectDelegationIdentity(input),
+    project: (input, options) => ({
+      ...projectDelegationIdentity(input, options),
       turnKind: oneOf('turnKind', input.turnKind, TURN_KINDS)
     })
   },
   'orchestration.delegation.child.bound': {
     inputFields: ['parentSessionId', 'childSessionId', 'delegationId', 'turnId'],
     level: 'info',
-    project: (input) => projectDelegationIdentity(input)
+    project: (input, options) => projectDelegationIdentity(input, options)
   },
   'orchestration.delegation.turn.started': {
     inputFields: ['parentSessionId', 'childSessionId', 'delegationId', 'turnId', 'turnKind'],
     level: 'info',
-    project: (input) => ({
-      ...projectDelegationIdentity(input),
+    project: (input, options) => ({
+      ...projectDelegationIdentity(input, options),
       turnKind: oneOf('turnKind', input.turnKind, TURN_KINDS)
     })
   },
   'orchestration.delegation.turn.suspended': {
     inputFields: ['parentSessionId', 'childSessionId', 'delegationId', 'turnId', 'reason'],
     level: 'info',
-    project: (input) => ({
-      ...projectDelegationIdentity(input),
+    project: (input, options) => ({
+      ...projectDelegationIdentity(input, options),
       reason: oneOf('reason', input.reason, DELEGATION_SUSPEND_REASONS)
     })
   },
   'orchestration.delegation.turn.resumed': {
     inputFields: ['parentSessionId', 'childSessionId', 'delegationId', 'turnId'],
     level: 'info',
-    project: (input) => projectDelegationIdentity(input)
+    project: (input, options) => projectDelegationIdentity(input, options)
   },
   'orchestration.delegation.turn.terminal': {
     inputFields: [
@@ -1038,11 +1082,11 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'error'
     ],
     level: (input) => (input.status === 'failed' ? 'error' : 'info'),
-    project: (input) => {
+    project: (input, options) => {
       const status = oneOf('status', input.status, DELEGATION_TERMINAL_STATUSES)
       const error = failureError(status === 'failed', 'error' in input ? input.error : undefined)
       return {
-        ...projectDelegationIdentity(input),
+        ...projectDelegationIdentity(input, options),
         status,
         durationMs: duration('durationMs', input.durationMs),
         ...(error ? { error } : {})
@@ -1060,14 +1104,14 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     ],
     level: (input) =>
       input.outcome === 'failed' ? 'error' : input.outcome === 'quarantined' ? 'warn' : 'info',
-    project: (input) => {
+    project: (input, options) => {
       const outcome = oneOf('outcome', input.outcome, RECONCILIATION_OUTCOMES)
       const error = failureError(
         outcome === 'failed' || outcome === 'quarantined',
         'error' in input ? input.error : undefined
       )
       return {
-        ...projectDelegationIdentity(input),
+        ...projectDelegationIdentity(input, options),
         outcome,
         ...(error ? { error } : {})
       }
@@ -1076,8 +1120,8 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
   'orchestration.delegation.stale_result.rejected': {
     inputFields: ['parentSessionId', 'childSessionId', 'delegationId', 'turnId', 'reason'],
     level: 'warn',
-    project: (input) => ({
-      ...projectDelegationIdentity(input),
+    project: (input, options) => ({
+      ...projectDelegationIdentity(input, options),
       reason: oneOf('reason', input.reason, STALE_RESULT_REASONS)
     })
   },
@@ -1092,6 +1136,14 @@ export function projectMainLogEvent<TEvent extends MainLogEventName>(
   event: TEvent,
   input: MainLogEventInputMap[TEvent]
 ): ProjectedMainLogEvent {
+  return projectMainLogEventWithOptions(event, input, EMISSION_PROJECTION_OPTIONS)
+}
+
+function projectMainLogEventWithOptions<TEvent extends MainLogEventName>(
+  event: TEvent,
+  input: MainLogEventInputMap[TEvent],
+  options: MainLogProjectionOptions
+): ProjectedMainLogEvent {
   if (!isMainLogEventName(event)) {
     throw new MainLogEventProjectionError('event')
   }
@@ -1099,7 +1151,7 @@ export function projectMainLogEvent<TEvent extends MainLogEventName>(
     MainLogEventInputMap[TEvent]
   >
   const safeInput = snapshotDataObject('input', input, definition.inputFields)
-  const context = definition.project(safeInput)
+  const context = definition.project(safeInput, options)
   return {
     level: typeof definition.level === 'function' ? definition.level(safeInput) : definition.level,
     context
@@ -1119,7 +1171,11 @@ export function isProjectedMainLogEvent(
     return level === 'error' && isProjectedFatalContext(context)
   }
   try {
-    const projected = projectMainLogEvent(event, context as never)
+    const projected = projectMainLogEventWithOptions(
+      event,
+      context as never,
+      VALIDATION_PROJECTION_OPTIONS
+    )
     return (
       projected.level === level && JSON.stringify(projected.context) === JSON.stringify(context)
     )

@@ -19,6 +19,8 @@
       summary, richer snapshot, observer failure isolation, and race/fairness tests.
 - [x] Share the bounded asynchronous admission/delegation observation queue and skip queue insertion
       and event-loop scheduling while all diagnostic output is disabled.
+- [x] Fingerprint unsafe opaque Session and Message correlation IDs without changing durable
+      imported business identifiers.
 - [x] Add payload-free Run, Turn, child Session, Delegation, suspend/resume, settlement, recovery,
       stale-result, and quarantine events at existing ownership boundaries.
 - [x] Migrate retained persistent call sites to typed events; leave legacy diagnostics on the
