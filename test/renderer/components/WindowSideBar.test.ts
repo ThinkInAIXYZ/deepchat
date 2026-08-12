@@ -2620,6 +2620,66 @@ describe('WindowSideBar agent switch', () => {
     wrapper.unmount()
   })
 
+  it('drops a stale overlapping refresh so it cannot overwrite newer status', async () => {
+    const { wrapper, remoteControlClient } = await setup({
+      remoteStatus: {
+        enabled: true,
+        state: 'running'
+      }
+    })
+
+    let resolveStaleTelegramStatus: (() => void) | undefined
+    remoteControlClient.getChannelStatus.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStaleTelegramStatus = () =>
+            resolve({
+              channel: 'telegram' as const,
+              enabled: true,
+              state: 'stopped' as const,
+              pollOffset: 0,
+              bindingCount: 0,
+              allowedUserCount: 0,
+              lastError: null,
+              botUser: null
+            })
+        })
+    )
+
+    // Poll tick starts a refresh whose telegram status request hangs.
+    vi.advanceTimersByTime(2_000)
+    await flushPromises()
+
+    const setDocumentVisibility = (state: DocumentVisibilityState) => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: state })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+
+    try {
+      // Hiding and showing the document starts a second refresh while the first is pending.
+      setDocumentVisibility('hidden')
+      await flushPromises()
+      setDocumentVisibility('visible')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="remote-control-button"]').attributes('title')).toContain(
+        'chat.sidebar.remoteControlStatus.running'
+      )
+
+      // The first refresh resolves last with stale data; its snapshot must be discarded.
+      resolveStaleTelegramStatus?.()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="remote-control-button"]').attributes('title')).toContain(
+        'chat.sidebar.remoteControlStatus.running'
+      )
+    } finally {
+      Reflect.deleteProperty(document, 'visibilityState')
+    }
+
+    wrapper.unmount()
+  })
+
   it('routes to the first enabled remote plugin when remote button is clicked', async () => {
     const { wrapper, settingsClient, router } = await setup({
       remoteStatus: {

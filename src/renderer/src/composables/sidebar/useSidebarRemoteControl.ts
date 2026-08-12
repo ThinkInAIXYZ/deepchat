@@ -29,6 +29,12 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
     storeToRefs(pluginCatalogStore)
 
   let statusRefreshErrors = 0
+  /**
+   * Increments per refresh run. A run that is no longer current (e.g. superseded by a
+   * hide/show-triggered refresh) must not write its snapshot, count toward backoff,
+   * or schedule the next poll — the newer run owns the outcome.
+   */
+  let statusRefreshSequence = 0
   let disposed = false
 
   const remoteChannelIds = computed(() =>
@@ -105,7 +111,7 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
   const hasEnabledRemoteChannelStatus = () =>
     Object.values(remoteControlStatus.value).some((status) => status?.enabled === true)
 
-  const refreshRemoteControlStatus = async (): Promise<boolean> => {
+  const refreshRemoteControlStatus = async (requestId: number): Promise<boolean> => {
     const version = pluginCatalogStore.captureRemoteRefresh()
     try {
       const descriptors = await remoteControlClient.listRemoteChannels()
@@ -113,6 +119,9 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
       const statuses = await Promise.all(
         channels.map((channel) => remoteControlClient.getChannelStatus(channel))
       )
+      if (requestId !== statusRefreshSequence) {
+        return true
+      }
       pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
       return true
     } catch (error) {
@@ -141,7 +150,11 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
   }
 
   async function runStatusRefresh(): Promise<void> {
-    const refreshed = await refreshRemoteControlStatus()
+    const requestId = ++statusRefreshSequence
+    const refreshed = await refreshRemoteControlStatus(requestId)
+    if (requestId !== statusRefreshSequence) {
+      return
+    }
     statusRefreshErrors = refreshed ? 0 : statusRefreshErrors + 1
 
     if (disposed || documentVisibility.value === 'hidden') {

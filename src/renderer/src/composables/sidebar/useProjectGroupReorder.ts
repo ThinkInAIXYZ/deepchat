@@ -62,6 +62,10 @@ export function useProjectGroupReorder(options: UseProjectGroupReorderOptions) {
   const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
     const currentOrder = getCurrentProjectOrderPaths()
     const previousVisiblePaths = projectReorderableGroups.value.map(options.getWorkspacePath)
+    if (nextVisiblePaths.length !== previousVisiblePaths.length) {
+      console.warn('[WindowSideBar] Skipping project group reorder: visible group count mismatch')
+      return
+    }
     const previousVisiblePathSet = new Set(previousVisiblePaths)
     const nextOrder = [...currentOrder]
     let nextVisibleIndex = 0

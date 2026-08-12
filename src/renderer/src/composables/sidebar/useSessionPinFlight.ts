@@ -264,7 +264,9 @@ export function useSessionPinFlight(options: UseSessionPinFlightOptions) {
           pinDockedSessionId.value = null
         }
         applyPinFeedback(session.id, nextPinned)
-        pinFlightSessionId.value = null
+        if (pinFlightSessionId.value === session.id) {
+          pinFlightSessionId.value = null
+        }
         await nextTick()
         return
       }
@@ -288,13 +290,17 @@ export function useSessionPinFlight(options: UseSessionPinFlightOptions) {
         pinDockedSessionId.value = null
       }
       applyPinFeedback(session.id, nextPinned)
-      pinFlightSessionId.value = null
+      if (pinFlightSessionId.value === session.id) {
+        pinFlightSessionId.value = null
+      }
       await nextTick()
     } finally {
       if (pinDockedSessionId.value === session.id) {
         pinDockedSessionId.value = null
       }
-      pinFlightSessionId.value = null
+      if (pinFlightSessionId.value === session.id) {
+        pinFlightSessionId.value = null
+      }
       clone.remove()
     }
   }
