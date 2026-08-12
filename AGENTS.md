@@ -5,13 +5,18 @@
 - Use pnpm only; require Node >=20.19 and pnpm >=10.11.
 - Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
 - Tests: `test/main`, `test/renderer`, `test/e2e`; use Vitest and the smallest relevant suite.
-- Keep committed tests lean and focused on project reliability, stability, and observable contracts;
-  remove temporary checks that only prove an individual function's internals before handoff.
+- Default to implementation-first development: inspect and design, complete the planned code change,
+  then decide what new verification is needed. Do not default to TDD unless explicitly requested or
+  a minimal executable reproduction is required to understand a complex failure.
+- Existing checks may run at any time. Treat new tests as regression protection, not implementation
+  scaffolding; remove temporary probes and tests before handoff.
+- Commit only the smallest durable tests for user-visible behavior, documented contracts,
+  persistence or migration, lifecycle or concurrency, recovery, security boundaries, or proven
+  regressions. Prefer no new test to implementation-coupled coverage.
 - Keep native capabilities behind typed preload/IPC boundaries with context isolation enabled.
 - Use vue-i18n for user copy; prefer existing shadcn-vue primitives and VueUse utilities.
 - Follow Oxfmt: single quotes, no semicolons, 100 columns.
 - Before editing, inspect ownership, callers, tests, and nearby patterns; fix the root cause.
-- Add the smallest regression test for user-visible behavior or a documented contract.
 - Before handoff run format, i18n, lint, typecheck, and relevant test suites.
 - Keep provider and ACP registry refreshes produced by normal builds.
 - Use Conventional Commits (`type(scope): subject`, <=50 chars); never add AI co-authors.

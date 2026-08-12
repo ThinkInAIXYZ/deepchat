@@ -1,4 +1,4 @@
 interface:
   display_name: "DeepChat SDD"
-  short_description: "Spec substantial DeepChat changes only"
-  default_prompt: "Use $deepchat-sdd for substantial DeepChat changes that need SDD; skip trivial fixes and ask before GitHub issue sync."
+  short_description: "RFC, one tracker, implementation-first validation"
+  default_prompt: "Use $deepchat-sdd for substantial DeepChat changes: write an RFC-style spec, use plan.md as the only separate tracker when needed, implement before deciding on new tests, skip trivial fixes, and ask before GitHub issue sync."

@@ -79,7 +79,8 @@ Typical files:
 ## Workflow
 
 1. Read `docs/features/provider-runtime/spec.md` when the provider work touches the provider runtime
-   scope. Also read `plan.md` and `tasks.md` if they exist for an active provider-runtime goal.
+   scope. Also read `plan.md` if it exists for an active provider-runtime goal. Treat any legacy
+   `tasks.md` as migration input rather than another execution tracker.
 2. Inspect the current provider files before editing:
    - `src/main/provider/defaults.ts`
    - `src/main/provider/providerId.ts`
@@ -89,8 +90,11 @@ Typical files:
    - `src/renderer/settings/components/ProviderApiConfig.vue`
 3. Classify the request into one supported path.
 4. Add the smallest explicit source changes for that path.
-5. Add or update tests that prove provider creation, auth handling, and model discovery behavior.
-6. Update the active SDD `tasks.md` entries as the work lands, when an active tasks file exists.
+5. After implementation, assess provider creation, auth handling, and model discovery for durable
+   regression coverage; add only the smallest contract-level tests warranted.
+6. Update an active SDD `plan.md` as coherent implementation slices land, when one exists. When a
+   legacy `tasks.md` exists for the active goal, merge its remaining work into the plan instead of
+   updating or recreating the task file.
 7. Run:
 
 ```bash

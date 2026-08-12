@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-08-05` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
+本文档反映 `2026-08-12` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
 历史查询，不再长期留在 `docs/`。
 
 ## 当前必读
@@ -23,7 +23,9 @@
 
 ## 进行中的目标
 
-未完成的实施保留 `plan.md` / `tasks.md`；仅剩外部验证的目标只保留精简的 `tasks.md`。
+新建或继续维护的 feature / architecture 以 `plan.md` 作为唯一执行清单；有界复杂 bug 可在
+`spec.md` 中保留简短清单。历史 `tasks.md` 在对应目标下次更新时并入 `plan.md`，不为规范迁移
+单独批量改写。
 
 | 文档 | 状态 |
 | --- | --- |
@@ -64,8 +66,9 @@
 ## 文档保留规则
 
 - 当前事实写入核心 architecture、flow 或 guide，不再保留重复的 implemented SDD。
-- 完成的 feature / architecture 删除 `plan.md` 和 `tasks.md`；只有维护合同需要时保留压缩后的
-  `spec.md`。
-- 已修复 issue 直接删除；历史和验证证据由 Git 与测试保存。
-- active goal、未完成 task 和 `[NEEDS CLARIFICATION]` 不得在 cleanup 中删除。
+- 完成的 feature / architecture 删除 `plan.md` 和遗留 `tasks.md`；只有维护合同需要时保留
+  压缩后的 `spec.md`。
+- 已修复 issue 直接删除；历史由 Git 保存，必要的持久化回归由测试保护。
+- active goal、`plan.md` 中的未完成步骤、遗留未完成 task 和 `[NEEDS CLARIFICATION]` 不得在
+  cleanup 中删除。
 - 文档引用的路径必须存在；旧实现只通过 `git log` / `git show` 查询。
