@@ -412,64 +412,72 @@
                       : ''
                   ]"
                 >
-                  <button
-                    type="button"
-                    class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
-                    :class="
-                      isProjectGroupReorderTarget(group) && canReorderProjectGroups
-                        ? 'sidebar-project-folder-target cursor-grab active:cursor-grabbing'
-                        : ''
-                    "
-                    :data-group-id="getGroupIdentifier(group)"
-                    :title="isProjectDirectoryGroup(group) ? getGroupIdentifier(group) : undefined"
-                    :aria-expanded="getWorkspaceGroupAriaExpanded(group)"
-                    @click="handleWorkspaceGroupClick(group)"
-                  >
-                    <span class="shrink-0 size-6 flex items-center justify-center">
-                      <Icon
-                        :icon="getGroupIcon(group)"
-                        :data-icon="getGroupIcon(group)"
-                        data-testid="window-sidebar-group-icon"
-                        class="size-4"
-                      />
-                    </span>
-                    <span class="truncate">
-                      {{ getGroupLabel(group) }}
-                    </span>
-                    <span v-if="isProjectDirectoryGroup(group)" class="sr-only">
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <button
+                        type="button"
+                        class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
+                        :class="
+                          isProjectGroupReorderTarget(group) && canReorderProjectGroups
+                            ? 'sidebar-project-folder-target cursor-grab active:cursor-grabbing'
+                            : ''
+                        "
+                        :data-group-id="getGroupIdentifier(group)"
+                        :aria-expanded="getWorkspaceGroupAriaExpanded(group)"
+                        @click="handleWorkspaceGroupClick(group)"
+                      >
+                        <span class="shrink-0 size-6 flex items-center justify-center">
+                          <Icon
+                            :icon="getGroupIcon(group)"
+                            :data-icon="getGroupIcon(group)"
+                            data-testid="window-sidebar-group-icon"
+                            class="size-4"
+                          />
+                        </span>
+                        <span class="truncate">
+                          {{ getGroupLabel(group) }}
+                        </span>
+                        <span
+                          v-if="isTrueEmptyWorkspaceGroup(group)"
+                          data-testid="window-sidebar-empty-workspace-label"
+                          class="ms-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
+                        >
+                          {{ t('chat.sidebar.emptyWorkspace') }}
+                        </span>
+                        <span
+                          v-if="isWorkspaceUnavailable(group)"
+                          class="ms-auto flex shrink-0 items-center"
+                          :title="
+                            t('chat.input.workspaceUnavailableTooltip', {
+                              path: getWorkspacePath(group)
+                            })
+                          "
+                        >
+                          <Icon
+                            icon="lucide:circle-alert"
+                            data-testid="window-sidebar-workspace-unavailable"
+                            aria-hidden="true"
+                            class="size-3.5 text-amber-500"
+                          />
+                        </span>
+                        <span v-if="isWorkspaceUnavailable(group)" class="sr-only">
+                          {{
+                            t('chat.input.workspaceUnavailableTooltip', {
+                              path: getWorkspacePath(group)
+                            })
+                          }}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      v-if="isProjectDirectoryGroup(group)"
+                      side="right"
+                      data-testid="workspace-path-tooltip"
+                      class="max-w-72 break-all"
+                    >
                       {{ getGroupIdentifier(group) }}
-                    </span>
-                    <span
-                      v-if="isTrueEmptyWorkspaceGroup(group)"
-                      data-testid="window-sidebar-empty-workspace-label"
-                      class="ms-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
-                    >
-                      {{ t('chat.sidebar.emptyWorkspace') }}
-                    </span>
-                    <span
-                      v-if="isWorkspaceUnavailable(group)"
-                      class="ms-auto flex shrink-0 items-center"
-                      :title="
-                        t('chat.input.workspaceUnavailableTooltip', {
-                          path: getWorkspacePath(group)
-                        })
-                      "
-                    >
-                      <Icon
-                        icon="lucide:circle-alert"
-                        data-testid="window-sidebar-workspace-unavailable"
-                        aria-hidden="true"
-                        class="size-3.5 text-amber-500"
-                      />
-                    </span>
-                    <span v-if="isWorkspaceUnavailable(group)" class="sr-only">
-                      {{
-                        t('chat.input.workspaceUnavailableTooltip', {
-                          path: getWorkspacePath(group)
-                        })
-                      }}
-                    </span>
-                  </button>
+                    </TooltipContent>
+                  </Tooltip>
 
                   <DcButton
                     v-if="canStartConversationInProjectGroup(group)"
@@ -666,7 +674,12 @@ import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { TooltipProvider } from '@shadcn/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Input } from '@shadcn/components/ui/input'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {

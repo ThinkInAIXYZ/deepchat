@@ -35,6 +35,18 @@ describe('disambiguateWorkspaceLabels', () => {
     expect(overrides.get('/c/app')).toBe('app · c')
   })
 
+  it('resolves each workspace at its own shortest unique suffix', () => {
+    const overrides = disambiguateWorkspaceLabels([
+      { id: '/root/team/shared/app', label: 'app' },
+      { id: '/root/archive/shared/app', label: 'app' },
+      { id: '/root/client/unique/app', label: 'app' }
+    ])
+
+    expect(overrides.get('/root/team/shared/app')).toBe('app · team/shared')
+    expect(overrides.get('/root/archive/shared/app')).toBe('app · archive/shared')
+    expect(overrides.get('/root/client/unique/app')).toBe('app · unique')
+  })
+
   it('treats Windows and POSIX separators consistently', () => {
     const overrides = disambiguateWorkspaceLabels([
       { id: 'C:\\work\\app', label: 'app' },

@@ -10,6 +10,13 @@ import type { usePluginCatalogStore } from '@/stores/pluginCatalog'
 const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
 const REMOTE_STATUS_IDLE_POLL_MS = 30_000
 
+/**
+ * 'applied' committed a fresh snapshot; 'discarded' fetched fine but lost to a newer
+ * refresh or a concurrent store mutation (not an error, no backoff); 'failed' is a
+ * fetch error that counts toward backoff.
+ */
+type RemoteRefreshOutcome = 'applied' | 'discarded' | 'failed'
+
 interface UseSidebarRemoteControlOptions {
   pluginCatalogStore: ReturnType<typeof usePluginCatalogStore>
   settingsClient: ReturnType<typeof createSettingsClient>
@@ -111,7 +118,7 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
   const hasEnabledRemoteChannelStatus = () =>
     Object.values(remoteControlStatus.value).some((status) => status?.enabled === true)
 
-  const refreshRemoteControlStatus = async (requestId: number): Promise<boolean> => {
+  const refreshRemoteControlStatus = async (requestId: number): Promise<RemoteRefreshOutcome> => {
     const version = pluginCatalogStore.captureRemoteRefresh()
     try {
       const descriptors = await remoteControlClient.listRemoteChannels()
@@ -120,13 +127,14 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
         channels.map((channel) => remoteControlClient.getChannelStatus(channel))
       )
       if (requestId !== statusRefreshSequence) {
-        return true
+        return 'discarded'
       }
-      pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
-      return true
+      return pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
+        ? 'applied'
+        : 'discarded'
     } catch (error) {
       console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
-      return false
+      return 'failed'
     }
   }
 
@@ -151,11 +159,13 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
 
   async function runStatusRefresh(): Promise<void> {
     const requestId = ++statusRefreshSequence
-    const refreshed = await refreshRemoteControlStatus(requestId)
+    const outcome = await refreshRemoteControlStatus(requestId)
     if (requestId !== statusRefreshSequence) {
       return
     }
-    statusRefreshErrors = refreshed ? 0 : statusRefreshErrors + 1
+    if (outcome !== 'discarded') {
+      statusRefreshErrors = outcome === 'applied' ? 0 : statusRefreshErrors + 1
+    }
 
     if (disposed || documentVisibility.value === 'hidden') {
       return
@@ -163,9 +173,9 @@ export function useSidebarRemoteControl(options: UseSidebarRemoteControlOptions)
     const backoffMs = Math.min(30_000, 2_000 * 2 ** statusRefreshErrors)
     scheduleStatusRefresh(
       hasEnabledRemoteChannelStatus()
-        ? refreshed
-          ? REMOTE_STATUS_ACTIVE_POLL_MS
-          : backoffMs
+        ? outcome === 'failed'
+          ? backoffMs
+          : REMOTE_STATUS_ACTIVE_POLL_MS
         : REMOTE_STATUS_IDLE_POLL_MS
     )
   }

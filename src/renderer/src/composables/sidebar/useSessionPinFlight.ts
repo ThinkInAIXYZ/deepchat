@@ -305,19 +305,31 @@ export function useSessionPinFlight(options: UseSessionPinFlightOptions) {
     }
   }
 
-  const handleTogglePin = async (session: UISession) => {
-    const nextPinned = !session.isPinned
+  /**
+   * Pin toggles are serialized: a toggle requested while a flight is still animating
+   * starts only after that flight settles. The flight/docked ownership refs hold a
+   * single id, so concurrent flights would fight over them and unhide each other's
+   * source rows mid-animation.
+   */
+  let pinToggleChain: Promise<void> = Promise.resolve()
 
-    try {
-      if (prefersReducedMotion()) {
-        await commitPinToggle(session, nextPinned)
-        return
+  const handleTogglePin = (session: UISession) => {
+    const queued = pinToggleChain.then(async () => {
+      const nextPinned = !session.isPinned
+
+      try {
+        if (prefersReducedMotion()) {
+          await commitPinToggle(session, nextPinned)
+          return
+        }
+
+        await animatePinFlight(session, nextPinned)
+      } catch (error) {
+        console.error('Failed to toggle pin status:', error)
       }
-
-      await animatePinFlight(session, nextPinned)
-    } catch (error) {
-      console.error('Failed to toggle pin status:', error)
-    }
+    })
+    pinToggleChain = queued
+    return queued
   }
 
   tryOnScopeDispose(() => {

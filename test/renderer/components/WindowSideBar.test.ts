@@ -491,6 +491,11 @@ const setup = async (options: SetupOptions = {}) => {
     template: '<div><slot /></div>'
   })
 
+  // Mirrors reka-ui renderless roots / as-child triggers, which add no DOM wrapper.
+  const slotOnlyStub = defineComponent({
+    template: '<slot />'
+  })
+
   const dialogStub = defineComponent({
     props: {
       open: {
@@ -577,9 +582,9 @@ const setup = async (options: SetupOptions = {}) => {
         plugins: [createPinia()],
         stubs: {
           TooltipProvider: passthrough,
-          Tooltip: passthrough,
+          Tooltip: slotOnlyStub,
           TooltipContent: passthrough,
-          TooltipTrigger: passthrough,
+          TooltipTrigger: slotOnlyStub,
           ContextMenu: passthrough,
           ContextMenuTrigger: passthrough,
           ContextMenuContent: passthrough,
@@ -1014,7 +1019,15 @@ describe('WindowSideBar agent switch', () => {
     expect(teamGroup.text()).toContain('app · team-a')
     expect(archiveGroup.text()).toContain('app · archive')
     expect(designGroup.text()).not.toContain('design ·')
-    expect(teamGroup.attributes('title')).toBe('/work/team-a/app')
+
+    // The full path lives in the focus/hover tooltip, not in title or the accessible name.
+    expect(teamGroup.attributes('title')).toBeUndefined()
+    expect(teamGroup.text()).not.toContain('/work/team-a/app')
+    const pathTooltips = wrapper
+      .findAll('[data-testid="workspace-path-tooltip"]')
+      .map((tooltip) => tooltip.text())
+    expect(pathTooltips).toContain('/work/team-a/app')
+    expect(pathTooltips).toContain('/work/archive/app')
 
     projectStore.environments.splice(1, 1)
     await flushPromises()
@@ -1290,6 +1303,48 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'serializes overlapping pin toggles across two sessions',
+    async () => {
+      const sessionA = { id: 'pin-a', title: 'Pin A', status: 'none', isPinned: false }
+      const sessionB = { id: 'pin-b', title: 'Pin B', status: 'none', isPinned: false }
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [sessionA, sessionB]
+          }
+        ]
+      })
+
+      let resolveFirstToggle: (() => void) | undefined
+      sessionStore.toggleSessionPinned.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstToggle = () => resolve()
+          })
+      )
+
+      const items = wrapper.findAllComponents({ name: 'WindowSideBarSessionItem' })
+      items[0].vm.$emit('toggle-pin', sessionA)
+      items[1].vm.$emit('toggle-pin', sessionB)
+      await flushPromises()
+
+      // The second toggle must wait until the first flight fully settles.
+      expect(sessionStore.toggleSessionPinned).toHaveBeenCalledTimes(1)
+      expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('pin-a', true)
+
+      resolveFirstToggle?.()
+      await flushPromises()
+
+      expect(sessionStore.toggleSessionPinned).toHaveBeenCalledTimes(2)
+      expect(sessionStore.toggleSessionPinned).toHaveBeenLastCalledWith('pin-b', true)
     },
     TEST_TIMEOUT_MS
   )

@@ -37,26 +37,43 @@ export function disambiguateWorkspaceLabels(items: WorkspaceLabelItem[]): Map<st
     )
     const maxDepth = Math.max(...parentSegments.map((segments) => segments.length))
 
-    let contexts = parentSegments.map(() => '')
-    for (let depth = 1; depth <= maxDepth; depth += 1) {
-      contexts = parentSegments.map((segments) => segments.slice(-depth).join('/'))
-      if (new Set(contexts).size === bucket.length) {
-        break
+    // Resolve each workspace at the first depth where its own suffix is unique among the
+    // workspaces still colliding, so one deep collision cannot lengthen every label.
+    const resolvedContexts: (string | null)[] = parentSegments.map(() => null)
+    let unresolvedIndexes = bucket.map((_, index) => index)
+    for (let depth = 1; depth <= maxDepth && unresolvedIndexes.length > 0; depth += 1) {
+      const depthContexts = new Map<number, string>()
+      const contextCounts = new Map<string, number>()
+      for (const index of unresolvedIndexes) {
+        const context = parentSegments[index].slice(-depth).join('/')
+        depthContexts.set(index, context)
+        contextCounts.set(context, (contextCounts.get(context) ?? 0) + 1)
       }
+      unresolvedIndexes = unresolvedIndexes.filter((index) => {
+        const context = depthContexts.get(index) ?? ''
+        if (context.length === 0 || contextCounts.get(context) !== 1) {
+          return true
+        }
+        resolvedContexts[index] = context
+        return false
+      })
     }
 
-    const contextCounts = new Map<string, number>()
-    for (const context of contexts) {
-      contextCounts.set(context, (contextCounts.get(context) ?? 0) + 1)
-    }
+    const unresolvedParentlessCount = unresolvedIndexes.filter(
+      (index) => parentSegments[index].length === 0
+    ).length
 
     bucket.forEach((item, index) => {
-      const context = contexts[index]
-      // Identical parent chains cannot be separated by a suffix; fall back to the full
-      // normalized path so every rendered label stays unique.
-      const uniqueContext = contextCounts.get(context) === 1 ? context : item.id
-      if (uniqueContext) {
-        overrides.set(item.id, `${item.label} · ${uniqueContext}`)
+      let context = resolvedContexts[index]
+      if (context === null) {
+        // Identical parent chains cannot be separated by a suffix; fall back to the full
+        // normalized path so every rendered label stays unique. A single parentless
+        // duplicate keeps its compact label instead.
+        context =
+          parentSegments[index].length === 0 && unresolvedParentlessCount === 1 ? '' : item.id
+      }
+      if (context) {
+        overrides.set(item.id, `${item.label} · ${context}`)
       }
     })
   }
