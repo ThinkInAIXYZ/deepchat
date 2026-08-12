@@ -187,7 +187,7 @@ export class ProjectService {
       return
     }
 
-    this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(normalizedPath)
+    this.sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop(normalizedPath)
     this.bumpSnapshotVersion()
   }
 

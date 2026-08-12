@@ -605,6 +605,15 @@ describe('ProjectService', () => {
       )
     })
 
+    it('restores an environment at the top of the active order', async () => {
+      await presenter.restoreEnvironment('/work/archived')
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
+        '/work/archived'
+      )
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).not.toHaveBeenCalled()
+    })
+
     it('clears regular project sessions and tombstones on remove', async () => {
       sqlitePresenter.newSessionsTable.clearProjectDir.mockReturnValue(['s1', 's2'])
 

@@ -33,7 +33,8 @@ management never deletes real files.
   zero-Session row disappears after the archive mutation's exact Project snapshot version commits; existing
   Session history remains discoverable as a non-active historical group. A failed or incomplete refresh keeps
   the row and confirmation visible.
-- Restore returns it to the active list near the top.
+- Restore treats the directory as newly active: it is persisted at the top while existing active
+  directories retain their relative order.
 - Remove requires confirmation and means “remove from DeepChat”, never filesystem deletion.
 - Removing a regular directory clears `projectDir` on associated regular Sessions.
 - ACP workdir needed for resume is not destructively cleared; a tombstone prevents a derived environment from

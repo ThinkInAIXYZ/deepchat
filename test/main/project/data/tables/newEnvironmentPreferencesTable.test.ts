@@ -119,23 +119,29 @@ describeIfSqlite('NewEnvironmentPreferencesTable', () => {
     })
   })
 
-  it('assigns unique top positions without moving an active duplicate', () => {
+  it('atomically prepends newly active paths without moving an active duplicate', () => {
     table.reorderActive(['/work/a', '/work/b'])
 
     table.activateAtTop('/work/new')
-    expect(table.get('/work/new')).toMatchObject({ status: 'active', sort_order: -1 })
+    expect(table.get('/work/new')).toMatchObject({ status: 'active', sort_order: 0 })
+    expect(table.get('/work/a')).toMatchObject({ status: 'active', sort_order: 1 })
+    expect(table.get('/work/b')).toMatchObject({ status: 'active', sort_order: 2 })
 
     table.activateAtTop('/work/newer')
-    expect(table.get('/work/newer')).toMatchObject({ status: 'active', sort_order: -2 })
+    expect(table.get('/work/newer')).toMatchObject({ status: 'active', sort_order: 0 })
+    expect(table.get('/work/new')).toMatchObject({ status: 'active', sort_order: 1 })
+    expect(table.get('/work/a')).toMatchObject({ status: 'active', sort_order: 2 })
+    expect(table.get('/work/b')).toMatchObject({ status: 'active', sort_order: 3 })
 
     table.activateAtTop('/work/b')
-    expect(table.get('/work/b')).toMatchObject({ status: 'active', sort_order: 1 })
+    expect(table.get('/work/b')).toMatchObject({ status: 'active', sort_order: 3 })
+    expect(table.get('/work/newer')).toMatchObject({ status: 'active', sort_order: 0 })
 
     table.markArchived('/work/a')
     table.activateAtTop('/work/a')
     expect(table.get('/work/a')).toMatchObject({
       status: 'active',
-      sort_order: -3,
+      sort_order: 0,
       archived_at: null,
       removed_at: null
     })
@@ -143,7 +149,31 @@ describeIfSqlite('NewEnvironmentPreferencesTable', () => {
       table
         .list()
         .filter((row) => row.status === 'active')
-        .map((row) => row.sort_order)
-    ).toEqual(expect.arrayContaining([-3, -2, -1, 1]))
+        .sort((left, right) => left.sort_order - right.sort_order)
+        .map((row) => row.path)
+    ).toEqual(['/work/a', '/work/newer', '/work/new', '/work/b'])
+  })
+
+  it('rolls back order shifts when prepending fails', () => {
+    table.reorderActive(['/work/a', '/work/b'])
+    db!.exec(`
+      CREATE TRIGGER fail_environment_prepend
+      BEFORE INSERT ON new_environment_preferences
+      WHEN NEW.path = '/work/fail'
+      BEGIN
+        SELECT RAISE(ABORT, 'injected prepend failure');
+      END;
+    `)
+
+    expect(() => table.activateAtTop('/work/fail')).toThrow('injected prepend failure')
+    expect(
+      table
+        .list()
+        .sort((left, right) => left.sort_order - right.sort_order)
+        .map((row) => ({ path: row.path, sort_order: row.sort_order }))
+    ).toEqual([
+      { path: '/work/a', sort_order: 0 },
+      { path: '/work/b', sort_order: 1 }
+    ])
   })
 })

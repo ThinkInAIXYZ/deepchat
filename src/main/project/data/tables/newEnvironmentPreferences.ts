@@ -75,9 +75,16 @@ export class NewEnvironmentPreferencesTable extends BaseTable {
     }
 
     const now = Date.now()
-    this.db
-      .prepare(
-        `INSERT INTO new_environment_preferences (
+    const getStatus = this.db.prepare(
+      'SELECT status FROM new_environment_preferences WHERE path = ?'
+    )
+    const shiftActiveOrder = this.db.prepare(
+      `UPDATE new_environment_preferences
+       SET sort_order = sort_order + 1
+       WHERE status = 'active' AND sort_order < ${DEFAULT_ENVIRONMENT_SORT_ORDER}`
+    )
+    const activate = this.db.prepare(
+      `INSERT INTO new_environment_preferences (
           path,
           status,
           sort_order,
@@ -87,27 +94,30 @@ export class NewEnvironmentPreferencesTable extends BaseTable {
         ) VALUES (
           ?,
           'active',
-          COALESCE((
-            SELECT MIN(sort_order) - 1
-            FROM new_environment_preferences
-            WHERE status = 'active' AND sort_order < ${DEFAULT_ENVIRONMENT_SORT_ORDER}
-          ), 0),
+          0,
           NULL,
           NULL,
           ?
         )
         ON CONFLICT(path) DO UPDATE SET
           status = 'active',
-          sort_order = CASE
-            WHEN new_environment_preferences.status = 'active'
-              THEN new_environment_preferences.sort_order
-            ELSE excluded.sort_order
-          END,
+          sort_order = excluded.sort_order,
           archived_at = NULL,
           removed_at = NULL,
           updated_at = excluded.updated_at`
-      )
-      .run(normalizedPath, now)
+    )
+
+    this.db.transaction(() => {
+      const existing = getStatus.get(normalizedPath) as
+        | Pick<NewEnvironmentPreferenceRow, 'status'>
+        | undefined
+      if (existing?.status === 'active') {
+        return
+      }
+
+      shiftActiveOrder.run()
+      activate.run(normalizedPath, now)
+    })()
   }
 
   markArchived(environmentPath: string): void {
