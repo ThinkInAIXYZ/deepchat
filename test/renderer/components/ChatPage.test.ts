@@ -208,6 +208,7 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const agentPlanSnapshots = reactive<Record<string, any>>({})
+  const agentPlanCollapsedBySession = reactive<Record<string, boolean>>({})
   const agentPlanStore = reactive({
     snapshots: agentPlanSnapshots,
     applySnapshot: vi.fn((snapshot: any) => {
@@ -221,8 +222,13 @@ const setup = async (options: SetupOptions = {}) => {
     dismiss: vi.fn(),
     purge: vi.fn(),
     isVisible: vi.fn((sessionId: string) => Boolean(agentPlanSnapshots[sessionId]?.plan?.length)),
-    isCollapsed: vi.fn().mockReturnValue(false),
-    toggleCollapsed: vi.fn()
+    isCollapsed: vi.fn((sessionId: string) => agentPlanCollapsedBySession[sessionId] === true),
+    setCollapsed: vi.fn((sessionId: string, collapsed: boolean) => {
+      agentPlanCollapsedBySession[sessionId] = collapsed
+    }),
+    toggleCollapsed: vi.fn((sessionId: string) => {
+      agentPlanCollapsedBySession[sessionId] = agentPlanCollapsedBySession[sessionId] !== true
+    })
   })
 
   const modelStore = reactive({
@@ -955,7 +961,7 @@ describe('ChatPage', () => {
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
   })
 
-  it('constrains the combined plan and interaction panel to a scrollable viewport area', async () => {
+  it('docks combined plan and question surfaces and expands one panel at a time', async () => {
     const { wrapper, agentPlanStore } = await setup({
       activeSessionPatch: { status: 'working' },
       messages: [
@@ -974,6 +980,9 @@ describe('ChatPage', () => {
       ]
     })
 
+    // A pending question with no plan opens expanded by default.
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+
     agentPlanStore.snapshots.s1 = {
       sessionId: 's1',
       messageId: 'm1',
@@ -987,14 +996,23 @@ describe('ChatPage', () => {
 
     await flushPromises()
 
-    const panel = wrapper.find('.agent-question-panel')
+    // Once both surfaces are active they collapse into the slim dock bar.
+    expect(agentPlanStore.setCollapsed).toHaveBeenCalledWith('s1', true)
+    const bar = wrapper.get('[data-testid="agent-interaction-dock-bar"]')
+    expect(bar.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(true)
+    expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(true)
 
-    expect(panel.exists()).toBe(true)
-    expect(panel.classes()).toContain('max-h-[min(70vh,calc(100vh-12rem))]')
-    expect(panel.classes()).toContain('overflow-x-hidden')
-    expect(panel.classes()).toContain('overflow-y-auto')
-    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
+    // Expanding the plan renders a single scroll-constrained panel above the bar.
+    await bar.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
+    const planStub = wrapper.get('.agent-progress-float-stub')
+    const panel = planStub.element.closest('[data-testid="agent-interaction-dock-panel"]')
+    expect(panel?.classList.contains('interaction-dock-panel')).toBe(true)
+    expect(panel?.classList.contains('dc-overscroll-contain')).toBe(true)
+
+    // Expanding the question swaps the panel content instead of stacking both.
+    await bar.get('[data-testid="agent-interaction-dock-question-chip"]').trigger('click')
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
   })
 
   it('keeps live plan snapshots for multiple sessions and renders only the active session', async () => {
