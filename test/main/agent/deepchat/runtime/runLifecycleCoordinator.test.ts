@@ -414,7 +414,7 @@ describe('RunLifecycleCoordinator', () => {
     )
   })
 
-  it('isolates scheduled queue wake failures from lifecycle callers', async () => {
+  it('isolates scheduled queue wake failures without duplicate lifecycle logging', async () => {
     const { coordinator, pendingInputWakeup } = createHarness()
     const error = new Error('queue unavailable')
     vi.mocked(pendingInputWakeup.drain).mockRejectedValueOnce(error)
@@ -423,9 +423,6 @@ describe('RunLifecycleCoordinator', () => {
     coordinator.schedulePendingInputDrain(SESSION_ID, 'completed')
     await flushPromises()
 
-    expect(logError).toHaveBeenCalledWith(
-      '[DeepChatAgent] drainPendingQueueIfPossible error session=session reason=completed',
-      expect.anything()
-    )
+    expect(logError).not.toHaveBeenCalled()
   })
 })

@@ -949,7 +949,7 @@ export class AgentToolManager {
         }
       },
       {
-        execution: TOOL_EXECUTION.read.sequential,
+        execution: TOOL_EXECUTION.read.parallel,
         type: 'function',
         function: {
           name: GLOB_TOOL_NAME,
@@ -968,7 +968,7 @@ export class AgentToolManager {
         }
       },
       {
-        execution: TOOL_EXECUTION.read.sequential,
+        execution: TOOL_EXECUTION.read.parallel,
         type: 'function',
         function: {
           name: GREP_TOOL_NAME,
@@ -2243,7 +2243,7 @@ export class AgentToolManager {
     const schemas = this.skillSchemas
     return [
       {
-        execution: TOOL_EXECUTION.read.sequential,
+        execution: TOOL_EXECUTION.read.parallel,
         type: 'function',
         function: {
           name: 'skill_list',
