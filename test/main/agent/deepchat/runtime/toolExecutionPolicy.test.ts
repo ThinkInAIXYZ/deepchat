@@ -51,18 +51,9 @@ describe('selectToolBatchExecutionMode', () => {
   })
 
   it('selects parallel for a multi-call batch of explicitly parallel reads', () => {
-    const definitions = [
-      ...['glob', 'grep', 'skill_list', 'tape_search', 'tape_context', 'get_browser_status'].map(
-        (name) => makeDefinition(name, TOOL_EXECUTION.read.parallel)
-      )
-    ]
+    const definitions = [makeDefinition('inspect', TOOL_EXECUTION.read.parallel)]
 
-    expect(
-      selectMode(
-        ['glob', 'grep', 'skill_list', 'tape_search', 'tape_context', 'get_browser_status'],
-        definitions
-      )
-    ).toBe('parallel')
+    expect(selectMode(['inspect', 'inspect'], definitions)).toBe('parallel')
   })
 
   it.each<PermissionMode>(['default', 'auto_approve'])(

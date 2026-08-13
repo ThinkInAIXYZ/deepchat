@@ -10,6 +10,8 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
+import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
+import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -75,6 +77,7 @@ describe('AgentToolManager read routing', () => {
     resolveConversationWorkdir = vi.fn().mockResolvedValue(workspaceDir)
     resolveConversationSessionInfo = vi.fn().mockResolvedValue({
       agentId: 'deepchat',
+      agentType: 'deepchat',
       providerId: 'openai',
       modelId: 'gpt-4'
     })
@@ -178,7 +181,8 @@ describe('AgentToolManager read routing', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: workspaceDir,
-      conversationId: 'conv1'
+      conversationId: 'conv1',
+      skillsEnabled: true
     })
     const filesystemContracts = Object.fromEntries(
       definitions
@@ -190,11 +194,48 @@ describe('AgentToolManager read routing', () => {
       read: { effect: 'read', mode: 'parallel' },
       write: { effect: 'write', mode: 'sequential' },
       edit: { effect: 'write', mode: 'sequential' },
-      glob: { effect: 'read', mode: 'sequential' },
-      grep: { effect: 'read', mode: 'sequential' },
+      glob: { effect: 'read', mode: 'parallel' },
+      grep: { effect: 'read', mode: 'parallel' },
       exec: { effect: 'write', mode: 'sequential' },
       process: { effect: 'write', mode: 'sequential' }
     })
+  })
+
+  it('selects parallel for the production read tool definitions', async () => {
+    const definitions = [
+      ...(await manager.getAllToolDefinitions({
+        chatMode: 'agent',
+        supportsVision: false,
+        agentWorkspacePath: workspaceDir,
+        conversationId: 'conv1',
+        skillsEnabled: true
+      })),
+      ...getYoBrowserToolDefinitions()
+    ]
+    const names = [
+      'glob',
+      'grep',
+      'skill_list',
+      'tape_search',
+      'tape_context',
+      'get_browser_status'
+    ]
+    const selectedDefinitions = definitions.filter((definition) =>
+      names.includes(definition.function.name)
+    )
+
+    expect(
+      Object.fromEntries(
+        selectedDefinitions.map(({ function: { name }, execution }) => [name, execution])
+      )
+    ).toEqual(Object.fromEntries(names.map((name) => [name, { effect: 'read', mode: 'parallel' }])))
+    expect(
+      selectToolBatchExecutionMode({
+        permissionMode: 'full_access',
+        toolCalls: names.map((name) => ({ name })),
+        toolDefinitions: selectedDefinitions
+      })
+    ).toBe('parallel')
   })
 
   it('commits process mutations after local validation and before the utility target', async () => {
