@@ -344,12 +344,7 @@ const routeToGuidedOnboardingStep = async (stepId: GuidedOnboardingStepId | null
   }
 }
 
-const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
-  const resumeIntent = readGuidedOnboardingResumeIntent()
-  if (!resumeIntent || resumeIntent.trigger !== trigger) {
-    return
-  }
-
+const resumeGuidedOnboardingFromState = async () => {
   try {
     const onboardingState = await onboardingClient.getState()
 
@@ -372,6 +367,15 @@ const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigg
   }
 }
 
+const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
+  const resumeIntent = readGuidedOnboardingResumeIntent()
+  if (!resumeIntent || resumeIntent.trigger !== trigger) {
+    return
+  }
+
+  await resumeGuidedOnboardingFromState()
+}
+
 const handleGuidedOnboardingResumeRequested = (event: Event) => {
   const detail = (event as CustomEvent<GuidedOnboardingResumeRequestDetail>).detail
   if (!detail?.trigger) {
@@ -386,6 +390,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
     handleStartDeeplink(undefined, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
   },
   handleStartGuidedOnboardingDev,
+  handleResumeGuidedOnboarding: resumeGuidedOnboardingFromState,
   handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
   handleZoomIn,
   handleZoomOut,

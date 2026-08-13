@@ -2019,7 +2019,7 @@
     "noResults": "일치하는 skill을 찾을 수 없습니다.",
     "agentImport": {
       "menuItem": "외부 Agent에서 가져오기",
-      "title": "Agent에서 Skills 가져오기",
+      "title": "외부 Agent에서 가져오기",
       "description": "검증된 Skills를 DeepChat으로 가져옵니다. 각 Skill 미리 보기에서 Agents를 활성화할 수 있습니다.",
       "resultPartial": "오류와 함께 가져오기 완료",
       "resultSuccess": "가져오기 완료",
@@ -2141,8 +2141,6 @@
       "env": "{count} env",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "자세히 보기",
@@ -2190,7 +2188,6 @@
       "saved": "동기화 디렉터리가 저장되었습니다",
       "export": "디렉터리로 내보내기",
       "import": "디렉터리에서 가져오기",
-      "includeDisabled": "비활성 skill 포함",
       "previewExport": "내보내기 미리보기",
       "exportNow": "지금 내보내기",
       "previewImport": "가져오기 미리보기",
@@ -2267,12 +2264,6 @@
       "disconnectSuccess": "Agent에서 연결 해제됨",
       "disconnectSuccessMessage": "{name}의 대상 Agent 링크가 해제되었습니다.",
       "disconnectFailed": "Agent 연결 해제 실패"
-    },
-    "sources": {
-      "plugin": "플러그인",
-      "builtin": "기본 제공",
-      "external": "외부",
-      "local": "로컬"
     },
     "impact": {
       "changed": "활성화된 Agents가 변경되었습니다. 영향을 확인한 후 다시 시도하세요.",

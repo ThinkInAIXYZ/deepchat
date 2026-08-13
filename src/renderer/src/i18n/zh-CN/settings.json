@@ -2304,12 +2304,6 @@
   "skills": {
     "title": "Skills",
     "description": "管理全部 Skills。打开 Skill 可预览内容并管理启用它的 Agent。",
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "内置",
-      "external": "外部导入",
-      "local": "本地"
-    },
     "draftSuggestions": {
       "title": "任务后建议沉淀 Skill Draft",
       "description": "任务完成后，允许 Agent 在识别到可复用流程时建议生成临时 skill draft。draft 会先保存在临时目录，需你手动决定是否导入安装。"
@@ -2355,8 +2349,6 @@
       "env": "{count} 个环境变量",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "已启用",
-      "disabled": "已禁用",
       "enable": "在 DeepChat 中启用",
       "disable": "在 DeepChat 中禁用",
       "viewDetails": "查看详情",
@@ -2560,7 +2552,6 @@
       "saved": "同步目录已保存",
       "export": "导出到目录",
       "import": "从目录导入",
-      "includeDisabled": "包含已禁用 skills",
       "previewExport": "预览导出",
       "exportNow": "立即导出",
       "previewImport": "预览导入",

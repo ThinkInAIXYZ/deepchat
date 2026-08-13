@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
     setSkillAssigned: vi.fn()
   }
 }))
+let catalogChangedListener: (() => void) | undefined
+const detailRequestClose = vi.fn()
 
 vi.mock('@api/ConfigClient', () => ({
   createConfigClient: () => mocks.configClient
@@ -58,6 +60,14 @@ const passthrough = (name: string) =>
     template: '<div><slot name="actions" /><slot /></div>'
   })
 
+const deferred = <T>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 const ButtonStub = defineComponent({
   name: 'DcButton',
   inheritAttrs: false,
@@ -86,7 +96,10 @@ const SkillDetailDialogStub = defineComponent({
     enabledAgentNames: Array,
     agentUpdatePendingId: String
   },
-  emits: ['enable-agent', 'disable-agent', 'delete'],
+  emits: ['update:open', 'enable-agent', 'disable-agent', 'delete'],
+  setup(_props, { expose }) {
+    expose({ requestClose: detailRequestClose })
+  },
   template: `
     <div
       data-testid="detail-dialog"
@@ -163,6 +176,7 @@ describe('SkillsPluginsPage', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    catalogChangedListener = undefined
     mocks.configClient.getSkillDraftSuggestionsEnabled.mockResolvedValue(false)
     mocks.configClient.setSkillDraftSuggestionsEnabled.mockResolvedValue(false)
     mocks.configClient.listAgents.mockResolvedValue([
@@ -171,7 +185,10 @@ describe('SkillsPluginsPage', () => {
       { id: 'dimcode', type: 'acp', name: 'DimCode', enabled: true }
     ])
     mocks.skillClient.getAllSkills.mockResolvedValue([baseSkill, unusedSkill])
-    mocks.skillClient.onCatalogChanged.mockReturnValue(() => undefined)
+    mocks.skillClient.onCatalogChanged.mockImplementation((listener: () => void) => {
+      catalogChangedListener = listener
+      return () => undefined
+    })
     mocks.skillClient.readSkillFile.mockResolvedValue('# Review')
     mocks.skillClient.updateSkillFile.mockResolvedValue({ success: true })
     mocks.skillClient.deleteSkill.mockResolvedValue({
@@ -233,6 +250,40 @@ describe('SkillsPluginsPage', () => {
     await flushPromises()
     expect(mocks.skillClient.setSkillAssigned).toHaveBeenLastCalledWith('release', false, 'agent-a')
     expect(wrapper.get('[data-testid="detail-dialog"]').attributes('data-enabled-agents')).toBe('')
+  })
+
+  it('does not let a late Agent mutation replace a newer Skill preview', async () => {
+    const assignment = deferred<void>()
+    mocks.skillClient.setSkillAssigned.mockReturnValueOnce(assignment.promise)
+    const wrapper = await mountSkillsPluginsPage()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="plugin-skill-release"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="detail-enable-agent-a"]').trigger('click')
+    wrapper.findComponent(SkillDetailDialogStub).vm.$emit('update:open', false)
+    await flushPromises()
+    await wrapper.get('[data-testid="plugin-skill-review"]').trigger('click')
+    await flushPromises()
+
+    assignment.resolve()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="detail-dialog"]').attributes('data-name')).toBe('review')
+  })
+
+  it('asks the detail dialog to close when a background refresh removes the open Skill', async () => {
+    const wrapper = await mountSkillsPluginsPage()
+    await flushPromises()
+    await wrapper.get('[data-testid="plugin-skill-review"]').trigger('click')
+    await flushPromises()
+    mocks.skillClient.getAllSkills.mockResolvedValueOnce([unusedSkill])
+
+    catalogChangedListener?.()
+    await flushPromises()
+
+    expect(detailRequestClose).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="detail-dialog"]').attributes('data-open')).toBe('true')
   })
 
   it('keeps sync directory as a secondary view instead of a top-level tab', async () => {

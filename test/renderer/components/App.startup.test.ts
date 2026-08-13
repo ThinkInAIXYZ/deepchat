@@ -588,6 +588,26 @@ describe('App startup welcome flow', () => {
     expect(route.name).toBe('welcome')
   })
 
+  it('continues Settings onboarding through the typed main-window event', async () => {
+    const { ipcOn, router } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      onboardingStatus: 'active',
+      onboardingCurrentStepId: 'skills'
+    })
+
+    const resumeHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === 'appRuntime.guidedOnboardingResumeRequested'
+    )?.[1]
+
+    expect(resumeHandler).toBeTypeOf('function')
+
+    await resumeHandler?.({})
+    await flushPromises()
+
+    expect(router.replace).toHaveBeenLastCalledWith({ name: 'plugins-skills' })
+  })
+
   it('returns to welcome when the main window refocuses with a pending onboarding resume', async () => {
     window.sessionStorage.setItem(
       GUIDED_ONBOARDING_RESUME_STORAGE_KEY,

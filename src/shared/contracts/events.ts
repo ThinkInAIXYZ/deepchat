@@ -9,6 +9,7 @@ import {
 } from './events/acp-terminal.events'
 import { approvalClosedEvent, approvalRequestedEvent } from './events/approvals.events'
 import {
+  appRuntimeGuidedOnboardingResumeRequestedEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
   appRuntimeShortcutRequestedEvent,
@@ -203,6 +204,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:
     appRuntimeGuidedOnboardingStartRequestedEvent,
+  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]:
+    appRuntimeGuidedOnboardingResumeRequestedEvent,
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,
   [appRuntimeShortcutRequestedEvent.name]: appRuntimeShortcutRequestedEvent,

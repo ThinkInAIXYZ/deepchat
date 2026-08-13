@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Tüm Skill'lere göz atın. Bir Skill'i açarak önizleyin ve etkin Agents'ı yönetin.",
     "draftSuggestions": {
       "title": "Skill Taslakları Önerin",
       "description": "Bir görev tamamlandıktan sonra, agent'nin geçici olarak yeniden kullanılabilir skill taslakları önermesine izin verin. Taslaklar, siz bunları manuel olarak içe aktarmayı seçene kadar geçici klasörde kalır."
@@ -2257,7 +2257,7 @@
     "openFolder": "Klasörü Aç",
     "addSkill": "Skill ekle",
     "empty": "Henüz skills yok",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Harici bir Agent'tan Skills içe aktarın.",
     "noResults": "Eşleşen skills bulunamadı",
     "search": "skills'da ara...",
     "count": "{count} skills",
@@ -2295,8 +2295,6 @@
       "env": "{count} ortam",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Ayrintilari gor",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Harici Agent’tan içe aktar",
-      "title": "Agent’tan Skills içe aktar",
+      "title": "Harici Agent’tan içe aktar",
       "description": "Doğrulanmış Skills öğelerini DeepChat’e aktarın. Her Skill önizlemesinden Agents öğelerini etkinleştirin.",
       "resultPartial": "İçe aktarma hatalarla tamamlandı",
       "resultSuccess": "İçe aktarma tamamlandı",
@@ -2500,7 +2498,6 @@
       "saved": "Eşitleme dizini kaydedildi",
       "export": "Dizine aktar",
       "import": "Dizinden ice aktar",
-      "includeDisabled": "Devre dışı skill’leri dahil et",
       "previewExport": "Dışa aktarmayı önizle",
       "exportNow": "Şimdi dışa aktar",
       "previewImport": "İçe aktarmayı önizle",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Agent bağlantısı kesildi",
       "disconnectSuccessMessage": "{name} artık hedef Agent ile bağlantılı değil.",
       "disconnectFailed": "Agent bağlantısı kesilemedi"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "Enabled Agents changed. Review the impact and try again.",

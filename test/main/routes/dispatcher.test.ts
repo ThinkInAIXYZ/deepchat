@@ -767,6 +767,7 @@ function createRuntime() {
       pendingProviderInstalls.push(preview)
     }),
     sendToAllWindows: vi.fn().mockResolvedValue(undefined),
+    sendToMainWindow: vi.fn().mockResolvedValue(true),
     getFloatingChatWindow: vi.fn(() => ({
       getWindow: () => browserWindowState.windows.get(19) ?? null
     }))
@@ -5256,6 +5257,13 @@ describe('dispatchDeepchatRoute', () => {
       createRendererRouteContext(42, 7)
     )
 
+    const resumeGuidedOnboardingResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.resumeGuidedOnboarding',
+      {},
+      createRendererRouteContext(42, 7)
+    )
+
     const startGuidedOnboardingResult = await dispatchDeepchatRoute(
       runtime,
       'window.startGuidedOnboarding',
@@ -5301,7 +5309,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(windowPresenter.getSettingsWindowId).toHaveBeenCalled()
     expect(windowPresenter.closeSettingsWindow).toHaveBeenCalled()
     expect(closeSettingsResult).toEqual({ closed: true })
-    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
+    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(3)
     expect(focusMainResult).toEqual({ focused: true })
     expect(windowPresenter.notifySettingsReady).toHaveBeenCalledWith(42)
     expect(notifySettingsReadyResult).toEqual({ notified: true })
@@ -5321,6 +5329,11 @@ describe('dispatchDeepchatRoute', () => {
       pendingProviderInstallResult.preview
     )
     expect(requeueProviderInstallResult).toEqual({ queued: true })
+    expect(windowPresenter.sendToMainWindow).toHaveBeenCalledWith('deepchat:event', {
+      name: 'appRuntime.guidedOnboardingResumeRequested',
+      payload: {}
+    })
+    expect(resumeGuidedOnboardingResult).toEqual({ requested: true, focused: true })
     expect(windowPresenter.sendToAllWindows).toHaveBeenCalledWith('dev:start-guided-onboarding')
     expect(startGuidedOnboardingResult).toEqual({
       started: true,

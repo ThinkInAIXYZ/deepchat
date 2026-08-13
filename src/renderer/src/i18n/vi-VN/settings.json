@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Duyệt tất cả Skill. Mở một Skill để xem trước và quản lý các Agent đã bật.",
     "draftSuggestions": {
       "title": "Đề xuất bản thảo kỹ năng",
       "description": "Sau khi hoàn thành một nhiệm vụ, hãy cho phép nhân viên đề xuất các bản nháp kỹ năng có thể sử dụng lại tạm thời. Các bản nháp vẫn nằm trong thư mục tạm thời cho đến khi bạn chọn nhập chúng theo cách thủ công."
@@ -2257,7 +2257,7 @@
     "openFolder": "Mở thư mục",
     "addSkill": "Thêm kỹ năng",
     "empty": "Chưa có kỹ năng",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Nhập Skill từ một Agent bên ngoài.",
     "noResults": "Không tìm thấy kỹ năng phù hợp",
     "search": "Kỹ năng tìm kiếm...",
     "count": "Kỹ năng {count}",
@@ -2295,8 +2295,6 @@
       "env": "{count} môi trường",
       "pythonShort": "Py",
       "nodeShort": "nút",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Xem chi tiet",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Nhập từ Agent bên ngoài",
-      "title": "Nhập Skills từ Agent",
+      "title": "Nhập từ Agent bên ngoài",
       "description": "Nhập các Skills đã xác thực vào DeepChat. Bật Agents từ phần xem trước của từng Skill.",
       "resultPartial": "Nhập hoàn tất nhưng có lỗi",
       "resultSuccess": "Nhập hoàn tất",
@@ -2500,7 +2498,6 @@
       "saved": "Đã lưu thư mục đồng bộ",
       "export": "Xuat vao thu muc",
       "import": "Nhap tu thu muc",
-      "includeDisabled": "Bao gồm skill đã tắt",
       "previewExport": "Xem trước xuất",
       "exportNow": "Xuất ngay",
       "previewImport": "Xem trước nhập",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Đã ngắt khỏi Agent",
       "disconnectSuccessMessage": "{name} không còn được liên kết với Agent đích.",
       "disconnectFailed": "Không thể ngắt khỏi Agent"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "Enabled Agents changed. Review the impact and try again.",

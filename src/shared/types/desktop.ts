@@ -88,6 +88,7 @@ export interface IWindowPresenter {
   getFocusedWindow(): BrowserWindow | undefined
   toggleMainWindowVisibility(mustShow?: boolean): void
   sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
+  sendToMainWindow(channel: string, ...args: unknown[]): Promise<boolean>
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]
   toggleFloatingChatWindow(floatingButtonPosition?: {

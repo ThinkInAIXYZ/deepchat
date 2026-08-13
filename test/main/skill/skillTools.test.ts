@@ -242,15 +242,20 @@ describe('SkillTools', () => {
   })
 
   describe('handleSkillView', () => {
-    it('passes file_path and conversationId through to the presenter by default', async () => {
-      const result = await skillTools.handleSkillView('conv-123', {
-        name: ' code-review ',
-        file_path: 'references/checklist.md'
-      })
+    it('passes the Run Skill snapshot through to the presenter', async () => {
+      const result = await skillTools.handleSkillView(
+        'conv-123',
+        {
+          name: ' code-review ',
+          file_path: 'references/checklist.md'
+        },
+        ['code-review']
+      )
 
       expect(mockSkillService.viewSkillForAgent).toHaveBeenCalledWith('deepchat', 'code-review', {
         filePath: 'references/checklist.md',
-        conversationId: 'conv-123'
+        conversationId: 'conv-123',
+        activeSkillNames: ['code-review']
       })
       expect(result).toEqual(
         expect.objectContaining({

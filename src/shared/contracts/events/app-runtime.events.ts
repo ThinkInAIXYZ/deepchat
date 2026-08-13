@@ -26,6 +26,11 @@ export const appRuntimeGuidedOnboardingStartRequestedEvent = defineEventContract
   payload: EmptyPayloadSchema
 })
 
+export const appRuntimeGuidedOnboardingResumeRequestedEvent = defineEventContract({
+  name: 'appRuntime.guidedOnboardingResumeRequested',
+  payload: EmptyPayloadSchema
+})
+
 export const appRuntimeWindowFocusedEvent = defineEventContract({
   name: 'appRuntime.windowFocused',
   payload: z.object({

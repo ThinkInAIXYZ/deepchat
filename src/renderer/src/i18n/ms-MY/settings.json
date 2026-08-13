@@ -2295,8 +2295,6 @@
       "env": "Pembolehubah persekitaran {count}",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Lihat butiran",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Import daripada Agent luaran",
-      "title": "Import Skills daripada Agent",
+      "title": "Import daripada Agent luaran",
       "description": "Import Skills yang telah disahkan ke DeepChat. Dayakan Agents daripada pratonton setiap Skill.",
       "resultPartial": "Import selesai dengan ralat",
       "resultSuccess": "Import selesai",
@@ -2500,7 +2498,6 @@
       "saved": "Direktori penyegerakan disimpan",
       "export": "Eksport ke direktori",
       "import": "Import dari direktori",
-      "includeDisabled": "Sertakan skill dinyahdayakan",
       "previewExport": "Pratonton Eksport",
       "exportNow": "Eksport Sekarang",
       "previewImport": "Pratonton Import",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Diputuskan daripada Agent",
       "disconnectSuccessMessage": "{name} tidak lagi dipautkan kepada Agent sasaran.",
       "disconnectFailed": "Gagal memutuskan daripada Agent"
-    },
-    "sources": {
-      "plugin": "Pemalam",
-      "builtin": "Terbina dalam",
-      "external": "Luaran",
-      "local": "Setempat"
     },
     "impact": {
       "changed": "Agents yang didayakan telah berubah. Semak kesannya dan cuba lagi.",

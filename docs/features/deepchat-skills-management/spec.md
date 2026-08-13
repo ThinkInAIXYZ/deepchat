@@ -73,6 +73,9 @@ Transfer, rebind, fork, and Subagent creation recompute the destination Agent in
 ACP compatibility receives bounded Route metadata but never local full Skill bodies without
 DeepChat Tape authority.
 
+An Agent-binding change affects later Runs. A Skill already authorized in the current Run remains
+viewable and executable from that Run snapshot, even if the binding is removed concurrently.
+
 ## Operations
 
 - Adding an Agent validates a live DeepChat Agent and available Skill.
@@ -86,6 +89,11 @@ DeepChat Tape authority.
 
 All package and binding mutations pass through one main-process mutation gate. Package replacement
 uses staging, validation, containment, recoverable rename, and rollback.
+
+File-watcher deletion is not a package mutation. It only invalidates an exact cached manifest that
+is still absent and retains provenance, bindings, extension configuration, and runtime binding
+identity. This makes ordinary atomic editor saves transparent. Only the explicit delete operation
+and startup reconciliation remove persistent state.
 
 ## Import and interoperability
 
@@ -118,6 +126,9 @@ Startup migration from versions 1 and 2:
 7. leaves ACP and orphaned Sessions untouched; and
 8. commits version 3 only after package commits succeed.
 
+The journal itself is written to a sibling temporary file and atomically renamed into place before
+canonical package renames begin.
+
 Version 3 development state using the former `library` property is decoded into `skills` before it
 is written again.
 
@@ -144,4 +155,6 @@ Open Skill
 The Plugins-hub Skills route renders the same global surface. Loading, empty, error, retry,
 stale-impact, partial-result, keyboard, focus, and dirty-close states use existing UI primitives
 and vue-i18n copy. Unsaved preview edits require an explicit discard decision before route
-navigation. The Settings window has no Skills navigation item or route.
+navigation. Background catalog refreshes use that same decision before closing a removed Skill.
+The Settings window has no Skills navigation item or route. Settings-to-main onboarding
+continuation uses typed IPC and a typed runtime event rather than window-local storage.

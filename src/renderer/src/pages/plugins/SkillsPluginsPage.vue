@@ -48,6 +48,7 @@ const externalImportOpen = ref(false)
 const detailDialogOpen = ref(false)
 const selectedSkill = ref<UnifiedSkillItem | null>(null)
 const skillDetail = ref<SkillDetail | null>(null)
+const detailDialogRef = ref<InstanceType<typeof SkillDetailDialog> | null>(null)
 let loadRequestId = 0
 let detailRequestId = 0
 
@@ -89,7 +90,7 @@ const loadPage = async (silent = false) => {
     if (selectedSkill.value) {
       const refreshedSkill = nextSkills.find((skill) => skill.name === selectedSkill.value?.name)
       if (refreshedSkill) selectedSkill.value = refreshedSkill
-      else closeDetail(false)
+      else detailDialogRef.value?.requestClose()
     }
     loadFailed.value = false
   } catch (error) {
@@ -188,18 +189,22 @@ const updateSkillAgent = async (agentId: string, enabled: boolean) => {
   if (skill.assignedAgentIds.includes(agentId) === enabled) return
 
   agentUpdatePendingId.value = agentId
+  const requestId = detailRequestId
   try {
     await skillClient.setSkillAssigned(skill.name, enabled, agentId)
-    const enabledAgentIds = new Set(skill.assignedAgentIds)
+    const currentSkill = skills.value.find((item) => item.name === skill.name) ?? skill
+    const enabledAgentIds = new Set(currentSkill.assignedAgentIds)
     if (enabled) enabledAgentIds.add(agentId)
     else enabledAgentIds.delete(agentId)
     const updatedSkill = {
-      ...skill,
+      ...currentSkill,
       assigned: enabledAgentIds.size > 0,
       assignedAgentIds: Array.from(enabledAgentIds)
     }
-    selectedSkill.value = updatedSkill
     skills.value = skills.value.map((item) => (item.name === skill.name ? updatedSkill : item))
+    if (requestId === detailRequestId && selectedSkill.value?.name === skill.name) {
+      selectedSkill.value = updatedSkill
+    }
   } catch (error) {
     console.error('[SkillsPluginsPage] Failed to update enabled Agents', error)
     notifyRenderer({
@@ -443,8 +448,13 @@ onUnmounted(() => {
         </template>
       </div>
 
-      <ImportSkillsFromAgentDialog v-model:open="externalImportOpen" @imported="loadPage(true)" />
+      <ImportSkillsFromAgentDialog
+        v-model:open="externalImportOpen"
+        :agents="agents"
+        @imported="loadPage(true)"
+      />
       <SkillDetailDialog
+        ref="detailDialogRef"
         :open="detailDialogOpen"
         :name="skillDetail?.name ?? ''"
         :description="skillDetail?.description"

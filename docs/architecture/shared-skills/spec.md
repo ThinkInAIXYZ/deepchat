@@ -79,6 +79,8 @@ Invariants:
 - Deleting or editing shared content affects every enabled Agent.
 - ACP and missing Agents never become binding targets.
 - A Run authorizes only the concrete roots resolved from its Agent and active Skill names.
+- A Run keeps the Skill names authorized at Run start even if an Agent binding changes while that
+  Run is executing; later Runs use the updated binding.
 
 ## Ownership and Storage
 
@@ -91,7 +93,9 @@ Invariants:
 ```
 
 The recovery directory keeps its historical name so an interrupted development migration can
-resume safely. It is excluded from discovery and never appears in UI or public contracts.
+resume safely. Its journal is committed by atomic replacement before package renames, so a torn
+write cannot become the next startup input. It is excluded from discovery and never appears in UI
+or public contracts.
 
 Bundled and Plugin Skills remain in provider-owned roots. Providers control their lifecycle and
 mutability; global listing does not transfer ownership.
@@ -160,6 +164,13 @@ recompute the destination Agent intersection.
 One cache and watcher cover global metadata and content. Binding changes invalidate only affected
 Agent views. The number of Agents is small enough to scan for reverse impact; no reverse index is
 introduced.
+
+Watcher delete events are cache invalidations, not authoritative user deletions. A delete applies
+only when the event path exactly matches a cached manifest and the file is still absent. It removes
+the cached catalog entry but preserves global provenance, Agent bindings, extension state, and
+runtime binding identity so atomic editor replacement can restore the same Skill without changing
+authorization. Watcher delivery never removes persisted Skill state; explicit deletion and startup
+reconciliation own that lifecycle.
 
 ## Operations
 
@@ -283,6 +294,12 @@ navigation item or route.
 the Skill. Each mutation commits immediately and exposes pending, error, keyboard, and accessible
 label states through existing primitives.
 
+Async preview mutations are scoped to the Skill that started them. A late response may refresh its
+card in the global list but cannot replace a newer open preview. Background catalog removal asks the
+preview to close through the same dirty-draft guard as a direct user close. External-import impact
+copy resolves Agent IDs to current display names and falls back to an ID only when no matching
+DeepChat Agent is available.
+
 The Plugins-hub Skills route renders this same global surface. It does not infer a target from the
 currently selected Agent or ACP state.
 
@@ -295,6 +312,14 @@ currently selected Agent or ACP state.
 - `skills.delete`: delete one mutable global Skill after impact acknowledgement.
 - `skills.listAgentImportSources`, `skills.previewAgentImport`, `skills.executeAgentImport`: global
   external snapshot import without target Agent IDs.
+
+There is no DeepChat-to-DeepChat duplicate route: logical bindings already share the canonical
+package. Catalog events expose only reasons emitted by the service. Persisted settings activity is
+treated as historical input; navigation ignores route names that are no longer registered.
+
+When the separate Settings window must continue onboarding on the main surface, it invokes a typed
+window route. Main publishes a typed runtime resume event and focuses the main window. No
+cross-window handoff relies on renderer `sessionStorage`.
 
 Content routes may retain an `agentId` as lifecycle context, but containment and provider ownership
 authorize global reads and mutations. Extension routes retain `agentId` because extension state

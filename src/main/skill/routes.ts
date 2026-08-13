@@ -9,7 +9,6 @@ import {
   skillsExecuteSyncDirectoryImportRoute,
   skillsExecuteAgentImportRoute,
   skillsDeleteRoute,
-  skillsDuplicateForAgentRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
@@ -145,16 +144,6 @@ export function createSkillRoutes(deps: {
         const result = await skillService.deleteSkill(input.name, input.acknowledgedAgentIds)
         if (didSucceed(result)) recordSkillActivity('removed', input.name)
         return skillsDeleteRoute.output.parse({ result })
-      }
-    ],
-    [
-      skillsDuplicateForAgentRoute.name,
-      async (rawInput) => {
-        const input = skillsDuplicateForAgentRoute.input.parse(rawInput)
-        const result = await skillService.duplicateSkillForAgent(input.agentId, input.name)
-        if (didSucceed(result))
-          recordSkillActivity('created', result.duplicatedSkillName ?? input.name)
-        return skillsDuplicateForAgentRoute.output.parse({ result })
       }
     ],
     [

@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Jelajahi semua Skill. Buka Skill untuk melihat pratinjau dan mengelola Agent yang diaktifkan.",
     "draftSuggestions": {
       "title": "Disarankan curah hujan setelah misi Skill Draf",
       "description": "Setelah tugas selesai, izinkan Agent menyarankan pembuatan draf skill sementara ketika proses yang dapat digunakan kembali diidentifikasi. Draf akan disimpan di direktori sementara terlebih dahulu, dan Anda perlu memutuskan secara manual apakah akan mengimpornya untuk instalasi."
@@ -2257,7 +2257,7 @@
     "openFolder": "buka folder",
     "addSkill": "Tambahkan skill",
     "empty": "Tidak ada skill",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Impor Skill dari Agent eksternal.",
     "noResults": "Tidak ditemukan skill yang cocok",
     "search": "Telusuri skill...",
     "count": "Jumlah {count} skill",
@@ -2295,8 +2295,6 @@
       "env": "{count} variabel lingkungan",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Lihat detail",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Impor dari Agent eksternal",
-      "title": "Impor Skills dari Agent",
+      "title": "Impor dari Agent eksternal",
       "description": "Impor Skills yang telah divalidasi ke DeepChat. Aktifkan Agents dari pratinjau setiap Skill.",
       "resultPartial": "Impor selesai dengan kesalahan",
       "resultSuccess": "Impor selesai",
@@ -2500,7 +2498,6 @@
       "saved": "Direktori sinkronisasi disimpan",
       "export": "Ekspor ke direktori",
       "import": "Impor dari direktori",
-      "includeDisabled": "Sertakan skill yang dinonaktifkan",
       "previewExport": "Pratinjau Ekspor",
       "exportNow": "Ekspor Sekarang",
       "previewImport": "Pratinjau Impor",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Terputus dari Agent",
       "disconnectSuccessMessage": "{name} tidak lagi tertaut ke Agent target.",
       "disconnectFailed": "Gagal memutus dari Agent"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "Enabled Agents changed. Review the impact and try again.",

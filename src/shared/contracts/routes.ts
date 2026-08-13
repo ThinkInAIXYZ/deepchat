@@ -510,7 +510,6 @@ import {
   skillsExecuteSyncDirectoryImportRoute,
   skillsExecuteAgentImportRoute,
   skillsDeleteRoute,
-  skillsDuplicateForAgentRoute,
   skillsInstallFromGitRoute,
   skillsInstallFromFolderRoute,
   skillsInstallPublicUrlRoute,
@@ -583,6 +582,7 @@ import {
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
+  windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute
 } from './routes/window.routes'
@@ -679,6 +679,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
     windowConsumePendingSettingsProviderInstallRoute,
   [windowRequeuePendingSettingsProviderInstallRoute.name]:
     windowRequeuePendingSettingsProviderInstallRoute,
+  [windowResumeGuidedOnboardingRoute.name]: windowResumeGuidedOnboardingRoute,
   [windowStartGuidedOnboardingRoute.name]: windowStartGuidedOnboardingRoute,
   [notificationRendererReadyRoute.name]: notificationRendererReadyRoute,
   [notificationAcknowledgePresentationRoute.name]: notificationAcknowledgePresentationRoute,
@@ -1078,7 +1079,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [skillsListAllRoute.name]: skillsListAllRoute,
   [skillsSetAssignmentsRoute.name]: skillsSetAssignmentsRoute,
   [skillsDeleteRoute.name]: skillsDeleteRoute,
-  [skillsDuplicateForAgentRoute.name]: skillsDuplicateForAgentRoute,
   [skillsListPublicRoute.name]: skillsListPublicRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,

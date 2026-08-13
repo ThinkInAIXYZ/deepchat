@@ -12,7 +12,6 @@ import type {
   SkillScriptDescriptor
 } from '@shared/types/skill'
 import type {
-  SkillDuplicateResult,
   SkillDeleteResult,
   SkillSyncDirectoryConfig,
   UnifiedSkillItem
@@ -170,7 +169,6 @@ export type PublicSkill = z.infer<typeof PublicSkillSchema>
 const SkillMetadataSchema = z.custom<SkillMetadata>()
 const UnifiedSkillItemSchema = z.custom<UnifiedSkillItem>()
 const SkillDeleteResultSchema = z.custom<SkillDeleteResult>()
-const SkillDuplicateResultSchema = z.custom<SkillDuplicateResult>()
 const SkillInstallOptionsSchema = z.custom<SkillInstallOptions>().optional()
 const SkillInstallResultSchema = z.custom<SkillInstallResult>()
 const SkillInstallConflictStrategySchema = z.enum(['rename', 'overwrite', 'skip']).optional()
@@ -260,12 +258,6 @@ export const skillsDeleteRoute = defineRouteContract({
     acknowledgedAgentIds: z.array(PublicSkillAgentIdSchema)
   }),
   output: z.object({ result: SkillDeleteResultSchema })
-})
-
-export const skillsDuplicateForAgentRoute = defineRouteContract({
-  name: 'skills.duplicateForAgent',
-  input: AgentSkillScopeSchema.extend({ name: PublicSkillNameSchema }),
-  output: z.object({ result: SkillDuplicateResultSchema })
 })
 
 export const skillsSetDisabledRoute = defineRouteContract({

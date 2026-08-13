@@ -64,8 +64,7 @@ describe('skillsStore catalog events', () => {
     expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
   })
 
-  it('applies disabled events without rescanning the catalog', async () => {
-    let catalogListener: ((payload: SkillCatalogChangedPayload) => void) | undefined
+  it('applies a local disabled mutation without rescanning the catalog', async () => {
     const skillClient = {
       setSkillDisabled: vi.fn().mockResolvedValue(undefined),
       getUnifiedSkillCatalog: vi
@@ -73,10 +72,7 @@ describe('skillsStore catalog events', () => {
         .mockResolvedValue([createSkill('skill-a', 'Skill A description')]),
       getSkillExtension: vi.fn().mockResolvedValue(null),
       listSkillScripts: vi.fn().mockResolvedValue([]),
-      onCatalogChanged: vi.fn((listener: (payload: SkillCatalogChangedPayload) => void) => {
-        catalogListener = listener
-        return () => undefined
-      })
+      onCatalogChanged: vi.fn(() => () => undefined)
     }
     vi.doMock('@api/SkillClient', () => ({
       createSkillClient: () => skillClient
@@ -89,18 +85,6 @@ describe('skillsStore catalog events', () => {
     await store.setSkillDisabled('skill-a', true)
 
     expect(skillClient.setSkillDisabled).toHaveBeenCalledWith('skill-a', true)
-    expect(store.skills[0]?.disabled).toBe(true)
-    expect(store.skills[0]?.deepchatDisabled).toBe(true)
-    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
-
-    catalogListener?.({
-      reason: 'disabled-updated',
-      name: 'skill-a',
-      disabled: true,
-      agentIds: ['deepchat'],
-      version: 1
-    })
-    await Promise.resolve()
     expect(store.skills[0]?.disabled).toBe(true)
     expect(store.skills[0]?.deepchatDisabled).toBe(true)
     expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()

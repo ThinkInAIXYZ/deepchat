@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Explora todos los Skills. Abre un Skill para previsualizarlo y gestionar los Agents habilitados.",
     "draftSuggestions": {
       "title": "Sugerir Skill Drafts después de la tarea",
       "description": "Cuando termine una tarea, permite que el Agent sugiera Skill Drafts temporales al detectar flujos reutilizables. Los drafts se guardan primero en un directorio temporal y debes decidir manualmente si importarlos e instalarlos."
@@ -2257,7 +2257,7 @@
     "openFolder": "Abrir carpeta",
     "addSkill": "Agregar Skill",
     "empty": "Aún no hay Skills",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Importa Skills desde un Agent externo.",
     "noResults": "No se han encontrado Skills coincidentes",
     "search": "Buscar Skills...",
     "count": "{count} skills",
@@ -2295,8 +2295,6 @@
       "env": "{count} entorno",
       "pythonShort": "Py",
       "nodeShort": "Nodo",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Ver detalles",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Importar desde un Agent externo",
-      "title": "Importar Skills desde un Agent",
+      "title": "Importar desde un Agent externo",
       "description": "Importa Skills validados en DeepChat. Activa Agents desde la vista previa de cada Skill.",
       "resultPartial": "Importación completada con errores",
       "resultSuccess": "Importación completada",
@@ -2500,7 +2498,6 @@
       "saved": "Directorio de sincronización guardado",
       "export": "Exportar al directorio",
       "import": "Importar desde el directorio",
-      "includeDisabled": "Incluir skills deshabilitadas",
       "previewExport": "Previsualizar exportación",
       "exportNow": "Exportar ahora",
       "previewImport": "Previsualizar importación",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Desconectado de Agent",
       "disconnectSuccessMessage": "{name} ya no está enlazado al Agent de destino.",
       "disconnectFailed": "No se pudo desconectar de Agent"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "Enabled Agents changed. Review the impact and try again.",

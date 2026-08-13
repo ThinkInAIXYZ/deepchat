@@ -66,7 +66,6 @@ import type {
   SharedSkillManagementItem,
   SkillManagementItem,
   SkillManagementState,
-  SkillDuplicateResult,
   SkillDeleteResult,
   SkillSyncDirectoryConfig,
   SkillSource,
@@ -897,10 +896,9 @@ export class SkillService implements SkillServicePort {
     }
 
     fs.mkdirSync(migrationRoot, { recursive: true })
-    fs.writeFileSync(
+    await this.atomicWriteFile(
       journalPath,
-      JSON.stringify({ sourceVersion, startedAt, plannedCopies }, null, 2),
-      'utf-8'
+      JSON.stringify({ sourceVersion, startedAt, plannedCopies }, null, 2)
     )
     migration.status = 'committing'
 
@@ -2380,7 +2378,7 @@ export class SkillService implements SkillServicePort {
   async viewSkillForAgent(
     agentId: string,
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; activeSkillNames?: readonly string[] }
   ): Promise<RuntimeSkillViewResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     return await this.viewSkillInAgentScope(normalizedAgentId, name, options, true)
@@ -2401,14 +2399,17 @@ export class SkillService implements SkillServicePort {
   private async viewSkillInAgentScope(
     agentId: string,
     name: string,
-    options: { filePath?: string; conversationId?: string } | undefined,
+    options:
+      | { filePath?: string; conversationId?: string; activeSkillNames?: readonly string[] }
+      | undefined,
     captureExecutionSnapshot: boolean
   ): Promise<RuntimeSkillViewResult> {
     const metadataCache = this.getMetadataCacheForAgent(agentId)
     await this.ensureAgentCatalogDiscovered(agentId)
 
     const metadata = metadataCache.get(name)
-    if (!metadata || !this.isSkillVisible(metadata, agentId)) {
+    const authorizedForRun = options?.activeSkillNames?.includes(name) === true
+    if (!metadata || (!authorizedForRun && !this.isSkillVisible(metadata, agentId))) {
       return {
         success: false,
         error: `Skill "${name}" not found`
@@ -2509,7 +2510,8 @@ export class SkillService implements SkillServicePort {
         : undefined
       if (
         captureExecutionSnapshot &&
-        (metadataCache.get(name) !== metadata || !this.isSkillVisible(metadata, agentId))
+        (metadataCache.get(name) !== metadata ||
+          (!authorizedForRun && !this.isSkillVisible(metadata, agentId)))
       ) {
         throw new Error('Skill catalog changed while its execution snapshot was being built')
       }
@@ -4774,126 +4776,6 @@ export class SkillService implements SkillServicePort {
     return { success: true, skillName: name, affectedAgentIds: impact }
   }
 
-  async duplicateSkillForAgent(agentId: string, name: string): Promise<SkillDuplicateResult> {
-    return await this.runMutation(
-      async () => await this.duplicateSkillForAgentUnlocked(agentId, name)
-    )
-  }
-
-  private async duplicateSkillForAgentUnlocked(
-    agentId: string,
-    name: string
-  ): Promise<SkillDuplicateResult> {
-    const normalizedAgentId = await this.requireAgentScope(agentId)
-    const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
-    try {
-      await this.ensureAgentCatalogDiscovered(normalizedAgentId)
-      const metadata = this.metadataCache.get(name)
-      if (!metadata) {
-        return {
-          success: false,
-          sourceSkillName: name,
-          agentId: normalizedAgentId,
-          error: `Skill "${name}" not found`,
-          errorCode: 'not_found'
-        }
-      }
-      try {
-        this.assertMutableSkillOwnership(normalizedAgentId, metadata)
-      } catch (error) {
-        return {
-          success: false,
-          sourceSkillName: name,
-          agentId: normalizedAgentId,
-          error: error instanceof Error ? error.message : String(error),
-          errorCode: 'permission_denied'
-        }
-      }
-
-      const agentSuffix = normalizedAgentId
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/^[^a-z0-9]+/, '')
-      const baseName = `${name}-${agentSuffix || 'agent'}`
-      const targetName = this.isSkillNameOccupied(baseName)
-        ? this.createUniqueSkillName(baseName)
-        : baseName
-      const previousState = this.getStoredManagementState()
-      const extension = sanitizeSkillExtensionConfig(
-        previousState.agents[normalizedAgentId]?.bindings[name]?.extension
-      )
-      const installed = await this.installFromDirectoryUnlocked(metadata.skillRoot, {
-        sourceType: 'created',
-        sourcePatch: { originalPath: metadata.skillRoot, installedAt: new Date().toISOString() },
-        targetName,
-        agentId: normalizedAgentId,
-        publishCatalogEvent: false
-      })
-      if (!installed.success) {
-        return {
-          ...installed,
-          sourceSkillName: name,
-          agentId: normalizedAgentId
-        }
-      }
-
-      try {
-        const state = this.getStoredManagementState()
-        const bindings = this.getAgentBindingState(state, normalizedAgentId).bindings
-        bindings[targetName] = { assigned: true, extension }
-        bindings[name] = { assigned: false, extension }
-        this.saveManagementState(state)
-        await this.revalidateSessionsForAgent(normalizedAgentId)
-        this.publishEvent('skills.catalog.changed', {
-          reason: 'installed',
-          name: targetName,
-          agentIds: [normalizedAgentId],
-          version: Date.now()
-        })
-        return {
-          success: true,
-          sourceSkillName: name,
-          duplicatedSkillName: targetName,
-          skillName: targetName,
-          agentId: normalizedAgentId
-        }
-      } catch (error) {
-        const rollbackErrors: unknown[] = []
-        try {
-          this.saveManagementState(previousState)
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError)
-        }
-        const targetPath = path.join(this.skillsDir, targetName)
-        try {
-          if (fs.existsSync(targetPath)) fs.rmSync(targetPath, { recursive: true, force: true })
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError)
-        }
-        this.metadataCache.delete(targetName)
-        this.invalidateSkillContent(targetName)
-        const rollbackMessage = rollbackErrors
-          .map((rollbackError) =>
-            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-          )
-          .join('; ')
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        return {
-          success: false,
-          sourceSkillName: name,
-          agentId: normalizedAgentId,
-          error:
-            rollbackMessage.length > 0
-              ? `${errorMessage} (rollback failed: ${rollbackMessage})`
-              : errorMessage,
-          errorCode: 'io_error'
-        }
-      }
-    } finally {
-      finishOperation()
-    }
-  }
-
   async cleanupAgentSkills(agentId: string): Promise<void> {
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
     if (normalizedAgentId === BUILTIN_SKILL_AGENT_ID) {
@@ -5875,7 +5757,7 @@ export class SkillService implements SkillServicePort {
       } else if (event.type === 'update') {
         await this.handleSkillFileChanged(event.path, agentId)
       } else if (event.type === 'delete') {
-        this.handleSkillFileDeleted(event.path, agentId)
+        await this.handleSkillFileDeleted(event.path, agentId)
       }
     }
   }
@@ -6013,23 +5895,24 @@ export class SkillService implements SkillServicePort {
     })
   }
 
-  private handleSkillFileDeleted(filePath: string, agentId: string = BUILTIN_SKILL_AGENT_ID): void {
+  private async handleSkillFileDeleted(
+    filePath: string,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
+  ): Promise<void> {
     if (this.deletedAgentScopes.has(agentId)) return
-    const skillName =
-      this.findSkillNameByPath(filePath, agentId) ?? path.basename(path.dirname(filePath))
+    const skillName = this.findSkillNameByPath(filePath, agentId)
+    if (!skillName) return
+    if (fs.existsSync(filePath)) {
+      await this.handleSkillFileChanged(filePath, agentId)
+      return
+    }
+
     this.getMetadataCacheForAgent(agentId).delete(skillName)
     this.invalidateSkillContent(skillName)
-    const state = this.getStoredManagementState()
-    const affectedAgentIds = Object.entries(state.agents)
-      .filter(([, agent]) => agent.bindings[skillName]?.assigned === true)
-      .map(([assignedAgentId]) => assignedAgentId)
-    delete state.skills[skillName]
-    for (const bindingState of Object.values(state.agents)) delete bindingState.bindings[skillName]
-    this.saveManagementState(state)
     this.publishEvent('skills.catalog.changed', {
       reason: 'uninstalled',
       name: skillName,
-      agentIds: affectedAgentIds,
+      agentIds: this.getAssignedAgentIds(skillName),
       version: Date.now()
     })
   }

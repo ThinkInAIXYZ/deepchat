@@ -2681,7 +2681,11 @@ export class AgentToolManager {
           options
         )?.()
       }
-      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const result = await skillTools.handleSkillView(
+        conversationId,
+        validationResult.data,
+        effectiveActiveSkills
+      )
       const { contentIdentity, contentResolution, ...publicResult } = result
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activeSkillNamesForResult = effectiveActiveSkills ?? []

@@ -20,7 +20,7 @@ type SkillToolsServicePort = Pick<
   viewSkillForAgent(
     agentId: string,
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; activeSkillNames?: readonly string[] }
   ): Promise<RuntimeSkillViewResult>
 }
 
@@ -65,7 +65,8 @@ export class SkillTools {
 
   async handleSkillView(
     conversationId: string | undefined,
-    input: { name: string; file_path?: string }
+    input: { name: string; file_path?: string },
+    activeSkillNames?: readonly string[]
   ): Promise<RuntimeSkillViewResult> {
     const requestedSkillName = input.name.trim()
     const agentId = conversationId
@@ -81,7 +82,8 @@ export class SkillTools {
 
     return await this.skillService.viewSkillForAgent(agentId, requestedSkillName, {
       filePath: input.file_path,
-      conversationId
+      conversationId,
+      activeSkillNames
     })
   }
 

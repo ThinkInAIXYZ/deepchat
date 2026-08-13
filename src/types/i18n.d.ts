@@ -429,12 +429,6 @@ declare module 'vue-i18n' {
       }
       title: string
       description: string
-      sources: {
-        plugin: string
-        builtin: string
-        external: string
-        local: string
-      }
       draftSuggestions: {
         title: string
         description: string
@@ -480,8 +474,6 @@ declare module 'vue-i18n' {
         env: string
         pythonShort: string
         nodeShort: string
-        enabled: string
-        disabled: string
         enable: string
         disable: string
         viewDetails: string
@@ -685,7 +677,6 @@ declare module 'vue-i18n' {
         saved: string
         export: string
         import: string
-        includeDisabled: string
         previewExport: string
         exportNow: string
         previewImport: string

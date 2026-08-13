@@ -7,7 +7,6 @@
  */
 
 import type {
-  SkillDuplicateResult,
   SkillDeleteResult,
   SkillManagementState,
   SkillSyncDirectoryConfig,
@@ -389,6 +388,7 @@ export interface SkillServicePort {
     options?: {
       filePath?: string
       conversationId?: string
+      activeSkillNames?: readonly string[]
     }
   ): Promise<SkillViewResult>
   viewSkill(
@@ -455,7 +455,6 @@ export interface SkillServicePort {
   uninstallSkill(name: string): Promise<SkillInstallResult>
   uninstallSkillForAgent(agentId: string, name: string): Promise<SkillInstallResult>
   deleteSkill(name: string, acknowledgedAgentIds: string[]): Promise<SkillDeleteResult>
-  duplicateSkillForAgent(agentId: string, name: string): Promise<SkillDuplicateResult>
   cleanupAgentSkills(agentId: string): Promise<void>
   registerPluginSkill(input: {
     ownerPluginId: string

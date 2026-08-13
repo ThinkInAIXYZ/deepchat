@@ -2021,7 +2021,7 @@
     "search": "搜尋 skill...",
     "agentImport": {
       "menuItem": "從外部 Agent 匯入",
-      "title": "從其他 Agent 匯入 Skills",
+      "title": "從外部 Agent 匯入",
       "description": "將驗證後的 Skills 匯入 DeepChat。可在每個 Skill 的預覽中啟用 Agent。",
       "resultPartial": "匯入完成，但有部分錯誤",
       "resultSuccess": "匯入完成",
@@ -2141,8 +2141,6 @@
       "env": "{count} 個環境變量",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "已啟用",
-      "disabled": "已停用",
       "enable": "在 DeepChat 中啟用",
       "disable": "在 DeepChat 中停用",
       "viewDetails": "查看詳情",
@@ -2190,7 +2188,6 @@
       "saved": "同步目錄已儲存",
       "export": "匯出到目錄",
       "import": "從目錄匯入",
-      "includeDisabled": "包含已停用 skills",
       "previewExport": "預覽匯出",
       "exportNow": "立即匯出",
       "previewImport": "預覽匯入",
@@ -2267,12 +2264,6 @@
       "disconnectSuccess": "已從 Agent 斷開",
       "disconnectSuccessMessage": "{name} 已從目標 Agent 斷開。",
       "disconnectFailed": "從 Agent 斷開失敗"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "啟用此 Skill 的 Agent 已變更，請確認影響後再試。",

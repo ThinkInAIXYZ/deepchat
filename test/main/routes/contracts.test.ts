@@ -295,7 +295,6 @@ describe('main kernel contracts', () => {
         'sessions.updateGenerationSettings',
         'sessions.updateQueuedInput',
         'skills.delete',
-        'skills.duplicateForAgent',
         'skills.getActive',
         'skills.getSyncConfig',
         'skills.executeSyncDirectoryExport',
@@ -339,6 +338,7 @@ describe('main kernel contracts', () => {
         'window.focusMain',
         'window.notifySettingsReady',
         'window.requeuePendingSettingsProviderInstall',
+        'window.resumeGuidedOnboarding',
         'window.startGuidedOnboarding',
         'workspace.watch'
       ])
@@ -1911,6 +1911,7 @@ describe('main kernel contracts', () => {
         'acpTerminal.externalDependenciesRequired',
         'acpTerminal.output',
         'acpTerminal.started',
+        'appRuntime.guidedOnboardingResumeRequested',
         'appRuntime.guidedOnboardingStartRequested',
         'appRuntime.mcpInstallRequested',
         'appRuntime.shortcutRequested',

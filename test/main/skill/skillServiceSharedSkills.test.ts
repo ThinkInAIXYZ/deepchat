@@ -153,7 +153,12 @@ describe('SkillService shared Skills', () => {
     activeSkills.set('writer-session', ['review'])
     activeSkills.set('coder-session', ['review'])
 
+    const renameSpy = vi.spyOn(fs, 'renameSync')
     await migrate()
+
+    const journalPath = path.join(skillsRoot, '.library-migration-v3', 'journal.json')
+    const journalRename = renameSpy.mock.calls.find(([, target]) => target === journalPath)
+    expect(journalRename?.[0]).toMatch(/\.journal\.json\..+\.tmp$/)
 
     expect(storedState?.version).toBe(3)
     const state = storedState as SkillManagementState
@@ -503,31 +508,23 @@ describe('SkillService shared Skills', () => {
     expect((storedState as SkillManagementState).agents.writer.bindings.review.assigned).toBe(true)
   })
 
-  it('duplicates for one Agent and revalidates shared deletion impact', async () => {
+  it('revalidates shared deletion impact', async () => {
     writeSkill(skillsRoot, 'review', '# shared')
     await migrate()
     await service.setSkillAssignment('writer', 'review', true)
     await service.setSkillAssignment('coder', 'review', true)
 
-    const duplicated = await service.duplicateSkillForAgent('writer', 'review')
-    expect(duplicated).toMatchObject({ success: true, sourceSkillName: 'review' })
-    expect(duplicated.duplicatedSkillName).toMatch(/^review-writer/)
-    expect((await service.getUnifiedSkillCatalog('writer')).map((skill) => skill.name)).toEqual([
-      duplicated.duplicatedSkillName
-    ])
-    expect((await service.getUnifiedSkillCatalog('coder')).map((skill) => skill.name)).toEqual([
-      'review'
-    ])
-
     await expect(service.deleteSkill('review', ['writer'])).resolves.toMatchObject({
       success: false,
       errorCode: 'stale_impact',
-      affectedAgentIds: ['coder', 'deepchat']
+      affectedAgentIds: ['coder', 'deepchat', 'writer']
     })
-    await expect(service.deleteSkill('review', ['coder', 'deepchat'])).resolves.toMatchObject({
+    await expect(
+      service.deleteSkill('review', ['coder', 'deepchat', 'writer'])
+    ).resolves.toMatchObject({
       success: true,
-      affectedAgentIds: ['coder', 'deepchat']
+      affectedAgentIds: ['coder', 'deepchat', 'writer']
     })
-    expect(fs.existsSync(path.join(skillsRoot, duplicated.duplicatedSkillName!))).toBe(true)
+    expect(fs.existsSync(path.join(skillsRoot, 'review'))).toBe(false)
   })
 })

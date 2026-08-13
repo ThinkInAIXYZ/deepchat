@@ -127,14 +127,29 @@ The normative design is [spec.md](./spec.md). This is the only execution tracker
 - [x] Run `pnpm run typecheck`.
 - [x] Run `pnpm run build`.
 
+## 11. Runtime and interaction hardening
+
+- [x] Commit the migration recovery journal by atomic replacement before package renames.
+- [x] Treat watcher deletion as an exact-path cache invalidation and preserve persisted bindings
+  through transient atomic-save events.
+- [x] Keep `skill_view` authorized by the current Run snapshot after a concurrent unassignment.
+- [x] Remove the unused DeepChat duplicate route and catalog reasons with no producers.
+- [x] Fence late preview mutations and route background close requests through the dirty-draft
+  guard.
+- [x] Show Agent display names in external-import impact copy and guard historical settings routes.
+- [x] Replace the Settings-to-main onboarding `sessionStorage` handoff with typed IPC.
+- [x] Remove unused locale keys and localize the remaining Skills page and external-import copy.
+- [x] Run focused regressions and the repository quality gates.
+
 ## Validation Record
 
 - `pnpm run format`: passed for 2,756 files.
-- `pnpm run i18n`: passed for 20 locales and 4,132 source message contracts.
+- `pnpm run i18n`: passed for 20 locales and 4,125 source message contracts.
 - `pnpm run lint`: passed the Agent cleanup guard, alert-dialog contract guard, and Oxlint.
 - `pnpm run typecheck`: passed Main and renderer projects.
 - Main Vitest: 561 files and 7,167 tests passed; 29 files and 417 tests skipped.
 - Renderer Vitest: 254 files and 2,118 tests passed.
+- Focused regression suites: 5 Main files and 268 tests; 9 renderer files and 117 tests passed.
 - Playwright settings navigation, IPC boundary, Skills route, and Skill sync smoke: 4 tests passed.
 - `pnpm run build`: Main, preload, renderer, and CLI production builds passed.
 - Visual inspection: the top Skill Draft setting, global list, and Skill preview passed at

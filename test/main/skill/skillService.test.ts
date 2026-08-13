@@ -1546,6 +1546,28 @@ describe('SkillService', () => {
       )
     })
 
+    it('keeps a Skill view authorized by the current Run snapshot after unassignment', async () => {
+      await skillService.setSkillAssignment('deepchat', 'test-skill', false)
+
+      await expect(skillService.viewSkillForAgent('deepchat', 'test-skill')).resolves.toEqual({
+        success: false,
+        error: 'Skill "test-skill" not found'
+      })
+
+      const result = await skillService.viewSkillForAgent('deepchat', 'test-skill', {
+        conversationId: 'conv-view',
+        activeSkillNames: ['test-skill']
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          name: 'test-skill',
+          isPinned: false
+        })
+      )
+    })
+
     it('freshly resolves the root view instead of reusing cached effective content', async () => {
       await skillService.loadSkillContent('test-skill')
       ;(matter as unknown as Mock).mockReturnValue({
@@ -3721,6 +3743,39 @@ describe('SkillService', () => {
           version: expect.any(Number)
         })
       )
+    })
+
+    it('preserves bindings across an atomic-save delete and create sequence', async () => {
+      mockSkillTree(['skill-a'])
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-a', description: 'Skill A' },
+        content: '# Skill A'
+      })
+      await skillService.discoverSkills()
+      await skillService.setSkillAssignment('deepchat', 'skill-a', true)
+      const metadataCache = (skillService as any).metadataCache as Map<string, SkillMetadata>
+      const metadata = metadataCache.get('skill-a')!
+      const stateBefore = structuredClone(
+        configSettings.get('skills.managementState') as Record<string, unknown>
+      )
+
+      await skillService.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => target !== metadata.path)
+      await watcher?.emit([{ type: 'delete', path: metadata.path }])
+
+      expect(metadataCache.has('skill-a')).toBe(false)
+      expect(configSettings.get('skills.managementState')).toEqual(stateBefore)
+
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(skillService as any).parseSkillMetadata = vi.fn().mockResolvedValue(metadata)
+      await watcher?.emit([{ type: 'create', path: metadata.path }])
+
+      expect(metadataCache.get('skill-a')).toEqual(metadata)
+      expect(
+        (configSettings.get('skills.managementState') as any).agents.deepchat.bindings['skill-a']
+          .assigned
+      ).toBe(true)
     })
 
     it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {

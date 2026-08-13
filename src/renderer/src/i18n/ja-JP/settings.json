@@ -1956,7 +1956,7 @@
       "successMessage": "スキル {name} が正常に削除されました",
       "title": "スキルを削除"
     },
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "すべての Skills を参照できます。Skill を開くと、内容のプレビューと有効な Agents の管理ができます。",
     "edit": {
       "allowedTools": "追加ツール",
       "allowedToolsHint": "カンマ区切りのツール名リスト",
@@ -1993,7 +1993,7 @@
       }
     },
     "empty": "スキルなし",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "外部 Agent から Skills をインポートします。",
     "install": {
       "description": "スキルのインストール方法を選択",
       "dragInvalid": "対応していない内容です。skill フォルダまたは単一の .zip ファイルをドラッグしてください。",
@@ -2021,7 +2021,7 @@
     "search": "検索 skill...",
     "agentImport": {
       "menuItem": "外部 Agent からインポート",
-      "title": "Agent から Skills をインポート",
+      "title": "外部 Agent からインポート",
       "description": "検証済みの Skills を DeepChat にインポートします。各 Skill のプレビューから Agent を有効にできます。",
       "resultPartial": "エラーを含めてインポートが完了しました",
       "resultSuccess": "インポートが完了しました",
@@ -2141,8 +2141,6 @@
       "env": "{count} env",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "詳細を表示",
@@ -2190,7 +2188,6 @@
       "saved": "同期ディレクトリを保存しました",
       "export": "ディレクトリへエクスポート",
       "import": "ディレクトリからインポート",
-      "includeDisabled": "無効な skill を含める",
       "previewExport": "エクスポートをプレビュー",
       "exportNow": "今すぐエクスポート",
       "previewImport": "インポートをプレビュー",
@@ -2267,12 +2264,6 @@
       "disconnectSuccess": "Agent から解除しました",
       "disconnectSuccessMessage": "{name} の対象 Agent へのリンクを解除しました。",
       "disconnectFailed": "Agent からの解除に失敗しました"
-    },
-    "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
     },
     "impact": {
       "changed": "Enabled Agents changed. Review the impact and try again.",

@@ -2295,8 +2295,6 @@
       "env": "środowisko {count}",
       "pythonShort": "P",
       "nodeShort": "Węzeł",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Pokaż szczegóły",
@@ -2355,7 +2353,7 @@
     },
     "agentImport": {
       "menuItem": "Importuj z zewnętrznego Agenta",
-      "title": "Importuj Skills z Agenta",
+      "title": "Importuj z zewnętrznego Agenta",
       "description": "Importuj zweryfikowane Skills do DeepChat. Aktywuj Agents w podglądzie każdego Skill.",
       "resultPartial": "Import zakończony z błędami",
       "resultSuccess": "Import zakończony",
@@ -2500,7 +2498,6 @@
       "saved": "Katalog synchronizacji zapisany",
       "export": "Eksportuj do katalogu",
       "import": "Importuj z katalogu",
-      "includeDisabled": "Uwzględnij wyłączone skills",
       "previewExport": "Podgląd eksportu",
       "exportNow": "Eksportuj teraz",
       "previewImport": "Podgląd importu",
@@ -2577,12 +2574,6 @@
       "disconnectSuccess": "Odłączono od Agent",
       "disconnectSuccessMessage": "{name} nie jest już połączony z docelowym Agent.",
       "disconnectFailed": "Nie udało się odłączyć od Agent"
-    },
-    "sources": {
-      "plugin": "Wtyczka",
-      "builtin": "Wbudowany",
-      "external": "Zewnętrzny",
-      "local": "Lokalny"
     },
     "impact": {
       "changed": "Lista aktywowanych Agents uległa zmianie. Sprawdź wpływ i spróbuj ponownie.",

@@ -32538,6 +32538,41 @@
           "type": "chat"
         },
         {
+          "id": "TEE/muse-glimmer-30b",
+          "name": "Muse Glimmer 30B TEE",
+          "display_name": "Muse Glimmer 30B TEE",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2026-01-04",
+          "release_date": "2026-08-10",
+          "last_updated": "2026-08-10",
+          "type": "chat"
+        },
+        {
           "id": "TEE/qwen3.6-35b-a3b",
           "name": "Qwen3.6 35B A3B TEE",
           "display_name": "Qwen3.6 35B A3B TEE",
@@ -140787,8 +140822,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 131072,
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -142010,7 +142045,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 16384
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -144335,8 +144370,8 @@
         },
         {
           "id": "deepseek/deepseek-v4-pro:discounted",
-          "name": "DeepSeek: DeepSeek V4 Pro (lowest price)",
-          "display_name": "DeepSeek: DeepSeek V4 Pro (lowest price)",
+          "name": "DeepSeek: DeepSeek V4 Pro 0813 (lowest price)",
+          "display_name": "DeepSeek: DeepSeek V4 Pro 0813 (lowest price)",
           "modalities": {
             "input": [
               "text"
@@ -144760,8 +144795,8 @@
         },
         {
           "id": "deepseek/deepseek-v4-flash:discounted",
-          "name": "DeepSeek: DeepSeek V4 Flash (lowest price)",
-          "display_name": "DeepSeek: DeepSeek V4 Flash (lowest price)",
+          "name": "DeepSeek: DeepSeek V4 Flash 0731 (lowest price)",
+          "display_name": "DeepSeek: DeepSeek V4 Flash 0731 (lowest price)",
           "modalities": {
             "input": [
               "text"
@@ -146772,7 +146807,7 @@
             ]
           },
           "limit": {
-            "context": 1048576,
+            "context": 262144,
             "output": 131072
           },
           "temperature": true,
@@ -256843,8 +256878,8 @@
             ]
           },
           "limit": {
-            "context": 196608,
-            "output": 196608
+            "context": 65536,
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -262263,7 +262298,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 16384
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -262284,8 +262319,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 131072,
+            "output": 32768
           },
           "tool_call": true,
           "reasoning": {
@@ -263080,8 +263115,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 52429
+            "context": 1000000,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -264233,8 +264268,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 262144,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,

@@ -169,9 +169,3 @@ interface SkillInstallResultLike {
     | 'io_error'
     | 'stale_impact'
 }
-
-export interface SkillDuplicateResult extends SkillInstallResultLike {
-  sourceSkillName: string
-  agentId: string
-  duplicatedSkillName?: string
-}

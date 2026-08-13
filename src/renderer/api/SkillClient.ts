@@ -12,7 +12,6 @@ import {
   skillsGetSyncConfigRoute,
   skillsExecuteAgentImportRoute,
   skillsDeleteRoute,
-  skillsDuplicateForAgentRoute,
   skillsExecuteSyncDirectoryExportRoute,
   skillsExecuteSyncDirectoryImportRoute,
   skillsInstallFromGitRoute,
@@ -81,11 +80,6 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       name,
       acknowledgedAgentIds
     })
-    return result.result
-  }
-
-  async function duplicateSkillForAgent(agentId: string, name: string) {
-    const result = await bridge.invoke(skillsDuplicateForAgentRoute.name, { agentId, name })
     return result.result
   }
 
@@ -314,7 +308,6 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     getAllSkills,
     setSkillAssignments,
     deleteSkill,
-    duplicateSkillForAgent,
     getSkillsDir,
     installFromFolder,
     installFromZip,

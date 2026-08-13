@@ -438,15 +438,6 @@ describe('renderer api clients', () => {
                   affectedAgentIds: payload?.acknowledgedAgentIds
                 }
               }
-            case 'skills.duplicateForAgent':
-              return {
-                result: {
-                  success: true,
-                  sourceSkillName: payload?.name,
-                  agentId: payload?.agentId,
-                  duplicatedSkillName: `${payload?.name}-${payload?.agentId}`
-                }
-              }
             case 'skills.setDisabled':
               return { saved: true }
             case 'skills.readFile':
@@ -891,6 +882,8 @@ describe('renderer api clients', () => {
               }
             case 'window.requeuePendingSettingsProviderInstall':
               return { queued: true }
+            case 'window.resumeGuidedOnboarding':
+              return { requested: true, focused: true }
             case 'window.startGuidedOnboarding':
               return { started: true, focused: true }
             case 'device.selectFiles':
@@ -1211,6 +1204,7 @@ describe('renderer api clients', () => {
     client.onStartDeeplink(listener)
     client.onMcpInstallRequested(listener)
     client.onGuidedOnboardingStartRequested(listener)
+    client.onGuidedOnboardingResumeRequested(listener)
     client.onWindowFocused(listener)
     client.onWindowBlurred(listener)
     client.onShortcutRequested(listener)
@@ -1223,10 +1217,15 @@ describe('renderer api clients', () => {
       'appRuntime.guidedOnboardingStartRequested',
       expect.any(Function)
     )
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'appRuntime.windowFocused', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowBlurred', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.shortcutRequested', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(7, 'appRuntime.systemNotificationClicked', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      4,
+      'appRuntime.guidedOnboardingResumeRequested',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowFocused', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.windowBlurred', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'appRuntime.shortcutRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'appRuntime.systemNotificationClicked', listener)
   })
 
   it('routes shortcut runtime commands through the shared registry names', async () => {
@@ -2314,6 +2313,7 @@ describe('renderer api clients', () => {
       throw new Error('Expected pending provider install preview')
     }
     await windowClient.requeuePendingSettingsProviderInstall(preview)
+    await windowClient.resumeGuidedOnboarding()
     await windowClient.startGuidedOnboarding()
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'window.closeSettings', {})
@@ -2331,7 +2331,8 @@ describe('renderer api clients', () => {
         preview
       }
     )
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'window.startGuidedOnboarding', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'window.resumeGuidedOnboarding', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'window.startGuidedOnboarding', {})
   })
 
   it('routes provider runtime utility calls through the shared registry names', async () => {
@@ -2563,7 +2564,6 @@ describe('renderer api clients', () => {
     await skillClient.getAllSkills()
     await skillClient.setSkillAssignments('writer', ['write-tests'])
     await skillClient.deleteSkill('write-tests', ['writer'])
-    await skillClient.duplicateSkillForAgent('writer', 'write-tests')
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAll', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setAssignments', {
@@ -2573,10 +2573,6 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.delete', {
       name: 'write-tests',
       acknowledgedAgentIds: ['writer']
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'skills.duplicateForAgent', {
-      agentId: 'writer',
-      name: 'write-tests'
     })
   })
 

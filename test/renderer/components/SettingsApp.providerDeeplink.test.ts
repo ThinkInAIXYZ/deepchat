@@ -201,6 +201,7 @@ const mountSettingsApp = async (options?: {
     createWindowClient: () => ({
       closeSettings: vi.fn().mockResolvedValue(true),
       focusMainWindow: vi.fn().mockResolvedValue(true),
+      resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true }),
       notifySettingsReady: vi.fn().mockImplementation(async () => {
         window.electron?.ipcRenderer?.send('settings:ready')
         return true

@@ -262,7 +262,7 @@ const openRoute = (routeName: SettingsRouteName) => {
 }
 
 const openActivity = (activity: SettingsActivityRecord) => {
-  if (!activity.routeName) {
+  if (!activity.routeName || !router.hasRoute(activity.routeName)) {
     return
   }
 

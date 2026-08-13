@@ -23,9 +23,15 @@ import type {
   AgentSkillImportSourceInfo
 } from '@shared/types/agentSkillImport'
 
-const props = defineProps<{
-  open: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    agents?: Array<{ id: string; name: string }>
+  }>(),
+  {
+    agents: () => []
+  }
+)
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -58,6 +64,9 @@ const canPreview = computed(() => Boolean(selectedSource.value?.available))
 const canExecute = computed(
   () =>
     canPreview.value && selectedSkillNames.value.size > 0 && !previewing.value && !executing.value
+)
+const agentNameById = computed(
+  () => new Map(props.agents.map((agent) => [agent.id, agent.name || agent.id] as const))
 )
 
 const resetPreview = () => {
@@ -180,7 +189,8 @@ const retryFailedItems = () => {
   void loadPreview(failedNames)
 }
 
-const formatAgentNames = (agentIds: string[] | undefined) => (agentIds ?? []).join(', ')
+const formatAgentNames = (agentIds: string[] | undefined) =>
+  (agentIds ?? []).map((agentId) => agentNameById.value.get(agentId) ?? agentId).join(', ')
 
 const handleOpenChange = (open: boolean) => {
   if (!open && executing.value) return

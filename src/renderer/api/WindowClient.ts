@@ -17,6 +17,7 @@ import {
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
+  windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute
 } from '@shared/contracts/routes'
@@ -81,6 +82,10 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function startGuidedOnboarding() {
     return await bridge.invoke(windowStartGuidedOnboardingRoute.name, {})
+  }
+
+  async function resumeGuidedOnboarding() {
+    return await bridge.invoke(windowResumeGuidedOnboardingRoute.name, {})
   }
 
   function onStateChanged(
@@ -171,6 +176,7 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     consumePendingSettingsProviderInstall,
     requeuePendingSettingsProviderInstall,
     startGuidedOnboarding,
+    resumeGuidedOnboarding,
     onStateChanged,
     onCurrentStateChanged,
     onSettingsNavigate,

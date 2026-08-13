@@ -1078,6 +1078,14 @@ export class WindowPresenter implements IWindowPresenter {
     return false
   }
 
+  async sendToMainWindow(channel: string, ...args: unknown[]): Promise<boolean> {
+    if (this.mainWindowId == null) {
+      return false
+    }
+
+    return await this.sendToActiveTab(this.mainWindowId, channel, ...args)
+  }
+
   /**
    * 向“默认”标签页发送消息。
    * 优先级：焦点窗口的活动标签页 > 第一个窗口的活动标签页 > 第一个窗口的第一个标签页。

@@ -436,6 +436,10 @@ const handleOpenChange = (value: boolean) => {
   emit('update:open', value)
 }
 
+const requestClose = () => handleOpenChange(false)
+
+defineExpose({ requestClose })
+
 const finishRouteLeave = (allowed: boolean) => {
   const resolve = pendingRouteLeave
   pendingRouteLeave = null

@@ -90,7 +90,8 @@ const mountDialog = async () => {
   ).default
   return mount(Dialog, {
     props: {
-      open: true
+      open: true,
+      agents: [{ id: 'target-a', name: 'Target Agent' }]
     },
     global: {
       stubs: {
@@ -162,6 +163,9 @@ describe('ImportSkillsFromAgentDialog', () => {
         .get('[data-testid="agent-import-skill-ready-skill"] [role="checkbox"]')
         .attributes('aria-label')
     ).toBe('ready-skill')
+    expect(wrapper.text()).toContain(
+      'settings.skills.agentImport.overwriteImpact:{"agents":"Target Agent"}'
+    )
 
     await wrapper
       .get('[data-testid="agent-import-strategy-conflict-skill-overwrite"] button')
