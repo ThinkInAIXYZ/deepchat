@@ -147,7 +147,9 @@ const mountSkillsPluginsPage = async () => {
         SkillCard: SkillCardStub,
         SkillImportExportTab: defineComponent({
           name: 'SkillImportExportTab',
-          template: '<div data-testid="sync-directory-view" />'
+          emits: ['busy-change'],
+          template:
+            '<button data-testid="sync-directory-view" @click="$emit(\'busy-change\', true)" />'
         }),
         ImportSkillsFromAgentDialog: true,
         SkillDetailDialog: SkillDetailDialogStub,
@@ -186,12 +188,18 @@ describe('SkillsPluginsPage', () => {
 
     expect(wrapper.get('[data-testid="plugin-skill-review"]')).toBeTruthy()
     expect(wrapper.get('[data-testid="plugin-skill-release"]')).toBeTruthy()
-    expect(
-      wrapper
-        .get('[data-testid="skills-draft-suggestions"]')
-        .element.compareDocumentPosition(wrapper.get('[data-testid="skills-grid"]').element) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+    const draftSuggestions = wrapper.get('[data-testid="skills-draft-suggestions"]').element
+    for (const selector of [
+      '[data-testid="skills-search"]',
+      '[data-testid="skills-sync-directory-action"]',
+      '[data-testid="skills-import-action"]',
+      '[data-testid="skills-grid"]'
+    ]) {
+      expect(
+        draftSuggestions.compareDocumentPosition(wrapper.get(selector).element) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
     expect(wrapper.find('[data-testid="skills-agent-assignments-tab"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('settings.skills.assignments')
 
@@ -235,7 +243,15 @@ describe('SkillsPluginsPage', () => {
     expect(wrapper.get('[data-testid="sync-directory-view"]')).toBeTruthy()
     expect(wrapper.find('[data-testid="skills-grid"]').exists()).toBe(false)
 
-    await wrapper.get('[data-testid="skills-back-action"]').trigger('click')
+    await wrapper.get('[data-testid="sync-directory-view"]').trigger('click')
+    const backAction = wrapper.get('[data-testid="skills-back-action"]')
+    expect(backAction.attributes('disabled')).toBeDefined()
+    await backAction.trigger('click')
+    expect(wrapper.get('[data-testid="sync-directory-view"]')).toBeTruthy()
+
+    wrapper.findComponent({ name: 'SkillImportExportTab' }).vm.$emit('busy-change', false)
+    await flushPromises()
+    await backAction.trigger('click')
     expect(wrapper.get('[data-testid="skills-grid"]')).toBeTruthy()
   })
 

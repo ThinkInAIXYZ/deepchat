@@ -57,7 +57,10 @@ export type ToolExecutionOptions = Omit<ToolCallOptions, 'commitDispatch' | 'com
 export interface ToolExecutionPort {
   preCheck(
     call: MCPToolCall,
-    options: Pick<ToolExecutionOptions, 'permissionMode' | 'signal' | 'commandShell'>
+    options: Pick<
+      ToolExecutionOptions,
+      'permissionMode' | 'signal' | 'activeSkillNames' | 'commandShell'
+    >
   ): Promise<ToolPermissionPreCheckResult | null>
   execute(
     call: MCPToolCall,

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import type {
   AgentSkillImportPreview,
@@ -80,11 +80,10 @@ export class AgentSkillImportService {
     source: AgentSkillImportSource
     items: AgentSkillImportSelection[]
   }): Promise<AgentSkillImportResult> {
-    const selections = this.normalizeSelections(input.items)
-    const requestedNames = selections
-      .map((item) => item.skillName)
-      .sort((left, right) => left.localeCompare(right))
-    const selectionsByName = new Map(selections.map((item) => [item.skillName, item]))
+    const selections = this.normalizeSelections(input.items).sort((left, right) =>
+      left.skillName.localeCompare(right.skillName)
+    )
+    const requestedNames = selections.map((item) => item.skillName)
     const resolvedItems = await this.resolveExternalItems(input.source.toolId, requestedNames)
     const resolvedByName = new Map(resolvedItems.map((item) => [item.preview.name, item]))
     const result: AgentSkillImportResult = {
@@ -95,9 +94,9 @@ export class AgentSkillImportService {
       failed: []
     }
 
-    for (const skillName of requestedNames) {
+    for (const selection of selections) {
+      const skillName = selection.skillName
       const resolved = resolvedByName.get(skillName)
-      const selection = selectionsByName.get(skillName)
       if (!resolved || resolved.preview.status === 'unavailable') {
         result.failed.push({
           skillName,
@@ -106,7 +105,6 @@ export class AgentSkillImportService {
         })
         continue
       }
-      if (!selection) continue
       if (resolved.preview.status === 'conflict' && selection.strategy === 'skip') {
         result.skipped.push(skillName)
         continue
@@ -230,10 +228,11 @@ export class AgentSkillImportService {
       canonicalSkill
     })
     try {
-      return (
-        this.createDirectorySnapshot(existing.skillRoot) ===
-        this.createDirectorySnapshot(temporaryDirectory)
-      )
+      const [existingHash, importedHash] = await Promise.all([
+        this.createDirectoryHash(existing.skillRoot),
+        this.createDirectoryHash(temporaryDirectory)
+      ])
+      return existingHash === importedHash
     } catch {
       return false
     } finally {
@@ -243,20 +242,34 @@ export class AgentSkillImportService {
     }
   }
 
-  private createDirectorySnapshot(root: string, current: string = root): string {
-    const files: string[] = []
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.isSymbolicLink() || entry.name === '.deepchat-meta') continue
-      const fullPath = path.join(current, entry.name)
-      if (entry.isDirectory()) {
-        const nested = this.createDirectorySnapshot(root, fullPath)
-        if (nested) files.push(nested)
-      } else {
-        const relativePath = path.relative(root, fullPath)
-        files.push(`${relativePath}\0${fs.readFileSync(fullPath).toString('base64')}`)
+  private async createDirectoryHash(root: string): Promise<string> {
+    const directoryHash = createHash('sha256')
+
+    const visit = async (current: string): Promise<void> => {
+      const entries = await fs.promises.readdir(current, { withFileTypes: true })
+      entries.sort((left, right) => left.name.localeCompare(right.name))
+
+      for (const entry of entries) {
+        if (entry.isSymbolicLink() || entry.name === '.deepchat-meta') continue
+        const fullPath = path.join(current, entry.name)
+        if (entry.isDirectory()) {
+          await visit(fullPath)
+          continue
+        }
+        if (!entry.isFile()) continue
+
+        const fileHash = createHash('sha256')
+        for await (const chunk of fs.createReadStream(fullPath)) {
+          fileHash.update(chunk)
+        }
+        directoryHash.update(path.relative(root, fullPath))
+        directoryHash.update('\0')
+        directoryHash.update(fileHash.digest())
       }
     }
-    return files.sort().join('\0')
+
+    await visit(root)
+    return directoryHash.digest('hex')
   }
 
   private nextAvailableName(baseName: string, occupiedNames: ReadonlySet<string>): string {

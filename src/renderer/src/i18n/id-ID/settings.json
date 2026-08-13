@@ -2354,9 +2354,9 @@
       "overwrite": "Penutup"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "Impor dari Agent eksternal",
       "title": "Impor Skills dari Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Impor Skills yang telah divalidasi ke DeepChat. Aktifkan Agents dari pratinjau setiap Skill.",
       "resultPartial": "Impor selesai dengan kesalahan",
       "resultSuccess": "Impor selesai",
       "sourceTitle": "Agent sumber",
@@ -2368,16 +2368,16 @@
         "ready": "Siap",
         "conflict": "Konflik",
         "unavailable": "Tidak tersedia",
-        "same": "Already added"
+        "same": "Sudah ditambahkan"
       },
       "strategy": {
         "skip": "Lewati",
         "rename": "Ganti nama",
         "overwrite": "Timpa"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Menimpa Skill ini memengaruhi Agents yang diaktifkan: {agents}.",
+      "resultSummaryV3": "Diimpor {imported}, digunakan kembali {reused}, dilewati {skipped}, gagal {failed}.",
+      "execute": "Impor yang dipilih"
     },
     "sync": {
       "title": "sinkronisasi",

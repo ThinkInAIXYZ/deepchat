@@ -102,7 +102,8 @@ keeps existing content and Agent bindings. Overwrite requires the current enable
 Partial failures are returned per Skill.
 
 Sync directory is a secondary view reached from the Skills page. It imports and exports packages,
-never Agent bindings, and provides an explicit return to the default Skills list.
+never Agent bindings, and provides an explicit return to the default Skills list. Pending writes
+block both that return action and route navigation until their result is visible.
 
 ## Migration
 
@@ -142,4 +143,5 @@ Open Skill
 
 The Plugins-hub Skills route renders the same global surface. Loading, empty, error, retry,
 stale-impact, partial-result, keyboard, focus, and dirty-close states use existing UI primitives
-and vue-i18n copy. The Settings window has no Skills navigation item or route.
+and vue-i18n copy. Unsaved preview edits require an explicit discard decision before route
+navigation. The Settings window has no Skills navigation item or route.

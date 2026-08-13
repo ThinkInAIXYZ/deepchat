@@ -2020,9 +2020,9 @@
     "openFolder": "フォルダを開く",
     "search": "検索 skill...",
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "外部 Agent からインポート",
       "title": "Agent から Skills をインポート",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "検証済みの Skills を DeepChat にインポートします。各 Skill のプレビューから Agent を有効にできます。",
       "resultPartial": "エラーを含めてインポートが完了しました",
       "resultSuccess": "インポートが完了しました",
       "sourceTitle": "インポート元 Agent",
@@ -2034,16 +2034,16 @@
         "ready": "準備完了",
         "conflict": "競合",
         "unavailable": "利用不可",
-        "same": "Already added"
+        "same": "追加済み"
       },
       "strategy": {
         "skip": "スキップ",
         "rename": "名前を変更",
         "overwrite": "上書き"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "この Skill を上書きすると、有効な Agent に影響します：{agents}。",
+      "resultSummaryV3": "インポート {imported}、再利用 {reused}、スキップ {skipped}、失敗 {failed}。",
+      "execute": "選択項目をインポート"
     },
     "sync": {
       "batchAction": "バッチ処理",

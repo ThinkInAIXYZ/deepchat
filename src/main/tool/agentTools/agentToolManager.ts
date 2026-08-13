@@ -166,6 +166,7 @@ type AgentFileSystemExecutionOptions = AgentToolExecutionOptions & {
 
 interface AgentToolPermissionCheckOptions {
   allowExternalFileAccess?: boolean
+  activeSkillNames?: string[]
   commandShell?: ResolvedCommandShell
 }
 
@@ -2462,9 +2463,13 @@ export class AgentToolManager {
       const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
         includeSkillRoots: toolName !== 'exec',
         includeRuntimeRoots: toolName !== 'exec',
-        requiredPermission: this.getRequiredFilePermission(toolName)
+        requiredPermission: this.getRequiredFilePermission(toolName),
+        activeSkillNames: options.activeSkillNames
       })
-      const protectedDirectoryRules = await this.buildProtectedSkillDirectoryRules(conversationId)
+      const protectedDirectoryRules = await this.buildProtectedSkillDirectoryRules(
+        conversationId,
+        options.activeSkillNames
+      )
       const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
         conversationId,
         allowExternalAccess: allowExternalFileAccess,

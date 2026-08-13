@@ -2095,10 +2095,15 @@ describe('ToolService', () => {
           function: { name: UPDATE_PLAN_TOOL_NAME, arguments: '{}' },
           conversationId: 'permission-cancel-session'
         },
-        { signal: abortController.signal }
+        { signal: abortController.signal, activeSkillNames: ['message-skill'] }
       )
     ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(agentToolManager.preCheckToolPermission).toHaveBeenCalledTimes(1)
+    expect(agentToolManager.preCheckToolPermission).toHaveBeenCalledWith(
+      UPDATE_PLAN_TOOL_NAME,
+      {},
+      'permission-cancel-session',
+      expect.objectContaining({ activeSkillNames: ['message-skill'] })
+    )
 
     process.on('unhandledRejection', unhandled)
     try {

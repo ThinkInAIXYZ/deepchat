@@ -294,6 +294,8 @@ describe('main kernel contracts', () => {
         'sessions.updateDisabledAgentTools',
         'sessions.updateGenerationSettings',
         'sessions.updateQueuedInput',
+        'skills.delete',
+        'skills.duplicateForAgent',
         'skills.getActive',
         'skills.getSyncConfig',
         'skills.executeSyncDirectoryExport',
@@ -301,6 +303,7 @@ describe('main kernel contracts', () => {
         'skills.installFromGit',
         'skills.installFromFolder',
         'skills.installFromUrl',
+        'skills.listAll',
         'skills.listCatalog',
         'skills.listMetadata',
         'skills.openFolder',
@@ -309,6 +312,7 @@ describe('main kernel contracts', () => {
         'skills.readFile',
         'skills.scanGitRepo',
         'skills.setActive',
+        'skills.setAssignments',
         'skills.setDisabled',
         'skills.setSyncDirectory',
         'shortcut.destroy',
@@ -1853,23 +1857,24 @@ describe('main kernel contracts', () => {
       format: 'markdown',
       lastModified: new Date('2024-01-01T00:00:00.000Z')
     }
-    expect(Object.keys(DEEPCHAT_ROUTE_CATALOG)).not.toEqual(
-      expect.arrayContaining([
-        'skillSync.previewAdoptAgentSkill',
-        'skillSync.executeAdoptAgentSkill',
-        'skillSync.previewLinkDeepChatSkills',
-        'skillSync.executeLinkDeepChatSkills',
-        'skillSync.previewImport',
-        'skillSync.executeImport',
-        'skillSync.previewExport',
-        'skillSync.executeExport',
-        'skillSync.scanAgents',
-        'skillSync.getAgentDetail',
-        'skillSync.getAgentSkillDetail',
-        'skillSync.repairAgentSkillLink',
-        'skillSync.removeAgentSkillLink'
-      ])
-    )
+    const removedSkillSyncRoutes = [
+      'skillSync.previewAdoptAgentSkill',
+      'skillSync.executeAdoptAgentSkill',
+      'skillSync.previewLinkDeepChatSkills',
+      'skillSync.executeLinkDeepChatSkills',
+      'skillSync.previewImport',
+      'skillSync.executeImport',
+      'skillSync.previewExport',
+      'skillSync.executeExport',
+      'skillSync.scanAgents',
+      'skillSync.getAgentDetail',
+      'skillSync.getAgentSkillDetail',
+      'skillSync.repairAgentSkillLink',
+      'skillSync.removeAgentSkillLink'
+    ]
+    for (const routeName of removedSkillSyncRoutes) {
+      expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty(routeName)
+    }
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skillSync.scanExternalTools'].output.parse({

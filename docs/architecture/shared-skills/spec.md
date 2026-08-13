@@ -229,7 +229,9 @@ capabilities, but they are not offered as parallel Add choices on the primary Sk
 
 Sync-directory backup remains application-level. A secondary `Sync directory` action replaces the
 default list with the existing backup surface and provides `Back to Skills`; it is not a peer tab.
-Only packages are imported or exported, never Agent bindings.
+Only packages are imported or exported, never Agent bindings. While a directory, import, or export
+write is pending, both the local Back action and route navigation remain blocked so the retained
+surface can report the final result.
 
 ## Renderer Interaction
 

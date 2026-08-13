@@ -2354,9 +2354,9 @@
       "overwrite": "Üzerine yaz"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "Harici Agent’tan içe aktar",
       "title": "Agent’tan Skills içe aktar",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Doğrulanmış Skills öğelerini DeepChat’e aktarın. Her Skill önizlemesinden Agents öğelerini etkinleştirin.",
       "resultPartial": "İçe aktarma hatalarla tamamlandı",
       "resultSuccess": "İçe aktarma tamamlandı",
       "sourceTitle": "Kaynak Agent",
@@ -2368,16 +2368,16 @@
         "ready": "Hazır",
         "conflict": "Çakışma",
         "unavailable": "Kullanılamıyor",
-        "same": "Already added"
+        "same": "Zaten eklendi"
       },
       "strategy": {
         "skip": "Atla",
         "rename": "Yeniden adlandır",
         "overwrite": "Üzerine yaz"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Bu Skill’in üzerine yazmak etkin Agents öğelerini etkiler: {agents}.",
+      "resultSummaryV3": "İçe aktarılan: {imported}, yeniden kullanılan: {reused}, atlanan: {skipped}, başarısız: {failed}.",
+      "execute": "Seçilenleri içe aktar"
     },
     "sync": {
       "title": "Senkronizasyon",

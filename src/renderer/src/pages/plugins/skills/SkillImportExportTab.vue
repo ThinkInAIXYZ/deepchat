@@ -368,6 +368,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { onBeforeRouteLeave } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcButton } from '@dc-ui/components/button'
@@ -403,6 +404,9 @@ import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 
 const props = defineProps<{
   skills: UnifiedSkillItem[]
+}>()
+const emit = defineEmits<{
+  'busy-change': [busy: boolean]
 }>()
 
 const { t } = useI18n()
@@ -456,6 +460,8 @@ let importPreviewInFlight: {
   key: string
   promise: Promise<SkillSyncDirectoryImportPreview>
 } | null = null
+
+onBeforeRouteLeave(() => !operationPending.value)
 
 const skills = computed(() => props.skills.filter((skill) => skill.mutable))
 const syncDirectoryReady = computed(() =>
@@ -991,6 +997,8 @@ watch(
   },
   { flush: 'sync' }
 )
+
+watch(operationPending, (pending) => emit('busy-change', pending), { immediate: true })
 
 watch(activeTab, (tab) => {
   previewError.value = false

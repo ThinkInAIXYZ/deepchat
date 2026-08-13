@@ -129,6 +129,7 @@ export interface ToolServicePort {
     options?: {
       permissionMode?: PermissionMode
       signal?: AbortSignal
+      activeSkillNames?: string[]
       commandShell?: ResolvedCommandShell
     }
   ): Promise<ToolPermissionPreCheckResult | null>

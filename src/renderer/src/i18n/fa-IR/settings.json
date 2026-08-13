@@ -2020,9 +2020,9 @@
     "openFolder": "باز کردن پوشه",
     "search": "جستجو skill...",
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "وارد کردن از Agent خارجی",
       "title": "وارد کردن Skillها از Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Skillهای اعتبارسنجی‌شده را به DeepChat وارد کنید. Agentها را از پیش‌نمایش هر Skill فعال کنید.",
       "resultPartial": "وارد کردن با خطا کامل شد",
       "resultSuccess": "وارد کردن کامل شد",
       "sourceTitle": "Agent مبدأ",
@@ -2034,16 +2034,16 @@
         "ready": "آماده",
         "conflict": "تعارض",
         "unavailable": "در دسترس نیست",
-        "same": "Already added"
+        "same": "از قبل افزوده شده"
       },
       "strategy": {
         "skip": "رد کردن",
         "rename": "تغییر نام",
         "overwrite": "جایگزینی"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "بازنویسی این Skill بر Agentهای فعال اثر می‌گذارد: {agents}.",
+      "resultSummaryV3": "واردشده {imported}، استفادهٔ مجدد {reused}، ردشده {skipped}، ناموفق {failed}.",
+      "execute": "وارد کردن موارد انتخاب‌شده"
     },
     "sync": {
       "batchAction": "پردازش دسته‌ای",

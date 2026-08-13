@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Przeglądaj wszystkie Skills. Otwórz Skill, aby go podejrzeć i zarządzać aktywowanymi Agents.",
     "draftSuggestions": {
       "title": "Sugeruj projekty umiejętności",
       "description": "Po ukończeniu zadania pozwól agentowi zasugerować tymczasowe projekty umiejętności wielokrotnego użytku. Wersje robocze pozostają w folderze tymczasowym, dopóki nie zdecydujesz się na ich ręczne zaimportowanie."
@@ -2257,7 +2257,7 @@
     "openFolder": "Otwórz folder",
     "addSkill": "Dodaj umiejętność",
     "empty": "Nie ma jeszcze żadnych umiejętności",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Zaimportuj Skills z zewnętrznego Agenta.",
     "noResults": "Nie znaleziono pasujących umiejętności",
     "search": "Szukaj umiejętności...",
     "count": "Umiejętności {count}",
@@ -2354,30 +2354,30 @@
       "overwrite": "Zastąp"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
-      "title": "Import Skills from Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
-      "resultPartial": "Import completed with errors",
-      "resultSuccess": "Import complete",
-      "sourceTitle": "Source Agent",
-      "emptySources": "No import sources",
+      "menuItem": "Importuj z zewnętrznego Agenta",
+      "title": "Importuj Skills z Agenta",
+      "description": "Importuj zweryfikowane Skills do DeepChat. Aktywuj Agents w podglądzie każdego Skill.",
+      "resultPartial": "Import zakończony z błędami",
+      "resultSuccess": "Import zakończony",
+      "sourceTitle": "Agent źródłowy",
+      "emptySources": "Brak źródeł importu",
       "skillCount": "{count} Skills",
-      "previewTitle": "Skills to import",
-      "emptyPreview": "No Skills available",
+      "previewTitle": "Skills do zaimportowania",
+      "emptyPreview": "Brak dostępnych Skills",
       "status": {
-        "ready": "Ready",
-        "conflict": "Conflict",
-        "unavailable": "Unavailable",
-        "same": "Already added"
+        "ready": "Gotowy",
+        "conflict": "Konflikt",
+        "unavailable": "Niedostępny",
+        "same": "Już dodany"
       },
       "strategy": {
-        "skip": "Skip",
-        "rename": "Rename",
-        "overwrite": "Overwrite"
+        "skip": "Pomiń",
+        "rename": "Zmień nazwę",
+        "overwrite": "Nadpisz"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Nadpisanie tego Skill wpłynie na aktywowane Agents: {agents}.",
+      "resultSummaryV3": "Zaimportowano: {imported}, użyto ponownie: {reused}, pominięto: {skipped}, niepowodzenia: {failed}.",
+      "execute": "Importuj wybrane"
     },
     "sync": {
       "title": "Synchronizuj",
@@ -2554,12 +2554,12 @@
       "delete": "Usuń",
       "confirmDeleteTitle": "Usuń skill",
       "confirmDeleteDescription": "Usunąć skill „{name}”? Tej akcji nie można cofnąć.",
-      "enabledAgents": "Enabled Agents",
-      "enabledAgentsHint": "These Agents can use this Skill.",
-      "noEnabledAgents": "No Agent uses this Skill yet.",
-      "addAgent": "Add Agent",
-      "removeAgent": "Remove {agent}",
-      "agentUpdateFailed": "Failed to update enabled Agents"
+      "enabledAgents": "Aktywowane Agents",
+      "enabledAgentsHint": "Te Agents mogą używać tego Skill.",
+      "noEnabledAgents": "Żaden Agent nie używa jeszcze tego Skill.",
+      "addAgent": "Dodaj Agenta",
+      "removeAgent": "Usuń {agent}",
+      "agentUpdateFailed": "Nie udało się zaktualizować aktywowanych Agents"
     },
     "installToAgent": {
       "title": "Zainstaluj {name} w Agent",
@@ -2579,21 +2579,21 @@
       "disconnectFailed": "Nie udało się odłączyć od Agent"
     },
     "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
+      "plugin": "Wtyczka",
+      "builtin": "Wbudowany",
+      "external": "Zewnętrzny",
+      "local": "Lokalny"
     },
     "impact": {
-      "changed": "Enabled Agents changed. Review the impact and try again.",
-      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
-      "editUnused": "No Agent currently uses this Skill.",
-      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
-      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+      "changed": "Lista aktywowanych Agents uległa zmianie. Sprawdź wpływ i spróbuj ponownie.",
+      "editEnabled": "Zmiany treści zostaną zastosowane do tych Agents przy następnym uruchomieniu: {agents}.",
+      "editUnused": "Żaden Agent obecnie nie używa tego Skill.",
+      "confirmDeleteEnabled": "Usunąć {name}? Skill jest aktywowany dla: {agents}.",
+      "confirmDeleteUnused": "Usunąć {name}? Żaden Agent obecnie go nie używa."
     },
     "syncDirectory": {
-      "action": "Sync directory",
-      "back": "Back to Skills"
+      "action": "Synchronizuj katalog",
+      "back": "Wróć do Skills"
     }
   },
   "environments": {

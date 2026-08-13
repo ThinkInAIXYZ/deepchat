@@ -95,7 +95,7 @@ The normative design is [spec.md](./spec.md). This is the only execution tracker
 - [x] Render the same global Skills surface in the Plugins hub without an Agent scope prop.
 - [x] Remove the Settings navigation item and route so the Plugins hub is the sole Skills surface.
 - [x] Keep shared edit/delete impact, stale confirmation, loading, empty, retry, keyboard,
-  accessibility, and dirty-close behavior on existing primitives.
+  accessibility, dirty-close, and pending-operation route-leave behavior on existing primitives.
 - [x] Update all locale contracts and remove visible Library and assignment terminology.
 
 ## 8. Whole-change review

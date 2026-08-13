@@ -2020,9 +2020,9 @@
     "openFolder": "Ouvrir le dossier",
     "search": "Rechercher skill...",
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "Importer depuis un Agent externe",
       "title": "Importer des Skills depuis un Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Importez des Skills validés dans DeepChat. Activez les Agents depuis l’aperçu de chaque Skill.",
       "resultPartial": "Import terminé avec des erreurs",
       "resultSuccess": "Import terminé",
       "sourceTitle": "Agent source",
@@ -2034,16 +2034,16 @@
         "ready": "Prêt",
         "conflict": "Conflit",
         "unavailable": "Indisponible",
-        "same": "Already added"
+        "same": "Déjà ajouté"
       },
       "strategy": {
         "skip": "Ignorer",
         "rename": "Renommer",
         "overwrite": "Remplacer"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Le remplacement de ce Skill affecte les Agents activés : {agents}.",
+      "resultSummaryV3": "Importés : {imported}, réutilisés : {reused}, ignorés : {skipped}, échoués : {failed}.",
+      "execute": "Importer la sélection"
     },
     "sync": {
       "batchAction": "Traitement par lots",

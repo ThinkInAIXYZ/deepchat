@@ -412,7 +412,6 @@ export function createSkillRoutes(deps: {
           action: 'updated',
           targetType: 'active-skills',
           targetLabel: 'active skills',
-          routeName: 'settings-skills',
           summaryKey: 'settings.controlCenter.activity.settingUpdated',
           summaryParams: { key: `removed active skill (${input.skill})` }
         })

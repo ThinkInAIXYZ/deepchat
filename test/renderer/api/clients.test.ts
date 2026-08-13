@@ -412,6 +412,7 @@ describe('renderer api clients', () => {
             case 'skillSync.acknowledgeDiscoveries':
               return { acknowledged: true }
             case 'skills.listCatalog':
+            case 'skills.listAll':
               return {
                 skills: [
                   {
@@ -426,6 +427,25 @@ describe('renderer api clients', () => {
                     mutable: true
                   }
                 ]
+              }
+            case 'skills.setAssignments':
+              return { skillNames: payload?.skillNames ?? [] }
+            case 'skills.delete':
+              return {
+                result: {
+                  success: true,
+                  skillName: payload?.name,
+                  affectedAgentIds: payload?.acknowledgedAgentIds
+                }
+              }
+            case 'skills.duplicateForAgent':
+              return {
+                result: {
+                  success: true,
+                  sourceSkillName: payload?.name,
+                  agentId: payload?.agentId,
+                  duplicatedSkillName: `${payload?.name}-${payload?.agentId}`
+                }
               }
             case 'skills.setDisabled':
               return { saved: true }
@@ -2533,6 +2553,30 @@ describe('renderer api clients', () => {
       name: 'write-tests',
       disabled: true,
       agentId: 'writer'
+    })
+  })
+
+  it('routes shared Skill catalog management through typed route names', async () => {
+    const bridge = createBridge()
+    const skillClient = createSkillClient(bridge)
+
+    await skillClient.getAllSkills()
+    await skillClient.setSkillAssignments('writer', ['write-tests'])
+    await skillClient.deleteSkill('write-tests', ['writer'])
+    await skillClient.duplicateSkillForAgent('writer', 'write-tests')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAll', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setAssignments', {
+      agentId: 'writer',
+      skillNames: ['write-tests']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.delete', {
+      name: 'write-tests',
+      acknowledgedAgentIds: ['writer']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'skills.duplicateForAgent', {
+      agentId: 'writer',
+      name: 'write-tests'
     })
   })
 

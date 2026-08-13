@@ -314,6 +314,7 @@ watch(selectedSourceId, () => {
                 class="flex flex-col gap-2 border-b px-3 py-3 last:border-b-0 sm:flex-row sm:items-center"
               >
                 <Checkbox
+                  :aria-label="item.name"
                   :model-value="selectedSkillNames.has(item.name)"
                   :disabled="item.status === 'unavailable' || executing"
                   @update:model-value="toggleSkill(item.name, $event)"

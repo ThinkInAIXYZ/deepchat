@@ -2449,6 +2449,7 @@ export async function settleToolBatch(
             const preChecked = await toolExecution.preCheck(execution.toolCall, {
               permissionMode: toolPermissionMode,
               signal: io.abortSignal,
+              activeSkillNames: controls?.getActiveSkillNames?.(),
               commandShell
             })
             io.abortSignal.throwIfAborted()
@@ -2657,6 +2658,7 @@ export async function settleToolBatch(
         const preChecked = await toolExecution.preCheck(toolCall, {
           permissionMode: toolPermissionMode,
           signal: io.abortSignal,
+          activeSkillNames: controls?.getActiveSkillNames?.(),
           commandShell
         })
         io.abortSignal.throwIfAborted()

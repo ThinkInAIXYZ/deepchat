@@ -37,6 +37,7 @@ describe('SkillService shared Skills', () => {
   let stateWriteFailuresRemaining: number
   let service: SkillService
   let getPathSpy: ReturnType<typeof vi.spyOn>
+  let getAppPathSpy: ReturnType<typeof vi.spyOn>
 
   const watcherService = {
     watch: vi.fn(async () => ({ close: vi.fn(async () => undefined) })),
@@ -100,8 +101,7 @@ describe('SkillService shared Skills', () => {
   }
 
   const migrate = async () => {
-    await service.discoverSkills('deepchat')
-    await (service as unknown as { migrateSharedSkills(): Promise<void> }).migrateSharedSkills()
+    await service.initialize()
   }
 
   beforeEach(() => {
@@ -118,12 +118,14 @@ describe('SkillService shared Skills', () => {
       if (name === 'temp') return path.join(temporaryRoot, 'temp')
       return temporaryRoot
     })
+    getAppPathSpy = vi.spyOn(app, 'getAppPath').mockReturnValue(temporaryRoot)
     service = createService()
   })
 
   afterEach(async () => {
     await service.destroy()
     getPathSpy.mockRestore()
+    getAppPathSpy.mockRestore()
     fs.rmSync(temporaryRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
@@ -189,7 +191,7 @@ describe('SkillService shared Skills', () => {
   })
 
   it('installs packaged Skills without replacing legacy state before migration', async () => {
-    const packagedRoot = path.join(temporaryRoot, 'packaged-skills')
+    const packagedRoot = path.join(temporaryRoot, 'resources', 'skills')
     writeSkill(packagedRoot, 'new-builtin', '# packaged')
     storedState = {
       version: 2,
@@ -198,8 +200,6 @@ describe('SkillService shared Skills', () => {
         writer: { skills: {} }
       }
     } satisfies LegacySkillManagementStateV2
-    vi.spyOn(service as any, 'resolveBuiltinSkillsDir').mockReturnValue(packagedRoot)
-
     await service.installBuiltinSkills()
 
     expect(storedState?.version).toBe(2)

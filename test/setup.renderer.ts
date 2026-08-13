@@ -399,6 +399,7 @@ vi.mock('electron', () => ({
 
 // Mock Vue Router
 vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
   createRouter: vi.fn(() => ({
     push: vi.fn(),
     replace: vi.fn(),

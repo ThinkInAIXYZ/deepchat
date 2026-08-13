@@ -213,15 +213,16 @@
     :danger="false"
     :confirm-label="t('settings.leaveGuard.discard')"
     :cancel-label="t('settings.leaveGuard.stay')"
-    @update:open="discardConfirmOpen = $event"
+    @update:open="handleDiscardConfirmOpenChange"
     @confirm="discardAndClose"
-    @cancel="discardConfirmOpen = false"
+    @cancel="cancelDiscard"
   />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { onBeforeRouteLeave } from 'vue-router'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -291,6 +292,7 @@ const editContent = ref('')
 const baselineDraftSignature = ref('')
 const deleteConfirmOpen = ref(false)
 const discardConfirmOpen = ref(false)
+let pendingRouteLeave: ((allowed: boolean) => void) | null = null
 
 const initial = computed(() => props.name.trim().charAt(0).toUpperCase() || '?')
 const parsedSkill = computed(() =>
@@ -434,11 +436,35 @@ const handleOpenChange = (value: boolean) => {
   emit('update:open', value)
 }
 
+const finishRouteLeave = (allowed: boolean) => {
+  const resolve = pendingRouteLeave
+  pendingRouteLeave = null
+  resolve?.(allowed)
+}
+
 const discardAndClose = () => {
   if (props.saving) return
+  const routeLeavePending = pendingRouteLeave !== null
   discardConfirmOpen.value = false
   resetDraft()
+  if (routeLeavePending) {
+    finishRouteLeave(true)
+    return
+  }
   emit('update:open', false)
+}
+
+const cancelDiscard = () => {
+  discardConfirmOpen.value = false
+  finishRouteLeave(false)
+}
+
+const handleDiscardConfirmOpenChange = (open: boolean) => {
+  if (open) {
+    discardConfirmOpen.value = true
+    return
+  }
+  cancelDiscard()
 }
 
 const handleSave = () => {
@@ -458,6 +484,19 @@ const handleDeleteCancel = () => {
 const handleDelete = () => {
   if (!props.saving) emit('delete')
 }
+
+onBeforeRouteLeave(() => {
+  if (props.saving) return false
+  if (!draftDirty.value) return true
+
+  finishRouteLeave(false)
+  discardConfirmOpen.value = true
+  return new Promise<boolean>((resolve) => {
+    pendingRouteLeave = resolve
+  })
+})
+
+onBeforeUnmount(() => finishRouteLeave(false))
 
 watch(
   () => [props.open, props.name, props.markdown],

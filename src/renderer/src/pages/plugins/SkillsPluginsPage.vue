@@ -40,6 +40,7 @@ const skills = ref<UnifiedSkillItem[]>([])
 const loading = ref(false)
 const loadFailed = ref(false)
 const operationPending = ref(false)
+const syncOperationPending = ref(false)
 const agentUpdatePendingId = ref<string | null>(null)
 const activeView = ref<SkillsView>('skills')
 const searchQuery = ref('')
@@ -343,6 +344,7 @@ onUnmounted(() => {
               />
               <Input
                 v-model="searchQuery"
+                data-testid="skills-search"
                 :placeholder="t('settings.skills.search')"
                 class="h-8 w-full pl-8"
               />
@@ -376,6 +378,7 @@ onUnmounted(() => {
           data-testid="skills-back-action"
           variant="outline"
           size="sm"
+          :disabled="syncOperationPending"
           @click="activeView = 'skills'"
         >
           <Icon icon="lucide:arrow-left" class="mr-1 size-4" />
@@ -384,7 +387,11 @@ onUnmounted(() => {
 
         <Separator class="my-4" />
 
-        <SkillImportExportTab v-if="activeView === 'syncDirectory'" :skills="skills" />
+        <SkillImportExportTab
+          v-if="activeView === 'syncDirectory'"
+          :skills="skills"
+          @busy-change="syncOperationPending = $event"
+        />
 
         <template v-else>
           <div v-if="loading" class="grid grid-cols-1 gap-4 pb-4 md:grid-cols-2">

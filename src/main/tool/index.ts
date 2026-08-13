@@ -517,6 +517,7 @@ export class ToolService implements ToolServicePort {
     options?: {
       permissionMode?: PermissionMode
       signal?: AbortSignal
+      activeSkillNames?: ToolCallOptions['activeSkillNames']
       commandShell?: ToolCallOptions['commandShell']
     }
   ): Promise<ToolPermissionPreCheckResult | null> {
@@ -543,6 +544,7 @@ export class ToolService implements ToolServicePort {
       const result = await awaitWithAbort(
         this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
           allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
+          activeSkillNames: options?.activeSkillNames,
           commandShell: options?.commandShell
         }),
         options?.signal

@@ -2020,9 +2020,9 @@
     "openFolder": "פתח תיקייה",
     "search": "חיפוש skill...",
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "ייבוא מ-Agent חיצוני",
       "title": "ייבוא Skills מ-Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "ייבוא Skills מאומתים אל DeepChat. ניתן להפעיל Agents מהתצוגה המקדימה של כל Skill.",
       "resultPartial": "הייבוא הושלם עם שגיאות",
       "resultSuccess": "הייבוא הושלם",
       "sourceTitle": "Agent מקור",
@@ -2034,16 +2034,16 @@
         "ready": "מוכן",
         "conflict": "התנגשות",
         "unavailable": "לא זמין",
-        "same": "Already added"
+        "same": "כבר נוסף"
       },
       "strategy": {
         "skip": "דלג",
         "rename": "שנה שם",
         "overwrite": "החלף"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "החלפת Skill זה משפיעה על ה-Agents הפעילים: {agents}.",
+      "resultSummaryV3": "יובאו {imported}, נעשה שימוש חוזר ב-{reused}, דולגו {skipped}, נכשלו {failed}.",
+      "execute": "ייבוא הנבחרים"
     },
     "sync": {
       "batchAction": "עיבוד אצווה",

@@ -157,6 +157,11 @@ describe('ImportSkillsFromAgentDialog', () => {
       source: { kind: 'external', toolId: 'codex' }
     })
     expect(isProxy(mocks.skillClient.previewAgentImport.mock.calls[0]?.[0].source)).toBe(false)
+    expect(
+      wrapper
+        .get('[data-testid="agent-import-skill-ready-skill"] [role="checkbox"]')
+        .attributes('aria-label')
+    ).toBe('ready-skill')
 
     await wrapper
       .get('[data-testid="agent-import-strategy-conflict-skill-overwrite"] button')

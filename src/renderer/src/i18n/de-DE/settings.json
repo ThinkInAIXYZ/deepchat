@@ -2354,9 +2354,9 @@
       "overwrite": "Überschreiben"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "Von externem Agent importieren",
       "title": "Skills von Agent importieren",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Importiere validierte Skills in DeepChat. Aktiviere Agents in der Vorschau des jeweiligen Skills.",
       "resultPartial": "Import mit Fehlern abgeschlossen",
       "resultSuccess": "Import abgeschlossen",
       "sourceTitle": "Quell-Agent",
@@ -2368,16 +2368,16 @@
         "ready": "Bereit",
         "conflict": "Konflikt",
         "unavailable": "Nicht verfügbar",
-        "same": "Already added"
+        "same": "Bereits hinzugefügt"
       },
       "strategy": {
         "skip": "Überspringen",
         "rename": "Umbenennen",
         "overwrite": "Überschreiben"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Das Überschreiben dieses Skills betrifft aktivierte Agents: {agents}.",
+      "resultSummaryV3": "Importiert: {imported}, wiederverwendet: {reused}, übersprungen: {skipped}, fehlgeschlagen: {failed}.",
+      "execute": "Auswahl importieren"
     },
     "sync": {
       "title": "Synchronisieren",

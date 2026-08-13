@@ -1956,7 +1956,7 @@
       "successMessage": "Навык {name} успешно удалён",
       "title": "Удалить навык"
     },
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Просматривайте все Skills. Откройте Skill для предварительного просмотра и управления активированными Agents.",
     "edit": {
       "allowedTools": "Дополнительные инструменты",
       "allowedToolsHint": "Список названий инструментов, разделённых запятыми",
@@ -1993,7 +1993,7 @@
       }
     },
     "empty": "Временно нет навыков",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Импортируйте Skills из внешнего Agent.",
     "install": {
       "description": "Выберите способ установки skill",
       "failed": "Установка не удалась",
@@ -2020,30 +2020,30 @@
     "openFolder": "Открыть папку",
     "search": "Поиск навыка...",
     "agentImport": {
-      "menuItem": "Import from external Agent",
-      "title": "Import Skills from Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
-      "resultPartial": "Import completed with errors",
-      "resultSuccess": "Import complete",
-      "sourceTitle": "Source Agent",
-      "emptySources": "No import sources",
+      "menuItem": "Импортировать из внешнего Agent",
+      "title": "Импорт Skills из Agent",
+      "description": "Импортируйте проверенные Skills в DeepChat. Активируйте Agents в окне предварительного просмотра каждого Skill.",
+      "resultPartial": "Импорт завершён с ошибками",
+      "resultSuccess": "Импорт завершён",
+      "sourceTitle": "Исходный Agent",
+      "emptySources": "Нет источников для импорта",
       "skillCount": "{count} Skills",
-      "previewTitle": "Skills to import",
-      "emptyPreview": "No Skills available",
+      "previewTitle": "Skills для импорта",
+      "emptyPreview": "Нет доступных Skills",
       "status": {
-        "ready": "Ready",
-        "conflict": "Conflict",
-        "unavailable": "Unavailable",
-        "same": "Already added"
+        "ready": "Готово",
+        "conflict": "Конфликт",
+        "unavailable": "Недоступно",
+        "same": "Уже добавлено"
       },
       "strategy": {
-        "skip": "Skip",
-        "rename": "Rename",
-        "overwrite": "Overwrite"
+        "skip": "Пропустить",
+        "rename": "Переименовать",
+        "overwrite": "Перезаписать"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Перезапись этого Skill затронет активированные Agents: {agents}.",
+      "resultSummaryV3": "Импортировано: {imported}, использовано повторно: {reused}, пропущено: {skipped}, с ошибками: {failed}.",
+      "execute": "Импортировать выбранное"
     },
     "sync": {
       "batchAction": "пакетная обработка",
@@ -2244,12 +2244,12 @@
       "delete": "Удалить",
       "confirmDeleteTitle": "Удалить skill",
       "confirmDeleteDescription": "Удалить skill «{name}»? Это действие нельзя отменить.",
-      "enabledAgents": "Enabled Agents",
-      "enabledAgentsHint": "These Agents can use this Skill.",
-      "noEnabledAgents": "No Agent uses this Skill yet.",
-      "addAgent": "Add Agent",
-      "removeAgent": "Remove {agent}",
-      "agentUpdateFailed": "Failed to update enabled Agents"
+      "enabledAgents": "Активированные Agents",
+      "enabledAgentsHint": "Эти Agents могут использовать данный Skill.",
+      "noEnabledAgents": "Этот Skill пока не используется ни одним Agent.",
+      "addAgent": "Добавить Agent",
+      "removeAgent": "Удалить {agent}",
+      "agentUpdateFailed": "Не удалось обновить активированных Agents"
     },
     "installToAgent": {
       "title": "Установить {name} в Agent",
@@ -2269,21 +2269,21 @@
       "disconnectFailed": "Не удалось отключить от Agent"
     },
     "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
+      "plugin": "Плагин",
+      "builtin": "Встроенный",
+      "external": "Внешний",
+      "local": "Локальный"
     },
     "impact": {
-      "changed": "Enabled Agents changed. Review the impact and try again.",
-      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
-      "editUnused": "No Agent currently uses this Skill.",
-      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
-      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+      "changed": "Список активированных Agents изменился. Проверьте влияние и повторите попытку.",
+      "editEnabled": "Изменения содержимого применятся к этим Agents при следующем запуске: {agents}.",
+      "editUnused": "Сейчас этот Skill не используется ни одним Agent.",
+      "confirmDeleteEnabled": "Удалить {name}? Skill активирован для: {agents}.",
+      "confirmDeleteUnused": "Удалить {name}? Сейчас этот Skill не используется ни одним Agent."
     },
     "syncDirectory": {
-      "action": "Sync directory",
-      "back": "Back to Skills"
+      "action": "Синхронизировать папку",
+      "back": "Назад к Skills"
     }
   },
   "environments": {

@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Browse all Skills. Open a Skill to preview it and manage enabled Agents.",
+    "description": "Semak imbas semua Skills. Buka Skill untuk pratonton dan urus Agents yang didayakan.",
     "draftSuggestions": {
       "title": "Adalah disyorkan untuk memendakan selepas misi Skill Draft",
       "description": "Selepas tugasan selesai, benarkan Agent mencadangkan penjanaan skill draft sementara apabila proses boleh guna semula dikenal pasti. draft akan disimpan dalam direktori sementara dahulu dan anda perlu membuat keputusan secara manual sama ada untuk mengimport dan memasangnya."
@@ -2257,7 +2257,7 @@
     "openFolder": "buka folder",
     "addSkill": "Tambah skill",
     "empty": "Tiada skill",
-    "emptyHint": "Import Skills from an external Agent.",
+    "emptyHint": "Import Skills daripada Agent luaran.",
     "noResults": "Tiada skill yang sepadan ditemui",
     "search": "Cari skill...",
     "count": "Jumlah {count} skill",
@@ -2354,30 +2354,30 @@
       "overwrite": "penutup"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
-      "title": "Import Skills from Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
-      "resultPartial": "Import completed with errors",
-      "resultSuccess": "Import complete",
-      "sourceTitle": "Source Agent",
-      "emptySources": "No import sources",
+      "menuItem": "Import daripada Agent luaran",
+      "title": "Import Skills daripada Agent",
+      "description": "Import Skills yang telah disahkan ke DeepChat. Dayakan Agents daripada pratonton setiap Skill.",
+      "resultPartial": "Import selesai dengan ralat",
+      "resultSuccess": "Import selesai",
+      "sourceTitle": "Agent sumber",
+      "emptySources": "Tiada sumber import",
       "skillCount": "{count} Skills",
-      "previewTitle": "Skills to import",
-      "emptyPreview": "No Skills available",
+      "previewTitle": "Skills untuk diimport",
+      "emptyPreview": "Tiada Skills tersedia",
       "status": {
-        "ready": "Ready",
-        "conflict": "Conflict",
-        "unavailable": "Unavailable",
-        "same": "Already added"
+        "ready": "Sedia",
+        "conflict": "Konflik",
+        "unavailable": "Tidak tersedia",
+        "same": "Sudah ditambah"
       },
       "strategy": {
-        "skip": "Skip",
-        "rename": "Rename",
-        "overwrite": "Overwrite"
+        "skip": "Langkau",
+        "rename": "Namakan semula",
+        "overwrite": "Tulis ganti"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Menulis ganti Skill ini menjejaskan Agents yang didayakan: {agents}.",
+      "resultSummaryV3": "Diimport: {imported}, digunakan semula: {reused}, dilangkau: {skipped}, gagal: {failed}.",
+      "execute": "Import pilihan"
     },
     "sync": {
       "title": "segerak",
@@ -2554,12 +2554,12 @@
       "delete": "Padam",
       "confirmDeleteTitle": "Padam skill",
       "confirmDeleteDescription": "Padam skill \"{name}\"? Tindakan ini tidak boleh dibuat asal.",
-      "enabledAgents": "Enabled Agents",
-      "enabledAgentsHint": "These Agents can use this Skill.",
-      "noEnabledAgents": "No Agent uses this Skill yet.",
-      "addAgent": "Add Agent",
-      "removeAgent": "Remove {agent}",
-      "agentUpdateFailed": "Failed to update enabled Agents"
+      "enabledAgents": "Agents yang didayakan",
+      "enabledAgentsHint": "Agents ini boleh menggunakan Skill ini.",
+      "noEnabledAgents": "Belum ada Agent menggunakan Skill ini.",
+      "addAgent": "Tambah Agent",
+      "removeAgent": "Alih keluar {agent}",
+      "agentUpdateFailed": "Gagal mengemas kini Agents yang didayakan"
     },
     "installToAgent": {
       "title": "Pasang {name} ke Agent",
@@ -2579,21 +2579,21 @@
       "disconnectFailed": "Gagal memutuskan daripada Agent"
     },
     "sources": {
-      "plugin": "Plugin",
-      "builtin": "Built-in",
-      "external": "External",
-      "local": "Local"
+      "plugin": "Pemalam",
+      "builtin": "Terbina dalam",
+      "external": "Luaran",
+      "local": "Setempat"
     },
     "impact": {
-      "changed": "Enabled Agents changed. Review the impact and try again.",
-      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
-      "editUnused": "No Agent currently uses this Skill.",
-      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
-      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+      "changed": "Agents yang didayakan telah berubah. Semak kesannya dan cuba lagi.",
+      "editEnabled": "Perubahan kandungan digunakan pada Agents ini dalam pelaksanaan seterusnya: {agents}.",
+      "editUnused": "Tiada Agent sedang menggunakan Skill ini.",
+      "confirmDeleteEnabled": "Padam {name}? Skill ini didayakan untuk: {agents}.",
+      "confirmDeleteUnused": "Padam {name}? Tiada Agent sedang menggunakannya."
     },
     "syncDirectory": {
-      "action": "Sync directory",
-      "back": "Back to Skills"
+      "action": "Segerakkan direktori",
+      "back": "Kembali ke Skills"
     }
   },
   "environments": {

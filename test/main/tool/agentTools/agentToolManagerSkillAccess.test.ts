@@ -184,6 +184,22 @@ describe('AgentToolManager skill file access', () => {
     expect(rules).toEqual([{ root: skillsDir, allowedDirectories: [skillRoot] }])
   })
 
+  it('uses message-active Skill roots during permission pre-checks after unassignment', async () => {
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getMetadataList.mockResolvedValue([])
+    const manager = buildManager()
+
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: skillFilePath },
+      'conv1',
+      { activeSkillNames: ['skill-a'] }
+    )
+
+    expect(permission).toBeNull()
+    expect(skillService.getAllSkills).toHaveBeenCalled()
+  })
+
   it('fails closed when the protected Skill root cannot be resolved', async () => {
     const manager = buildManager()
     skillService.getSkillsDir.mockRejectedValue(new Error('skills root unavailable'))

@@ -340,9 +340,7 @@ describe('SkillService', () => {
   let configSettings: Map<string, unknown>
 
   const assignDiscoveredSkills = async (...names: string[]) => {
-    const discoveredNames = Array.from(
-      ((skillService as any).metadataCache as Map<string, SkillMetadata>).keys()
-    )
+    const discoveredNames = (await skillService.getAllSkills()).map(({ name }) => name)
     await skillService.setSkillAssignments('deepchat', names.length > 0 ? names : discoveredNames)
   }
 

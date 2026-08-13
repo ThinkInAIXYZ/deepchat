@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { onBeforeRouteLeave } from 'vue-router'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
@@ -223,6 +224,16 @@ describe('skill sync settings components', () => {
     const toolsInput = wrapper.findAll('input')[1]
     await toolsInput.setValue('Read, Bash')
 
+    const routeGuard = vi.mocked(onBeforeRouteLeave).mock.calls.at(-1)?.[0] as () => unknown
+    const leaveResult = routeGuard()
+    expect(leaveResult).toBeInstanceOf(Promise)
+    await flushPromises()
+    const stayButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.leaveGuard.stay'))
+    await stayButton?.trigger('click')
+    await expect(leaveResult).resolves.toBe(false)
+
     const saveButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('common.save'))
@@ -250,7 +261,16 @@ describe('skill sync settings components', () => {
       .findAll('button')
       .find((button) => button.text().includes('settings.leaveGuard.discard'))
     await discardButton?.trigger('click')
+    expect((wrapper.vm as any).discardConfirmOpen).toBe(false)
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+
+    await editButton?.trigger('click')
+    await wrapper.findAll('textarea')[0].setValue('Discard before route change')
+    const confirmedLeave = routeGuard()
+    await flushPromises()
+    await discardButton?.trigger('click')
+    await expect(confirmedLeave).resolves.toBe(true)
+    expect((wrapper.vm as any).discardConfirmOpen).toBe(false)
   })
 
   it('opens a Skill preview from the whole card', async () => {
@@ -677,6 +697,12 @@ describe('skill sync settings components', () => {
       }
     })
     await flushPromises()
+
+    const routeGuard = vi.mocked(onBeforeRouteLeave).mock.calls.at(-1)?.[0] as () => unknown
+    expect(routeGuard()).toBe(true)
+    ;(wrapper.vm as any).operationPending = true
+    expect(routeGuard()).toBe(false)
+    ;(wrapper.vm as any).operationPending = false
 
     const firstChoose = (wrapper.vm as any).chooseDirectory()
     const secondChoose = (wrapper.vm as any).chooseDirectory()

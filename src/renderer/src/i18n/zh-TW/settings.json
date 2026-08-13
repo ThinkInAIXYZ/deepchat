@@ -2042,8 +2042,8 @@
         "overwrite": "覆寫"
       },
       "overwriteImpact": "覆寫此 Skill 會影響已啟用的 Agent：{agents}。",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "resultSummaryV3": "已匯入 {imported} 個、重用 {reused} 個、略過 {skipped} 個、失敗 {failed} 個。",
+      "execute": "匯入所選項目"
     },
     "sync": {
       "batchAction": "批次處理",

@@ -2354,9 +2354,9 @@
       "overwrite": "Ghi đè"
     },
     "agentImport": {
-      "menuItem": "Import from external Agent",
+      "menuItem": "Nhập từ Agent bên ngoài",
       "title": "Nhập Skills từ Agent",
-      "description": "Import validated Skills into DeepChat. Enable Agents from each Skill preview.",
+      "description": "Nhập các Skills đã xác thực vào DeepChat. Bật Agents từ phần xem trước của từng Skill.",
       "resultPartial": "Nhập hoàn tất nhưng có lỗi",
       "resultSuccess": "Nhập hoàn tất",
       "sourceTitle": "Agent nguồn",
@@ -2368,16 +2368,16 @@
         "ready": "Sẵn sàng",
         "conflict": "Xung đột",
         "unavailable": "Không khả dụng",
-        "same": "Already added"
+        "same": "Đã thêm"
       },
       "strategy": {
         "skip": "Bỏ qua",
         "rename": "Đổi tên",
         "overwrite": "Ghi đè"
       },
-      "overwriteImpact": "Overwriting this Skill affects enabled Agents: {agents}.",
-      "resultSummaryV3": "Imported {imported}, reused {reused}, skipped {skipped}, failed {failed}.",
-      "execute": "Import selected"
+      "overwriteImpact": "Ghi đè Skill này sẽ ảnh hưởng đến các Agents đang bật: {agents}.",
+      "resultSummaryV3": "Đã nhập {imported}, tái sử dụng {reused}, bỏ qua {skipped}, thất bại {failed}.",
+      "execute": "Nhập mục đã chọn"
     },
     "sync": {
       "title": "Đồng bộ hóa",
