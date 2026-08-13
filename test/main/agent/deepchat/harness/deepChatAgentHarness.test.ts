@@ -89,6 +89,7 @@ vi.mock('@/events', () => ({
 
 const skillServiceMock = {
   getMetadataList: vi.fn().mockResolvedValue([]),
+  getAllSkills: vi.fn().mockResolvedValue([]),
   getActiveSkills: vi.fn().mockResolvedValue([]),
   setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
   revalidateActiveSkillsForAgent: vi.fn().mockResolvedValue([]),
@@ -1206,6 +1207,7 @@ describe('DeepChatAgentHarness', () => {
     ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillService = getSkillServiceMock()
     skillService.getMetadataList.mockResolvedValue([])
+    skillService.getAllSkills.mockResolvedValue([])
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.setActiveSkills.mockImplementation(async (_id: string, skills: string[]) => skills)
     skillService.revalidateActiveSkillsForAgent.mockResolvedValue([])
@@ -4998,7 +5000,7 @@ describe('DeepChatAgentHarness', () => {
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
       const skillService = getSkillServiceMock()
 
-      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a' }])
       skillService.getActiveSkills.mockResolvedValue(['skill-a'])
       skillService.getActiveSkills.mockResolvedValueOnce([])
       skillService.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
@@ -5015,22 +5017,6 @@ describe('DeepChatAgentHarness', () => {
       expect(secondCallArgs.run.messages[0].content).toContain('Skill A instructions')
     })
 
-    it('does not load stale skill pins when the skill is absent from available metadata', async () => {
-      const skillService = getSkillServiceMock()
-
-      skillService.getMetadataList.mockResolvedValue([])
-      skillService.getActiveSkills.mockResolvedValue(['plugin-skill'])
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      await agent.processMessage('s1', 'Click a native app button')
-
-      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.run.messages[0].content)
-
-      expect(systemPrompt).not.toContain('## Active Skills')
-      expect(skillService.loadSkillContent).not.toHaveBeenCalled()
-    })
-
     it('intersects message-scoped skills with the session Agent catalog before the Run', async () => {
       const skillService = getSkillServiceMock()
       skillService.resolveSessionAgentId.mockResolvedValue('writer')
@@ -5038,7 +5024,7 @@ describe('DeepChatAgentHarness', () => {
         async (_agentId: string, skills: string[]) =>
           skills.filter((skillName) => skillName === 'owned-skill')
       )
-      skillService.getMetadataList.mockResolvedValue([
+      skillService.getAllSkills.mockResolvedValue([
         { name: 'owned-skill', description: 'Owned skill' }
       ])
       skillService.loadSkillContent.mockResolvedValue({
@@ -5101,7 +5087,7 @@ describe('DeepChatAgentHarness', () => {
         }
       ])
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
-      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
       skillService.getActiveSkills.mockResolvedValue(['skill-a'])
       skillService.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
 
@@ -5152,7 +5138,7 @@ describe('DeepChatAgentHarness', () => {
         key === 'traceDebugEnabled' ? true : undefined
       )
       const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
+      skillService.getAllSkills.mockResolvedValue([
         { name: 'skill-a', description: 'direct skill' }
       ])
       skillService.getActiveSkills.mockResolvedValue(['skill-a'])
@@ -5370,9 +5356,7 @@ describe('DeepChatAgentHarness', () => {
       const order: string[] = []
       const systemEnvPrompt = vi.mocked(buildSystemEnvPrompt)
       const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
-        { name: 'skill-a', description: 'phase skill' }
-      ])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a', description: 'phase skill' }])
       skillService.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
 
@@ -5636,7 +5620,7 @@ describe('DeepChatAgentHarness', () => {
     it('omits skill metadata when skill management tools are unavailable', async () => {
       const skillService = getSkillServiceMock()
 
-      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a' }])
       skillService.getActiveSkills.mockResolvedValue([])
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -11309,7 +11293,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('keeps runtime-activated skills when rebuilding resume resources', async () => {
       const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
+      skillService.getAllSkills.mockResolvedValue([
         { name: 'runtime-skill', description: 'Runtime skill' }
       ])
       skillService.getActiveSkills.mockResolvedValue([])

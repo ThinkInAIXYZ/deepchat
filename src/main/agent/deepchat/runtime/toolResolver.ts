@@ -97,7 +97,7 @@ export class DeepChatToolResolver {
         const effectiveActiveSkillNames =
           activeSkillNamesOverride === undefined
             ? await this.resolveActiveSkillNamesForToolProfile(sessionId)
-            : await this.validateSkillNamesForAgent(scopedAgentId, activeSkillNamesOverride)
+            : normalizeStringList(activeSkillNamesOverride)
         const profile = this.resolveToolProfile(
           sessionId,
           projectDir,

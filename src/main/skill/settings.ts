@@ -60,6 +60,7 @@ export class SkillSettings implements SkillSettingsPort {
     legacySkillAllowLists: Record<string, string[]> = {}
   ): void {
     const stored = this.getManagementState()
+    if (stored?.version === 3) return
     if (stored?.migration?.targetAgentIds) return
 
     const targetAgentIds = Array.from(

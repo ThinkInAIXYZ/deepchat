@@ -1553,7 +1553,9 @@ export class AgentToolManager {
 
       ;[activeSkillNames, metadataList] = await Promise.all([
         activeSkillNamesOverride ?? skillService.getActiveSkills(conversationId),
-        skillService.getMetadataList(agentId)
+        activeSkillNamesOverride === undefined
+          ? skillService.getMetadataList(agentId)
+          : skillService.getAllSkills()
       ])
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve active skill roots', {
@@ -1637,17 +1639,17 @@ export class AgentToolManager {
     } catch (error) {
       const configuredRoot = this.skillSettings.getPath?.()
       if (!configuredRoot) {
-        logger.error('[AgentToolManager] Failed to resolve protected Agent Skill scopes.', {
+        logger.error('[AgentToolManager] Failed to resolve the protected Skills root.', {
           conversationId,
           error
         })
-        throw new Error('Unable to resolve protected Agent Skill scopes', { cause: error })
+        throw new Error('Unable to resolve the protected Skills root', { cause: error })
       }
       skillsRoot = configuredRoot
     }
     return [
       {
-        root: path.join(skillsRoot, '.agent-scopes'),
+        root: skillsRoot,
         allowedDirectories: activeDirectories
       }
     ]
@@ -2539,7 +2541,11 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const result = await skillTools.handleSkillView(
+        conversationId,
+        validationResult.data,
+        effectiveActiveSkills
+      )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activeSkillNamesForResult = effectiveActiveSkills ?? []
       const activationApplied =

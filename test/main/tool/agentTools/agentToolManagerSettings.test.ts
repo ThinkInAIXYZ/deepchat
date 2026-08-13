@@ -24,6 +24,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
     getMetadataList: vi.fn(),
+    getAllSkills: vi.fn(),
     viewSkill: vi.fn(),
     viewSkillForAgent: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
@@ -86,6 +87,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     skillService.listSkillScriptsForAgent.mockResolvedValue([])
     skillService.resolveSessionAgentId.mockResolvedValue('agent-a')
     skillService.getMetadataList.mockResolvedValue([
+      {
+        name: 'code-review',
+        description: 'Code Review',
+        category: 'engineering',
+        platforms: [],
+        metadata: {}
+      }
+    ])
+    skillService.getAllSkills.mockResolvedValue([
       {
         name: 'code-review',
         description: 'Code Review',

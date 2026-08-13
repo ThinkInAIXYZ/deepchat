@@ -26,7 +26,18 @@ export class SkillTools {
       return { skills: [], pinnedCount: 0, activeCount: 0, totalCount: 0 }
     }
     const agentId = resolvedAgentId
-    const allSkills = await this.skillService.getMetadataList(agentId)
+    const assignedSkills = await this.skillService.getMetadataList(agentId)
+    const allSkills = [...assignedSkills]
+    if (activeSkillNames !== undefined) {
+      const listedNames = new Set(allSkills.map((skill) => skill.name))
+      const activeNames = new Set(activeSkillNames)
+      for (const skill of await this.skillService.getAllSkills()) {
+        if (activeNames.has(skill.name) && !listedNames.has(skill.name)) {
+          allSkills.push(skill)
+          listedNames.add(skill.name)
+        }
+      }
+    }
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
       ? (await this.skillService.getActiveSkills(conversationId)).filter((skillName) =>
@@ -62,7 +73,8 @@ export class SkillTools {
 
   async handleSkillView(
     conversationId: string | undefined,
-    input: { name: string; file_path?: string }
+    input: { name: string; file_path?: string },
+    activeSkillNames?: string[]
   ): Promise<SkillViewResult> {
     const requestedSkillName = input.name.trim()
     const agentId = conversationId
@@ -78,7 +90,8 @@ export class SkillTools {
 
     return await this.skillService.viewSkillForAgent(agentId, requestedSkillName, {
       filePath: input.file_path,
-      conversationId
+      conversationId,
+      ...(activeSkillNames?.includes(requestedSkillName) ? { allowUnassigned: true } : {})
     })
   }
 

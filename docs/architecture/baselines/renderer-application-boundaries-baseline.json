@@ -512,42 +512,6 @@
       "specifier": "@/stores/shortcutKey"
     },
     {
-      "file": "src/renderer/settings/components/skills/SkillDetailDialog.vue",
-      "specifier": "@/components/markdown/MarkdownRenderer.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillFolderTree.vue",
-      "specifier": "@/stores/skillsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillInstallDialog.vue",
-      "specifier": "@/stores/skillsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsHeader.vue",
-      "specifier": "@/stores/language"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/components/onboarding/GuidedOnboardingOverlay.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/composables/useGuidedOnboardingStep"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/stores/skillsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/stores/ui/agent"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/stores/ui/session"
-    },
-    {
       "file": "src/renderer/settings/components/VertexProviderSettingsDetail.vue",
       "specifier": "@/stores/providerStore"
     },
@@ -576,5 +540,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 131
+  "settingsToChatAppImportCount": 122
 }

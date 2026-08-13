@@ -20,15 +20,12 @@ import {
   SkillMetadata,
   SkillContent,
   SkillInstallResult,
-  SkillCatalogPublicationMode,
   SkillFolderNode,
   SkillInstallOptions,
   SkillImportProvenance,
   GitSkillInstallInput,
   GitSkillRepoScanItem,
   GitSkillRepoScanResult,
-  SkillAdoptionRegistration,
-  SkillAgentLinkRegistration,
   SkillExtensionConfig,
   SkillSyncDirectoryExportInput,
   SkillSyncDirectoryExportPreview,
@@ -48,11 +45,17 @@ import {
 } from '@shared/types/skill'
 import type {
   AgentSkillManagementState,
+  AgentSkillBinding,
+  AgentSkillBindingState,
+  SharedSkillManagementItem,
   SkillManagementItem,
   SkillManagementState,
+  SkillDuplicateResult,
+  SkillDeleteResult,
   SkillSyncDirectoryConfig,
   SkillSource,
   SkillSourceType,
+  StoredSkillManagementState,
   UnifiedSkillItem
 } from '@shared/types/skillManagement'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -62,8 +65,7 @@ import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from '
 import {
   BUILTIN_SKILL_AGENT_ID,
   assertSafeSkillAgentId,
-  resolveAgentSkillsRoot,
-  resolveScopedAgentIdFromPath
+  resolveAgentSkillsRoot
 } from './agentSkillRoots'
 
 const execFileAsync = promisify(execFile)
@@ -147,9 +149,9 @@ const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'script
 const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ACTIVITY_MARKER = '.lastActivity'
-const BUILTIN_SKILL_ROOT_EXCLUDED_DIRS = new Set(['.agent-scopes'])
-const AGENT_SKILL_MIGRATION_MARKER = '.deepchat-skill-migration.json'
-const AGENT_SKILL_MIGRATION_STAGING_PREFIX = '.migration-'
+const BUILTIN_SKILL_ROOT_EXCLUDED_DIRS = new Set(['.agent-scopes', '.library-migration-v3'])
+const SHARED_SKILL_MIGRATION_DIR = '.library-migration-v3'
+const SHARED_SKILL_MIGRATION_JOURNAL = 'journal.json'
 const SKILL_INSTALL_STAGING_PREFIX = '.install-'
 const SKILL_SYNC_EXPORT_STAGING_PREFIX = '.export-'
 const SKILL_SYNC_EXPORT_BACKUP_PREFIX = '.export-backup-'
@@ -178,20 +180,25 @@ export interface SkillAgentScopePort {
   listSessions(): Promise<Array<{ id: string; agentId: string }>>
 }
 
-interface ScopedSkillCatalog {
-  metadataCache: Map<string, SkillMetadata>
-  contentCache: Map<string, SkillContent>
-  discoveryPromise: Promise<SkillMetadata[]> | null
-  discovered: boolean
-}
-
 interface SkillDirectoryInstallContext {
   options?: SkillInstallOptions
   sourceType?: SkillSourceType
   sourcePatch?: Partial<SkillSource>
   targetName?: string
   agentId?: string
+  assignToAgent?: boolean
+  assignToAgentIds?: string[]
+  persistManagementState?: boolean
   publishCatalogEvent?: boolean
+}
+
+interface SharedSkillMigrationPlannedCopy {
+  sourcePath: string
+  targetPath: string
+  targetName: string
+  agentId: string
+  originalName: string
+  source: SkillSource
 }
 
 function createDefaultSkillExtensionConfig(): SkillExtensionConfig {
@@ -271,9 +278,8 @@ export class SkillService implements SkillServicePort {
   private sidecarDir: string
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
-  private contentCache: Map<string, SkillContent> = new Map()
+  private contentCache: Map<string, Map<string, SkillContent>> = new Map()
   private readOnlyBundledSkills: SkillMetadata[] = []
-  private scopedCatalogs: Map<string, ScopedSkillCatalog> = new Map()
   private deletedAgentScopes: Set<string> = new Set()
   private activeAgentScopeOperations: Map<string, number> = new Map()
   private agentScopeDrainWaiters: Map<string, Set<() => void>> = new Map()
@@ -291,6 +297,7 @@ export class SkillService implements SkillServicePort {
   // Prevent concurrent discovery calls (race condition protection)
   private discoveryPromise: Promise<SkillMetadata[]> | null = null
   private legacySkillRetirementWarnings: Set<string> = new Set()
+  private mutationTail: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly settings: SkillSettingsPort,
@@ -365,27 +372,6 @@ export class SkillService implements SkillServicePort {
     return resolveAgentSkillsRoot(this.skillsDir, agentId)
   }
 
-  private ensureAgentSkillsRoot(agentId: string): string {
-    const root = this.getAgentSkillsRoot(agentId)
-    if (agentId === BUILTIN_SKILL_AGENT_ID) {
-      fs.mkdirSync(root, { recursive: true })
-      return root
-    }
-
-    const scopesRoot = path.dirname(root)
-    fs.mkdirSync(scopesRoot, { recursive: true })
-    this.getAgentSkillsRoot(agentId)
-    fs.mkdirSync(root, { recursive: true })
-    return this.getAgentSkillsRoot(agentId)
-  }
-
-  private ensureAgentSkillScopesRoot(agentId: string): { root: string; scopesRoot: string } {
-    const root = this.getAgentSkillsRoot(agentId)
-    const scopesRoot = path.dirname(root)
-    fs.mkdirSync(scopesRoot, { recursive: true })
-    return { root: this.getAgentSkillsRoot(agentId), scopesRoot }
-  }
-
   private async requireAgentScope(agentId: string): Promise<string> {
     this.assertServiceActive()
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
@@ -404,6 +390,21 @@ export class SkillService implements SkillServicePort {
     }
   }
 
+  private async runMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutationTail
+    let release!: () => void
+    this.mutationTail = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await previous
+    try {
+      this.assertServiceActive()
+      return await operation()
+    } finally {
+      release()
+    }
+  }
+
   private isServiceStopping(): boolean {
     return this.stopped || Boolean(this.destroyPromise)
   }
@@ -418,7 +419,7 @@ export class SkillService implements SkillServicePort {
 
   private assertAgentScopeActive(agentId: string): void {
     if (this.deletedAgentScopes.has(agentId)) {
-      throw new Error(`DeepChat Agent Skill scope is being deleted: ${agentId}`)
+      throw new Error(`DeepChat Agent Skill bindings are being deleted: ${agentId}`)
     }
   }
 
@@ -457,68 +458,42 @@ export class SkillService implements SkillServicePort {
     })
   }
 
-  private getScopedCatalog(agentId: string): ScopedSkillCatalog {
-    const normalizedAgentId = assertSafeSkillAgentId(agentId)
-    let catalog = this.scopedCatalogs.get(normalizedAgentId)
-    if (!catalog) {
-      catalog = {
-        metadataCache: new Map(),
-        contentCache: new Map(),
-        discoveryPromise: null,
-        discovered: false
-      }
-      this.scopedCatalogs.set(normalizedAgentId, catalog)
-    }
-    return catalog
-  }
-
   private getMetadataCacheForAgent(agentId: string): Map<string, SkillMetadata> {
-    return agentId === BUILTIN_SKILL_AGENT_ID
-      ? this.metadataCache
-      : this.getScopedCatalog(agentId).metadataCache
+    assertSafeSkillAgentId(agentId)
+    return this.metadataCache
   }
 
   private getContentCacheForAgent(agentId: string): Map<string, SkillContent> {
-    return agentId === BUILTIN_SKILL_AGENT_ID
-      ? this.contentCache
-      : this.getScopedCatalog(agentId).contentCache
+    const normalizedAgentId = assertSafeSkillAgentId(agentId)
+    let cache = this.contentCache.get(normalizedAgentId)
+    if (!cache) {
+      cache = new Map()
+      this.contentCache.set(normalizedAgentId, cache)
+    }
+    return cache
+  }
+
+  private invalidateSkillContent(name: string): void {
+    for (const cache of this.contentCache.values()) cache.delete(name)
   }
 
   private async ensureAgentCatalogDiscovered(agentId: string): Promise<void> {
-    if (agentId === BUILTIN_SKILL_AGENT_ID) {
-      if (this.builtinCatalogDiscovered || this.metadataCache.size > 0) return
-      if (!this.discoveryPromise) {
-        this.discoveryPromise = this.discoverSkills(agentId).finally(() => {
-          this.discoveryPromise = null
-        })
-      }
-      await this.discoveryPromise
-      return
-    }
-
-    const catalog = this.getScopedCatalog(agentId)
-    if (catalog.discovered) return
-    if (!catalog.discoveryPromise) {
-      catalog.discoveryPromise = this.discoverSkills(agentId).finally(() => {
-        catalog.discoveryPromise = null
+    assertSafeSkillAgentId(agentId)
+    if (this.builtinCatalogDiscovered || this.metadataCache.size > 0) return
+    if (!this.discoveryPromise) {
+      this.discoveryPromise = this.discoverSkills(BUILTIN_SKILL_AGENT_ID).finally(() => {
+        this.discoveryPromise = null
       })
     }
-    await catalog.discoveryPromise
-  }
-
-  private withSkillCategoryForRoot(metadata: SkillMetadata, catalogRoot: string): SkillMetadata {
-    return {
-      ...metadata,
-      category: this.deriveSkillCategory(metadata.skillRoot, catalogRoot)
-    }
+    await this.discoveryPromise
   }
 
   /**
    * Get the skills directory path
    */
   async getSkillsDir(agentId: string = BUILTIN_SKILL_AGENT_ID): Promise<string> {
-    const normalizedAgentId = await this.requireAgentScope(agentId)
-    return this.getAgentSkillsRoot(normalizedAgentId)
+    await this.requireAgentScope(agentId)
+    return this.skillsDir
   }
 
   /**
@@ -552,9 +527,12 @@ export class SkillService implements SkillServicePort {
       if (this.isServiceStopping()) return
 
       try {
-        await this.migrateLegacyAgentSkillScopes()
+        await this.migrateSharedSkills()
       } catch (error) {
-        logger.warn('[SkillService] Agent Skill migration failed; continuing startup.', { error })
+        logger.warn('[SkillService] Shared Skills migration failed; startup can retry.', {
+          error
+        })
+        throw error
       }
       if (this.isServiceStopping()) return
 
@@ -573,7 +551,8 @@ export class SkillService implements SkillServicePort {
   async discoverSkills(agentId: string = BUILTIN_SKILL_AGENT_ID): Promise<SkillMetadata[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     if (normalizedAgentId !== BUILTIN_SKILL_AGENT_ID) {
-      return await this.discoverScopedSkills(normalizedAgentId)
+      await this.ensureAgentCatalogDiscovered(BUILTIN_SKILL_AGENT_ID)
+      return this.getVisibleMetadataFromCache(normalizedAgentId)
     }
 
     this.metadataCache.clear()
@@ -615,7 +594,7 @@ export class SkillService implements SkillServicePort {
       this.metadataCache.set(metadata.name, metadata)
     }
 
-    const skills = this.getVisibleMetadataFromCache(BUILTIN_SKILL_AGENT_ID)
+    const skills = this.sortSkillMetadata(Array.from(this.metadataCache.values()))
     this.builtinCatalogDiscovered = true
     this.publishEvent('skills.catalog.changed', {
       reason: 'discovered',
@@ -627,321 +606,443 @@ export class SkillService implements SkillServicePort {
     return skills
   }
 
-  private async migrateLegacyAgentSkillScopes(): Promise<void> {
-    if (!this.agentScopePort) return
-
-    let state = this.getStoredManagementState()
-    if (state.migration?.completedAt) return
-
-    const agents = await this.agentScopePort.listDeepChatAgents()
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]))
-    const targetAgentIds = state.migration?.targetAgentIds
-      ? [...state.migration.targetAgentIds]
-      : agents
-          .filter((agent) => agent.id !== BUILTIN_SKILL_AGENT_ID)
-          .map((agent) => assertSafeSkillAgentId(agent.id))
-          .sort()
-    const completed = new Set(state.migration?.completedAgentIds ?? [])
-    if (!state.migration?.targetAgentIds) {
-      state.migration = {
-        ...state.migration,
-        targetAgentIds,
-        completedAgentIds: Array.from(completed).sort()
+  private async migrateSharedSkills(): Promise<void> {
+    const stored = this.settings.getManagementState()
+    if (stored?.version === 3) {
+      if (stored.migration?.status === 'committing') {
+        await this.remapLegacySessionSkillNames(stored.migration.agentSkillNames)
+        const resumedState = this.getStoredManagementState()
+        if (resumedState.migration?.status === 'committing') {
+          resumedState.migration = {
+            ...resumedState.migration,
+            status: 'completed',
+            completedAt: new Date().toISOString()
+          }
+          this.saveManagementState(resumedState)
+        }
+      } else if (stored.migration?.status === 'planned') {
+        throw new Error('Shared Skills migration state was committed before its packages')
       }
-      this.saveManagementState(state)
+      await this.pruneInactiveAgentBindings()
+      this.reconcileSkillManagementState()
+      await this.materializeProviderBindingsForExistingAgents()
+      fs.rmSync(path.join(this.skillsDir, SHARED_SKILL_MIGRATION_DIR), {
+        recursive: true,
+        force: true
+      })
+      return
     }
 
-    const builtinCatalog = await this.getUnifiedSkillCatalog(BUILTIN_SKILL_AGENT_ID)
-    // Sidecars predate management state. Absorb them before default items can mask their config.
-    for (const skill of builtinCatalog) {
-      if (!state.agents[BUILTIN_SKILL_AGENT_ID]?.skills[skill.name]) {
-        try {
-          await this.migrateLegacySkillExtension(skill.name, true)
-        } catch (error) {
-          logger.warn('[SkillService] Failed to migrate a legacy Skill sidecar; continuing.', {
-            skillName: skill.name,
-            error
+    const sourceVersion: 1 | 2 = stored?.version === 2 ? 2 : 1
+    const legacyAgents = this.readLegacyAgentManagementStates(stored)
+    const agents = this.agentScopePort
+      ? await this.agentScopePort.listDeepChatAgents()
+      : [{ id: BUILTIN_SKILL_AGENT_ID }]
+    if (!agents.some((agent) => agent.id === BUILTIN_SKILL_AGENT_ID)) {
+      agents.unshift({ id: BUILTIN_SKILL_AGENT_ID })
+    }
+
+    const startedAt = new Date().toISOString()
+    const state: SkillManagementState = {
+      version: 3,
+      skills: {},
+      agents: {},
+      sync: this.sanitizeSyncDirectoryConfig(stored?.sync),
+      migration: {
+        sourceVersion,
+        status: 'planned',
+        startedAt,
+        agentSkillNames: {}
+      }
+    }
+    const migration = state.migration!
+    const usedNames = new Set(this.metadataCache.keys())
+    const migrationRoot = path.join(this.skillsDir, SHARED_SKILL_MIGRATION_DIR)
+    const stagingRoot = path.join(migrationRoot, 'staging')
+    const journalPath = path.join(migrationRoot, SHARED_SKILL_MIGRATION_JOURNAL)
+    const recoveryTargets = this.readMigrationRecoveryTargets(journalPath, sourceVersion)
+    const plannedCopies: SharedSkillMigrationPlannedCopy[] = []
+
+    for (const metadata of this.metadataCache.values()) {
+      const legacyItem = legacyAgents[BUILTIN_SKILL_AGENT_ID]?.skills[metadata.name]
+      state.skills[metadata.name] = {
+        name: metadata.name,
+        canonicalPath: metadata.skillRoot,
+        source:
+          metadata.readOnly || metadata.ownerPluginId
+            ? { type: 'builtin' }
+            : this.sanitizeSkillSource(legacyItem?.source)
+      }
+    }
+
+    for (const agent of agents) {
+      const agentId = assertSafeSkillAgentId(agent.id)
+      const legacyAgent = legacyAgents[agentId]
+      const bindingState = this.getAgentBindingState(state, agentId)
+      const nameMap: Record<string, string> = {}
+      migration.agentSkillNames[agentId] = nameMap
+      const legacyAllowList =
+        sourceVersion === 2 && stored?.version === 2
+          ? stored.migration?.legacySkillAllowLists?.[agentId]
+          : agent.enabledSkillNames
+
+      for (const metadata of this.metadataCache.values()) {
+        const legacyItem = legacyAgent?.skills[metadata.name]
+        const inheritedLegacyItem =
+          sourceVersion === 1
+            ? legacyAgents[BUILTIN_SKILL_AGENT_ID]?.skills[metadata.name]
+            : undefined
+        const providerOwned = Boolean(metadata.readOnly || metadata.ownerPluginId)
+        const enabledByLegacyAllowList = Array.isArray(legacyAllowList)
+          ? legacyAllowList.includes(metadata.name)
+          : true
+        const assigned =
+          agentId === BUILTIN_SKILL_AGENT_ID
+            ? legacyItem?.disabled !== true
+            : providerOwned
+              ? legacyItem?.disabled !== true
+              : sourceVersion === 1
+                ? enabledByLegacyAllowList && (legacyItem ?? inheritedLegacyItem)?.disabled !== true
+                : legacyItem
+                  ? legacyItem.disabled !== true
+                  : Array.isArray(legacyAllowList) && enabledByLegacyAllowList
+        bindingState.bindings[metadata.name] = {
+          assigned,
+          extension: await this.resolveLegacyExtension(
+            agentId,
+            metadata.name,
+            legacyItem ?? inheritedLegacyItem,
+            sourceVersion === 1
+          )
+        }
+        if (assigned) nameMap[metadata.name] = metadata.name
+      }
+
+      if (agentId === BUILTIN_SKILL_AGENT_ID) continue
+      const privateRoot = this.getAgentSkillsRoot(agentId)
+      if (!fs.existsSync(privateRoot)) continue
+      const entries = fs.readdirSync(privateRoot, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue
+        const sourcePath = path.join(privateRoot, entry.name)
+        const summary = this.readSkillManifestSummary(sourcePath)
+        if (!summary.valid || !this.isSafeSkillName(summary.name)) continue
+
+        const legacyItem = legacyAgent?.skills[summary.name]
+        const existing = this.metadataCache.get(summary.name)
+        const matchingPlannedCopy = plannedCopies.find(
+          (copy) =>
+            copy.originalName === summary.name &&
+            this.areSkillDirectoriesSame(sourcePath, copy.sourcePath)
+        )
+        const recoveredTargetName = recoveryTargets.get(`${agentId}\0${summary.name}`)
+        let targetName = matchingPlannedCopy?.targetName ?? recoveredTargetName ?? summary.name
+        if (
+          !matchingPlannedCopy &&
+          !recoveredTargetName &&
+          ((existing && !this.areSkillDirectoriesSame(sourcePath, existing.skillRoot)) ||
+            (!existing && usedNames.has(summary.name)))
+        ) {
+          targetName = this.findMigrationVariantName(summary.name, agentId, sourcePath, usedNames)
+        }
+        const targetPath = path.join(this.skillsDir, targetName)
+        const targetAlreadyCommitted =
+          Boolean(recoveredTargetName) &&
+          fs.existsSync(targetPath) &&
+          this.areMigratedSkillDirectoriesSame(sourcePath, targetPath, summary.name, targetName)
+        if (recoveredTargetName && fs.existsSync(targetPath) && !targetAlreadyCommitted) {
+          throw new Error(`Migration target changed before recovery: ${targetName}`)
+        }
+        const needsCopy =
+          !matchingPlannedCopy &&
+          !targetAlreadyCommitted &&
+          (!fs.existsSync(targetPath) || !this.areSkillDirectoriesSame(sourcePath, targetPath))
+        if (needsCopy) {
+          plannedCopies.push({
+            sourcePath,
+            targetPath,
+            targetName,
+            agentId,
+            originalName: summary.name,
+            source: this.sanitizeSkillSource(legacyItem?.source)
           })
         }
-      }
-    }
-    state = this.getStoredManagementState()
-    this.materializeLegacySkillAllowList(
-      state,
-      BUILTIN_SKILL_AGENT_ID,
-      builtinCatalog,
-      agentsById.get(BUILTIN_SKILL_AGENT_ID)?.enabledSkillNames
-    )
-    this.saveManagementState(state)
-    const builtinByName = new Map(
-      builtinCatalog.filter((skill) => !skill.ownerPluginId).map((skill) => [skill.name, skill])
-    )
-
-    for (const agentId of targetAgentIds) {
-      if (completed.has(agentId)) continue
-      const agent = agentsById.get(agentId)
-      const agentStillExists = await this.agentScopePort.isDeepChatAgent(agentId)
-      if (agent && agentStillExists && !this.deletedAgentScopes.has(agentId)) {
-        const legacyEnabledSkillNames =
-          state.migration?.legacySkillAllowLists?.[agentId] ?? agent.enabledSkillNames
-        const selected = Array.isArray(legacyEnabledSkillNames)
-          ? legacyEnabledSkillNames
-          : builtinCatalog
-              .filter((skill) => !skill.disabled && !skill.ownerPluginId)
-              .map((skill) => skill.name)
-        await this.migrateLegacyAgentSkillScope(
-          agentId,
-          selected,
-          legacyEnabledSkillNames,
-          builtinCatalog,
-          builtinByName,
-          state
-        )
-      }
-      completed.add(agentId)
-      state.migration = {
-        ...state.migration,
-        targetAgentIds,
-        completedAgentIds: Array.from(completed).sort()
-      }
-      this.saveManagementState(state)
-    }
-
-    for (const session of await this.agentScopePort.listSessions()) {
-      if (!(await this.agentScopePort.isDeepChatAgent(session.agentId))) continue
-      const persisted = this.getPersistedNewSessionSkills(session.id)
-      const valid = await this.validateSkillNames(session.agentId, persisted)
-      if (!this.areSkillListsEqual(persisted, valid))
-        this.setPersistedNewSessionSkills(session.id, valid)
-    }
-    state.migration = {
-      ...state.migration,
-      targetAgentIds,
-      completedAgentIds: Array.from(completed).sort(),
-      completedAt: new Date().toISOString()
-    }
-    this.saveManagementState(state)
-  }
-
-  private async migrateLegacyAgentSkillScope(
-    agentId: string,
-    selectedNames: string[],
-    enabledSkillNames: string[] | null | undefined,
-    builtinCatalog: UnifiedSkillItem[],
-    builtinByName: ReadonlyMap<string, UnifiedSkillItem>,
-    state: SkillManagementState
-  ): Promise<void> {
-    const normalizedAgentId = assertSafeSkillAgentId(agentId)
-    const { root, scopesRoot } = this.ensureAgentSkillScopesRoot(normalizedAgentId)
-    const selected = Array.from(new Set(selectedNames)).filter(
-      (name) => this.isSafeSkillName(name) && builtinByName.has(name)
-    )
-
-    const rootExists = fs.existsSync(root)
-    const committedMigrationRoot = this.isCommittedAgentSkillMigrationRoot(
-      root,
-      normalizedAgentId,
-      selected
-    )
-    const preexistingIndependentRoot = rootExists && !committedMigrationRoot
-
-    if (!rootExists) {
-      const stagingRoot = path.join(
-        scopesRoot,
-        `${AGENT_SKILL_MIGRATION_STAGING_PREFIX}${normalizedAgentId}`
-      )
-      this.removeMigrationStagingRoot(stagingRoot)
-      fs.mkdirSync(stagingRoot, { recursive: true })
-      try {
-        for (const name of selected) {
-          const source = builtinByName.get(name)
-          if (!source) continue
-          this.copyDirectory(source.skillRoot, path.join(stagingRoot, name))
-          const summary = this.readSkillManifestSummary(path.join(stagingRoot, name))
-          if (!summary.valid || summary.name !== name) {
-            throw new Error(`Migrated Skill failed validation: ${name}`)
+        usedNames.add(targetName)
+        nameMap[summary.name] = targetName
+        state.skills[targetName] = {
+          name: targetName,
+          canonicalPath: targetPath,
+          source: this.sanitizeSkillSource(legacyItem?.source)
+        }
+        if (targetName !== summary.name) {
+          bindingState.bindings[summary.name] = {
+            assigned: false,
+            extension: sanitizeSkillExtensionConfig(legacyItem?.extension)
           }
         }
-        fs.writeFileSync(
-          path.join(stagingRoot, AGENT_SKILL_MIGRATION_MARKER),
-          JSON.stringify({ agentId: normalizedAgentId, skillNames: selected }),
-          'utf-8'
-        )
-        fs.renameSync(stagingRoot, root)
-      } catch (error) {
-        this.removeMigrationStagingRoot(stagingRoot)
-        throw error
+        bindingState.bindings[targetName] = {
+          assigned: legacyItem?.disabled !== true,
+          extension: sanitizeSkillExtensionConfig(legacyItem?.extension)
+        }
       }
     }
 
-    const agentState = this.getAgentManagementState(state, normalizedAgentId)
-    if (!preexistingIndependentRoot) agentState.skills = {}
-    agentState.migratedAt = new Date().toISOString()
-    // A runtime read may have discovered the missing scope while startup migration was pending.
-    // Drop that snapshot after commit so the private copy becomes authoritative immediately.
-    this.scopedCatalogs.delete(normalizedAgentId)
-    const migratedCatalog = preexistingIndependentRoot
-      ? await this.discoverScopedSkills(normalizedAgentId)
-      : [
-          ...selected
-            .map((name) => builtinByName.get(name))
-            .filter((skill): skill is UnifiedSkillItem => Boolean(skill))
-            .map((skill) => ({ ...skill, skillRoot: path.join(root, skill.name) })),
-          ...builtinCatalog.filter((skill) => Boolean(skill.ownerPluginId))
-        ]
-    this.materializeLegacySkillAllowList(
-      state,
-      normalizedAgentId,
-      migratedCatalog,
-      enabledSkillNames
+    if (plannedCopies.length > 0) {
+      fs.mkdirSync(stagingRoot, { recursive: true })
+      for (const copy of plannedCopies) {
+        const stagedPath = path.join(stagingRoot, copy.targetName)
+        if (fs.existsSync(stagedPath)) fs.rmSync(stagedPath, { recursive: true, force: true })
+        this.copyDirectory(copy.sourcePath, stagedPath)
+        if (copy.targetName !== copy.originalName) {
+          this.rewriteSkillManifestName(stagedPath, copy.targetName)
+        }
+        const summary = this.readSkillManifestSummary(stagedPath)
+        if (!summary.valid || summary.name !== copy.targetName) {
+          throw new Error(`Migrated Skill failed validation: ${copy.targetName}`)
+        }
+      }
+    }
+
+    fs.mkdirSync(migrationRoot, { recursive: true })
+    fs.writeFileSync(
+      journalPath,
+      JSON.stringify({ sourceVersion, startedAt, plannedCopies }, null, 2),
+      'utf-8'
     )
-  }
+    migration.status = 'committing'
 
-  private materializeLegacySkillAllowList(
-    state: SkillManagementState,
-    agentId: string,
-    catalog: Array<SkillMetadata & { disabled?: boolean }>,
-    enabledSkillNames: string[] | null | undefined
-  ): void {
-    const agentState = this.getAgentManagementState(state, agentId)
-    const allowed = Array.isArray(enabledSkillNames) ? new Set(enabledSkillNames) : null
-    for (const skill of catalog) {
-      const existing = agentState.skills[skill.name]
-      const builtinTemplate =
-        agentId === BUILTIN_SKILL_AGENT_ID
-          ? undefined
-          : state.agents[BUILTIN_SKILL_AGENT_ID]?.skills[skill.name]
-      agentState.skills[skill.name] = {
-        ...(existing ??
-          (builtinTemplate
-            ? {
-                ...builtinTemplate,
-                extension: sanitizeSkillExtensionConfig(builtinTemplate.extension),
-                source: { ...builtinTemplate.source },
-                agentLinks: undefined
-              }
-            : this.createDefaultManagementItem(skill.name, agentId))),
-        name: skill.name,
-        canonicalPath: skill.skillRoot,
-        disabled:
-          existing?.disabled === true ||
-          skill.disabled === true ||
-          Boolean(allowed && !allowed.has(skill.name))
+    for (const copy of plannedCopies) {
+      const stagedPath = path.join(stagingRoot, copy.targetName)
+      if (fs.existsSync(copy.targetPath)) {
+        if (!this.areSkillDirectoriesSame(stagedPath, copy.targetPath)) {
+          throw new Error(`Migration target changed before commit: ${copy.targetName}`)
+        }
+        fs.rmSync(stagedPath, { recursive: true, force: true })
+      } else {
+        fs.renameSync(stagedPath, copy.targetPath)
       }
+      const metadata = await this.parseSkillMetadata(
+        path.join(copy.targetPath, 'SKILL.md'),
+        copy.targetName,
+        undefined,
+        this.skillsDir
+      )
+      if (!metadata) throw new Error(`Committed Skill failed validation: ${copy.targetName}`)
+      this.metadataCache.set(copy.targetName, metadata)
     }
+
+    state.migration = { ...migration, status: 'committing' }
+    this.saveManagementState(state)
+    await this.remapLegacySessionSkillNames(migration.agentSkillNames)
+    const completedState = this.getStoredManagementState()
+    completedState.migration = {
+      ...migration,
+      status: 'completed',
+      completedAt: new Date().toISOString()
+    }
+    this.saveManagementState(completedState)
+    fs.rmSync(migrationRoot, { recursive: true, force: true })
   }
 
-  private isCommittedAgentSkillMigrationRoot(
-    root: string,
-    agentId: string,
-    selectedNames: string[]
-  ): boolean {
-    if (!fs.existsSync(root)) return false
-    const markerPath = path.join(root, AGENT_SKILL_MIGRATION_MARKER)
-    if (!fs.existsSync(markerPath)) return false
-    try {
-      const marker = JSON.parse(fs.readFileSync(markerPath, 'utf-8')) as {
-        agentId?: unknown
-        skillNames?: unknown
+  private readMigrationRecoveryTargets(
+    journalPath: string,
+    sourceVersion: 1 | 2
+  ): Map<string, string> {
+    const targets = new Map<string, string>()
+    if (!fs.existsSync(journalPath)) return targets
+
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf-8')) as {
+      sourceVersion?: unknown
+      plannedCopies?: unknown
+    }
+    if (journal.sourceVersion !== sourceVersion || !Array.isArray(journal.plannedCopies)) {
+      throw new Error('Shared Skills migration journal is invalid')
+    }
+    for (const rawCopy of journal.plannedCopies) {
+      if (!rawCopy || typeof rawCopy !== 'object') {
+        throw new Error('Shared Skills migration journal contains an invalid copy')
       }
-      if (
-        marker.agentId !== agentId ||
-        !Array.isArray(marker.skillNames) ||
-        !marker.skillNames.every((name): name is string => typeof name === 'string') ||
-        !this.areSkillListsEqual(marker.skillNames, selectedNames)
-      ) {
-        return false
+      const copy = rawCopy as Partial<SharedSkillMigrationPlannedCopy>
+      const agentId = assertSafeSkillAgentId(String(copy.agentId ?? ''))
+      const originalName = String(copy.originalName ?? '')
+      const targetName = String(copy.targetName ?? '')
+      if (!this.isSafeSkillName(originalName) || !this.isSafeSkillName(targetName)) {
+        throw new Error('Shared Skills migration journal contains an invalid Skill name')
       }
-      return selectedNames.every((name) => {
-        const summary = this.readSkillManifestSummary(path.join(root, name))
-        return summary.valid && summary.name === name
+      const key = `${agentId}\0${originalName}`
+      if (targets.has(key) && targets.get(key) !== targetName) {
+        throw new Error('Shared Skills migration journal contains conflicting targets')
+      }
+      targets.set(key, targetName)
+    }
+    return targets
+  }
+
+  private readLegacyAgentManagementStates(
+    stored: StoredSkillManagementState | null
+  ): Record<string, AgentSkillManagementState> {
+    const agents: Record<string, AgentSkillManagementState> = {}
+    if (stored?.version === 2) {
+      for (const [agentId, value] of Object.entries(stored.agents)) {
+        try {
+          const normalizedAgentId = assertSafeSkillAgentId(agentId)
+          agents[normalizedAgentId] = this.sanitizeAgentManagementState(normalizedAgentId, value)
+        } catch {
+          // Ignore unsafe legacy Agent IDs.
+        }
+      }
+    } else if (stored?.version === 1) {
+      agents[BUILTIN_SKILL_AGENT_ID] = this.sanitizeAgentManagementState(BUILTIN_SKILL_AGENT_ID, {
+        skills: stored.skills
       })
+    }
+    agents[BUILTIN_SKILL_AGENT_ID] ??= { skills: {} }
+    return agents
+  }
+
+  private async resolveLegacyExtension(
+    agentId: string,
+    name: string,
+    item?: SkillManagementItem,
+    inheritBuiltinSidecar = false
+  ): Promise<SkillExtensionConfig> {
+    if (item) return sanitizeSkillExtensionConfig(item.extension)
+    if (agentId !== BUILTIN_SKILL_AGENT_ID && !inheritBuiltinSidecar) {
+      return createDefaultSkillExtensionConfig()
+    }
+    const sidecarPath = this.getSidecarPath(name)
+    if (!(await this.pathExists(sidecarPath))) return createDefaultSkillExtensionConfig()
+    try {
+      return sanitizeSkillExtensionConfig(
+        JSON.parse(await fs.promises.readFile(sidecarPath, 'utf-8'))
+      )
     } catch {
-      return false
+      return createDefaultSkillExtensionConfig()
     }
   }
 
-  private removeMigrationStagingRoot(stagingRoot: string): void {
-    if (!fs.existsSync(stagingRoot)) return
-    const stats = fs.lstatSync(stagingRoot)
-    if (stats.isSymbolicLink()) {
-      throw new Error(`Agent Skill migration staging path is a symbolic link: ${stagingRoot}`)
+  private findMigrationVariantName(
+    skillName: string,
+    agentId: string,
+    sourcePath: string,
+    usedNames: ReadonlySet<string>
+  ): string {
+    const suffix = agentId
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^[^a-z0-9]+/, '')
+    const baseName = `${skillName}-${suffix || 'agent'}`
+    let candidate = baseName
+    let sequence = 2
+    while (usedNames.has(candidate) || fs.existsSync(path.join(this.skillsDir, candidate))) {
+      const existingPath = path.join(this.skillsDir, candidate)
+      if (fs.existsSync(existingPath) && this.areSkillDirectoriesSame(sourcePath, existingPath)) {
+        return candidate
+      }
+      candidate = `${baseName}-${sequence}`
+      sequence += 1
     }
-    fs.rmSync(stagingRoot, { recursive: true, force: true })
+    return candidate
+  }
+
+  private async remapLegacySessionSkillNames(
+    agentSkillNames: Record<string, Record<string, string>>
+  ): Promise<void> {
+    if (!this.agentScopePort) return
+    for (const session of await this.agentScopePort.listSessions()) {
+      if (
+        !Object.hasOwn(agentSkillNames, session.agentId) ||
+        !(await this.agentScopePort.isDeepChatAgent(session.agentId))
+      ) {
+        continue
+      }
+      const mapping = agentSkillNames[session.agentId]
+      const persisted = this.getPersistedNewSessionSkills(session.id)
+      const remapped = persisted.map((name) => mapping[name] ?? name)
+      const valid = await this.validateSkillNames(session.agentId, remapped)
+      if (!this.areSkillListsEqual(persisted, valid)) {
+        this.setPersistedNewSessionSkills(session.id, valid)
+      }
+    }
+  }
+
+  private reconcileSkillManagementState(): void {
+    const state = this.getStoredManagementState()
+    const availableNames = new Set(this.metadataCache.keys())
+    let changed = false
+    for (const metadata of this.metadataCache.values()) {
+      const existing = state.skills[metadata.name]
+      const source =
+        metadata.readOnly || metadata.ownerPluginId
+          ? ({ type: 'builtin' } as const)
+          : (existing?.source ?? ({ type: 'created' } as const))
+      if (existing?.canonicalPath === metadata.skillRoot && existing.source.type === source.type) {
+        continue
+      }
+      state.skills[metadata.name] = {
+        name: metadata.name,
+        canonicalPath: metadata.skillRoot,
+        source
+      }
+      changed = true
+    }
+    for (const name of Object.keys(state.skills)) {
+      if (availableNames.has(name)) continue
+      delete state.skills[name]
+      for (const agent of Object.values(state.agents)) delete agent.bindings[name]
+      changed = true
+    }
+    if (changed) this.saveManagementState(state)
+  }
+
+  private async pruneInactiveAgentBindings(): Promise<void> {
+    if (!this.agentScopePort) return
+    const activeAgentIds = new Set(
+      (await this.agentScopePort.listDeepChatAgents()).map((agent) => agent.id)
+    )
+    activeAgentIds.add(BUILTIN_SKILL_AGENT_ID)
+
+    const state = this.getStoredManagementState()
+    let changed = false
+    for (const agentId of Object.keys(state.agents)) {
+      if (activeAgentIds.has(agentId)) continue
+      delete state.agents[agentId]
+      changed = true
+    }
+    if (changed) this.saveManagementState(state)
+  }
+
+  private async materializeProviderBindingsForExistingAgents(): Promise<void> {
+    const agentIds = this.agentScopePort
+      ? (await this.agentScopePort.listDeepChatAgents()).map((agent) => agent.id)
+      : [BUILTIN_SKILL_AGENT_ID]
+    const providerSkills = Array.from(this.metadataCache.values()).filter(
+      (skill) => skill.readOnly || skill.ownerPluginId
+    )
+    const state = this.getStoredManagementState()
+    let changed = false
+    for (const agentId of agentIds) {
+      const bindings = this.getAgentBindingState(state, agentId).bindings
+      for (const skill of providerSkills) {
+        if (bindings[skill.name]) continue
+        bindings[skill.name] = {
+          assigned: true,
+          extension: createDefaultSkillExtensionConfig()
+        }
+        changed = true
+      }
+    }
+    if (changed) this.saveManagementState(state)
   }
 
   async refreshAgentCatalog(agentId: string): Promise<SkillMetadata[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
-    if (normalizedAgentId === BUILTIN_SKILL_AGENT_ID) {
-      this.metadataCache.clear()
-      this.contentCache.clear()
-      this.discoveryPromise = null
-      this.builtinCatalogDiscovered = false
-      return await this.discoverSkills(normalizedAgentId)
-    }
-    const catalog = this.getScopedCatalog(normalizedAgentId)
-    catalog.metadataCache.clear()
-    catalog.contentCache.clear()
-    catalog.discoveryPromise = null
-    catalog.discovered = false
-    return await this.discoverSkills(normalizedAgentId)
-  }
-
-  private async discoverScopedSkills(agentId: string): Promise<SkillMetadata[]> {
-    const root = this.getAgentSkillsRoot(agentId)
-    const catalog = this.getScopedCatalog(agentId)
-    const finishOperation = this.beginAgentScopeOperation(agentId)
-    try {
-      const discoveredByName = new Map<string, SkillMetadata>()
-      let discoveredSkills: SkillMetadata[] = []
-      if (fs.existsSync(root)) {
-        try {
-          const workerResult = await discoverSkillMetadataInWorker({
-            skillsDir: root,
-            sidecarDirName: SKILL_CONFIG.SIDECAR_DIR,
-            maxDepth: SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
-          })
-          logSkillDiscoveryWorkerWarnings(workerResult.warnings)
-          discoveredSkills = workerResult.skills.map((metadata) =>
-            this.withSkillCategoryForRoot(metadata, root)
-          )
-        } catch (error) {
-          console.warn(
-            `[SkillService] Worker discovery failed for Agent ${agentId}, falling back to main thread:`,
-            error
-          )
-          discoveredSkills = await this.discoverSkillsOnMainThread(root)
-        }
-      }
-
-      for (const metadata of [
-        ...discoveredSkills,
-        ...this.readOnlyBundledSkills,
-        ...(await this.discoverPluginSkillsOnMainThread())
-      ]) {
-        if (!discoveredByName.has(metadata.name)) {
-          discoveredByName.set(metadata.name, metadata)
-        }
-      }
-
-      this.assertAgentScopeActive(agentId)
-      catalog.metadataCache.clear()
-      catalog.contentCache.clear()
-      for (const [name, metadata] of discoveredByName) {
-        catalog.metadataCache.set(name, metadata)
-      }
-      const skills = this.getVisibleMetadataFromCache(agentId)
-      catalog.discovered = true
-      this.publishEvent('skills.catalog.changed', {
-        reason: 'discovered',
-        agentIds: [agentId],
-        skills,
-        version: Date.now()
-      })
-      return skills
-    } finally {
-      finishOperation()
-    }
+    this.metadataCache.clear()
+    this.contentCache.clear()
+    this.discoveryPromise = null
+    this.builtinCatalogDiscovered = false
+    await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
+    return await this.getMetadataList(normalizedAgentId)
   }
 
   private async discoverSkillsOnMainThread(
@@ -1091,6 +1192,7 @@ export class SkillService implements SkillServicePort {
   async getMetadataList(agentId: string = BUILTIN_SKILL_AGENT_ID): Promise<SkillMetadata[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     await this.ensureAgentCatalogDiscovered(normalizedAgentId)
+    await this.ensureAgentBindingsInitialized(normalizedAgentId)
     return this.getVisibleMetadataFromCache(normalizedAgentId)
   }
 
@@ -1103,15 +1205,14 @@ export class SkillService implements SkillServicePort {
   }
 
   private isSkillVisible(metadata: SkillMetadata, agentId: string): boolean {
-    return Boolean(metadata) && !this.isSkillDisabled(agentId, metadata.name)
+    return Boolean(metadata) && this.isSkillAssigned(agentId, metadata.name)
   }
 
   private createDefaultManagementState(): SkillManagementState {
     return {
-      version: 2,
-      agents: {
-        [BUILTIN_SKILL_AGENT_ID]: { skills: {} }
-      }
+      version: 3,
+      skills: {},
+      agents: {}
     }
   }
 
@@ -1159,86 +1260,88 @@ export class SkillService implements SkillServicePort {
 
   private getStoredManagementState(): SkillManagementState {
     const stored = this.settings.getManagementState()
-    if (!stored || typeof stored !== 'object') {
+    if (!stored || typeof stored !== 'object' || stored.version !== 3) {
       return this.createDefaultManagementState()
     }
 
     const raw = stored as unknown as Record<string, unknown>
-    const agents: Record<string, AgentSkillManagementState> = {}
-    if (raw.version === 2 && raw.agents && typeof raw.agents === 'object') {
-      for (const [agentId, value] of Object.entries(raw.agents as Record<string, unknown>)) {
-        try {
-          const normalizedAgentId = assertSafeSkillAgentId(agentId)
-          agents[normalizedAgentId] = this.sanitizeAgentManagementState(normalizedAgentId, value)
-        } catch {
-          // Ignore unsafe legacy keys.
-        }
+    const skills: Record<string, SharedSkillManagementItem> = {}
+    const rawSkills =
+      raw.skills && typeof raw.skills === 'object'
+        ? (raw.skills as Record<string, unknown>)
+        : raw.library && typeof raw.library === 'object'
+          ? (raw.library as Record<string, unknown>)
+          : {}
+    for (const [name, value] of Object.entries(rawSkills)) {
+      if (!this.isSafeSkillName(name) || !value || typeof value !== 'object') continue
+      const item = value as Partial<SharedSkillManagementItem>
+      skills[name] = {
+        name,
+        canonicalPath:
+          typeof item.canonicalPath === 'string' && item.canonicalPath.trim()
+            ? path.resolve(item.canonicalPath)
+            : path.join(this.skillsDir, name),
+        source: this.sanitizeSkillSource(item.source)
       }
-    } else {
-      agents[BUILTIN_SKILL_AGENT_ID] = this.sanitizeAgentManagementState(BUILTIN_SKILL_AGENT_ID, {
-        skills: raw.skills
-      })
     }
 
-    if (!agents[BUILTIN_SKILL_AGENT_ID]) {
-      agents[BUILTIN_SKILL_AGENT_ID] = { skills: {} }
+    const agents: Record<string, AgentSkillBindingState> = {}
+    const rawAgents =
+      raw.agents && typeof raw.agents === 'object' ? (raw.agents as Record<string, unknown>) : {}
+    for (const [agentId, value] of Object.entries(rawAgents)) {
+      try {
+        const normalizedAgentId = assertSafeSkillAgentId(agentId)
+        const rawAgent =
+          value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+        const rawBindings =
+          rawAgent.bindings && typeof rawAgent.bindings === 'object'
+            ? (rawAgent.bindings as Record<string, unknown>)
+            : {}
+        const bindings: Record<string, AgentSkillBinding> = {}
+        for (const [name, bindingValue] of Object.entries(rawBindings)) {
+          if (!this.isSafeSkillName(name) || !bindingValue || typeof bindingValue !== 'object') {
+            continue
+          }
+          const binding = bindingValue as Partial<AgentSkillBinding>
+          bindings[name] = {
+            assigned: binding.assigned === true,
+            extension: sanitizeSkillExtensionConfig(binding.extension)
+          }
+        }
+        agents[normalizedAgentId] = { bindings }
+      } catch {
+        // Ignore unsafe persisted Agent IDs.
+      }
     }
 
     const rawMigration =
       raw.migration && typeof raw.migration === 'object'
         ? (raw.migration as Record<string, unknown>)
-        : null
+        : undefined
     const state: SkillManagementState = {
-      version: 2,
+      version: 3,
+      skills,
       agents,
       sync: this.sanitizeSyncDirectoryConfig(raw.sync),
-      migration: rawMigration
-        ? {
-            completedAgentIds: Array.isArray(rawMigration.completedAgentIds)
-              ? rawMigration.completedAgentIds.filter(
-                  (agentId): agentId is string => typeof agentId === 'string'
-                )
-              : [],
-            targetAgentIds: Array.isArray(rawMigration.targetAgentIds)
-              ? rawMigration.targetAgentIds.filter((agentId): agentId is string => {
-                  if (typeof agentId !== 'string') return false
-                  try {
-                    assertSafeSkillAgentId(agentId)
-                    return true
-                  } catch {
-                    return false
-                  }
-                })
-              : undefined,
-            legacySkillAllowLists:
-              rawMigration.legacySkillAllowLists &&
-              typeof rawMigration.legacySkillAllowLists === 'object'
-                ? Object.fromEntries(
-                    Object.entries(
-                      rawMigration.legacySkillAllowLists as Record<string, unknown>
-                    ).flatMap(([agentId, value]) => {
-                      try {
-                        const normalizedAgentId = assertSafeSkillAgentId(agentId)
-                        if (!Array.isArray(value)) return []
-                        const names = value.filter(
-                          (name): name is string =>
-                            typeof name === 'string' && this.isSafeSkillName(name)
-                        )
-                        return [[normalizedAgentId, Array.from(new Set(names))]]
-                      } catch {
-                        return []
-                      }
-                    })
-                  )
-                : undefined,
-            completedAt:
-              typeof rawMigration.completedAt === 'string' ? rawMigration.completedAt : undefined
-          }
-        : undefined
-    }
-
-    if (raw.version !== 2) {
-      this.saveManagementState(state)
+      migration:
+        rawMigration &&
+        (rawMigration.sourceVersion === 1 || rawMigration.sourceVersion === 2) &&
+        (rawMigration.status === 'planned' ||
+          rawMigration.status === 'committing' ||
+          rawMigration.status === 'completed') &&
+        typeof rawMigration.startedAt === 'string'
+          ? {
+              sourceVersion: rawMigration.sourceVersion,
+              status: rawMigration.status,
+              startedAt: rawMigration.startedAt,
+              completedAt:
+                typeof rawMigration.completedAt === 'string' ? rawMigration.completedAt : undefined,
+              agentSkillNames:
+                rawMigration.agentSkillNames && typeof rawMigration.agentSkillNames === 'object'
+                  ? (rawMigration.agentSkillNames as Record<string, Record<string, string>>)
+                  : {}
+            }
+          : undefined
     }
     return state
   }
@@ -1296,15 +1399,10 @@ export class SkillService implements SkillServicePort {
       : 'created'
   }
 
-  private createDefaultManagementItem(
-    name: string,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
-  ): SkillManagementItem {
+  private createDefaultSkillItem(name: string): SharedSkillManagementItem {
     return {
       name,
-      canonicalPath: path.join(this.getAgentSkillsRoot(agentId), name),
-      disabled: false,
-      extension: createDefaultSkillExtensionConfig(),
+      canonicalPath: path.join(this.skillsDir, name),
       source: {
         type: 'created'
       }
@@ -1313,30 +1411,47 @@ export class SkillService implements SkillServicePort {
 
   private updateSkillManagementItem(
     name: string,
-    updater: (item: SkillManagementItem) => SkillManagementItem,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
-  ): SkillManagementItem {
+    updater: (item: SharedSkillManagementItem) => SharedSkillManagementItem
+  ): SharedSkillManagementItem {
     const state = this.getStoredManagementState()
-    const agentState = this.getAgentManagementState(state, agentId)
-    const nextItem = updater(
-      agentState.skills[name] ?? this.createDefaultManagementItem(name, agentId)
-    )
-    agentState.skills[name] = nextItem
+    const nextItem = updater(state.skills[name] ?? this.createDefaultSkillItem(name))
+    state.skills[name] = nextItem
     this.saveManagementState(state)
     return nextItem
   }
 
-  private getAgentManagementState(
+  private getAgentBindingState(
     state: SkillManagementState,
     agentId: string
-  ): AgentSkillManagementState {
+  ): AgentSkillBindingState {
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
-    state.agents[normalizedAgentId] ??= { skills: {} }
+    state.agents[normalizedAgentId] ??= { bindings: {} }
     return state.agents[normalizedAgentId]
   }
 
-  private isSkillDisabled(agentId: string, name: string): boolean {
-    return this.getStoredManagementState().agents[agentId]?.skills[name]?.disabled === true
+  private isSkillAssigned(agentId: string, name: string): boolean {
+    return this.getStoredManagementState().agents[agentId]?.bindings[name]?.assigned === true
+  }
+
+  private getAssignedAgentIds(name: string): string[] {
+    return Object.entries(this.getStoredManagementState().agents)
+      .filter(([, agent]) => agent.bindings[name]?.assigned === true)
+      .map(([agentId]) => agentId)
+      .sort((left, right) => left.localeCompare(right))
+  }
+
+  private async ensureAgentBindingsInitialized(agentId: string): Promise<void> {
+    const state = this.getStoredManagementState()
+    if (state.agents[agentId]) return
+    const agentState = this.getAgentBindingState(state, agentId)
+    for (const metadata of this.metadataCache.values()) {
+      if (!metadata.readOnly && !metadata.ownerPluginId) continue
+      agentState.bindings[metadata.name] = {
+        assigned: true,
+        extension: createDefaultSkillExtensionConfig()
+      }
+    }
+    this.saveManagementState(state)
   }
 
   async getSkillManagementState(): Promise<SkillManagementState> {
@@ -1348,35 +1463,126 @@ export class SkillService implements SkillServicePort {
   }
 
   async setSkillDisabledForAgent(agentId: string, name: string, disabled: boolean): Promise<void> {
-    const normalizedAgentId = await this.requireAgentScope(agentId)
-    const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
+    await this.setSkillAssignment(agentId, name, !disabled)
+  }
+
+  async setSkillAssignment(agentId: string, name: string, assigned: boolean): Promise<void> {
+    await this.setSkillAssignmentForAgents([agentId], name, assigned)
+  }
+
+  async setSkillAssignmentForAgents(
+    agentIds: string[],
+    name: string,
+    assigned: boolean
+  ): Promise<void> {
+    await this.runMutation(async () => {
+      await this.setSkillAssignmentForAgentsUnlocked(agentIds, name, assigned)
+    })
+  }
+
+  private async setSkillAssignmentForAgentsUnlocked(
+    agentIds: string[],
+    name: string,
+    assigned: boolean
+  ): Promise<void> {
+    const normalizedAgentIds: string[] = []
+    const finishOperations: Array<() => void> = []
     try {
-      const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
-      await this.ensureAgentCatalogDiscovered(normalizedAgentId)
-      this.assertAgentScopeActive(normalizedAgentId)
-      if (!metadataCache.has(name)) {
+      for (const agentId of Array.from(new Set(agentIds)).sort((left, right) =>
+        left.localeCompare(right)
+      )) {
+        const normalizedAgentId = await this.requireAgentScope(agentId)
+        if (normalizedAgentIds.includes(normalizedAgentId)) continue
+        normalizedAgentIds.push(normalizedAgentId)
+        finishOperations.push(this.beginAgentScopeOperation(normalizedAgentId))
+      }
+      if (normalizedAgentIds.length === 0) throw new Error('At least one target Agent is required')
+      await this.ensureAgentCatalogDiscovered(normalizedAgentIds[0])
+      if (!this.metadataCache.has(name)) {
         throw new Error(`Skill "${name}" not found`)
       }
-
-      this.updateSkillManagementItem(
-        name,
-        (item) => ({
-          ...item,
-          canonicalPath: metadataCache.get(name)?.skillRoot ?? item.canonicalPath,
-          disabled
-        }),
-        normalizedAgentId
-      )
-      this.getContentCacheForAgent(normalizedAgentId).delete(name)
+      for (const agentId of normalizedAgentIds) {
+        await this.ensureAgentBindingsInitialized(agentId)
+        this.assertAgentScopeActive(agentId)
+      }
+      const state = this.getStoredManagementState()
+      for (const agentId of normalizedAgentIds) {
+        const bindingState = this.getAgentBindingState(state, agentId)
+        const previous = bindingState.bindings[name]
+        bindingState.bindings[name] = {
+          assigned,
+          extension: sanitizeSkillExtensionConfig(previous?.extension)
+        }
+      }
+      this.saveManagementState(state)
+      if (!assigned) {
+        await Promise.all(
+          normalizedAgentIds.map((agentId) => this.revalidateSessionsForAgent(agentId))
+        )
+      }
       this.publishEvent('skills.catalog.changed', {
-        reason: 'disabled-updated',
+        reason: 'assignments-updated',
         name,
-        disabled,
-        agentIds: [normalizedAgentId],
+        agentIds: normalizedAgentIds,
         version: Date.now()
       })
     } finally {
+      for (const finishOperation of finishOperations.reverse()) finishOperation()
+    }
+  }
+
+  async setSkillAssignments(agentId: string, skillNames: string[]): Promise<string[]> {
+    return await this.runMutation(
+      async () => await this.setSkillAssignmentsUnlocked(agentId, skillNames)
+    )
+  }
+
+  private async setSkillAssignmentsUnlocked(
+    agentId: string,
+    skillNames: string[]
+  ): Promise<string[]> {
+    const normalizedAgentId = await this.requireAgentScope(agentId)
+    const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
+    try {
+      await this.ensureAgentCatalogDiscovered(normalizedAgentId)
+      const requested = new Set(skillNames)
+      for (const name of requested) {
+        if (!this.metadataCache.has(name)) throw new Error(`Skill "${name}" not found`)
+      }
+      const state = this.getStoredManagementState()
+      const bindingState = this.getAgentBindingState(state, normalizedAgentId)
+      for (const name of this.metadataCache.keys()) {
+        const previous = bindingState.bindings[name]
+        bindingState.bindings[name] = {
+          assigned: requested.has(name),
+          extension: sanitizeSkillExtensionConfig(previous?.extension)
+        }
+      }
+      this.saveManagementState(state)
+      await this.revalidateSessionsForAgent(normalizedAgentId)
+      this.publishEvent('skills.catalog.changed', {
+        reason: 'assignments-updated',
+        agentIds: [normalizedAgentId],
+        version: Date.now()
+      })
+      return Array.from(requested).sort((left, right) => left.localeCompare(right))
+    } finally {
       finishOperation()
+    }
+  }
+
+  private async revalidateSessionsForAgent(agentId: string): Promise<void> {
+    if (!this.agentScopePort) return
+    try {
+      for (const session of await this.agentScopePort.listSessions()) {
+        if (session.agentId !== agentId) continue
+        await this.revalidateActiveSkillsForAgent(session.id, agentId)
+      }
+    } catch (error) {
+      logger.warn('[SkillService] Failed to persist revalidated Session Skills.', {
+        agentId,
+        error
+      })
     }
   }
 
@@ -1384,26 +1590,47 @@ export class SkillService implements SkillServicePort {
     agentId: string = BUILTIN_SKILL_AGENT_ID
   ): Promise<UnifiedSkillItem[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
-    const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
     await this.ensureAgentCatalogDiscovered(normalizedAgentId)
+    await this.ensureAgentBindingsInitialized(normalizedAgentId)
 
     const state = this.getStoredManagementState()
-    const agentState = this.getAgentManagementState(state, normalizedAgentId)
-    return this.sortSkillMetadata(Array.from(metadataCache.values())).map((skill) => {
-      const item =
-        agentState.skills[skill.name] ??
-        this.createDefaultManagementItem(skill.name, normalizedAgentId)
-      return {
-        ...skill,
-        agentId: normalizedAgentId,
-        canonicalPath: skill.readOnly ? skill.skillRoot : item.canonicalPath || skill.skillRoot,
-        sourceType: skill.readOnly ? 'builtin' : item.source.type,
-        disabled: item.disabled,
-        deepchatDisabled: item.disabled,
-        agentLinks: item.agentLinks ?? {},
-        mutable: !skill.ownerPluginId && !skill.readOnly
-      }
-    })
+    return this.sortSkillMetadata(Array.from(this.metadataCache.values()))
+      .filter((skill) => state.agents[normalizedAgentId]?.bindings[skill.name]?.assigned === true)
+      .map((skill) => this.toUnifiedSkillItem(skill, normalizedAgentId, state))
+  }
+
+  async getAllSkills(): Promise<UnifiedSkillItem[]> {
+    await this.ensureAgentCatalogDiscovered(BUILTIN_SKILL_AGENT_ID)
+    const state = this.getStoredManagementState()
+    return this.sortSkillMetadata(Array.from(this.metadataCache.values())).map((skill) =>
+      this.toUnifiedSkillItem(skill, BUILTIN_SKILL_AGENT_ID, state, true)
+    )
+  }
+
+  private toUnifiedSkillItem(
+    skill: SkillMetadata,
+    agentId: string,
+    state: SkillManagementState,
+    globalView = false
+  ): UnifiedSkillItem {
+    const item = state.skills[skill.name] ?? this.createDefaultSkillItem(skill.name)
+    const assignedAgentIds = Object.entries(state.agents)
+      .filter(([, agent]) => agent.bindings[skill.name]?.assigned === true)
+      .map(([assignedAgentId]) => assignedAgentId)
+      .sort((left, right) => left.localeCompare(right))
+    const assigned = state.agents[agentId]?.bindings[skill.name]?.assigned === true
+    return {
+      ...skill,
+      agentId,
+      canonicalPath: skill.readOnly || skill.ownerPluginId ? skill.skillRoot : item.canonicalPath,
+      sourceType: skill.readOnly || skill.ownerPluginId ? 'builtin' : item.source.type,
+      assigned,
+      assignedAgentIds: globalView ? assignedAgentIds : [],
+      disabled: !assigned,
+      deepchatDisabled: !assigned,
+      agentLinks: {},
+      mutable: !skill.ownerPluginId && !skill.readOnly
+    }
   }
 
   private sortSkillMetadata(skills: SkillMetadata[]): SkillMetadata[] {
@@ -1462,12 +1689,12 @@ export class SkillService implements SkillServicePort {
 
     // Get metadata to find the path
     const metadata = metadataCache.get(name)
-    if (!metadata || !this.isSkillVisible(metadata, agentId)) {
+    if (!metadata) {
       console.warn(`[SkillService] Skill not found: ${name}`)
       return null
     }
 
-    // Check content cache after feature visibility so disabled managed skills stay hidden.
+    // Rendered content includes Agent-specific runtime configuration.
     if (contentCache.has(name)) {
       return contentCache.get(name)!
     }
@@ -1519,7 +1746,7 @@ export class SkillService implements SkillServicePort {
   async viewSkillForAgent(
     agentId: string,
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; allowUnassigned?: boolean }
   ): Promise<SkillViewResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     return await this.viewSkillInAgentScope(normalizedAgentId, name, options)
@@ -1527,7 +1754,7 @@ export class SkillService implements SkillServicePort {
 
   async viewSkill(
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; allowUnassigned?: boolean }
   ): Promise<SkillViewResult> {
     return await this.viewSkillInAgentScope(BUILTIN_SKILL_AGENT_ID, name, options)
   }
@@ -1535,13 +1762,13 @@ export class SkillService implements SkillServicePort {
   private async viewSkillInAgentScope(
     agentId: string,
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; allowUnassigned?: boolean }
   ): Promise<SkillViewResult> {
     const metadataCache = this.getMetadataCacheForAgent(agentId)
     await this.ensureAgentCatalogDiscovered(agentId)
 
     const metadata = metadataCache.get(name)
-    if (!metadata || !this.isSkillVisible(metadata, agentId)) {
+    if (!metadata || (!options?.allowUnassigned && !this.isSkillVisible(metadata, agentId))) {
       return {
         success: false,
         error: `Skill "${name}" not found`
@@ -2018,10 +2245,10 @@ export class SkillService implements SkillServicePort {
     agentId: string = BUILTIN_SKILL_AGENT_ID
   ): string {
     const pluginContribution = this.getPluginContributionForSkillRoot(metadata.skillRoot)
-    const agentSkillsRoot = this.getAgentSkillsRoot(agentId)
+    assertSafeSkillAgentId(agentId)
     return content
       .replace(/\$\{SKILL_ROOT\}/g, metadata.skillRoot)
-      .replace(/\$\{SKILLS_DIR\}/g, agentSkillsRoot)
+      .replace(/\$\{SKILLS_DIR\}/g, this.skillsDir)
       .replace(/\$\{PLUGIN_ROOT\}/g, pluginContribution?.pluginRoot ?? '')
       .replace(/\$\{PROCESS_ARCH\}/g, process.arch)
       .replace(
@@ -2072,6 +2299,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const entries = fs.readdirSync(builtinDir, { withFileTypes: true })
+    const managementStateIsV3 = this.settings.getManagementState()?.version === 3
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       if (READ_ONLY_BUNDLED_SKILL_NAMES.has(entry.name)) continue
@@ -2086,7 +2314,9 @@ export class SkillService implements SkillServicePort {
 
       const result = await this.installFromDirectory(skillDir, {
         options: { overwrite: false },
-        sourceType: 'builtin'
+        sourceType: 'builtin',
+        assignToAgent: managementStateIsV3,
+        persistManagementState: managementStateIsV3
       })
       if (!result.success && result.error?.includes('already exists')) {
         continue
@@ -2148,7 +2378,12 @@ export class SkillService implements SkillServicePort {
     folderPath: string,
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
-    return await this.installFromFolderForAgent(BUILTIN_SKILL_AGENT_ID, folderPath, options)
+    return await this.installFromDirectory(folderPath, {
+      options,
+      sourceType: 'folder-install',
+      targetName: options?.targetName,
+      assignToAgent: false
+    })
   }
 
   async installFromFolderForAgent(
@@ -2165,14 +2400,12 @@ export class SkillService implements SkillServicePort {
     })
   }
 
-  async installImportedSkillForAgent(
-    agentId: string,
+  async installImportedSkill(
+    agentIds: string[],
     folderPath: string,
     provenance: SkillImportProvenance,
-    options?: SkillInstallOptions,
-    catalogPublication: SkillCatalogPublicationMode = 'immediate'
+    options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
-    const normalizedAgentId = await this.requireAgentScope(agentId)
     const importedFrom = provenance.importedFrom.trim()
     if (!importedFrom) {
       return { success: false, error: 'Imported Skill provenance is required' }
@@ -2190,8 +2423,8 @@ export class SkillService implements SkillServicePort {
         ...(sourceAgentId ? { agentId: sourceAgentId } : {})
       },
       targetName: options?.targetName,
-      agentId: normalizedAgentId,
-      publishCatalogEvent: catalogPublication === 'immediate'
+      assignToAgentIds: agentIds,
+      publishCatalogEvent: true
     })
   }
 
@@ -2202,13 +2435,22 @@ export class SkillService implements SkillServicePort {
     zipPath: string,
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
-    return await this.installFromZipForAgent(BUILTIN_SKILL_AGENT_ID, zipPath, options)
+    return await this.installFromZipWithAssignment(BUILTIN_SKILL_AGENT_ID, zipPath, options, false)
   }
 
   async installFromZipForAgent(
     agentId: string,
     zipPath: string,
     options?: SkillInstallOptions
+  ): Promise<SkillInstallResult> {
+    return await this.installFromZipWithAssignment(agentId, zipPath, options, true)
+  }
+
+  private async installFromZipWithAssignment(
+    agentId: string,
+    zipPath: string,
+    options: SkillInstallOptions | undefined,
+    assignToAgent: boolean
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     if (!fs.existsSync(zipPath)) {
@@ -2227,7 +2469,8 @@ export class SkillService implements SkillServicePort {
       return await this.installFromDirectory(skillDir, {
         options,
         sourceType: 'zip-install',
-        agentId: normalizedAgentId
+        agentId: normalizedAgentId,
+        assignToAgent
       })
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -2241,13 +2484,22 @@ export class SkillService implements SkillServicePort {
    * Install a skill from a URL
    */
   async installFromUrl(url: string, options?: SkillInstallOptions): Promise<SkillInstallResult> {
-    return await this.installFromUrlForAgent(BUILTIN_SKILL_AGENT_ID, url, options)
+    return await this.installFromUrlWithAssignment(BUILTIN_SKILL_AGENT_ID, url, options, false)
   }
 
   async installFromUrlForAgent(
     agentId: string,
     url: string,
     options?: SkillInstallOptions
+  ): Promise<SkillInstallResult> {
+    return await this.installFromUrlWithAssignment(agentId, url, options, true)
+  }
+
+  private async installFromUrlWithAssignment(
+    agentId: string,
+    url: string,
+    options: SkillInstallOptions | undefined,
+    assignToAgent: boolean
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
@@ -2257,19 +2509,20 @@ export class SkillService implements SkillServicePort {
         maxBytes: SKILL_CONFIG.ZIP_MAX_SIZE,
         timeoutMs: SKILL_CONFIG.DOWNLOAD_TIMEOUT
       })
-      const result = await this.installFromZipForAgent(normalizedAgentId, tempZipPath, options)
+      const result = await this.installFromZipWithAssignment(
+        normalizedAgentId,
+        tempZipPath,
+        options,
+        assignToAgent
+      )
       if (result.success && result.skillName) {
-        this.updateSkillManagementItem(
-          result.skillName,
-          (item) => ({
-            ...item,
-            source: {
-              type: 'url-install',
-              installedAt: new Date().toISOString()
-            }
-          }),
-          normalizedAgentId
-        )
+        this.updateSkillManagementItem(result.skillName, (item) => ({
+          ...item,
+          source: {
+            type: 'url-install',
+            installedAt: new Date().toISOString()
+          }
+        }))
       }
       return result
     } catch (error) {
@@ -2306,12 +2559,13 @@ export class SkillService implements SkillServicePort {
   }
 
   async installSkillsFromGit(input: GitSkillInstallInput): Promise<SkillInstallResult[]> {
-    return await this.installSkillsFromGitForAgent(BUILTIN_SKILL_AGENT_ID, input)
+    return await this.installSkillsFromGitForAgent(BUILTIN_SKILL_AGENT_ID, input, false)
   }
 
   async installSkillsFromGitForAgent(
     agentId: string,
-    input: GitSkillInstallInput
+    input: GitSkillInstallInput,
+    assignToAgent = true
   ): Promise<SkillInstallResult[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
@@ -2335,8 +2589,6 @@ export class SkillService implements SkillServicePort {
       const scan = await this.scanGitSkillRepoDirectory(repoUrl, cloneDir, normalizedAgentId)
       const selectedItems = scan.skills.filter((item) => selected.has(item.name))
       const results: SkillInstallResult[] = []
-      const targetSkillsRoot = this.getAgentSkillsRoot(normalizedAgentId)
-
       for (const item of selectedItems) {
         if (!item.valid) {
           results.push({
@@ -2349,7 +2601,7 @@ export class SkillService implements SkillServicePort {
           continue
         }
 
-        const targetConflict = fs.existsSync(path.join(targetSkillsRoot, item.name))
+        const targetConflict = this.isSkillNameOccupied(item.name)
         if (targetConflict && strategy === 'skip') {
           results.push({
             success: false,
@@ -2368,7 +2620,7 @@ export class SkillService implements SkillServicePort {
             : path.join(cloneDir, item.relativePath.replace(/\/SKILL\.md$/, ''))
         const targetName =
           targetConflict && strategy === 'rename'
-            ? this.createUniqueSkillName(item.name, normalizedAgentId)
+            ? this.createUniqueSkillName(item.name)
             : item.name
         const result = await this.installFromDirectory(sourceDir, {
           options: { overwrite: targetConflict && strategy === 'overwrite' },
@@ -2380,6 +2632,7 @@ export class SkillService implements SkillServicePort {
           },
           targetName,
           agentId: normalizedAgentId,
+          assignToAgent,
           publishCatalogEvent: false
         })
         results.push({ ...result, sourceSkillName: item.name })
@@ -2388,7 +2641,7 @@ export class SkillService implements SkillServicePort {
       if (results.some((result) => result.success)) {
         this.publishEvent('skills.catalog.changed', {
           reason: 'git-installed',
-          agentIds: [normalizedAgentId],
+          agentIds: assignToAgent ? [normalizedAgentId] : undefined,
           version: Date.now()
         })
       }
@@ -2442,10 +2695,7 @@ export class SkillService implements SkillServicePort {
   ): Promise<SkillSyncDirectoryExportPreview> {
     const config = this.requireSyncDirectoryConfig()
     const selected = new Set(input.skillNames)
-    const skills = (await this.getUnifiedSkillCatalog()).filter((skill) => {
-      if (!selected.has(skill.name)) return false
-      return input.includeDisabled === true || !skill.deepchatDisabled
-    })
+    const skills = (await this.getAllSkills()).filter((skill) => selected.has(skill.name))
 
     return {
       skillsDirectory: config.skillsDirectory,
@@ -2576,6 +2826,7 @@ export class SkillService implements SkillServicePort {
           importedAt: new Date().toISOString()
         },
         targetName,
+        assignToAgent: false,
         publishCatalogEvent: false
       })
       if (result.success) {
@@ -2594,7 +2845,6 @@ export class SkillService implements SkillServicePort {
       })
       this.publishEvent('skills.catalog.changed', {
         reason: 'sync-imported',
-        agentIds: [BUILTIN_SKILL_AGENT_ID],
         version: Date.now()
       })
     }
@@ -2625,91 +2875,13 @@ export class SkillService implements SkillServicePort {
       pluginRoot: input.pluginRoot ? path.resolve(input.pluginRoot) : undefined
     })
     await this.invalidateCatalogsForPluginChange()
-  }
-
-  async registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void> {
-    const skillRoot = path.resolve(input.canonicalPath)
-    const metadata = await this.parseSkillMetadata(path.join(skillRoot, 'SKILL.md'), input.name)
-    if (!metadata || metadata.name !== input.name) {
-      throw new Error(`Adopted skill "${input.name}" is invalid`)
-    }
-
-    this.metadataCache.set(input.name, metadata)
-    this.contentCache.delete(input.name)
-    this.updateSkillManagementItem(input.name, (item) => ({
-      ...item,
-      canonicalPath: skillRoot,
-      source: {
-        type: 'adopted',
-        agentId: input.agentId,
-        originalPath: input.originalPath,
-        adoptedAt: new Date().toISOString()
-      },
-      agentLinks: {
-        ...item.agentLinks,
-        [input.agentId]: {
-          path: input.agentPath,
-          state: 'linked',
-          createdByDeepChat: true,
-          linkedAt: new Date().toISOString()
-        }
-      }
-    }))
-
-    this.publishEvent('skills.catalog.changed', {
-      reason: 'installed',
-      name: input.name,
-      skill: metadata,
-      version: Date.now()
-    })
-  }
-
-  async registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void> {
-    await this.ensureAgentCatalogDiscovered(BUILTIN_SKILL_AGENT_ID)
-    const metadata = this.metadataCache.get(input.skillName)
-    if (!metadata) {
-      throw new Error(`Skill "${input.skillName}" not found`)
-    }
-
-    this.updateSkillManagementItem(input.skillName, (item) => ({
-      ...item,
-      canonicalPath: metadata.skillRoot,
-      agentLinks: {
-        ...item.agentLinks,
-        [input.agentId]: {
-          path: input.agentPath,
-          state: 'linked',
-          createdByDeepChat: true,
-          linkedAt: new Date().toISOString()
-        }
-      }
-    }))
-
-    this.publishEvent('skills.catalog.changed', {
-      reason: 'management-state-updated',
-      name: input.skillName,
-      version: Date.now()
-    })
-  }
-
-  async removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void> {
-    this.updateSkillManagementItem(input.skillName, (item) => {
-      const agentLinks = { ...item.agentLinks }
-      delete agentLinks[input.agentId]
-      return {
-        ...item,
-        agentLinks: Object.keys(agentLinks).length > 0 ? agentLinks : undefined
-      }
-    })
-
-    this.publishEvent('skills.catalog.changed', {
-      reason: 'management-state-updated',
-      name: input.skillName,
-      version: Date.now()
-    })
+    await this.materializePluginBindings(input.ownerPluginId)
   }
 
   async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
+    const removedNames = Array.from(this.metadataCache.values())
+      .filter((skill) => skill.ownerPluginId === ownerPluginId)
+      .map((skill) => skill.name)
     let changed = false
     for (const [key, contribution] of this.pluginSkillContributions.entries()) {
       if (contribution.ownerPluginId === ownerPluginId) {
@@ -2718,36 +2890,80 @@ export class SkillService implements SkillServicePort {
       }
     }
 
-    if (changed) await this.invalidateCatalogsForPluginChange()
-  }
-
-  private async invalidateCatalogsForPluginChange(): Promise<void> {
-    const scopedAgentIds = Array.from(this.scopedCatalogs.keys())
-    this.metadataCache.clear()
-    this.contentCache.clear()
-    this.builtinCatalogDiscovered = false
-    for (const catalog of this.scopedCatalogs.values()) {
-      catalog.metadataCache.clear()
-      catalog.contentCache.clear()
-      catalog.discoveryPromise = null
-      catalog.discovered = false
-    }
-    if (!this.initialized) return
-
-    await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
-    for (const agentId of scopedAgentIds) {
-      try {
-        await this.discoverSkills(agentId)
-      } catch (error) {
-        logger.warn('[SkillService] Failed to refresh Agent catalog after Plugin Skill change.', {
-          agentId,
-          error
+    if (changed) {
+      const state = this.getStoredManagementState()
+      const affectedAgentIds = Object.entries(state.agents)
+        .filter(([, agent]) => removedNames.some((name) => agent.bindings[name]?.assigned === true))
+        .map(([agentId]) => agentId)
+      for (const name of removedNames) {
+        delete state.skills[name]
+        for (const agent of Object.values(state.agents)) delete agent.bindings[name]
+      }
+      this.saveManagementState(state)
+      await this.invalidateCatalogsForPluginChange()
+      await Promise.all(affectedAgentIds.map((agentId) => this.revalidateSessionsForAgent(agentId)))
+      if (affectedAgentIds.length > 0) {
+        this.publishEvent('skills.catalog.changed', {
+          reason: 'assignments-updated',
+          agentIds: affectedAgentIds,
+          version: Date.now()
         })
       }
     }
   }
 
+  private async invalidateCatalogsForPluginChange(): Promise<void> {
+    this.metadataCache.clear()
+    this.contentCache.clear()
+    this.builtinCatalogDiscovered = false
+    if (!this.initialized) return
+
+    await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
+    this.reconcileSkillManagementState()
+  }
+
+  private async materializePluginBindings(ownerPluginId: string): Promise<void> {
+    const names = Array.from(this.metadataCache.values())
+      .filter((skill) => skill.ownerPluginId === ownerPluginId)
+      .map((skill) => skill.name)
+    if (names.length === 0) return
+    const state = this.getStoredManagementState()
+    const agentIds = this.agentScopePort
+      ? (await this.agentScopePort.listDeepChatAgents()).map((agent) => agent.id)
+      : [BUILTIN_SKILL_AGENT_ID]
+    let changed = false
+    for (const agentId of agentIds) {
+      const bindings = this.getAgentBindingState(state, agentId).bindings
+      for (const name of names) {
+        if (!bindings[name]) {
+          bindings[name] = {
+            assigned: true,
+            extension: createDefaultSkillExtensionConfig()
+          }
+          changed = true
+        }
+      }
+    }
+    if (changed) {
+      this.saveManagementState(state)
+      this.publishEvent('skills.catalog.changed', {
+        reason: 'assignments-updated',
+        agentIds,
+        version: Date.now()
+      })
+    }
+  }
+
   private async installFromDirectory(
+    folderPath: string,
+    context: SkillDirectoryInstallContext = {}
+  ): Promise<SkillInstallResult> {
+    return await this.runMutation(
+      async () => await this.installFromDirectoryUnlocked(folderPath, context)
+    )
+  }
+
+  private async installFromDirectoryUnlocked(
     folderPath: string,
     context: SkillDirectoryInstallContext = {}
   ): Promise<SkillInstallResult> {
@@ -2757,17 +2973,44 @@ export class SkillService implements SkillServicePort {
       sourcePatch = {},
       targetName,
       agentId = BUILTIN_SKILL_AGENT_ID,
+      assignToAgent = true,
+      assignToAgentIds,
+      persistManagementState = true,
       publishCatalogEvent = true
     } = context
     let targetPath = this.skillsDir
     let skillNameForFailure = targetName?.trim() || path.basename(folderPath)
-    let finishAgentOperation: (() => void) | undefined
+    const finishAgentOperations: Array<() => void> = []
     try {
-      const normalizedAgentId = await this.requireAgentScope(agentId)
-      finishAgentOperation = this.beginAgentScopeOperation(normalizedAgentId)
-      const skillsRoot = this.ensureAgentSkillsRoot(normalizedAgentId)
-      const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
-      const contentCache = this.getContentCacheForAgent(normalizedAgentId)
+      const requestedAssignmentAgentIds = assignToAgentIds ?? (assignToAgent ? [agentId] : [])
+      const requestedOperationAgentIds =
+        requestedAssignmentAgentIds.length > 0 ? requestedAssignmentAgentIds : [agentId]
+      const normalizedOperationAgentIds: string[] = []
+      for (const requestedAgentId of Array.from(new Set(requestedOperationAgentIds)).sort(
+        (left, right) => left.localeCompare(right)
+      )) {
+        const normalizedAgentId = await this.requireAgentScope(requestedAgentId)
+        if (!normalizedOperationAgentIds.includes(normalizedAgentId)) {
+          normalizedOperationAgentIds.push(normalizedAgentId)
+        }
+      }
+      if (assignToAgentIds && normalizedOperationAgentIds.length === 0) {
+        return { success: false, error: 'At least one target Agent is required' }
+      }
+      for (const normalizedAgentId of normalizedOperationAgentIds) {
+        finishAgentOperations.push(this.beginAgentScopeOperation(normalizedAgentId))
+      }
+      await this.ensureAgentCatalogDiscovered(normalizedOperationAgentIds[0])
+      const normalizedAssignmentAgentIds =
+        requestedAssignmentAgentIds.length > 0 ? normalizedOperationAgentIds : []
+      if (persistManagementState) {
+        for (const normalizedAgentId of normalizedAssignmentAgentIds) {
+          await this.ensureAgentBindingsInitialized(normalizedAgentId)
+          this.assertAgentScopeActive(normalizedAgentId)
+        }
+      }
+      const skillsRoot = this.skillsDir
+      const metadataCache = this.metadataCache
       const resolvedSource = path.resolve(folderPath)
 
       if (!fs.existsSync(resolvedSource)) {
@@ -2837,6 +3080,15 @@ export class SkillService implements SkillServicePort {
       const targetDir = path.join(skillsRoot, finalSkillName)
       const resolvedTarget = path.resolve(targetDir)
       targetPath = resolvedTarget
+      const catalogEntry = metadataCache.get(finalSkillName)
+      if (catalogEntry && path.resolve(catalogEntry.skillRoot) !== resolvedTarget) {
+        return {
+          success: false,
+          error: `Skill "${finalSkillName}" is owned by a read-only provider`,
+          errorCode: options?.overwrite ? 'permission_denied' : 'conflict',
+          existingSkillName: finalSkillName
+        }
+      }
 
       if (resolvedSource === resolvedTarget) {
         return {
@@ -2868,6 +3120,18 @@ export class SkillService implements SkillServicePort {
             existingSkillName: finalSkillName
           }
         }
+        if (options.acknowledgedAgentIds) {
+          const currentImpact = this.getAssignedAgentIds(finalSkillName)
+          const acknowledgedImpact = Array.from(new Set(options.acknowledgedAgentIds)).sort()
+          if (!this.areSkillListsEqual(currentImpact, acknowledgedImpact)) {
+            return {
+              success: false,
+              error: 'Skill assignment impact changed; preview the operation again',
+              errorCode: 'stale_impact',
+              existingSkillName: finalSkillName
+            }
+          }
+        }
       }
 
       const stagingDir = path.join(
@@ -2884,8 +3148,6 @@ export class SkillService implements SkillServicePort {
       const previousState = this.getStoredManagementState()
       const hadPreviousMetadata = metadataCache.has(finalSkillName)
       const previousMetadata = metadataCache.get(finalSkillName)
-      const hadPreviousContent = contentCache.has(finalSkillName)
-      const previousContent = contentCache.get(finalSkillName)
       let backupDir: string | null = null
       let committedNewTarget = false
       let cachesTouched = false
@@ -2911,7 +3173,7 @@ export class SkillService implements SkillServicePort {
               existingSkillName: finalSkillName
             }
           }
-          backupDir = this.backupExistingSkill(finalSkillName, normalizedAgentId)
+          backupDir = this.backupExistingSkill(finalSkillName)
         }
         fs.renameSync(stagingDir, resolvedTarget)
         committedNewTarget = true
@@ -2927,27 +3189,36 @@ export class SkillService implements SkillServicePort {
         }
         cachesTouched = true
         metadataCache.set(finalSkillName, metadata)
-        contentCache.delete(finalSkillName)
-        managementStateTouched = true
-        this.updateSkillManagementItem(
-          finalSkillName,
-          (item) => ({
-            ...item,
+        this.invalidateSkillContent(finalSkillName)
+        if (persistManagementState) {
+          managementStateTouched = true
+          const state = this.getStoredManagementState()
+          state.skills[finalSkillName] = {
+            name: finalSkillName,
             canonicalPath: resolvedTarget,
             source: {
               type: sourceType,
               installedAt: new Date().toISOString(),
               ...sourcePatch
             }
-          }),
-          normalizedAgentId
-        )
+          }
+          for (const normalizedAgentId of normalizedAssignmentAgentIds) {
+            const bindingState = this.getAgentBindingState(state, normalizedAgentId)
+            const previousBinding = bindingState.bindings[finalSkillName]
+            bindingState.bindings[finalSkillName] = {
+              assigned: true,
+              extension: sanitizeSkillExtensionConfig(previousBinding?.extension)
+            }
+          }
+          this.saveManagementState(state)
+        }
 
         if (publishCatalogEvent) {
           this.publishEvent('skills.catalog.changed', {
             reason: 'installed',
             name: finalSkillName,
-            agentIds: [normalizedAgentId],
+            agentIds:
+              normalizedAssignmentAgentIds.length > 0 ? normalizedAssignmentAgentIds : undefined,
             version: Date.now()
           })
         }
@@ -2987,11 +3258,7 @@ export class SkillService implements SkillServicePort {
           } else {
             metadataCache.delete(finalSkillName)
           }
-          if (hadPreviousContent && previousContent !== undefined) {
-            contentCache.set(finalSkillName, previousContent)
-          } else {
-            contentCache.delete(finalSkillName)
-          }
+          this.invalidateSkillContent(finalSkillName)
         }
 
         const failure = this.createTargetOperationFailure(
@@ -3013,12 +3280,14 @@ export class SkillService implements SkillServicePort {
     } catch (error) {
       return this.createTargetOperationFailure(skillNameForFailure, targetPath, 'replace', error)
     } finally {
-      finishAgentOperation?.()
+      for (const finishAgentOperation of finishAgentOperations.reverse()) {
+        finishAgentOperation()
+      }
     }
   }
 
-  private backupExistingSkill(skillName: string, agentId: string = BUILTIN_SKILL_AGENT_ID): string {
-    const sourceDir = path.join(this.getAgentSkillsRoot(agentId), skillName)
+  private backupExistingSkill(skillName: string): string {
+    const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
     fs.mkdirSync(backupRoot, { recursive: true })
@@ -3148,7 +3417,7 @@ export class SkillService implements SkillServicePort {
   private createGitScanItem(
     skillDir: string,
     relativePath: string,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
+    _agentId: string = BUILTIN_SKILL_AGENT_ID
   ): GitSkillRepoScanItem {
     const summary = this.readSkillManifestSummary(skillDir)
     if (!summary.valid) {
@@ -3166,7 +3435,7 @@ export class SkillService implements SkillServicePort {
       name: summary.name,
       description: summary.description,
       relativePath,
-      conflict: fs.existsSync(path.join(this.getAgentSkillsRoot(agentId), summary.name)),
+      conflict: this.isSkillNameOccupied(summary.name),
       valid: true
     }
   }
@@ -3195,16 +3464,23 @@ export class SkillService implements SkillServicePort {
 
   private createUniqueSkillName(
     baseName: string,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
+    _agentId: string = BUILTIN_SKILL_AGENT_ID
   ): string {
-    const skillsRoot = this.getAgentSkillsRoot(agentId)
     let counter = 1
     let candidate = `${baseName}-${counter}`
-    while (fs.existsSync(path.join(skillsRoot, candidate))) {
+    while (this.isSkillNameOccupied(candidate)) {
       counter += 1
       candidate = `${baseName}-${counter}`
     }
     return candidate
+  }
+
+  private isSkillNameOccupied(name: string): boolean {
+    return (
+      this.metadataCache.has(name) ||
+      Boolean(this.getStoredManagementState().skills[name]) ||
+      fs.existsSync(path.join(this.skillsDir, name))
+    )
   }
 
   private requireSyncDirectoryConfig(): SkillSyncDirectoryConfig {
@@ -3395,7 +3671,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const targetPath = path.join(this.skillsDir, summary.name)
-    if (!fs.existsSync(targetPath)) {
+    if (!this.isSkillNameOccupied(summary.name)) {
       return {
         name: summary.name,
         state: 'new',
@@ -3413,8 +3689,7 @@ export class SkillService implements SkillServicePort {
       }
     }
 
-    const existingSource =
-      this.getStoredManagementState().agents[BUILTIN_SKILL_AGENT_ID]?.skills[summary.name]?.source
+    const existingSource = this.getStoredManagementState().skills[summary.name]?.source
     const state =
       existingSource?.type === 'imported' && existingSource.importedFrom === sourcePath
         ? 'modified'
@@ -3433,6 +3708,56 @@ export class SkillService implements SkillServicePort {
     } catch {
       return false
     }
+  }
+
+  private areMigratedSkillDirectoriesSame(
+    sourceRoot: string,
+    targetRoot: string,
+    sourceName: string,
+    targetName: string
+  ): boolean {
+    try {
+      const sourceFiles = this.collectSkillDirectoryFiles(sourceRoot).sort()
+      const targetFiles = this.collectSkillDirectoryFiles(targetRoot).sort()
+      if (!this.areSkillListsEqual(sourceFiles, targetFiles)) return false
+
+      for (const relativePath of sourceFiles) {
+        const sourceContent = fs.readFileSync(path.join(sourceRoot, relativePath))
+        const targetContent = fs.readFileSync(path.join(targetRoot, relativePath))
+        if (relativePath !== 'SKILL.md') {
+          if (!sourceContent.equals(targetContent)) return false
+          continue
+        }
+
+        const sourceManifest = matter(sourceContent.toString('utf-8'))
+        const targetManifest = matter(targetContent.toString('utf-8'))
+        if (sourceManifest.data.name !== sourceName || targetManifest.data.name !== targetName) {
+          return false
+        }
+        if (sourceManifest.content !== targetManifest.content) return false
+        const normalizedSource = { ...sourceManifest.data, name: sourceName }
+        const normalizedTarget = { ...targetManifest.data, name: sourceName }
+        if (this.stableSerialize(normalizedSource) !== this.stableSerialize(normalizedTarget)) {
+          return false
+        }
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private stableSerialize(value: unknown): string {
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableSerialize(item)).join(',')}]`
+    }
+    if (value && typeof value === 'object') {
+      return `{${Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => `${JSON.stringify(key)}:${this.stableSerialize(item)}`)
+        .join(',')}}`
+    }
+    return JSON.stringify(value) ?? 'undefined'
   }
 
   private createSkillDirectorySnapshot(root: string): string {
@@ -3469,11 +3794,8 @@ export class SkillService implements SkillServicePort {
   }
 
   async uninstallSkillForAgent(agentId: string, name: string): Promise<SkillInstallResult> {
-    let skillDir = this.skillsDir
-    let finishAgentOperation: (() => void) | undefined
     try {
       const normalizedAgentId = await this.requireAgentScope(agentId)
-      finishAgentOperation = this.beginAgentScopeOperation(normalizedAgentId)
       if (!this.isSafeSkillName(name)) {
         return {
           success: false,
@@ -3482,115 +3804,272 @@ export class SkillService implements SkillServicePort {
           skillName: name
         }
       }
-      const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
       await this.ensureAgentCatalogDiscovered(normalizedAgentId)
-      this.assertAgentScopeActive(normalizedAgentId)
-      const metadata = metadataCache.get(name)
-
-      if (!metadata || !fs.existsSync(metadata.skillRoot)) {
-        this.cleanupUninstalledSkillState(name, normalizedAgentId)
+      if (!this.metadataCache.has(name)) {
         return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
-      this.assertMutableSkillOwnership(normalizedAgentId, metadata)
-      skillDir = path.resolve(metadata.skillRoot)
+      await this.setSkillAssignment(normalizedAgentId, name, false)
+      return { success: true, skillName: name }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
 
-      fs.rmSync(skillDir, { recursive: true, force: true })
-      if (fs.existsSync(skillDir)) {
-        return this.createTargetLockedFailure(name, skillDir, 'remove')
+  async deleteSkill(name: string, acknowledgedAgentIds: string[]): Promise<SkillDeleteResult> {
+    return await this.runMutation(
+      async () => await this.deleteSkillUnlocked(name, acknowledgedAgentIds)
+    )
+  }
+
+  private async deleteSkillUnlocked(
+    name: string,
+    acknowledgedAgentIds: string[]
+  ): Promise<SkillDeleteResult> {
+    await this.ensureAgentCatalogDiscovered(BUILTIN_SKILL_AGENT_ID)
+    if (!this.isSafeSkillName(name)) {
+      return {
+        success: false,
+        skillName: name,
+        error: 'Invalid skill name',
+        errorCode: 'invalid_skill'
       }
+    }
+    const metadata = this.metadataCache.get(name)
+    if (!metadata) {
+      return {
+        success: false,
+        skillName: name,
+        error: `Skill "${name}" not found`,
+        errorCode: 'not_found'
+      }
+    }
+    try {
+      this.assertMutableSkillOwnership(BUILTIN_SKILL_AGENT_ID, metadata)
+    } catch (error) {
+      return {
+        success: false,
+        skillName: name,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: 'permission_denied'
+      }
+    }
 
-      this.cleanupUninstalledSkillState(name, normalizedAgentId)
-      const bundledFallback = this.readOnlyBundledSkills.find((skill) => skill.name === name)
-      if (bundledFallback) metadataCache.set(name, bundledFallback)
+    const state = this.getStoredManagementState()
+    const previousState = structuredClone(state)
+    const impact = Object.entries(state.agents)
+      .filter(([, agent]) => agent.bindings[name]?.assigned === true)
+      .map(([agentId]) => agentId)
+      .sort()
+    const acknowledged = Array.from(new Set(acknowledgedAgentIds)).sort()
+    if (!this.areSkillListsEqual(impact, acknowledged)) {
+      return {
+        success: false,
+        skillName: name,
+        error: 'Skill assignment impact changed; review the affected Agents and try again',
+        errorCode: 'stale_impact',
+        affectedAgentIds: impact
+      }
+    }
 
+    const skillDir = path.resolve(metadata.skillRoot)
+    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-deletes')
+    fs.mkdirSync(backupRoot, { recursive: true })
+    const backupDir = path.join(backupRoot, `${name}-${Date.now()}-${randomUUID()}`)
+    const sessions = this.agentScopePort ? await this.agentScopePort.listSessions() : []
+    const previousSelections = new Map(
+      sessions.map((session) => [session.id, this.getPersistedNewSessionSkills(session.id)])
+    )
+    let moved = false
+    try {
+      fs.renameSync(skillDir, backupDir)
+      moved = true
+      delete state.skills[name]
+      for (const agent of Object.values(state.agents)) delete agent.bindings[name]
+      this.saveManagementState(state)
+      this.metadataCache.delete(name)
+      this.invalidateSkillContent(name)
+      for (const session of sessions) {
+        const previous = previousSelections.get(session.id) ?? []
+        const next = previous.filter((skillName) => skillName !== name)
+        if (!this.areSkillListsEqual(previous, next))
+          this.setPersistedNewSessionSkills(session.id, next)
+      }
       this.publishEvent('skills.catalog.changed', {
         reason: 'uninstalled',
         name,
-        agentIds: [normalizedAgentId],
+        agentIds: impact,
         version: Date.now()
       })
-
-      return { success: true, skillName: name }
     } catch (error) {
+      try {
+        this.saveManagementState(previousState)
+      } catch {
+        // The filesystem restore below is still preferable to losing the package.
+      }
+      for (const [sessionId, selection] of previousSelections) {
+        this.setPersistedNewSessionSkills(sessionId, selection)
+      }
+      if (moved && fs.existsSync(backupDir) && !fs.existsSync(skillDir)) {
+        fs.renameSync(backupDir, skillDir)
+      }
+      this.metadataCache.set(name, metadata)
       return this.createTargetOperationFailure(name, skillDir, 'remove', error)
+    }
+    try {
+      fs.rmSync(backupDir, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('[SkillService] Failed to remove completed Skill deletion backup.', {
+        name,
+        backupDir,
+        error
+      })
+    }
+    return { success: true, skillName: name, affectedAgentIds: impact }
+  }
+
+  async duplicateSkillForAgent(agentId: string, name: string): Promise<SkillDuplicateResult> {
+    return await this.runMutation(
+      async () => await this.duplicateSkillForAgentUnlocked(agentId, name)
+    )
+  }
+
+  private async duplicateSkillForAgentUnlocked(
+    agentId: string,
+    name: string
+  ): Promise<SkillDuplicateResult> {
+    const normalizedAgentId = await this.requireAgentScope(agentId)
+    const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
+    try {
+      await this.ensureAgentCatalogDiscovered(normalizedAgentId)
+      const metadata = this.metadataCache.get(name)
+      if (!metadata) {
+        return {
+          success: false,
+          sourceSkillName: name,
+          agentId: normalizedAgentId,
+          error: `Skill "${name}" not found`,
+          errorCode: 'not_found'
+        }
+      }
+      try {
+        this.assertMutableSkillOwnership(normalizedAgentId, metadata)
+      } catch (error) {
+        return {
+          success: false,
+          sourceSkillName: name,
+          agentId: normalizedAgentId,
+          error: error instanceof Error ? error.message : String(error),
+          errorCode: 'permission_denied'
+        }
+      }
+
+      const agentSuffix = normalizedAgentId
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^[^a-z0-9]+/, '')
+      const baseName = `${name}-${agentSuffix || 'agent'}`
+      const targetName = this.isSkillNameOccupied(baseName)
+        ? this.createUniqueSkillName(baseName)
+        : baseName
+      const previousState = this.getStoredManagementState()
+      const extension = sanitizeSkillExtensionConfig(
+        previousState.agents[normalizedAgentId]?.bindings[name]?.extension
+      )
+      const installed = await this.installFromDirectoryUnlocked(metadata.skillRoot, {
+        sourceType: 'created',
+        sourcePatch: { originalPath: metadata.skillRoot, installedAt: new Date().toISOString() },
+        targetName,
+        agentId: normalizedAgentId,
+        publishCatalogEvent: false
+      })
+      if (!installed.success) {
+        return {
+          ...installed,
+          sourceSkillName: name,
+          agentId: normalizedAgentId
+        }
+      }
+
+      try {
+        const state = this.getStoredManagementState()
+        const bindings = this.getAgentBindingState(state, normalizedAgentId).bindings
+        bindings[targetName] = { assigned: true, extension }
+        bindings[name] = { assigned: false, extension }
+        this.saveManagementState(state)
+        await this.revalidateSessionsForAgent(normalizedAgentId)
+        this.publishEvent('skills.catalog.changed', {
+          reason: 'installed',
+          name: targetName,
+          agentIds: [normalizedAgentId],
+          version: Date.now()
+        })
+        return {
+          success: true,
+          sourceSkillName: name,
+          duplicatedSkillName: targetName,
+          skillName: targetName,
+          agentId: normalizedAgentId
+        }
+      } catch (error) {
+        const rollbackErrors: unknown[] = []
+        try {
+          this.saveManagementState(previousState)
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        const targetPath = path.join(this.skillsDir, targetName)
+        try {
+          if (fs.existsSync(targetPath)) fs.rmSync(targetPath, { recursive: true, force: true })
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        this.metadataCache.delete(targetName)
+        this.invalidateSkillContent(targetName)
+        const rollbackMessage = rollbackErrors
+          .map((rollbackError) =>
+            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+          )
+          .join('; ')
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        return {
+          success: false,
+          sourceSkillName: name,
+          agentId: normalizedAgentId,
+          error:
+            rollbackMessage.length > 0
+              ? `${errorMessage} (rollback failed: ${rollbackMessage})`
+              : errorMessage,
+          errorCode: 'io_error'
+        }
+      }
     } finally {
-      finishAgentOperation?.()
+      finishOperation()
     }
   }
 
   async cleanupAgentSkills(agentId: string): Promise<void> {
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
     if (normalizedAgentId === BUILTIN_SKILL_AGENT_ID) {
-      throw new Error('The built-in DeepChat Agent Skill root cannot be deleted')
+      throw new Error('The built-in DeepChat Agent Skill bindings cannot be deleted')
     }
 
     this.deletedAgentScopes.add(normalizedAgentId)
     try {
       await this.waitForAgentScopeOperations(normalizedAgentId)
-      const root = this.getAgentSkillsRoot(normalizedAgentId)
-      if (fs.existsSync(root)) {
-        fs.rmSync(root, { recursive: true, force: true })
-        if (fs.existsSync(root)) {
-          throw new Error(`Agent Skill root could not be removed: ${root}`)
-        }
-      }
-    } catch (error) {
+      await this.runMutation(async () => {
+        const state = this.getStoredManagementState()
+        const changed = Boolean(state.agents[normalizedAgentId])
+        delete state.agents[normalizedAgentId]
+        if (changed) this.saveManagementState(state)
+      })
+      this.publishEvent('skills.catalog.changed', {
+        reason: 'assignments-updated',
+        agentIds: [normalizedAgentId],
+        version: Date.now()
+      })
+    } finally {
       this.deletedAgentScopes.delete(normalizedAgentId)
-      throw error
     }
-
-    this.scopedCatalogs.delete(normalizedAgentId)
-    const state = this.getStoredManagementState()
-    let changed = Boolean(state.agents[normalizedAgentId])
-    delete state.agents[normalizedAgentId]
-    if (state.migration) {
-      const targetAgentIds = state.migration.targetAgentIds?.filter(
-        (targetAgentId) => targetAgentId !== normalizedAgentId
-      )
-      const completedAgentIds = state.migration.completedAgentIds.filter(
-        (completedAgentId) => completedAgentId !== normalizedAgentId
-      )
-      const legacySkillAllowLists = { ...state.migration.legacySkillAllowLists }
-      const hadLegacySkillAllowList = normalizedAgentId in legacySkillAllowLists
-      delete legacySkillAllowLists[normalizedAgentId]
-      changed =
-        changed ||
-        targetAgentIds?.length !== state.migration.targetAgentIds?.length ||
-        completedAgentIds.length !== state.migration.completedAgentIds.length ||
-        hadLegacySkillAllowList
-      state.migration = {
-        ...state.migration,
-        targetAgentIds,
-        completedAgentIds,
-        legacySkillAllowLists
-      }
-    }
-    if (changed) this.saveManagementState(state)
-
-    this.publishEvent('skills.catalog.changed', {
-      reason: 'uninstalled',
-      agentIds: [normalizedAgentId],
-      version: Date.now()
-    })
-  }
-
-  private cleanupUninstalledSkillState(
-    name: string,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
-  ): void {
-    if (this.isSafeSkillName(name)) {
-      try {
-        this.deleteSkillManagementItem(name, agentId)
-      } catch (error) {
-        logger.warn('[SkillService] Failed to delete skill management state after uninstall', {
-          name,
-          error
-        })
-      }
-    }
-
-    this.getMetadataCacheForAgent(agentId).delete(name)
-    this.getContentCacheForAgent(agentId).delete(name)
   }
 
   private isSafeSkillName(name: string): boolean {
@@ -3599,17 +4078,18 @@ export class SkillService implements SkillServicePort {
 
   private assertMutableSkillOwnership(agentId: string, metadata: SkillMetadata): void {
     if (metadata.readOnly) {
-      throw new Error('Read-only bundled Skills cannot be modified as Agent-owned files')
+      throw new Error('Read-only bundled Skills cannot be modified')
     }
     if (metadata.ownerPluginId) {
-      throw new Error('Plugin-owned Skills cannot be modified as Agent-owned files')
+      throw new Error('Plugin-owned Skills cannot be modified')
     }
 
-    const agentRoot = this.getAgentSkillsRoot(agentId)
+    assertSafeSkillAgentId(agentId)
+    const agentRoot = this.skillsDir
     const resolvedSkillRoot = path.resolve(metadata.skillRoot)
     const relative = path.relative(agentRoot, resolvedSkillRoot)
     if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error(`Skill is outside the owning Agent root: ${metadata.name}`)
+      throw new Error(`Skill is outside the global Skills root: ${metadata.name}`)
     }
     const stats = fs.lstatSync(resolvedSkillRoot)
     if (stats.isSymbolicLink() || !stats.isDirectory()) {
@@ -3623,7 +4103,7 @@ export class SkillService implements SkillServicePort {
       physicalRelative.startsWith('..') ||
       path.isAbsolute(physicalRelative)
     ) {
-      throw new Error(`Skill is outside the owning Agent root: ${metadata.name}`)
+      throw new Error(`Skill is outside the global Skills root: ${metadata.name}`)
     }
   }
 
@@ -3639,12 +4119,21 @@ export class SkillService implements SkillServicePort {
     name: string,
     content: string
   ): Promise<SkillInstallResult> {
+    return await this.runMutation(
+      async () => await this.updateSkillFileForAgentUnlocked(agentId, name, content)
+    )
+  }
+
+  private async updateSkillFileForAgentUnlocked(
+    agentId: string,
+    name: string,
+    content: string
+  ): Promise<SkillInstallResult> {
     let finishAgentOperation: (() => void) | undefined
     try {
       const normalizedAgentId = await this.requireAgentScope(agentId)
       finishAgentOperation = this.beginAgentScopeOperation(normalizedAgentId)
       const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
-      const contentCache = this.getContentCacheForAgent(normalizedAgentId)
       await this.ensureAgentCatalogDiscovered(normalizedAgentId)
       const metadata = metadataCache.get(name)
       if (!metadata) {
@@ -3663,8 +4152,6 @@ export class SkillService implements SkillServicePort {
       }
 
       const previousSkillContent = fs.readFileSync(confinedSkillPath, 'utf-8')
-      const hadPreviousContent = contentCache.has(name)
-      const previousContent = contentCache.get(name)
       let manifestWriteStarted = false
       let cachesTouched = false
 
@@ -3676,7 +4163,7 @@ export class SkillService implements SkillServicePort {
           confinedSkillPath,
           name,
           undefined,
-          this.getAgentSkillsRoot(normalizedAgentId)
+          this.skillsDir
         )
         if (!newMetadata || newMetadata.name !== name) {
           throw new Error(`Saved Skill failed validation: ${name}`)
@@ -3685,12 +4172,12 @@ export class SkillService implements SkillServicePort {
 
         cachesTouched = true
         metadataCache.set(name, newMetadata)
-        contentCache.delete(name)
+        this.invalidateSkillContent(name)
         this.publishEvent('skills.catalog.changed', {
           reason: 'metadata-updated',
           name: newMetadata.name,
           skill: newMetadata,
-          agentIds: [normalizedAgentId],
+          agentIds: this.getAssignedAgentIds(name),
           version: Date.now()
         })
 
@@ -3708,15 +4195,11 @@ export class SkillService implements SkillServicePort {
         }
         if (cachesTouched) {
           metadataCache.set(name, metadata)
-          if (hadPreviousContent && previousContent !== undefined) {
-            contentCache.set(name, previousContent)
-          } else {
-            contentCache.delete(name)
-          }
+          this.invalidateSkillContent(name)
         }
         if (rollbackError) {
           metadataCache.delete(name)
-          contentCache.delete(name)
+          this.invalidateSkillContent(name)
           const rollbackMessage =
             rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
           logger.warn('[SkillService] Failed to rollback Skill manifest update', {
@@ -3754,11 +4237,21 @@ export class SkillService implements SkillServicePort {
     content: string,
     config: SkillExtensionConfig
   ): Promise<SkillInstallResult> {
+    return await this.runMutation(
+      async () => await this.saveSkillWithExtensionForAgentUnlocked(agentId, name, content, config)
+    )
+  }
+
+  private async saveSkillWithExtensionForAgentUnlocked(
+    agentId: string,
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
     try {
       const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
-      const contentCache = this.getContentCacheForAgent(normalizedAgentId)
       await this.ensureAgentCatalogDiscovered(normalizedAgentId)
       this.assertAgentScopeActive(normalizedAgentId)
 
@@ -3781,8 +4274,6 @@ export class SkillService implements SkillServicePort {
       const previousSkillContent = fs.readFileSync(confinedSkillPath, 'utf-8')
       const previousState = this.getStoredManagementState()
       const sanitized = sanitizeSkillExtensionConfig(config)
-      const hadPreviousContent = contentCache.has(name)
-      const previousContent = contentCache.get(name)
       let manifestWriteStarted = false
       let managementStateTouched = false
       let cachesTouched = false
@@ -3794,7 +4285,7 @@ export class SkillService implements SkillServicePort {
           confinedSkillPath,
           name,
           undefined,
-          this.getAgentSkillsRoot(normalizedAgentId)
+          this.skillsDir
         )
         if (!newMetadata || newMetadata.name !== name) {
           throw new Error(`Saved Skill failed validation: ${name}`)
@@ -3802,26 +4293,25 @@ export class SkillService implements SkillServicePort {
         this.assertAgentScopeActive(normalizedAgentId)
 
         managementStateTouched = true
-        this.updateSkillManagementItem(
-          name,
-          (item) => ({
-            ...item,
-            canonicalPath: metadata.skillRoot,
-            extension: sanitized
-          }),
-          normalizedAgentId
-        )
+        const nextState = this.getStoredManagementState()
+        const bindingState = this.getAgentBindingState(nextState, normalizedAgentId)
+        const binding = bindingState.bindings[name]
+        bindingState.bindings[name] = {
+          assigned: binding?.assigned === true,
+          extension: sanitized
+        }
+        this.saveManagementState(nextState)
 
         this.assertAgentScopeActive(normalizedAgentId)
         cachesTouched = true
         metadataCache.set(name, newMetadata)
-        contentCache.delete(name)
+        this.invalidateSkillContent(name)
         this.publishEvent('skills.catalog.changed', {
           reason: 'metadata-updated',
           name: newMetadata.name,
           skill: newMetadata,
           extensionChanged: true,
-          agentIds: [normalizedAgentId],
+          agentIds: this.getAssignedAgentIds(name),
           version: Date.now()
         })
 
@@ -3846,15 +4336,11 @@ export class SkillService implements SkillServicePort {
         }
         if (cachesTouched) {
           metadataCache.set(name, metadata)
-          if (hadPreviousContent && previousContent !== undefined) {
-            contentCache.set(name, previousContent)
-          } else {
-            contentCache.delete(name)
-          }
+          this.invalidateSkillContent(name)
         }
         if (rollbackErrors.length > 0) {
           metadataCache.delete(name)
-          contentCache.delete(name)
+          this.invalidateSkillContent(name)
           const rollbackMessage = rollbackErrors
             .map((rollbackError) =>
               rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
@@ -3978,8 +4464,7 @@ export class SkillService implements SkillServicePort {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
     try {
-      const root = this.ensureAgentSkillsRoot(normalizedAgentId)
-      await shell.openPath(root)
+      await shell.openPath(this.skillsDir)
     } finally {
       finishOperation()
     }
@@ -3991,58 +4476,10 @@ export class SkillService implements SkillServicePort {
 
   async getSkillExtensionForAgent(agentId: string, name: string): Promise<SkillExtensionConfig> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
-    const item = this.getStoredManagementState().agents[normalizedAgentId]?.skills[name]
-    if (item) return sanitizeSkillExtensionConfig(item.extension)
-    return normalizedAgentId === BUILTIN_SKILL_AGENT_ID
-      ? await this.migrateLegacySkillExtension(name)
-      : createDefaultSkillExtensionConfig()
-  }
-
-  private async migrateLegacySkillExtension(
-    name: string,
-    failOnUnreadable: boolean = false
-  ): Promise<SkillExtensionConfig> {
-    const sidecarPath = this.getSidecarPath(name)
-    if (!(await this.pathExists(sidecarPath))) {
-      return createDefaultSkillExtensionConfig()
-    }
-    try {
-      const content = await fs.promises.readFile(sidecarPath, 'utf-8')
-      const config = sanitizeSkillExtensionConfig(JSON.parse(content))
-      this.updateSkillManagementItem(name, (item) => ({
-        ...item,
-        extension: config
-      }))
-      try {
-        fs.rmSync(sidecarPath, { force: true })
-        this.removeLegacySidecarDirIfEmpty()
-      } catch (cleanupError) {
-        logger.warn('[SkillService] Failed to remove migrated skill sidecar', {
-          name,
-          error: cleanupError
-        })
-      }
-      return config
-    } catch (error) {
-      logger.warn('[SkillService] Failed to read skill sidecar, using defaults', {
-        name,
-        error
-      })
-      if (failOnUnreadable) {
-        throw new Error(`Legacy Skill extension migration failed: ${name}`, { cause: error })
-      }
-      return createDefaultSkillExtensionConfig()
-    }
-  }
-
-  private removeLegacySidecarDirIfEmpty(): void {
-    try {
-      if (fs.existsSync(this.sidecarDir) && fs.readdirSync(this.sidecarDir).length === 0) {
-        fs.rmSync(this.sidecarDir, { force: true, recursive: false })
-      }
-    } catch {
-      // Keep legacy residue for the next migration attempt.
-    }
+    await this.ensureAgentCatalogDiscovered(normalizedAgentId)
+    await this.ensureAgentBindingsInitialized(normalizedAgentId)
+    const binding = this.getStoredManagementState().agents[normalizedAgentId]?.bindings[name]
+    return sanitizeSkillExtensionConfig(binding?.extension)
   }
 
   async saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void> {
@@ -4054,6 +4491,16 @@ export class SkillService implements SkillServicePort {
     name: string,
     config: SkillExtensionConfig
   ): Promise<void> {
+    await this.runMutation(async () => {
+      await this.saveSkillExtensionForAgentUnlocked(agentId, name, config)
+    })
+  }
+
+  private async saveSkillExtensionForAgentUnlocked(
+    agentId: string,
+    name: string,
+    config: SkillExtensionConfig
+  ): Promise<void> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
     try {
@@ -4061,16 +4508,15 @@ export class SkillService implements SkillServicePort {
       await this.ensureAgentCatalogDiscovered(normalizedAgentId)
       this.assertAgentScopeActive(normalizedAgentId)
       if (!metadataCache.has(name)) throw new Error(`Skill "${name}" not found`)
-      const metadata = metadataCache.get(name)
-      this.updateSkillManagementItem(
-        name,
-        (item) => ({
-          ...item,
-          canonicalPath: metadata?.skillRoot ?? item.canonicalPath,
-          extension: sanitizeSkillExtensionConfig(config)
-        }),
-        normalizedAgentId
-      )
+      const state = this.getStoredManagementState()
+      const bindingState = this.getAgentBindingState(state, normalizedAgentId)
+      const binding = bindingState.bindings[name]
+      if (!binding?.assigned) throw new Error(`Skill "${name}" is not assigned to Agent`)
+      bindingState.bindings[name] = {
+        assigned: true,
+        extension: sanitizeSkillExtensionConfig(config)
+      }
+      this.saveManagementState(state)
       this.getContentCacheForAgent(normalizedAgentId).delete(name)
     } finally {
       finishOperation()
@@ -4295,7 +4741,10 @@ export class SkillService implements SkillServicePort {
 
     for (const skillName of activeSkills) {
       const metadata = metadataCache.get(skillName)
-      if (metadata?.allowedTools && this.isSkillVisible(metadata, agentId)) {
+      const visibleInSnapshot =
+        activeSkillNamesOverride !== undefined ||
+        (metadata && this.isSkillVisible(metadata, agentId))
+      if (metadata?.allowedTools && visibleInSnapshot) {
         metadata.allowedTools.forEach((tool) => allowedTools.add(tool))
       }
     }
@@ -4380,29 +4829,25 @@ export class SkillService implements SkillServicePort {
 
   private createSkillWatchExcludes(): string[] {
     const root = this.skillsDir.split(path.sep).join('/')
-    return [`${root}/${SKILL_CONFIG.SIDECAR_DIR}/**`, `${root}/**/${SKILL_CONFIG.SIDECAR_DIR}/**`]
+    return [
+      `${root}/${SKILL_CONFIG.SIDECAR_DIR}/**`,
+      `${root}/**/${SKILL_CONFIG.SIDECAR_DIR}/**`,
+      `${root}/.agent-scopes/**`,
+      `${root}/${SKILL_INSTALL_STAGING_PREFIX}*/**`,
+      `${root}/${SHARED_SKILL_MIGRATION_DIR}/**`
+    ]
   }
 
   private async handleSkillWatchBatch(batch: WatcherEventBatch): Promise<void> {
     if (batch.events.some((event) => event.type === 'overflow' || event.type === 'root-deleted')) {
       await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
-      for (const agentId of this.scopedCatalogs.keys()) await this.refreshAgentCatalog(agentId)
       return
     }
 
     for (const event of batch.events) {
       if (!this.isWatchedSkillMarkdownPath(event.path)) continue
-      if (
-        this.isWithinAgentScopesDirectory(event.path) &&
-        !resolveScopedAgentIdFromPath(this.skillsDir, event.path)
-      ) {
-        continue
-      }
-      const agentId =
-        resolveScopedAgentIdFromPath(this.skillsDir, event.path) ?? BUILTIN_SKILL_AGENT_ID
-      if (this.deletedAgentScopes.has(agentId)) {
-        continue
-      }
+      if (this.isWithinAgentScopesDirectory(event.path)) continue
+      const agentId = BUILTIN_SKILL_AGENT_ID
       if (event.type === 'create') {
         await this.handleSkillFileAdded(event.path, agentId)
       } else if (event.type === 'update') {
@@ -4454,6 +4899,7 @@ export class SkillService implements SkillServicePort {
 
     const segments = relativePath.split(/[\\/]+/).filter(Boolean)
     return (
+      !segments[0]?.startsWith('.') &&
       !segments.includes(SKILL_CONFIG.SIDECAR_DIR) &&
       segments.length - 1 <= SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
     )
@@ -4465,16 +4911,15 @@ export class SkillService implements SkillServicePort {
   ): Promise<void> {
     if (this.deletedAgentScopes.has(agentId)) return
     const metadataCache = this.getMetadataCacheForAgent(agentId)
-    const contentCache = this.getContentCacheForAgent(agentId)
     const previousName =
       this.findSkillNameByPath(filePath, agentId) ?? path.basename(path.dirname(filePath))
-    contentCache.delete(previousName)
+    this.invalidateSkillContent(previousName)
 
     const metadata = await this.parseSkillMetadata(
       filePath,
       path.basename(path.dirname(filePath)),
       undefined,
-      this.getAgentSkillsRoot(agentId)
+      this.skillsDir
     )
     if (!metadata || this.deletedAgentScopes.has(agentId)) {
       return
@@ -4506,7 +4951,7 @@ export class SkillService implements SkillServicePort {
       reason: 'metadata-updated',
       name: metadata.name,
       skill: metadata,
-      agentIds: [agentId],
+      agentIds: this.getAssignedAgentIds(metadata.name),
       version: Date.now()
     })
   }
@@ -4520,7 +4965,7 @@ export class SkillService implements SkillServicePort {
       filePath,
       path.basename(path.dirname(filePath)),
       undefined,
-      this.getAgentSkillsRoot(agentId)
+      this.skillsDir
     )
     if (!metadata || this.deletedAgentScopes.has(agentId)) return
 
@@ -4536,11 +4981,12 @@ export class SkillService implements SkillServicePort {
     }
 
     metadataCache.set(metadata.name, metadata)
+    this.reconcileSkillManagementState()
     this.publishEvent('skills.catalog.changed', {
       reason: 'installed',
       name: metadata.name,
       skill: metadata,
-      agentIds: [agentId],
+      agentIds: this.getAssignedAgentIds(metadata.name),
       version: Date.now()
     })
   }
@@ -4550,11 +4996,18 @@ export class SkillService implements SkillServicePort {
     const skillName =
       this.findSkillNameByPath(filePath, agentId) ?? path.basename(path.dirname(filePath))
     this.getMetadataCacheForAgent(agentId).delete(skillName)
-    this.getContentCacheForAgent(agentId).delete(skillName)
+    this.invalidateSkillContent(skillName)
+    const state = this.getStoredManagementState()
+    const affectedAgentIds = Object.entries(state.agents)
+      .filter(([, agent]) => agent.bindings[skillName]?.assigned === true)
+      .map(([assignedAgentId]) => assignedAgentId)
+    delete state.skills[skillName]
+    for (const bindingState of Object.values(state.agents)) delete bindingState.bindings[skillName]
+    this.saveManagementState(state)
     this.publishEvent('skills.catalog.changed', {
       reason: 'uninstalled',
       name: skillName,
-      agentIds: [agentId],
+      agentIds: affectedAgentIds,
       version: Date.now()
     })
   }
@@ -4624,7 +5077,6 @@ export class SkillService implements SkillServicePort {
     this.metadataCache.clear()
     this.contentCache.clear()
     this.readOnlyBundledSkills = []
-    this.scopedCatalogs.clear()
     this.deletedAgentScopes.clear()
     this.activeAgentScopeOperations.clear()
     this.agentScopeDrainWaiters.clear()
@@ -4645,15 +5097,6 @@ export class SkillService implements SkillServicePort {
 
   private getSidecarPath(name: string): string {
     return path.join(this.sidecarDir, `${name}.json`)
-  }
-
-  private deleteSkillManagementItem(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID): void {
-    const state = this.getStoredManagementState()
-    const skills = this.getAgentManagementState(state, agentId).skills
-    if (skills[name]) {
-      delete skills[name]
-      this.saveManagementState(state)
-    }
   }
 
   private async collectScriptDescriptors(

@@ -192,9 +192,11 @@ export class SkillExecutionService {
     if (!agentId) {
       throw new Error('No DeepChat Agent context available for skill execution')
     }
-    const metadata = (await this.skillService.getMetadataList(agentId)).find(
-      (item) => item.name === input.skill
-    )
+    const metadata = (
+      activeSkillNames === undefined
+        ? await this.skillService.getMetadataList(agentId)
+        : await this.skillService.getAllSkills()
+    ).find((item) => item.name === input.skill)
     if (!metadata) {
       throw new Error(`Skill "${input.skill}" not found`)
     }

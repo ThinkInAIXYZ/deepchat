@@ -82,6 +82,14 @@ describe('SkillExecutionService', () => {
           skillRoot: '/skills/ocr'
         }
       ]),
+      getAllSkills: vi.fn().mockResolvedValue([
+        {
+          name: 'ocr',
+          description: 'OCR helper',
+          path: '/skills/ocr/SKILL.md',
+          skillRoot: '/skills/ocr'
+        }
+      ]),
       readSkillFile: vi.fn().mockResolvedValue('---\nname: ocr\ndescription: OCR helper\n---\n'),
       getSkillExtensionForAgent: vi.fn().mockResolvedValue({
         version: 1,
@@ -162,6 +170,25 @@ describe('SkillExecutionService', () => {
     expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
     expect(plan.env.DEEPCHAT_SKILL_ROOT).toBe('/skills/ocr')
     expect(plan.args).toEqual(['run', '/skills/ocr/scripts/run.py', '--lang', 'en'])
+  })
+
+  it('uses the Run Skill snapshot after the Agent is unassigned', async () => {
+    vi.mocked(skillService.getMetadataList).mockResolvedValue([])
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'uv',
+      mode: 'uv'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      { skill: 'ocr', script: 'scripts/run.py' },
+      'conv-1',
+      POSIX_COMMAND_SHELL,
+      ['ocr']
+    )
+
+    expect(skillService.getMetadataList).not.toHaveBeenCalled()
+    expect(skillService.getAllSkills).toHaveBeenCalledOnce()
+    expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
   })
 
   it('uses a session cwd when the conversation workdir is unavailable', async () => {

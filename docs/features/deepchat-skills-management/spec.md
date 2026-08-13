@@ -1,99 +1,128 @@
 # DeepChat Skills Management Contract
 
-Status: implemented and maintained.
+Status: implemented. The normative architecture is
+[Shared Skills](../../architecture/shared-skills/spec.md).
 
-## Ownership
+## Product contract
 
-`src/main/skill/` owns Agent-scoped Skill files, validation, discovery, catalog caches, enablement and Plugin
-contributions. Every DeepChat Agent owns a physical Skill root:
+DeepChat exposes one application-level `Skills` set. A Skill package exists once; each DeepChat
+Agent can independently be enabled to use it, and each Session can independently activate an
+enabled Skill for a Run.
+
+The Plugins-hub Skills page defaults to every available Skill. A card contains only the Skill name
+and a two-line description; the whole card opens Preview. It never displays source,
+assigned/unassigned state, or Agent grouping.
+
+Opening a Skill shows:
+
+- its rendered content and source path;
+- the DeepChat Agents currently enabled for it;
+- `Add Agent`, listing only eligible Agents not already enabled;
+- one remove action for every enabled Agent; and
+- shared edit/delete actions when package ownership permits them.
+
+Agent changes commit immediately. ACP and missing Agents never appear as targets.
+
+## Storage and ownership
+
+Mutable packages use one canonical directory:
 
 ```text
-<skillsRoot>/                              # built-in deepchat Agent
-<skillsRoot>/.agent-scopes/<agentId>/      # manual DeepChat Agent
+<skillsRoot>/<skillName>/
 ```
 
-The built-in root remains at the configured legacy location for compatibility. `.agent-scopes` is excluded
-from built-in discovery, and a missing manual Agent scope resolves to an empty catalog rather than falling
-back to `deepchat`.
+Read-only bundled and Plugin Skills remain in provider-owned roots and appear in the same global
+list. Their provider retains content and lifecycle ownership.
 
-`src/main/skill/agentSkillImportService.ts` owns unified snapshot-import orchestration across internal
-DeepChat Agents and supported external Agents. `src/main/skill/sync/` owns external Agent discovery,
-parsing and format conversion, plus legacy sync-directory and link-repair compatibility. Session stores only
-selected Skill names. Tool/Agent consume a closed scoped snapshot; they do not scan files themselves or read
-another Agent's catalog.
+Management state version 3 stores global provenance in `skills` and per-Agent
+`assigned + extension` bindings in `agents`. `assigned` is internal terminology; UI describes the
+Agent as enabled for the Skill. Per-Agent environment, runtime, and script override state remains
+independent even when Agents share a package root.
 
-Skill management state is versioned per Agent. Sync-directory settings remain application-level because
-they describe an external backup location, not runtime Skill ownership.
+Legacy `<skillsRoot>/.agent-scopes/<agentId>/` directories and the historically named
+`.library-migration-v3` recovery directory are migration evidence only. Runtime discovery never
+uses them after migration.
 
-## Skill format and safety
+## Catalog and runtime
 
-- A Skill has a stable name, validated metadata and a readable instruction body under an authorized root.
-- Every operation resolves an existing DeepChat Agent, canonicalizes its root and confines paths to that
-  root; unsafe names, traversal, oversized input and unsupported archives fail closed.
-- External import applies a shared 50 MiB budget to the manifest plus traversed `references` and `scripts`
-  before format conversion loads file contents.
-- New writes use the current DeepChat layout. Legacy metadata is migration input only.
-- Plugin-provided Skills carry `ownerPluginId`, remain Plugin-owned runtime contributions and disappear when
-  the contribution is disabled or removed. They are not copied as ordinary Agent files.
-- Scan/import work can fall back from worker execution, but fallback preserves validation and event semantics.
-- Two Agents may own the same Skill name with different content, settings and scripts.
+```text
+AgentCatalog(agentId)
+  = AvailableGlobalSkills intersect EnabledBindings(agentId)
 
-## Management UI
+EffectiveSessionSkills(sessionId)
+  = PersistedSessionSelection intersect AgentCatalog(Session.agentId)
+```
 
-The Agent-scoped Skills page always has an explicit target Agent and supports list, enable/disable, details,
-install, remove, refresh and import. Global Skills settings explicitly targets the built-in Agent for
-compatibility. Install accepts a valid Skill folder or supported archive. Drag/drop resolves the real
-filesystem path through the dedicated preload client; the renderer never reads arbitrary files directly.
+The derived Agent catalog authorizes Skill list/view/manage tools, prompt assembly, allowed tools,
+scripts, and filesystem roots. The global `skills.listAll` management result never grants Agent
+access.
 
-Internal and external import supports:
+A Run snapshots effective names and roots at start. Transfer, rebind, fork, and Subagent creation
+recompute the destination Agent intersection.
 
-- discovery of eligible source Agents and conventional external Agent Skill roots;
-- an explicit target DeepChat Agent;
-- preview before import;
-- per-Skill `skip`, `rename` or `overwrite` conflict strategy;
-- empty-selection and partial-failure states;
-- main-process source and target revalidation at execution time;
-- staged copies that do not follow symlinks or create live links to the source;
-- target-only cache invalidation and progress/completion typed events.
+## Operations
 
-Import is a one-time snapshot. Provenance is informational: later source edits, deletion or import from the
-same source do not update an existing target copy automatically. External format adapters may convert the
-source, but the final write always commits under the explicit target Agent root. Legacy adopted-directory and
-link metadata remains available only for compatibility repair or removal; new imports never create live links.
+- Adding an Agent validates a live DeepChat Agent and available Skill.
+- Removing an Agent retains extension state and filters affected persisted Session selections.
+- Shared edits show currently enabled Agent impact.
+- Shared deletion revalidates acknowledged Agent IDs, moves content to a recovery backup, removes
+  bindings and Session selections, commits state, then removes the backup.
+- Public and CLI Agent-scoped enable/disable or uninstall remain compatibility operations mapped to
+  binding changes rather than package deletion.
+- Agent deletion removes only that Agent's bindings.
 
-## Draft confirmation
+All package and binding mutations pass through one main-process mutation gate. Package replacement
+uses staging, validation, containment, recoverable rename, and rollback.
 
-When an Agent proposes a Skill draft, runtime creates an ordered interaction instead of silently writing it.
-The confirmation card can view, install or discard. Install re-resolves the Session Agent and revalidates the
-draft against that Agent's root at commit time; completion resumes the settled turn through a fresh Run.
-Draft interaction cannot bypass filesystem, name or owner rules.
+## Import and interoperability
 
-## Runtime contract
+The primary Skills action is `Import from external Agent`. Internal DeepChat Agents are not
+sources because all DeepChat Agents already reference the same global Skills.
 
-- Effective Skills are `persisted Session selection ∩ current Agent's valid enabled catalog`.
-- Transfer, rebind and Subagent creation recompute that intersection before prompt/tool/script assembly.
-- A Run uses its start snapshot; later configuration changes affect the next Run.
-- Disabled, missing, invalid or other-Agent Skills are excluded before prompt/tool assembly.
-- Subagent child resolves its own Agent catalog and cannot inherit the parent Agent's files or mutable cache.
-- Skill execution uses explicit workspace/process ports and follows the same permission/cancellation policy as
-  other Agent capabilities.
+External import accepts a supported tool ID, selected Skill names, conflict strategies, and
+acknowledged overwrite impact. It does not accept target Agent IDs and does not enable an Agent.
+Main re-scans the source and recomputes conflicts at execution time; renderer paths are never
+authoritative.
 
-The application-level Skill master switch can disable Skill functionality globally, but it does not grant
-one Agent access to another Agent's files.
+Conflict states are `ready`, `same`, `conflict`, and `unavailable`. Rename is the default. `same`
+keeps existing content and Agent bindings. Overwrite requires the current enabled-Agent impact.
+Partial failures are returned per Skill.
 
-## Migration contract
+Sync directory is a secondary view reached from the Skills page. It imports and exports packages,
+never Agent bindings, and provides an explicit return to the default Skills list.
 
-- Legacy management state migrates into the built-in Agent scope.
-- Each readable manual Agent receives private file copies matching its effective pre-upgrade Skill set.
-- Plugin-owned contributions are excluded from private copies.
-- Persisted Session selections are filtered against the owning Agent catalog without rewriting historical
-  message content.
-- Migration stages and validates copies before commit, is restartable, and records completion only after all
-  required Agent scopes commit.
+## Migration
 
-## Validation
+Startup migration from versions 1 and 2:
 
-Tests cover parsing/path safety, per-Agent discovery/cache and CRUD isolation, restartable migration,
-snapshot import/conflicts, legacy sync-directory compatibility, symlink rejection, Plugin lifecycle,
-renderer target stability and partial-success states, draft interaction, and Session/Agent intersection after
-transfer and Subagent entry. The planned two-Agent same-name E2E smoke remains outstanding.
+1. treats existing global packages as canonical;
+2. compares complete private-package snapshots;
+3. deduplicates identical packages and renames different variants;
+4. journals and validates copies before canonical renames;
+5. translates disabled state and extensions into Agent bindings;
+6. remaps DeepChat Agent Session selections;
+7. leaves ACP and orphaned Sessions untouched; and
+8. commits version 3 only after package commits succeed.
+
+Version 3 development state using the former `library` property is decoded into `skills` before it
+is written again.
+
+## UI contract
+
+```text
+Skills                                  [Search] [Sync directory] [Import from external Agent]
+
+[Skill card] [Skill card] [Skill card]
+
+Open Skill
+┌──────────────────────────────────────────────────────────┐
+│ Enabled Agents                           [+ Add Agent]   │
+│ [DeepChat ×] [Writer ×]                                 │
+│                                                         │
+│ Skill content preview                    [Edit] [Delete] │
+└──────────────────────────────────────────────────────────┘
+```
+
+The Plugins-hub Skills route renders the same global surface. Loading, empty, error, retry,
+stale-impact, partial-result, keyboard, focus, and dirty-close states use existing UI primitives
+and vue-i18n copy. The Settings window has no Skills navigation item or route.

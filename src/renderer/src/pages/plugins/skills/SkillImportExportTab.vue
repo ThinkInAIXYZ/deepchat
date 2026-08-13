@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div data-testid="plugins-skills-sync-directory" class="space-y-4">
     <div class="rounded-md border px-4 py-3">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <button
@@ -116,14 +116,6 @@
               class="h-8 pl-8"
             />
           </div>
-          <label class="flex items-center gap-2 whitespace-nowrap text-sm">
-            <Checkbox
-              :checked="includeDisabled"
-              :disabled="operationPending"
-              @update:checked="setIncludeDisabled"
-            />
-            {{ t('settings.skills.importExport.includeDisabled') }}
-          </label>
           <span class="text-sm text-muted-foreground">
             {{
               t('settings.skills.importExport.selectedCount', { count: selectedExportNames.size })
@@ -157,7 +149,7 @@
           >
             <Checkbox
               :checked="selectedExportNames.has(skill.name)"
-              :disabled="operationPending || (skill.deepchatDisabled && !includeDisabled)"
+              :disabled="operationPending"
               @update:checked="toggleExport(skill.name)"
             />
             <span class="min-w-0 flex-1">
@@ -168,13 +160,6 @@
                 {{ skill.description }}
               </span>
             </span>
-            <DcBadge variant="outline">
-              {{
-                skill.deepchatDisabled
-                  ? t('settings.skills.card.disabled')
-                  : t('settings.skills.card.enabled')
-              }}
-            </DcBadge>
           </label>
           <div
             v-if="exportCandidates.length === 0"
@@ -384,7 +369,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -416,7 +400,6 @@ import type {
 } from '@shared/types/skill'
 import type { SkillSyncDirectoryConfig } from '@shared/types/skillManagement'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = defineProps<{
   skills: UnifiedSkillItem[]
@@ -494,12 +477,7 @@ const directoryStatusIcon = computed(() => {
 })
 const exportCandidates = computed(() => {
   const query = normalizeQuery(exportQuery.value)
-  return skills.value.filter((skill) => {
-    if (!includeDisabled.value && skill.deepchatDisabled) {
-      return false
-    }
-    return matchesSkill(skill, query)
-  })
+  return skills.value.filter((skill) => matchesSkill(skill, query))
 })
 const filteredImportItems = computed(() => {
   const query = normalizeQuery(importQuery.value)
@@ -675,17 +653,6 @@ const toggleImport = (name: string) => {
     return
   }
   selectedImportNames.value = toggleSet(selectedImportNames.value, name)
-}
-
-const setIncludeDisabled = (checked: boolean | 'indeterminate') => {
-  includeDisabled.value = checked === true
-  if (!includeDisabled.value) {
-    selectedExportNames.value = new Set(
-      [...selectedExportNames.value].filter(
-        (name) => !props.skills.find((skill) => skill.name === name)?.deepchatDisabled
-      )
-    )
-  }
 }
 
 const toggleSet = (current: Set<string>, name: string) => {
@@ -1058,18 +1025,6 @@ const handleExportConfirmOpenChange = (open: boolean) => {
   if (!open) retryExportNames.value = null
 }
 
-const leaveGuardLease = settingsLeaveGuard.register({
-  id: `settings.skills.syncDirectory:${nanoid(8)}`,
-  onDiscard: () => undefined
-})
-const stopLeaveRiskSync = watch(
-  operationPending,
-  (pending) => {
-    leaveGuardLease.setRisk(pending ? 'busy' : 'clean')
-  },
-  { immediate: true, flush: 'sync' }
-)
-
 onMounted(() => {
   disposed = false
   void loadConfig()
@@ -1080,7 +1035,5 @@ onBeforeUnmount(() => {
   configRequestId += 1
   exportPreviewRequestId += 1
   importPreviewRequestId.value += 1
-  stopLeaveRiskSync()
-  leaveGuardLease.release()
 })
 </script>

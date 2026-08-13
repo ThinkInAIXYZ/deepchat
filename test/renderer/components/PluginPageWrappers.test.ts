@@ -4,9 +4,9 @@ import mcpSource from '../../../src/renderer/src/pages/plugins/McpPluginsPage.vu
 import ocrSource from '../../../src/renderer/src/pages/plugins/OcrPluginsPage.vue?raw'
 
 describe('plugins page wrappers', () => {
-  it('renders the original skills settings view in agent scope', () => {
-    expect(skillsSource).toContain('<SkillsSettings scope="agent" />')
-    expect(skillsSource).toContain('settings/components/skills/SkillsSettings.vue')
+  it('owns the Skills management surface directly', () => {
+    expect(skillsSource).toContain('data-testid="plugins-skills-page"')
+    expect(skillsSource).not.toContain('settings/components/skills')
   })
 
   it('renders the original MCP settings view in global scope', () => {

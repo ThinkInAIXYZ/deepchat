@@ -522,7 +522,7 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
     }
   }
 
-  it('uses the physical Agent catalog instead of the legacy enabledSkillNames list', async () => {
+  it('keeps the resolved Run Skill snapshot when assignments change during the Run', async () => {
     const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
 
     await resolver.loadToolDefinitionsForSession(
@@ -532,11 +532,11 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
       resourceInstance as any
     )
 
-    expect(skillService.validateSkillNames).toHaveBeenCalledWith('writer', ['foreign', 'owned-b'])
+    expect(skillService.validateSkillNames).not.toHaveBeenCalled()
     expect(getAllToolDefinitions).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 'writer',
-        activeSkillNames: ['owned-b'],
+        activeSkillNames: ['foreign', 'owned-b'],
         enabledMcpServerIds: ['mcp-a']
       })
     )

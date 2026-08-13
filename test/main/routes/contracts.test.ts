@@ -315,13 +315,8 @@ describe('main kernel contracts', () => {
         'shortcut.register',
         'shortcut.unregister',
         'skillSync.acknowledgeDiscoveries',
-        'skillSync.getAgentDetail',
-        'skillSync.getAgentSkillDetail',
         'skillSync.getNewDiscoveries',
         'skillSync.getRegisteredTools',
-        'skillSync.removeAgentSkillLink',
-        'skillSync.repairAgentSkillLink',
-        'skillSync.scanAgents',
         'skillSync.scanExternalTools',
         'sync.getBackupStatus',
         'sync.import',
@@ -700,7 +695,8 @@ describe('main kernel contracts', () => {
       agentId: 'deepchat',
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
+      strategy: 'rename',
+      assignToAgent: true
     })
 
     expect(() =>
@@ -724,20 +720,17 @@ describe('main kernel contracts', () => {
   it('validates Agent Skill import selections', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
-        source: { kind: 'internal', agentId: 'deepchat' },
+        source: { kind: 'external', toolId: 'codex' },
         items: [{ skillName: 'write-tests', strategy: 'rename' }]
       })
     ).toEqual({
-      targetAgentId: 'writer',
-      source: { kind: 'internal', agentId: 'deepchat' },
+      source: { kind: 'external', toolId: 'codex' },
       items: [{ skillName: 'write-tests', strategy: 'rename' }]
     })
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
-        source: { kind: 'internal', agentId: 'deepchat' },
+        source: { kind: 'external', toolId: 'codex' },
         items: [
           { skillName: 'write-tests', strategy: 'skip' },
           { skillName: ' write-tests ', strategy: 'overwrite' }
@@ -747,7 +740,6 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
         source: { kind: 'external', toolId: 'codex' },
         items: [{ skillName: '../outside', strategy: 'overwrite' }]
       })
@@ -1870,7 +1862,12 @@ describe('main kernel contracts', () => {
         'skillSync.previewImport',
         'skillSync.executeImport',
         'skillSync.previewExport',
-        'skillSync.executeExport'
+        'skillSync.executeExport',
+        'skillSync.scanAgents',
+        'skillSync.getAgentDetail',
+        'skillSync.getAgentSkillDetail',
+        'skillSync.repairAgentSkillLink',
+        'skillSync.removeAgentSkillLink'
       ])
     )
 
@@ -1896,16 +1893,6 @@ describe('main kernel contracts', () => {
           skills: [source]
         }
       ]
-    })
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.getAgentSkillDetail'].input.parse({
-        agentId: 'codex',
-        skillName: 'write-tests'
-      })
-    ).toEqual({
-      agentId: 'codex',
-      skillName: 'write-tests'
     })
   })
 
@@ -1988,12 +1975,6 @@ describe('main kernel contracts', () => {
         'skills.catalog.changed',
         'skills.session.changed',
         'skillSync.discoveries.changed',
-        'skillSync.export.completed',
-        'skillSync.export.progress',
-        'skillSync.export.started',
-        'skillSync.import.completed',
-        'skillSync.import.progress',
-        'skillSync.import.started',
         'skillSync.scan.completed',
         'skillSync.scan.started',
         'sync.backup.completed',

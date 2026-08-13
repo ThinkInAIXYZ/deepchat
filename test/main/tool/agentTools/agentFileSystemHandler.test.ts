@@ -230,21 +230,19 @@ describe('AgentFileSystemHandler path authorization', () => {
     )
   })
 
-  it('preserves protected Agent Skill scopes across Windows casing', () => {
+  it('preserves protected shared Skill packages across Windows casing', () => {
     const handler = new AgentFileSystemHandler(['C:\\'], {
       commandShellPathStyle: 'msys',
       protectedDirectoryRules: [
         {
-          root: 'C:\\Skills\\.agent-scopes',
-          allowedDirectories: ['C:\\Skills\\.agent-scopes\\active']
+          root: 'C:\\Skills',
+          allowedDirectories: ['C:\\Skills\\active']
         }
       ]
     })
 
-    expect(handler.isPathAllowedAbsolute('c:\\skills\\.AGENT-SCOPES\\active\\file.ts')).toBe(true)
-    expect(handler.isPathAllowedAbsolute('c:\\skills\\.AGENT-SCOPES\\inactive\\file.ts')).toBe(
-      false
-    )
+    expect(handler.isPathAllowedAbsolute('c:\\SKILLS\\active\\file.ts')).toBe(true)
+    expect(handler.isPathAllowedAbsolute('c:\\SKILLS\\inactive\\file.ts')).toBe(false)
   })
 
   it.runIf(process.platform !== 'win32')('preserves case-sensitive POSIX containment', () => {

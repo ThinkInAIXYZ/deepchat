@@ -41,6 +41,7 @@ import type { MonotonicClock } from '@/lib/monotonicTime'
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
   | 'getMetadataList'
+  | 'getAllSkills'
   | 'getActiveSkills'
   | 'resolveSessionAgentId'
   | 'setActiveSkills'

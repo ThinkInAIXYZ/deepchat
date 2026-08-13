@@ -47,6 +47,7 @@ describe('SkillTools', () => {
       discoverSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
       resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       getMetadataList: vi.fn().mockResolvedValue(mockSkillMetadata),
+      getAllSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
       getMetadataPrompt: vi.fn().mockResolvedValue('# Skills'),
       loadSkillContent: vi.fn().mockResolvedValue({ name: 'test', content: '# Test' }),
       viewSkillForAgent: vi.fn().mockResolvedValue({
@@ -160,6 +161,7 @@ describe('SkillTools', () => {
 
     it('reports current-message active skills without pinning them', async () => {
       ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
+      ;(mockSkillService.getMetadataList as Mock).mockResolvedValue([mockSkillMetadata[0]])
 
       const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
@@ -169,6 +171,7 @@ describe('SkillTools', () => {
       expect(result.skills.find((skill) => skill.name === 'git-commit')).toEqual(
         expect.objectContaining({ isPinned: false, active: true })
       )
+      expect(mockSkillService.getAllSkills).toHaveBeenCalledOnce()
     })
 
     it('keeps plugin-owned skills available through the Agent catalog', async () => {
@@ -205,6 +208,16 @@ describe('SkillTools', () => {
           name: 'code-review'
         })
       )
+    })
+
+    it('keeps an active Run snapshot viewable after its Agent assignment changes', async () => {
+      await skillTools.handleSkillView('conv-123', { name: 'git-commit' }, ['git-commit'])
+
+      expect(mockSkillService.viewSkillForAgent).toHaveBeenCalledWith('deepchat', 'git-commit', {
+        filePath: undefined,
+        conversationId: 'conv-123',
+        allowUnassigned: true
+      })
     })
   })
 

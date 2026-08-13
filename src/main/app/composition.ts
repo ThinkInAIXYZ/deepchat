@@ -2575,7 +2575,6 @@ export async function createMainProcessControl(dependencies: {
       skillService,
       skillSyncService,
       skillSettings,
-      agentSettings,
       ensureInitialized: ensureSkillServicesInitialized,
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })

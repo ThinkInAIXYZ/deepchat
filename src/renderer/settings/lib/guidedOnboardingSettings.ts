@@ -48,13 +48,22 @@ export async function continueGuidedOnboardingFromSettings(options: {
 
   const target = resolveGuidedOnboardingStepTarget(stepId)
 
+  if (target?.surface === 'plugins' && target.routeName === 'plugins-skills') {
+    if (router.hasRoute(target.routeName)) {
+      await router.push({ name: target.routeName })
+      return
+    }
+
+    persistGuidedOnboardingResumeIntent({
+      stepId: target.stepId,
+      trigger: 'window-focus'
+    })
+    await windowClient.focusMainWindow?.()
+    return
+  }
+
   if (target?.surface === 'settings' && target.routeName) {
-    const mainRouteName =
-      target.routeName === 'settings-mcp'
-        ? 'plugins-mcp'
-        : target.routeName === 'settings-skills'
-          ? 'plugins-skills'
-          : null
+    const mainRouteName = target.routeName === 'settings-mcp' ? 'plugins-mcp' : null
     if (mainRouteName && router.hasRoute(mainRouteName)) {
       await router.push({ name: mainRouteName })
       return

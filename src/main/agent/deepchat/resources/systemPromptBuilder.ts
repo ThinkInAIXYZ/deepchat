@@ -31,7 +31,11 @@ export type AgentExtensionPolicy = {
 
 type SystemPromptSkillPort = Pick<
   SkillServicePort,
-  'getMetadataList' | 'getActiveSkills' | 'loadSkillContent' | 'resolveSessionAgentId'
+  | 'getMetadataList'
+  | 'getAllSkills'
+  | 'getActiveSkills'
+  | 'loadSkillContent'
+  | 'resolveSessionAgentId'
 >
 type ToolPromptPort = Pick<ToolServicePort, 'buildToolSystemPrompt'>
 
@@ -156,7 +160,11 @@ export async function buildSystemPromptAssemblyWithSkills(
   if (skillsEnabled) {
     const metadataStartedAt = Date.now()
     try {
-      const metadataList = sessionAgentId ? await skillService.getMetadataList(sessionAgentId) : []
+      const metadataList = sessionAgentId
+        ? activeSkillNamesOverride === undefined
+          ? await skillService.getMetadataList(sessionAgentId)
+          : await skillService.getAllSkills()
+        : []
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim()
         if (skillName) {
@@ -203,11 +211,13 @@ export async function buildSystemPromptAssemblyWithSkills(
   const normalizedAvailableSkills = normalizeSkillMetadata(availableSkills)
   const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
   const requestedActiveSkills = normalizeStringList(activeSkillNames)
-  const normalizedActiveSkills = skillMetadataLookupFailed
-    ? requestedActiveSkills
-    : requestedActiveSkills.filter((skillName) => availableSkillNames.has(skillName))
+  const normalizedActiveSkills =
+    skillMetadataLookupFailed || activeSkillNamesOverride !== undefined
+      ? requestedActiveSkills
+      : requestedActiveSkills.filter((skillName) => availableSkillNames.has(skillName))
   if (
     !skillMetadataLookupFailed &&
+    activeSkillNamesOverride === undefined &&
     normalizedActiveSkills.length !== requestedActiveSkills.length
   ) {
     pinnedSkillsDegradations.push('pinned_skill_unavailable')

@@ -23,18 +23,26 @@ export const LEGACY_GUIDED_ONBOARDING_STEP_IDS = [
 export type SharedGuidedOnboardingStepId = (typeof GUIDED_ONBOARDING_STEP_IDS)[number]
 export type LegacyGuidedOnboardingStepId = (typeof LEGACY_GUIDED_ONBOARDING_STEP_IDS)[number]
 
-export type GuidedOnboardingSettingsRouteName =
-  | 'settings-provider'
-  | 'settings-mcp'
-  | 'settings-skills'
+export type GuidedOnboardingSettingsRouteName = 'settings-provider' | 'settings-mcp'
 
-export type GuidedOnboardingStepTargetSurface = 'welcome' | 'settings' | 'chat'
+export type GuidedOnboardingPluginsRouteName = 'plugins-skills'
 
-export type GuidedOnboardingStepTarget = {
-  stepId: SharedGuidedOnboardingStepId
-  surface: GuidedOnboardingStepTargetSurface
-  routeName: GuidedOnboardingSettingsRouteName | null
-}
+export type GuidedOnboardingStepTarget =
+  | {
+      stepId: SharedGuidedOnboardingStepId
+      surface: 'settings'
+      routeName: GuidedOnboardingSettingsRouteName
+    }
+  | {
+      stepId: SharedGuidedOnboardingStepId
+      surface: 'plugins'
+      routeName: GuidedOnboardingPluginsRouteName
+    }
+  | {
+      stepId: SharedGuidedOnboardingStepId
+      surface: 'welcome' | 'chat'
+      routeName: null
+    }
 
 export const GUIDED_ONBOARDING_REQUIRED_STEP_IDS = [
   'select-provider',
@@ -54,11 +62,14 @@ const GUIDED_ONBOARDING_SETTINGS_ROUTE_NAMES = {
   'select-provider': 'settings-provider',
   'provider-api-key': 'settings-provider',
   'provider-model': 'settings-provider',
-  mcp: 'settings-mcp',
-  skills: 'settings-skills'
+  mcp: 'settings-mcp'
 } as const satisfies Partial<
   Record<SharedGuidedOnboardingStepId, GuidedOnboardingSettingsRouteName>
 >
+
+const GUIDED_ONBOARDING_PLUGINS_ROUTE_NAMES = {
+  skills: 'plugins-skills'
+} as const satisfies Partial<Record<SharedGuidedOnboardingStepId, GuidedOnboardingPluginsRouteName>>
 
 const GUIDED_ONBOARDING_CHAT_STEP_ID_SET = new Set<SharedGuidedOnboardingStepId>([
   'switch-agent',
@@ -106,6 +117,13 @@ export const isGuidedOnboardingSettingsStepId = (
     stepId && Object.prototype.hasOwnProperty.call(GUIDED_ONBOARDING_SETTINGS_ROUTE_NAMES, stepId)
   )
 
+const isGuidedOnboardingPluginsStepId = (
+  stepId: SharedGuidedOnboardingStepId | null | undefined
+): stepId is keyof typeof GUIDED_ONBOARDING_PLUGINS_ROUTE_NAMES =>
+  Boolean(
+    stepId && Object.prototype.hasOwnProperty.call(GUIDED_ONBOARDING_PLUGINS_ROUTE_NAMES, stepId)
+  )
+
 export const resolveGuidedOnboardingSettingsRouteName = (
   stepId: SharedGuidedOnboardingStepId | null | undefined
 ): GuidedOnboardingSettingsRouteName | null => {
@@ -121,6 +139,14 @@ export const resolveGuidedOnboardingStepTarget = (
 ): GuidedOnboardingStepTarget | null => {
   if (!stepId) {
     return null
+  }
+
+  if (isGuidedOnboardingPluginsStepId(stepId)) {
+    return {
+      stepId,
+      surface: 'plugins',
+      routeName: GUIDED_ONBOARDING_PLUGINS_ROUTE_NAMES[stepId]
+    }
   }
 
   const routeName = resolveGuidedOnboardingSettingsRouteName(stepId)

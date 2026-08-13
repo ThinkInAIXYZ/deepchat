@@ -13,6 +13,7 @@ export const skillsCatalogChangedEvent = defineEventContract({
       'uninstalled',
       'metadata-updated',
       'disabled-updated',
+      'assignments-updated',
       'management-state-updated',
       'git-installed',
       'sync-imported',

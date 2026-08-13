@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | Tool | `src/main/tool/` | catalog、source mapping、执行、权限和本地 Agent tools |
 | MCP | `src/main/mcp/` | server/client 生命周期、OAuth、配置和 MCP tool 调用 |
-| Skill | `src/main/skill/` | per-Agent Skill root、扫描、快照导入、选择和 Plugin contribution |
+| Skill | `src/main/skill/` | 全局 Skills、Agent binding、外部快照导入、Session 选择和 Plugin contribution |
 | Plugin | `src/main/plugin/` | package 安装状态、manifest 验证和能力登记 |
 | DeepChat adapter | `src/main/agent/deepchat/runtime/toolAdapters.ts` | 把 loop ports 接到 ToolService 和 interaction |
 | ACP adapter | `src/main/agent/acp/runtime/` | ACP protocol tools、filesystem、terminal 和 MCP config |
 
-Plugin 只登记能力，不接管 MCP、Skill 或 Tool 的运行状态。Skill 模块是进程级 owner，但 mutable
-Skill 文件、catalog cache、watcher 和 enablement 都按 DeepChat Agent 隔离。Session 只保存所选 Skill
-名称；它不拥有文件，也不能读取另一个 Agent 的 root。
+Plugin 只登记能力，不接管 MCP、Skill 或 Tool 的运行状态。Skill 模块是进程级 owner：mutable
+Skill package、catalog cache 和 watcher 归应用级全局 Skills；Agent 只拥有 binding 和 extension
+binding。Session 只保存所选 Skill 名称，不拥有文件。
 
 ## Catalog 与 source mapping
 
@@ -74,21 +74,25 @@ same-server tool call 进入同一个 broker，且不持久化 App 专属授权�
 
 ## Agent-scoped extensions
 
-- Agent policy 决定可用 MCP server、Plugin capability 和 Subagent slot；Skill capability 来自当前 Agent
-  的 owned catalog 和符合条件的 Plugin runtime contribution，而不是 built-in Agent allow-list 或其他
-  Agent policy。
-- built-in `deepchat` 只拥有兼容 legacy root；manual Agent 使用
-  `<skillsRoot>/.agent-scopes/<agentId>/`。缺失 scope 等价于空 owned catalog，禁止回退到 built-in root。
-- effective Skills 是 `Session persisted selection ∩ current Agent valid enabled catalog`。transfer、rebind
-  和 Subagent entry 都必须重新计算交集。
-- 每次 Run 使用闭合 capability snapshot；配置变化通过 fingerprint/cache key 生效。
-- Plugin unavailable、disabled 或 uninstall 时，相关 contribution 必须撤销，不能留下可执行 mapping。
-- 内部 Agent 导入和外部 Agent 导入都要求显式 target Agent，先 preview 再执行，并在 main 重新解析
-  source/target。导入复制快照，不跟随 symlink、不建立 live link，也不传播后续 source 修改。
-- `skip` 保留目标，`rename` 选择首个合法可用名称，`overwrite` 先 staging/验证再原子替换。
-- Plugin-owned Skills 不作为普通文件复制；外部格式 adapter 不能绕过 target root validation。
-- child Session 重新解析自己的 capability，不继承父 Session 的 Skill 文件、mutable cache 或
-  permission state。
+- Agent policy 决定可用 MCP server、Plugin capability 和 Subagent slot；Skill capability 来自共享
+  全局 Skills 与当前 Agent `assigned: true` binding 的交集。
+- mutable package 只存放在 `<skillsRoot>/<skillName>/`。每个 Agent 的 env、runtime policy 和 script
+  override 存放在自己的 binding；`.agent-scopes` 仅作为旧版迁移证据保留，runtime 不读取。
+- effective Skills 是 `Session persisted selection ∩ current Agent assigned catalog`。transfer、rebind、
+  fork 和 Subagent entry 都必须重新计算交集。
+- 每次 Run 使用闭合 capability snapshot；同一轮中发生 unassign 或内容更新，不得改变已解析的 prompt、
+  tool allow-list、script policy 或 allowed package roots。
+- Agent filesystem policy 保护整个 configured Skill root；即使是 `full_access`，也只有当前 Run 的具体
+  active Skill roots 可以作为例外。
+- Plugin unavailable、disabled 或 uninstall 时，相关 Skill contribution 和 bindings 必须撤销，不能
+  留下可执行 mapping。
+- 内部 DeepChat Agent 不再是导入源；现有 package 通过 assignment 复用。外部 Agent 导入要求显式
+  target Agents，先 preview，再由 main 重新扫描来源并解析 conflict。
+- 外部 import 是一次性 validated snapshot，不跟随 symlink、不建立 live link，也不传播后续来源修改；
+  `skip` 保留现有 Skill，`rename` 选择首个合法全局名称，`overwrite` 先重验 enabled-Agent impact。
+- Plugin-owned Skills 不作为普通文件复制；外部格式 adapter 不能绕过全局 Skills containment validation。
+- child Session 重新解析自己的 capability，不继承父 Session 的 assignment、active Skills 或 permission
+  state。
 
 ## 调试入口
 

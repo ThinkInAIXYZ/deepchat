@@ -111,12 +111,6 @@ import {
 import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from './events/skills.events'
 import {
   skillSyncDiscoveriesChangedEvent,
-  skillSyncExportCompletedEvent,
-  skillSyncExportProgressEvent,
-  skillSyncExportStartedEvent,
-  skillSyncImportCompletedEvent,
-  skillSyncImportProgressEvent,
-  skillSyncImportStartedEvent,
   skillSyncScanCompletedEvent,
   skillSyncScanStartedEvent
 } from './events/skillSync.events'
@@ -264,12 +258,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [skillSyncDiscoveriesChangedEvent.name]: skillSyncDiscoveriesChangedEvent,
   [skillSyncScanStartedEvent.name]: skillSyncScanStartedEvent,
   [skillSyncScanCompletedEvent.name]: skillSyncScanCompletedEvent,
-  [skillSyncImportStartedEvent.name]: skillSyncImportStartedEvent,
-  [skillSyncImportProgressEvent.name]: skillSyncImportProgressEvent,
-  [skillSyncImportCompletedEvent.name]: skillSyncImportCompletedEvent,
-  [skillSyncExportStartedEvent.name]: skillSyncExportStartedEvent,
-  [skillSyncExportProgressEvent.name]: skillSyncExportProgressEvent,
-  [skillSyncExportCompletedEvent.name]: skillSyncExportCompletedEvent,
   [mcpServerStartedEvent.name]: mcpServerStartedEvent,
   [mcpServerStoppedEvent.name]: mcpServerStoppedEvent,
   [mcpConfigChangedEvent.name]: mcpConfigChangedEvent,

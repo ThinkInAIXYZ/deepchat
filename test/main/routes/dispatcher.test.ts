@@ -1140,20 +1140,6 @@ function createRuntime() {
     source: externalSkill,
     warnings: []
   }
-  const exportPreview = {
-    skillName: 'write-tests',
-    targetTool: 'codex',
-    targetPath: '/tools/write-tests.md',
-    convertedContent: '# Write tests',
-    warnings: []
-  }
-  const syncResult = {
-    success: true,
-    imported: 1,
-    exported: 0,
-    skipped: 0,
-    failed: []
-  }
   const skillSyncService = {
     scanExternalTools: vi.fn().mockResolvedValue([scanResult]),
     getNewDiscoveries: vi.fn().mockResolvedValue([
@@ -1183,14 +1169,7 @@ function createRuntime() {
         }
       }
     ]),
-    previewImport: vi.fn().mockResolvedValue([importPreview]),
-    executeImport: vi.fn().mockResolvedValue(syncResult),
-    previewExport: vi.fn().mockResolvedValue([exportPreview]),
-    executeExport: vi.fn().mockResolvedValue({
-      ...syncResult,
-      imported: 0,
-      exported: 1
-    })
+    previewImport: vi.fn().mockResolvedValue([importPreview])
   } as unknown as SkillSyncServicePort
 
   const oauthService = {
@@ -1581,7 +1560,6 @@ function createRuntime() {
     skillService,
     skillSyncService,
     skillSettings,
-    agentSettings: providerSettings as any,
     ensureInitialized: vi.fn().mockResolvedValue(undefined),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
@@ -3667,11 +3645,11 @@ describe('dispatchDeepchatRoute', () => {
     const result = await dispatchDeepchatRoute(
       runtime,
       'skills.listAgentImportSources',
-      { targetAgentId: 'deepchat' },
+      {},
       context
     )
 
-    expect(providerSettings.getAgent).toHaveBeenCalledWith('deepchat')
+    expect(providerSettings.getAgent).not.toHaveBeenCalled()
     expect(skillSyncService.scanExternalTools).toHaveBeenCalledOnce()
     expect(result).toEqual({
       sources: [
