@@ -24,7 +24,8 @@
 ## 进行中的目标
 
 新建或继续维护的 feature / architecture 以 `plan.md` 作为唯一执行清单；有界复杂 bug 可在
-`spec.md` 中保留简短清单。历史 `tasks.md` 在对应目标下次更新时并入 `plan.md`，不为规范迁移
+`spec.md` 中保留简短清单。历史 `tasks.md` 仅在对应目标下次更新时迁移：优先并入已有
+`plan.md`；没有 plan 的单阶段复杂 bug 并入 `spec.md`，其他目标创建 `plan.md`。不为规范迁移
 单独批量改写。
 
 | 文档 | 状态 |

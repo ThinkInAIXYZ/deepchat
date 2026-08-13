@@ -158,7 +158,9 @@ low-value implementation-coupled test.
 - Do not perform broad SDD cleanup during ordinary feature, bug, or architecture work.
 - Use the separate `deepchat-sdd-cleanup` skill only when the developer explicitly asks to clean or
   organize SDD documentation.
-- Treat existing `tasks.md` files as legacy. Merge remaining work into `plan.md` only when that goal
-  is actively updated; do not perform a repository-wide migration during unrelated work.
+- Treat existing `tasks.md` files as legacy and migrate them only when that goal is actively
+  updated. Merge remaining work into an existing `plan.md`; without one, keep a single-slice complex
+  bug checklist in `spec.md` and create `plan.md` for feature, architecture, or multi-slice bug work.
+  Do not perform a repository-wide migration during unrelated work.
 - During the current goal, update directly affected historical specs when they remain active
   contracts.

@@ -4,7 +4,8 @@
 - Preserve unrelated worktree changes; avoid destructive Git unless explicitly requested.
 - Use pnpm only; require Node >=20.19 and pnpm >=10.11.
 - Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
-- Tests: `test/main`, `test/renderer`, `test/e2e`; use Vitest and the smallest relevant suite.
+- Tests: use Vitest in `test/main`, Vitest with Vue Test Utils in `test/renderer`, and Playwright in
+  `test/e2e`; run the smallest relevant suite.
 - Default to implementation-first development: inspect and design, complete the planned code change,
   then decide what new verification is needed. Do not default to TDD unless explicitly requested or
   a minimal executable reproduction is required to understand a complex failure.

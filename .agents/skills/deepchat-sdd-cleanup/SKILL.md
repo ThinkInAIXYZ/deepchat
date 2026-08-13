@@ -1,6 +1,6 @@
 ---
 name: deepchat-sdd-cleanup
-description: Use only when a developer explicitly asks to clean, prune, tidy, or organize DeepChat SDD documentation after implementation and validation. Scans docs/features, docs/issues, and docs/architecture; prefers multi-agent review when available; removes completed issue docs tied to closed GitHub issues, drops stale plans and legacy task files from completed feature or architecture goals, and deletes obsolete feature or architecture docs.
+description: Use only when a developer explicitly asks to clean, prune, tidy, or organize DeepChat SDD documentation after implementation and validation. Scans docs/features, docs/issues, and docs/architecture; prefers multi-agent review when available; removes completed issue docs when a linked GitHub issue is closed or implementation and validation evidence proves the bug no longer exists, drops stale plans and legacy task files from completed feature or architecture goals, and deletes obsolete feature or architecture docs.
 ---
 
 # DeepChat SDD Cleanup

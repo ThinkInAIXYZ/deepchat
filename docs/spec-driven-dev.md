@@ -242,10 +242,10 @@ Maintain consistency across the codebase:
 ### 6. Implementation-First, Risk-Based Validation
 
 Put the primary reasoning budget into design and implementation. After the implementation is
-coherent, choose the cheapest validation that can reveal meaningful failures. Use Vitest + Vue Test
-Utils when durable regression coverage is warranted; test files mirror source structure under
-`/test/main/` and `/test/renderer/`. Optimize for protected contracts and project stability, not
-test count or coverage percentage.
+coherent, choose the cheapest validation that can reveal meaningful failures. When durable
+regression coverage is warranted, use Vitest in `test/main`, Vitest with Vue Test Utils in
+`test/renderer`, and Playwright in `test/e2e`. Optimize for protected contracts and project
+stability, not test count or coverage percentage.
 
 ## Development Checklist
 

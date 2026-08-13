@@ -92,15 +92,17 @@ Typical files:
 4. Add the smallest explicit source changes for that path.
 5. After implementation, assess provider creation, auth handling, and model discovery for durable
    regression coverage; add only the smallest contract-level tests warranted.
-6. Update an active SDD `plan.md` as coherent implementation slices land, when one exists. When a
-   legacy `tasks.md` exists for the active goal, merge its remaining work into the plan instead of
-   updating or recreating the task file.
+6. Update an active SDD `plan.md` as coherent implementation slices land, when one exists. For a
+   legacy `tasks.md`, merge remaining work into the existing plan; without one, keep a single-slice
+   complex bug checklist in `spec.md` and create `plan.md` for feature, architecture, or multi-slice
+   bug work. Do not update or recreate the task file.
 7. Run:
 
 ```bash
 pnpm run format
 pnpm run i18n
 pnpm run lint
+pnpm run typecheck
 ```
 
 Run focused main/renderer tests for any touched provider code.
