@@ -880,6 +880,7 @@ export class WindowPresenter implements IWindowPresenter {
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
       if (windowIdBeingClosed === this.mainWindowId) {
+        this.mainWindowId = null
         this.mainWindowHiddenByClose = false
       }
       managedWindowState.unmanage() // 停止管理窗口状态

@@ -257,6 +257,79 @@ describe('WindowPresenter', () => {
     expect(tabPresenter.handleWindowClosed).toHaveBeenCalledWith(7)
   })
 
+  it('focuses and resumes through a recreated main window', async () => {
+    const createAppWindowMock = (id: number, handlers: Map<string, (...args: any[]) => void>) => ({
+      id,
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn((eventName: string, handler: (...args: any[]) => void) => {
+        handlers.set(eventName, handler)
+      }),
+      removeListener: vi.fn(),
+      webContents: {
+        id: id * 10,
+        send: vi.fn(),
+        on: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        setFrameRate: vi.fn(),
+        openDevTools: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      },
+      isDestroyed: vi.fn(() => false),
+      isMinimized: vi.fn(() => false),
+      setContentProtection: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setHiddenInMissionControl: vi.fn(),
+      setSkipTaskbar: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      restore: vi.fn()
+    })
+    const firstHandlers = new Map<string, (...args: any[]) => void>()
+    const firstWindow = createAppWindowMock(7, firstHandlers)
+    const secondWindow = createAppWindowMock(8, new Map())
+    const windowsById = new Map<number, typeof firstWindow>([
+      [firstWindow.id, firstWindow],
+      [secondWindow.id, secondWindow]
+    ])
+    vi.mocked(BrowserWindow)
+      .mockImplementationOnce(() => firstWindow as any)
+      .mockImplementationOnce(() => secondWindow as any)
+    ;(BrowserWindow as any).fromId = vi.fn((id: number) => windowsById.get(id) ?? null)
+
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false),
+        getCloseToQuit: vi.fn(() => true)
+      } as any,
+      vi.fn(),
+      vi.fn()
+    )
+    presenter.bindTabPresenter({
+      handleWindowSizeChanged: vi.fn(),
+      handleWindowClosed: vi.fn(),
+      getActiveTabId: vi.fn().mockResolvedValue(null)
+    } as any)
+
+    await presenter.createAppWindow({ x: 0, y: 0 })
+    firstHandlers.get('closed')?.()
+    windowsById.delete(firstWindow.id)
+    await presenter.createAppWindow({ x: 0, y: 0 })
+
+    expect(presenter.focusMainWindow()).toBe(true)
+    expect(secondWindow.show).toHaveBeenCalledOnce()
+    expect(secondWindow.focus).toHaveBeenCalledOnce()
+
+    const resumeEvent = {
+      name: 'appRuntime.guidedOnboardingResumeRequested',
+      payload: {}
+    }
+    await expect(presenter.sendToMainWindow('deepchat:event', resumeEvent)).resolves.toBe(true)
+    expect(secondWindow.webContents.send).toHaveBeenCalledWith('deepchat:event', resumeEvent)
+  })
+
   it('sets a minimum size for the settings window', async () => {
     const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
