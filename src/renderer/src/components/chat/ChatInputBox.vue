@@ -12,6 +12,19 @@
     <input ref="fileInput" type="file" class="hidden" multiple @change="onFileSelect" />
 
     <div
+      v-if="skillsData.sessionActiveSkills.value.length > 0"
+      class="flex border-b border-border/50 px-2 py-1"
+    >
+      <SessionSkillsIndicator
+        :active-skills="skillsData.sessionActiveSkills.value"
+        :loading="skillsData.sessionActiveSkillsLoading.value"
+        :removing-skill="skillsData.sessionActiveSkillRemoving.value"
+        :disabled="!editable || isGenerating"
+        @remove="removeSessionActiveSkill"
+      />
+    </div>
+
+    <div
       data-testid="chat-input-editor"
       :class="[
         'chat-input-editor px-4 pt-4 pb-2 text-sm',
@@ -60,6 +73,7 @@ import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-int
 import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient, type OcrClient } from '@api/OcrClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import {
   buildChatInputWorkspaceReferenceText,
   getChatInputWorkspaceItemDragData
@@ -68,6 +82,7 @@ import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
+import SessionSkillsIndicator from '@/components/chat-input/SessionSkillsIndicator.vue'
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
 import { CommandForm } from './nodes/commandForm'
@@ -141,6 +156,20 @@ const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
 const skillsData = useSkillsData(conversationId, skillAgentId)
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
+
+const removeSessionActiveSkill = async (skillName: string) => {
+  try {
+    await skillsData.removeSessionActiveSkill(skillName)
+  } catch (error) {
+    console.error('[ChatInputBox] Failed to remove Session active Skill:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.skill.removeSessionActiveFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
+}
 
 const mentions = useChatInputMentions({
   getEditor,

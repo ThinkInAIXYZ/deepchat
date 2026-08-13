@@ -1,14 +1,25 @@
 import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
-import type {
-  TapeEntryRef,
-  TapeMessageReplacementOptions,
-  TapeToolFactInput
+import {
+  toTapeSessionId,
+  type TapeEntryRef,
+  type TapeMessageReplacementOptions,
+  type TapeToolFactInput
 } from '../domain/facts'
+import {
+  MAX_SKILL_VIEW_RESULT_FACT_BYTES,
+  validateRuntimeSkillJournalChain,
+  type TapeSkillViewResultFactInput,
+  type TapeSkillViewResultFactReceipt
+} from '../domain/skillContext'
+import { hashSkillEffectiveContent } from '../domain/skillMaterialization'
+import { buildExecutionOperationProvenanceKey } from '../domain/executionJournal'
 import { buildEffectiveTapeView } from '../domain/effectiveView'
 import type {
   TapeAnchorWriter,
+  TapeIncarnationReader,
   TapeMessageFactWriter,
+  TapeSkillViewResultFactWriter,
   TapeToolFactWriter
 } from '../ports/capabilities'
 import type { TapeApplicationProviders } from '../ports/application'
@@ -16,7 +27,8 @@ import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
-  appendTapeToolFact
+  appendTapeToolFact,
+  assertTapeToolFactPhysicalEnvelope
 } from './factPersistence'
 import { parseJsonObject } from './common'
 import type { TapeAnchorResult } from './contracts'
@@ -85,7 +97,12 @@ export function normalizeTapeHandoffState(state: unknown): AgentTapeHandoffState
 }
 
 export class TapeFactService
-  implements TapeToolFactWriter, TapeMessageFactWriter, TapeAnchorWriter
+  implements
+    TapeToolFactWriter,
+    TapeSkillViewResultFactWriter,
+    TapeIncarnationReader,
+    TapeMessageFactWriter,
+    TapeAnchorWriter
 {
   constructor(private readonly providers: TapeFactProviders) {}
 
@@ -115,12 +132,126 @@ export class TapeFactService
   async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
     const row = appendTapeToolFact(this.table, input, 'live', { reason: 'tool_loop' })
     if (!row) throw new Error('Tape tool fact was not appendable.')
+    if (parseJsonObject(row.meta_json).skillContextEvidence) {
+      assertTapeToolFactPhysicalEnvelope(row, input, 'live', {
+        reason: 'tool_loop',
+        allowStoredSkillContextEvidence: true
+      })
+    }
     return { sessionId: input.sessionId, entryId: row.entry_id }
   }
 
+  getTapeIncarnationId(sessionId: string): string {
+    const incarnation = this.table.getBootstrapIncarnation(sessionId)
+    if (!incarnation) throw new Error('Session Tape bootstrap is missing or invalid.')
+    return incarnation
+  }
+
+  appendSkillViewResultFact(input: TapeSkillViewResultFactInput): TapeSkillViewResultFactReceipt {
+    if (
+      !input.sessionId.trim() ||
+      !input.expectedTapeIncarnationId.trim() ||
+      !input.messageId.trim() ||
+      !input.toolCallId.trim() ||
+      input.toolName !== 'skill_view' ||
+      !Number.isSafeInteger(input.orderSeq) ||
+      input.orderSeq < 0 ||
+      !Number.isSafeInteger(input.blockIndex) ||
+      input.blockIndex < 0 ||
+      !Number.isSafeInteger(input.timestamp) ||
+      input.timestamp < 0 ||
+      !Number.isSafeInteger(input.outcomeEntryId) ||
+      input.outcomeEntryId <= 0 ||
+      input.operation.providerToolCallId !== input.toolCallId ||
+      typeof input.responseText !== 'string' ||
+      !input.responseText
+    ) {
+      throw new TypeError('Runtime Skill-view result fact identity is invalid.')
+    }
+    if (Buffer.byteLength(input.responseText, 'utf8') > MAX_SKILL_VIEW_RESULT_FACT_BYTES) {
+      throw new RangeError('Runtime Skill-view result fact exceeds 768 KiB.')
+    }
+
+    return this.table.runInTransaction(() => {
+      const incarnation = this.getTapeIncarnationId(input.sessionId)
+      if (incarnation !== input.expectedTapeIncarnationId) {
+        throw new Error('Session Tape incarnation changed.')
+      }
+      const outcomeRow = this.table.getByEntryIds(input.sessionId, [input.outcomeEntryId])[0]
+      if (!outcomeRow) {
+        throw new Error('Runtime Skill-view Journal outcome is missing.')
+      }
+      const dispatchRow = this.table.getByProvenanceKey(
+        input.sessionId,
+        buildExecutionOperationProvenanceKey(input.operation, 'dispatch')
+      )
+      if (!dispatchRow) {
+        throw new Error('Runtime Skill-view Journal dispatch is missing.')
+      }
+      const sourceId = `${input.messageId}:${input.toolCallId}`
+      const skillContextEvidence = {
+        identity: input.identity,
+        operation: input.operation,
+        outcomeEntryId: input.outcomeEntryId
+      }
+      const evidence = validateRuntimeSkillJournalChain({
+        sessionId: input.sessionId,
+        messageId: input.messageId,
+        toolCallId: input.toolCallId,
+        responseText: input.responseText,
+        evidence: { schemaVersion: 1, ...skillContextEvidence },
+        dispatchRow,
+        outcomeRow
+      })
+      const factInput = {
+        sessionId: toTapeSessionId(input.sessionId),
+        messageId: input.messageId,
+        orderSeq: input.orderSeq,
+        blockIndex: input.blockIndex,
+        block: {
+          type: 'tool_call',
+          content: '',
+          status: 'success',
+          timestamp: input.timestamp,
+          tool_call: {
+            id: input.toolCallId,
+            name: input.toolName,
+            params: '',
+            response: input.responseText
+          }
+        },
+        provenance: {
+          source: 'tool_result',
+          sourceId,
+          sequence: input.blockIndex
+        }
+      } satisfies TapeToolFactInput
+      const factOptions = { reason: 'tool_loop', skillContextEvidence } as const
+      const row = appendTapeToolFact(this.table, factInput, 'live', factOptions)
+      if (!row) throw new Error('Runtime Skill-view result fact was not appendable.')
+      if (row.entry_id <= evidence.outcomeEntryId) {
+        throw new Error('Runtime Skill-view result fact does not follow its Journal outcome.')
+      }
+
+      assertTapeToolFactPhysicalEnvelope(row, factInput, 'live', factOptions)
+
+      if (this.getTapeIncarnationId(input.sessionId) !== incarnation) {
+        throw new Error('Session Tape incarnation changed during Runtime Skill-view persistence.')
+      }
+
+      return {
+        sessionId: input.sessionId,
+        entryId: row.entry_id,
+        tapeIncarnationId: incarnation,
+        contentHash: hashSkillEffectiveContent(input.responseText)
+      }
+    })
+  }
+
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
-    return buildEffectiveTapeView(this.table.getBySession(sessionId), { includePending: true })
-      .messageRecords
+    return buildEffectiveTapeView(this.table.getBySessionExcludingContext(sessionId), {
+      includePending: true
+    }).messageRecords
   }
 
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {

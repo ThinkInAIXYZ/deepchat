@@ -170,6 +170,68 @@ describe('DeepChatAgentRuntime', () => {
     await expect(first.waitForFirstTurnReady()).resolves.toBe(true)
   })
 
+  it('keeps provider context observations runtime-local and model-scoped', () => {
+    const runtime = new DeepChatAgentRuntime()
+    const sessionId = toAppSessionId('session')
+    const instance = runtime.getOrHydrate(sessionId)
+
+    instance.recordContextWindowObservation({
+      providerId: 'new-api',
+      modelId: 'custom-model',
+      confidence: 'explicit',
+      limitTokens: 131072,
+      limitScope: 'prompt'
+    })
+    instance.recordContextWindowObservation({
+      providerId: 'new-api',
+      modelId: 'custom-model',
+      confidence: 'qualitative'
+    })
+    instance.recordContextWindowObservation({
+      providerId: 'new-api',
+      modelId: 'custom-model',
+      confidence: 'explicit',
+      limitTokens: 262144,
+      limitScope: 'context'
+    })
+    instance.recordContextWindowObservation({
+      providerId: 'openai',
+      modelId: 'other-model',
+      confidence: 'explicit',
+      limitTokens: 8192,
+      limitScope: 'context'
+    })
+    instance.recordContextWindowObservation({
+      providerId: 'new-api',
+      modelId: 'field-scoped-model',
+      confidence: 'explicit',
+      limitTokens: 4096
+    })
+
+    expect(instance.getContextWindowObservation('new-api', 'custom-model')).toEqual({
+      providerId: 'new-api',
+      modelId: 'custom-model',
+      providerContextLimitTokens: 262144,
+      providerPromptLimitTokens: 131072,
+      metadataSuspect: true
+    })
+    expect(instance.getContextWindowObservation('openai', 'other-model')).toEqual({
+      providerId: 'openai',
+      modelId: 'other-model',
+      providerContextLimitTokens: 8192,
+      metadataSuspect: false
+    })
+    expect(instance.getContextWindowObservation('new-api', 'field-scoped-model')).toEqual({
+      providerId: 'new-api',
+      modelId: 'field-scoped-model',
+      metadataSuspect: true
+    })
+    instance.clearContextWindowObservation('new-api', 'custom-model')
+    expect(instance.getContextWindowObservation('new-api', 'custom-model')).toBeUndefined()
+    instance.clearOwnedState()
+    expect(instance.getContextWindowObservation('openai', 'other-model')).toBeUndefined()
+  })
+
   it('reuses an owned preparation controller for the active generation', () => {
     const runtime = new DeepChatAgentRuntime()
     const instance = runtime.getOrHydrate(toAppSessionId('session'))

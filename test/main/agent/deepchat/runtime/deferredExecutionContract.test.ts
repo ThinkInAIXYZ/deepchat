@@ -93,8 +93,14 @@ function createFixture(permissionMode: 'default' | 'full_access' = 'default') {
   }
 }
 
-function createReader(records: ReturnType<typeof createFixture>['record'][] = []) {
-  return { listViewManifestsByMessage: vi.fn(() => records) }
+function createReader(
+  records: ReturnType<typeof createFixture>['record'][] = [],
+  executionRecord: ReturnType<typeof createFixture>['record'] | null = null
+) {
+  return {
+    listViewManifestsByMessage: vi.fn(() => records),
+    getViewManifestByExecutionBinding: vi.fn(() => executionRecord)
+  }
 }
 
 describe('deferred ExecutionContract recovery', () => {
@@ -132,6 +138,120 @@ describe('deferred ExecutionContract recovery', () => {
       'session-1',
       'message-1'
     )
+  })
+
+  it('recovers Skill-bearing contracts only through their exact execution binding', () => {
+    const fixture = createFixture()
+    const manifest = createTapeViewManifest({
+      ...fixture.record.manifest,
+      messages: [{ role: 'user', content: 'Write a.txt' }],
+      tools: [TOOL],
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      summaryCursorOrderSeq: 1,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      runId: RUN_ID,
+      tapeIncarnationId: 'tape-1',
+      skillContexts: [
+        {
+          activationScope: 'message',
+          agentId: 'deepchat',
+          sourceType: 'builtin',
+          sourceId: 'builtin-skills',
+          skillName: 'review',
+          authoritativeRef: {
+            kind: 'materialization',
+            entryId: 6,
+            tapeIncarnationId: 'tape-1',
+            agentId: 'deepchat',
+            sourceType: 'builtin',
+            sourceId: 'builtin-skills',
+            skillName: 'review',
+            effectiveContentHash: 'a'.repeat(64)
+          },
+          providerRole: 'user',
+          sourceEntryIds: [5],
+          projectedContentHash: 'a'.repeat(64),
+          projectionVersion: 1,
+          deduplicationSource: 'message'
+        }
+      ],
+      executionContract: fixture.executionContract
+    })
+    const record = { ...fixture.record, manifest }
+    const viewManifests = createReader([], record)
+
+    expect(
+      resolveDeferredExecutionContract({
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        rawBinding: fixture.rawBinding,
+        viewManifests
+      })
+    ).toEqual(fixture.executionContract)
+    expect(viewManifests.getViewManifestByExecutionBinding).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      runId: RUN_ID,
+      requestSeq: 3
+    })
+    expect(viewManifests.listViewManifestsByMessage).not.toHaveBeenCalled()
+
+    const executableManifest = createTapeViewManifest({
+      ...manifest,
+      messages: [{ role: 'user', content: 'Write a.txt' }],
+      tools: [TOOL],
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      summaryCursorOrderSeq: 1,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      skillContexts: [
+        ...manifest.skillContexts,
+        {
+          activationScope: 'runtime_view',
+          agentId: 'deepchat',
+          sourceType: 'builtin',
+          sourceId: 'builtin-skills',
+          skillName: 'runner',
+          authoritativeRef: {
+            kind: 'tool_result',
+            entryId: 7,
+            contentHash: 'b'.repeat(64)
+          },
+          executionRef: {
+            kind: 'materialization',
+            entryId: 6,
+            tapeIncarnationId: 'tape-1',
+            agentId: 'deepchat',
+            sourceType: 'builtin',
+            sourceId: 'builtin-skills',
+            skillName: 'runner',
+            effectiveContentHash: 'c'.repeat(64)
+          },
+          providerRole: 'tool',
+          sourceEntryIds: [],
+          projectedContentHash: 'b'.repeat(64),
+          projectionVersion: 1,
+          deduplicationSource: 'runtime_view'
+        }
+      ]
+    })
+    expect(executableManifest.schemaVersion).toBe(7)
+    viewManifests.getViewManifestByExecutionBinding.mockReturnValue({
+      ...record,
+      manifest: executableManifest
+    })
+    expect(
+      resolveDeferredExecutionContract({
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        rawBinding: fixture.rawBinding,
+        viewManifests
+      })
+    ).toEqual(fixture.executionContract)
   })
 
   it('keeps legacy unbound interactions compatible without reading Tape', () => {

@@ -36,8 +36,13 @@ export interface ProviderPort {
   cancel(input: { runId: string; abortController: AbortController }): void
 }
 
+export interface ToolCatalogRequest {
+  activeSkillNames?: string[]
+  failClosed?: boolean
+}
+
 export interface ToolCatalogPort {
-  resolve(input?: { activeSkillNames?: string[] }): Promise<MCPToolDefinition[]>
+  resolve(input?: ToolCatalogRequest): Promise<MCPToolDefinition[]>
 }
 
 export interface DeepChatTaskContractContextPort {
@@ -126,6 +131,7 @@ export interface ToolBatchOutputCandidate {
   isError: boolean
   offloadPath?: string
   existingOffloadPath?: string
+  requiresInline?: boolean
 }
 
 export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
@@ -205,6 +211,9 @@ export interface BasePromptAssemblyInput {
   configuredPrompt: string
   toolDefinitions: readonly MCPToolDefinition[]
   activeSkillNames: readonly string[]
+  sessionActiveSkillNames: readonly string[]
+  sessionSkillBodiesOverride?: readonly Readonly<{ name: string; content: string }>[]
+  contextLength: number
   commandShell: ResolvedCommandShell
 }
 

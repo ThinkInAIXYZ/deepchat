@@ -157,6 +157,12 @@ export class DeepChatMemoryIngestionProjectionTable
       return false
     }
 
+    // Behavioral context is deliberately inert for Memory, but still advances the projection head.
+    if (row.kind === 'context') {
+      this.writeMeta(row.session_id, row.entry_id)
+      return true
+    }
+
     const retractedMessageId = readTapeMessageRetractionId(row)
     if (retractedMessageId) {
       this.db

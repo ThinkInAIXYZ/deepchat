@@ -1,0 +1,90 @@
+import type {
+  DeepChatLoopTapePort,
+  TapeEffectiveUserMessageSourceReader,
+  TapeExecutionViewManifestReader,
+  TapeIncarnationReader,
+  TapeRunViewManifestReader,
+  TapeSkillMaterializationReader,
+  TapeSkillMaterializationWriter
+} from '../ports/capabilities'
+
+export type SkillContextTapePort = TapeIncarnationReader &
+  TapeSkillMaterializationWriter &
+  TapeSkillMaterializationReader &
+  TapeEffectiveUserMessageSourceReader &
+  TapeRunViewManifestReader
+
+export type SkillExecutionAuthorityTapePort = TapeExecutionViewManifestReader &
+  TapeIncarnationReader &
+  TapeSkillMaterializationReader
+
+export function createSkillContextTapePort(source: SkillContextTapePort): SkillContextTapePort {
+  return Object.freeze({
+    getTapeIncarnationId: (sessionId: string) => source.getTapeIncarnationId(sessionId),
+    materializeSkillContexts: (
+      inputs: Parameters<SkillContextTapePort['materializeSkillContexts']>[0]
+    ) => source.materializeSkillContexts(inputs),
+    readSkillMaterialization: (
+      ref: Parameters<SkillContextTapePort['readSkillMaterialization']>[0]
+    ) => source.readSkillMaterialization(ref),
+    getEffectiveUserMessageSourceEntryId: (sessionId: string, messageId: string) =>
+      source.getEffectiveUserMessageSourceEntryId(sessionId, messageId),
+    getLatestViewManifestByRunBinding: (
+      input: Parameters<SkillContextTapePort['getLatestViewManifestByRunBinding']>[0]
+    ) => source.getLatestViewManifestByRunBinding(input)
+  })
+}
+
+export function createSkillExecutionAuthorityTapePort(
+  source: SkillExecutionAuthorityTapePort
+): SkillExecutionAuthorityTapePort {
+  return Object.freeze({
+    getViewManifestByExecutionBinding: (
+      input: Parameters<SkillExecutionAuthorityTapePort['getViewManifestByExecutionBinding']>[0]
+    ) => source.getViewManifestByExecutionBinding(input),
+    getTapeIncarnationId: (sessionId: string) => source.getTapeIncarnationId(sessionId),
+    readSkillMaterialization: (
+      ref: Parameters<SkillExecutionAuthorityTapePort['readSkillMaterialization']>[0]
+    ) => source.readSkillMaterialization(ref)
+  })
+}
+
+export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepChatLoopTapePort {
+  return Object.freeze({
+    ensureSessionTapeReady: (...args: Parameters<DeepChatLoopTapePort['ensureSessionTapeReady']>) =>
+      source.ensureSessionTapeReady(...args),
+    getViewManifestSourceMaps: (
+      ...args: Parameters<DeepChatLoopTapePort['getViewManifestSourceMaps']>
+    ) => source.getViewManifestSourceMaps(...args),
+    listViewManifestsByMessage: (
+      ...args: Parameters<DeepChatLoopTapePort['listViewManifestsByMessage']>
+    ) => source.listViewManifestsByMessage(...args),
+    assertSkillRequestAuthority: (
+      input: Parameters<DeepChatLoopTapePort['assertSkillRequestAuthority']>[0]
+    ) => source.assertSkillRequestAuthority(input),
+    appendViewManifest: (manifest: Parameters<DeepChatLoopTapePort['appendViewManifest']>[0]) =>
+      source.appendViewManifest(manifest),
+    appendToolFact: (input: Parameters<DeepChatLoopTapePort['appendToolFact']>[0]) =>
+      source.appendToolFact(input),
+    getTapeIncarnationId: (sessionId: string) => source.getTapeIncarnationId(sessionId),
+    appendSkillViewResultFact: (
+      input: Parameters<DeepChatLoopTapePort['appendSkillViewResultFact']>[0]
+    ) => source.appendSkillViewResultFact(input),
+    recoverRuntimeSkillViewContexts: (
+      input: Parameters<DeepChatLoopTapePort['recoverRuntimeSkillViewContexts']>[0]
+    ) => source.recoverRuntimeSkillViewContexts(input),
+    appendProviderAttempt: (input: Parameters<DeepChatLoopTapePort['appendProviderAttempt']>[0]) =>
+      source.appendProviderAttempt(input),
+    getMaxProviderAttemptRequestSeq: (
+      ...args: Parameters<DeepChatLoopTapePort['getMaxProviderAttemptRequestSeq']>
+    ) => source.getMaxProviderAttemptRequestSeq(...args),
+    commitRunStarted: (input: Parameters<DeepChatLoopTapePort['commitRunStarted']>[0]) =>
+      source.commitRunStarted(input),
+    commitDispatch: (input: Parameters<DeepChatLoopTapePort['commitDispatch']>[0]) =>
+      source.commitDispatch(input),
+    commitToolOutcome: (input: Parameters<DeepChatLoopTapePort['commitToolOutcome']>[0]) =>
+      source.commitToolOutcome(input),
+    commitRunTerminal: (input: Parameters<DeepChatLoopTapePort['commitRunTerminal']>[0]) =>
+      source.commitRunTerminal(input)
+  })
+}

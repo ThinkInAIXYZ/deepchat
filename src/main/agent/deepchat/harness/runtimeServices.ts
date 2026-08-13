@@ -48,6 +48,7 @@ export type DeepChatHarnessSkillPort = Pick<
   | 'revalidateActiveSkillsForAgent'
   | 'validateSkillNames'
   | 'loadSkillContent'
+  | 'resolveFreshEffectiveSkillContents'
   | 'viewDraftSkill'
   | 'installDraftSkill'
   | 'discardDraftSkill'

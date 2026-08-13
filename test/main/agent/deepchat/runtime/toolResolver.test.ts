@@ -12,6 +12,7 @@ const createResourceInstance = (agentId = 'deepchat') => {
       modelId: 'gpt-4.1',
       permissionMode: 'full_access'
     })),
+    getRuntimeActivatedSkills: vi.fn(() => []),
     getToolProfileCache: vi.fn(() => cached),
     setToolProfileCache: vi.fn((entry) => {
       cached = entry
@@ -540,6 +541,123 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
         enabledMcpServerIds: ['mcp-a']
       })
     )
+  })
+
+  it('propagates catalog failures only for fail-closed runtime refreshes', async () => {
+    const { resolver, resourceInstance, getAllToolDefinitions } = createResolver()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    getAllToolDefinitions.mockRejectedValue(new Error('catalog unavailable'))
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('catalog unavailable')
+    expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
+  it('does not reuse a compatible catalog cache for fail-closed refreshes', async () => {
+    const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
+    skillService.getActiveSkills.mockResolvedValue(['owned-a'])
+    getAllToolDefinitions
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('strict catalog unavailable'))
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('strict catalog unavailable')
+    expect(getAllToolDefinitions).toHaveBeenCalledTimes(2)
+    expect(getAllToolDefinitions.mock.calls[1][0]).toMatchObject({ requireCompleteCatalog: true })
+  })
+
+  it('propagates Skill validation failures only for fail-closed runtime refreshes', async () => {
+    const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    skillService.validateSkillNames.mockRejectedValue(new Error('Skill registry unavailable'))
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    expect(getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({ activeSkillNames: [] })
+    )
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('Skill registry unavailable')
+    expect(warnSpy).toHaveBeenCalledTimes(2)
+    warnSpy.mockRestore()
+  })
+
+  it('rejects strict refreshes when validation omits a requested runtime Skill', async () => {
+    const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    skillService.validateSkillNames.mockResolvedValue([])
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('did not preserve the requested Skill set')
+    expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    warnSpy.mockRestore()
+  })
+
+  it('freshly loads session Skills during strict refresh even with an explicit active set', async () => {
+    const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    skillService.getActiveSkills.mockRejectedValue(new Error('Session Skills unavailable'))
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('Session Skills unavailable')
+    expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    expect(skillService.getActiveSkills).toHaveBeenCalledOnce()
+    warnSpy.mockRestore()
+  })
+
+  it('propagates Agent policy failures only for fail-closed runtime refreshes', async () => {
+    const { resolver, resourceInstance, resolveDeepChatAgentConfig, getAllToolDefinitions } =
+      createResolver()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    resolveDeepChatAgentConfig.mockRejectedValue(new Error('Agent policy unavailable'))
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1',
+      null,
+      resourceInstance as any
+    )
+
+    await expect(catalog.resolve({ activeSkillNames: ['owned-a'] })).resolves.toEqual([])
+    expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    await expect(
+      catalog.resolve({ activeSkillNames: ['owned-a'], failClosed: true })
+    ).rejects.toThrow('Agent policy unavailable')
+    expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    expect(warnSpy).toHaveBeenCalledTimes(2)
+    warnSpy.mockRestore()
   })
 
   it('revalidates transfer selections with the explicit target Agent', async () => {

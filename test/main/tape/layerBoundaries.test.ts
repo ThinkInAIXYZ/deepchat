@@ -1,6 +1,11 @@
 import path from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  createDeepChatLoopTapePort,
+  createSkillContextTapePort,
+  createSkillExecutionAuthorityTapePort
+} from '@/tape/application/capabilityAdapters'
 
 const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
 const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
@@ -489,6 +494,129 @@ describe('Tape layer boundaries', () => {
     )
 
     expect(violations).toEqual([])
+  })
+
+  it('keeps Skill materialization authority out of the provider-loop Tape port', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const sourceText = fs.readFileSync(TAPE_CAPABILITIES_MODULE + '.ts', 'utf8')
+    const sourceFile = ts.createSourceFile(
+      TAPE_CAPABILITIES_MODULE + '.ts',
+      sourceText,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS
+    )
+    const declaration = sourceFile.statements.find(
+      (statement): statement is ts.InterfaceDeclaration =>
+        ts.isInterfaceDeclaration(statement) && statement.name.text === 'DeepChatLoopTapePort'
+    )
+    expect(declaration, 'DeepChatLoopTapePort declaration not found').toBeDefined()
+    const inheritedCapabilities =
+      declaration?.heritageClauses
+        ?.flatMap((clause) => clause.types)
+        .map((type) => type.expression.getText(sourceFile)) ?? []
+    const declaredMembers =
+      declaration?.members.map((member) => member.name?.getText(sourceFile) ?? '') ?? []
+
+    expect(inheritedCapabilities).not.toContain('TapeSkillMaterializationWriter')
+    expect(inheritedCapabilities).not.toContain('TapeSkillMaterializationReader')
+    expect(declaredMembers).not.toContain('materializeSkillContexts')
+    expect(declaredMembers).not.toContain('readSkillMaterialization')
+  })
+
+  it('confines Skill materialization authority to dedicated runtime readers', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const callSites = listTypeScriptSources(MAIN_SOURCE_ROOT, fs)
+      .filter((file) => !isInside(TAPE_ROOT, file))
+      .flatMap((file) => {
+        const source = fs.readFileSync(file, 'utf8')
+        return /\.(?:materializeSkillContexts|readSkillMaterialization)\s*\(/.test(source)
+          ? [relativeToMain(file)]
+          : []
+      })
+      .sort()
+
+    expect(callSites).toEqual([
+      'agent/deepchat/runtime/skillContextMaterializer.ts',
+      'skill/skillExecutionAuthority.ts'
+    ])
+  })
+
+  it('narrows Skill Tape collaborators to their runtime capability sets', () => {
+    const source = {
+      getTapeIncarnationId: vi.fn(),
+      materializeSkillContexts: vi.fn(),
+      readSkillMaterialization: vi.fn(),
+      getEffectiveUserMessageSourceEntryId: vi.fn(),
+      getLatestViewManifestByRunBinding: vi.fn(),
+      getViewManifestByExecutionBinding: vi.fn(),
+      appendMessageRecord: vi.fn()
+    }
+
+    const contextPort = createSkillContextTapePort(source)
+    const authorityPort = createSkillExecutionAuthorityTapePort(source)
+
+    expect(Object.isFrozen(contextPort)).toBe(true)
+    expect(Object.keys(contextPort).sort()).toEqual([
+      'getEffectiveUserMessageSourceEntryId',
+      'getLatestViewManifestByRunBinding',
+      'getTapeIncarnationId',
+      'materializeSkillContexts',
+      'readSkillMaterialization'
+    ])
+    expect(Object.isFrozen(authorityPort)).toBe(true)
+    expect(Object.keys(authorityPort).sort()).toEqual([
+      'getTapeIncarnationId',
+      'getViewManifestByExecutionBinding',
+      'readSkillMaterialization'
+    ])
+    expect('appendMessageRecord' in contextPort).toBe(false)
+    expect('appendMessageRecord' in authorityPort).toBe(false)
+  })
+
+  it('gives the provider loop only its declared runtime Tape capabilities', () => {
+    const source = {
+      ensureSessionTapeReady: vi.fn(),
+      getViewManifestSourceMaps: vi.fn(),
+      listViewManifestsByMessage: vi.fn(),
+      assertSkillRequestAuthority: vi.fn(),
+      appendViewManifest: vi.fn(),
+      appendToolFact: vi.fn(),
+      getTapeIncarnationId: vi.fn(),
+      appendSkillViewResultFact: vi.fn(),
+      recoverRuntimeSkillViewContexts: vi.fn(),
+      appendProviderAttempt: vi.fn(),
+      getMaxProviderAttemptRequestSeq: vi.fn(),
+      commitRunStarted: vi.fn(),
+      commitDispatch: vi.fn(),
+      commitToolOutcome: vi.fn(),
+      commitRunTerminal: vi.fn(),
+      materializeSkillContexts: vi.fn(),
+      appendMessageRecord: vi.fn()
+    }
+
+    const loopPort = createDeepChatLoopTapePort(source)
+
+    expect(Object.isFrozen(loopPort)).toBe(true)
+    expect(Object.keys(loopPort).sort()).toEqual([
+      'appendProviderAttempt',
+      'appendSkillViewResultFact',
+      'appendToolFact',
+      'appendViewManifest',
+      'assertSkillRequestAuthority',
+      'commitDispatch',
+      'commitRunStarted',
+      'commitRunTerminal',
+      'commitToolOutcome',
+      'ensureSessionTapeReady',
+      'getMaxProviderAttemptRequestSeq',
+      'getTapeIncarnationId',
+      'getViewManifestSourceMaps',
+      'listViewManifestsByMessage',
+      'recoverRuntimeSkillViewContexts'
+    ])
+    expect('materializeSkillContexts' in loopPort).toBe(false)
+    expect('appendMessageRecord' in loopPort).toBe(false)
   })
 
   it.each([

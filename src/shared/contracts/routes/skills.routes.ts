@@ -518,6 +518,17 @@ export const skillsSetActiveRoute = defineRouteContract({
   })
 })
 
+export const skillsRemoveActiveRoute = defineRouteContract({
+  name: 'skills.removeActive',
+  input: z.object({
+    conversationId: EntityIdSchema,
+    skill: z.string().trim().min(1)
+  }),
+  output: z.object({
+    skills: z.array(z.string())
+  })
+})
+
 export const skillsListAgentImportSourcesRoute = defineRouteContract({
   name: 'skills.listAgentImportSources',
   input: z.object({}),

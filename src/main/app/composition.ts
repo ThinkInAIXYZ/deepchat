@@ -139,6 +139,7 @@ import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
 import { SkillSettings } from '../skill/settings'
 import { SkillSyncService } from '../skill/sync'
+import { SkillExecutionAuthorityResolver } from '../skill/skillExecutionAuthority'
 import { HookService } from '../hook'
 import { HookSettings } from '../hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
@@ -230,6 +231,7 @@ import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
 import { createPromptRoutes } from '@/agent/promptRoutes'
+import { createSkillExecutionAuthorityTapePort } from '@/tape/application/capabilityAdapters'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import {
@@ -1483,6 +1485,10 @@ export async function createMainProcessControl(dependencies: {
     },
     liveDelegation: createLivePort(() => liveDelegationService),
     skills: skillService,
+    skillExecutionAuthority: new SkillExecutionAuthorityResolver({
+      tape: createSkillExecutionAuthorityTapePort(sessionData.tapeStore),
+      environments: skillService
+    }),
     browser: yoBrowserPresenter.toolHandler,
     files: {
       getMimeType: (filePath) => fileService.getMimeType(filePath),
@@ -1833,7 +1839,9 @@ export async function createMainProcessControl(dependencies: {
     permissions: sessionPermissionPort,
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
-        await clearNewAgentSessionSkills.call(skillService, sessionId)
+        await clearNewAgentSessionSkills.call(skillService, sessionId),
+      completeNewAgentSessionSkillsDeletion: (sessionId) =>
+        skillService.completeNewAgentSessionSkillsDeletion(sessionId)
     }
   })
   sessionAssignment = new SessionAssignment({
@@ -2576,6 +2584,12 @@ export async function createMainProcessControl(dependencies: {
       skillSyncService,
       skillSettings,
       ensureInitialized: ensureSkillServicesInitialized,
+      assertSessionActiveSkillsMutable: async (conversationId) => {
+        const state = await deepChatAgentHarness.getSessionState(conversationId)
+        if (state?.status === 'generating') {
+          throw new Error('Cannot change Session Skills while the session is generating.')
+        }
+      },
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const mcpRoutes = createMcpRoutes({

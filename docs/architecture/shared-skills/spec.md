@@ -110,6 +110,7 @@ interface SharedSkillManagementItem {
 interface AgentSkillBinding {
   assigned: boolean
   extension: SkillExtensionConfig
+  runtimeBindingId?: string
 }
 
 interface SkillManagementState {
@@ -145,9 +146,16 @@ The derived Agent catalog is the authorization boundary for prompt assembly, Ski
 tools, scripts, and filesystem roots. `skills.listAll` is a management view and never grants
 runtime access.
 
-Each Run keeps the active names and concrete roots resolved at Run start. Package bytes remain
-canonical rather than being copied into a Run directory. Transfer, rebind, fork, and Subagent
-creation recompute the destination Agent intersection.
+Route and Discover apply the bounded progressive-disclosure contract to this derived Agent catalog,
+never to the global management list. Activation resolves canonical package bytes once, records
+effective content and an execution package in Tape, and binds `skill_view` and `skill_run` to that
+request evidence. The per-binding `runtimeBindingId` versions secret-bearing environment values
+without persisting them in Tape.
+
+Each Run keeps the active names, content identity, and package authority resolved at Run start.
+Canonical source packages are not duplicated per Agent; only the bounded request execution package
+is materialized for verified script execution. Transfer, rebind, fork, and Subagent creation
+recompute the destination Agent intersection.
 
 One cache and watcher cover global metadata and content. Binding changes invalidate only affected
 Agent views. The number of Agents is small enough to scan for reverse impact; no reverse index is
@@ -338,10 +346,13 @@ Agent impact.
 11. The Plugins-hub route renders the same global Skills view.
 12. Agent catalogs, Session activation, prompt assembly, tools, scripts, and filesystem access use
     the enabled-Agent intersection rather than the global management list.
-13. Shared edit and delete revalidate current enabled Agent impact.
-14. Version 1 and 2 migration preserves packages, bindings, extensions, and valid Session choices.
-15. Version 3 `library` compatibility data is decoded without losing packages.
-16. Plugin and bundled ownership and mutability remain enforced.
+13. Route, Discover, Tape materialization, and request-bound script execution preserve that same
+    Agent authorization boundary.
+14. Shared edit and delete revalidate current enabled Agent impact.
+15. Version 1 and 2 migration preserves packages, bindings, extensions, runtime environment
+    revisions, and valid Session choices.
+16. Version 3 `library` compatibility data is decoded without losing packages.
+17. Plugin and bundled ownership and mutability remain enforced.
 
 ## Open Questions
 

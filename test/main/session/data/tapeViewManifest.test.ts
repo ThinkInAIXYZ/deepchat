@@ -103,6 +103,61 @@ function createV5Fixture(permissionMode: 'default' | 'auto_approve' = 'default')
   }
 }
 
+function createSkillContext() {
+  return {
+    activationScope: 'message' as const,
+    agentId: 'deepchat',
+    sourceType: 'builtin' as const,
+    sourceId: 'builtin-skills',
+    skillName: 'review',
+    authoritativeRef: {
+      kind: 'materialization' as const,
+      entryId: 6,
+      tapeIncarnationId: 'tape-1',
+      agentId: 'deepchat',
+      sourceType: 'builtin' as const,
+      sourceId: 'builtin-skills',
+      skillName: 'review',
+      effectiveContentHash: 'a'.repeat(64)
+    },
+    providerRole: 'user' as const,
+    sourceEntryIds: [5],
+    projectedContentHash: 'a'.repeat(64),
+    projectionVersion: 1,
+    deduplicationSource: 'message' as const
+  }
+}
+
+function createRuntimeSkillContext() {
+  return {
+    activationScope: 'runtime_view' as const,
+    agentId: 'deepchat',
+    sourceType: 'builtin' as const,
+    sourceId: 'builtin-skills',
+    skillName: 'review',
+    authoritativeRef: {
+      kind: 'tool_result' as const,
+      entryId: 7,
+      contentHash: 'b'.repeat(64)
+    },
+    executionRef: {
+      kind: 'materialization' as const,
+      entryId: 6,
+      tapeIncarnationId: 'tape-1',
+      agentId: 'deepchat',
+      sourceType: 'builtin' as const,
+      sourceId: 'builtin-skills',
+      skillName: 'review',
+      effectiveContentHash: 'a'.repeat(64)
+    },
+    providerRole: 'tool' as const,
+    sourceEntryIds: [],
+    projectedContentHash: 'b'.repeat(64),
+    projectionVersion: 1,
+    deduplicationSource: 'runtime_view' as const
+  }
+}
+
 describe('tapeViewManifest', () => {
   it('hashes JSON with stable object key ordering', () => {
     expect(hashJson({ b: 1, a: { d: 4, c: 3 } })).toBe(hashJson({ a: { c: 3, d: 4 }, b: 1 }))
@@ -303,6 +358,163 @@ describe('tapeViewManifest', () => {
 
     expect(normalizeStoredTapeViewManifest(withoutContract, 's1')).toBeNull()
     expect(createTapeViewManifest({ ...input, executionContract: undefined }).schemaVersion).toBe(4)
+  })
+
+  it('creates hash-v4 Skill manifests with or without a matching execution contract', () => {
+    const { input, executionContract } = createV5Fixture()
+    const skillInput = {
+      ...input,
+      runId: executionContract.request.runId,
+      tapeIncarnationId: 'tape-1',
+      skillContexts: [createSkillContext()]
+    }
+
+    const withContract = createTapeViewManifest(skillInput)
+    const withoutContract = createTapeViewManifest({ ...skillInput, executionContract: undefined })
+
+    expect(withContract).toMatchObject({ schemaVersion: 6, hashVersion: 4 })
+    expect(withContract.executionContract).toBe(executionContract)
+    expect(withoutContract).toMatchObject({ schemaVersion: 6, hashVersion: 4 })
+    expect(withoutContract).not.toHaveProperty('executionContract')
+    expect(verifyTapeViewManifestHash(withContract)).toBe('valid')
+    expect(verifyTapeViewManifestHash(withoutContract)).toBe('valid')
+    expect(verifyTapeViewManifestHash({ ...createTapeViewManifest(input), hashVersion: 4 })).toBe(
+      'invalid'
+    )
+    expect(normalizeStoredTapeViewManifest(JSON.parse(JSON.stringify(withContract)), 's1')).toEqual(
+      withContract
+    )
+  })
+
+  it('versions executable runtime Skill evidence without changing schema-v6 reads', () => {
+    const { input, executionContract } = createV5Fixture()
+    const manifest = createTapeViewManifest({
+      ...input,
+      runId: executionContract.request.runId,
+      tapeIncarnationId: 'tape-1',
+      skillContexts: [createRuntimeSkillContext()]
+    })
+
+    expect(manifest).toMatchObject({ schemaVersion: 7, hashVersion: 5 })
+    expect(verifyTapeViewManifestHash(manifest)).toBe('valid')
+    expect(normalizeStoredTapeViewManifest(JSON.parse(JSON.stringify(manifest)), 's1')).toEqual(
+      manifest
+    )
+
+    const missingExecutionRef = structuredClone(manifest) as any
+    delete missingExecutionRef.skillContexts[0].executionRef
+    expect(normalizeStoredTapeViewManifest(missingExecutionRef, 's1')).toBeNull()
+
+    const materializedOnlySchema7 = {
+      ...structuredClone(manifest),
+      skillContexts: [createSkillContext()]
+    }
+    expect(normalizeStoredTapeViewManifest(materializedOnlySchema7, 's1')).toBeNull()
+
+    const schema6 = createTapeViewManifest({
+      ...input,
+      runId: executionContract.request.runId,
+      tapeIncarnationId: 'tape-1',
+      skillContexts: [
+        {
+          ...createRuntimeSkillContext(),
+          executionRef: undefined
+        }
+      ].map(({ executionRef: _executionRef, ...context }) => context)
+    })
+    expect(schema6).toMatchObject({ schemaVersion: 6, hashVersion: 4 })
+    expect(normalizeStoredTapeViewManifest(JSON.parse(JSON.stringify(schema6)), 's1')).toEqual(
+      schema6
+    )
+  })
+
+  it.each([
+    ['agent', { agentId: 'other-agent' }],
+    ['source type', { sourceType: 'plugin' as const }],
+    ['source id', { sourceId: 'other-source' }],
+    ['Skill name', { skillName: 'other-skill' }],
+    ['Tape incarnation', { tapeIncarnationId: '' }],
+    ['content hash', { effectiveContentHash: 'invalid' }]
+  ])('rejects runtime execution authority with mismatched %s identity', (_name, drift) => {
+    const { input, executionContract } = createV5Fixture()
+    const context = createRuntimeSkillContext()
+
+    expect(() =>
+      createTapeViewManifest({
+        ...input,
+        runId: executionContract.request.runId,
+        tapeIncarnationId: 'tape-1',
+        skillContexts: [
+          {
+            ...context,
+            executionRef: { ...context.executionRef, ...drift }
+          }
+        ]
+      })
+    ).toThrow(/materialization reference/)
+  })
+
+  it('fails closed on malformed or mismatched Skill-manifest identity', () => {
+    const { input, executionContract } = createV5Fixture()
+    const skillInput = {
+      ...input,
+      runId: executionContract.request.runId,
+      tapeIncarnationId: 'tape-1',
+      skillContexts: [createSkillContext()]
+    }
+    const manifest = createTapeViewManifest(skillInput)
+
+    expect(() => createTapeViewManifest({ ...skillInput, runId: 'different-run' })).toThrow(
+      /request identity/
+    )
+    expect(() => createTapeViewManifest({ ...input, requireDurableManifest: true })).toThrow(
+      /requires Skill contexts/
+    )
+    expect(
+      normalizeStoredTapeViewManifest(
+        {
+          ...manifest,
+          skillContexts: [{ ...manifest.skillContexts[0], sourceType: 'unknown' }]
+        },
+        's1'
+      )
+    ).toBeNull()
+    expect(verifyTapeViewManifestHash({ ...manifest, runId: 'different-run' })).toBe('invalid')
+    expect(() =>
+      createTapeViewManifest({
+        ...skillInput,
+        skillContexts: [
+          {
+            ...createSkillContext(),
+            projectedContentHash: 'b'.repeat(64)
+          }
+        ]
+      })
+    ).toThrow(/Skill materialization reference/)
+    expect(() =>
+      createTapeViewManifest({
+        ...skillInput,
+        skillContexts: [
+          {
+            activationScope: 'runtime_view',
+            agentId: 'deepchat',
+            sourceType: 'builtin',
+            sourceId: 'builtin-skills',
+            skillName: 'review',
+            authoritativeRef: {
+              kind: 'tool_result',
+              entryId: 6,
+              contentHash: 'a'.repeat(64)
+            },
+            providerRole: 'tool',
+            sourceEntryIds: [],
+            projectedContentHash: 'b'.repeat(64),
+            projectionVersion: 1,
+            deduplicationSource: 'runtime_view'
+          }
+        ]
+      })
+    ).toThrow(/runtime-view Skill context/)
   })
 
   it('keeps execution metadata out of provider-view tool hashes', () => {

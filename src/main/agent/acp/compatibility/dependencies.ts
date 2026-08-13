@@ -48,6 +48,8 @@ export interface AcpCompatibilityDependencyBuilderDependencies {
     basePrompt: string,
     tools: MCPToolDefinition[],
     activeSkillNames: string[],
+    sessionActiveSkillNames: string[],
+    contextLength: number,
     instance: DeepChatAgentInstance
   ): Promise<string>
   emitRateLimitWaitingMessage(
@@ -110,6 +112,7 @@ export function createAcpCompatibilityDependencies(
           signal
         )
         resourceInstance.replaceRuntimeActivatedSkills(runtimeActiveSkills)
+        const contextLength = Math.max(1, generationSettings.contextLength)
 
         let tools: MCPToolDefinition[] = []
         let systemPrompt = ''
@@ -134,6 +137,8 @@ export function createAcpCompatibilityDependencies(
               generationSettings.systemPrompt,
               tools,
               activeSkills,
+              sessionSkills,
+              contextLength,
               resourceInstance
             ),
             signal
@@ -142,7 +147,6 @@ export function createAcpCompatibilityDependencies(
 
         throwIfAbortRequested(signal)
         const traceEnabled = dependencies.traceSettings.isEnabled()
-        const contextLength = Math.max(1, generationSettings.contextLength)
         const effectiveMaxTokens = capAgentRequestMaxTokens(
           generationSettings.maxTokens,
           contextLength

@@ -49,6 +49,11 @@ export interface DeepChatToolResolverDependencies {
   identity: Pick<SessionIdentityService, 'getAgentId' | 'isAcpBackedSubagentSession'>
 }
 
+export interface DeepChatToolCatalogSnapshot {
+  activeSkillNames: string[]
+  enabledMcpServerIds: string[] | null | undefined
+}
+
 export class DeepChatToolResolver {
   constructor(private readonly dependencies: DeepChatToolResolverDependencies) {}
 
@@ -65,12 +70,19 @@ export class DeepChatToolResolver {
     sessionId: string,
     projectDir: string | null,
     activeSkillNamesOverride?: string[],
-    providedResourceInstance?: DeepChatAgentInstance
+    providedResourceInstance?: DeepChatAgentInstance,
+    onResolved?: (snapshot: DeepChatToolCatalogSnapshot) => void
   ): Promise<MCPToolDefinition[]> {
     const resourceInstance =
       providedResourceInstance ??
       this.dependencies.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
-    const catalog = this.createSessionToolCatalogPort(sessionId, projectDir, resourceInstance)
+    const catalog = this.createSessionToolCatalogPort(
+      sessionId,
+      projectDir,
+      resourceInstance,
+      onResolved,
+      true
+    )
     return await catalog.resolve(
       activeSkillNamesOverride === undefined
         ? undefined
@@ -81,23 +93,43 @@ export class DeepChatToolResolver {
   createSessionToolCatalogPort(
     sessionId: string,
     projectDir: string | null,
-    resourceInstance: DeepChatAgentInstance
+    resourceInstance: DeepChatAgentInstance,
+    onResolved?: (snapshot: DeepChatToolCatalogSnapshot) => void,
+    trustActiveSkillNamesOverride = false
   ): ToolCatalogPort {
     const catalog = createToolCatalogPort<DeepChatToolProfileKind>({
       toolService: this.dependencies.toolService,
-      resolveContext: async (activeSkillNamesOverride) => {
+      resolveContext: async (request) => {
         this.assertCurrent(sessionId, resourceInstance)
+        const activeSkillNamesOverride = request?.activeSkillNames
+        const failClosed = request?.failClosed === true
         const scopedAgentId =
           resourceInstance.getAgentId()?.trim() ||
           this.dependencies.identity.getAgentId(sessionId)?.trim() ||
           null
         const agentId = scopedAgentId ?? 'deepchat'
-        const toolPolicy = await this.resolveAgentToolPolicy(sessionId, resourceInstance)
+        const toolPolicy = await this.resolveAgentToolPolicy(
+          sessionId,
+          resourceInstance,
+          failClosed
+        )
         const policy = toolPolicy.extensionPolicy
-        const effectiveActiveSkillNames =
-          activeSkillNamesOverride === undefined
+        const requestedActiveSkillNames = failClosed
+          ? normalizeStringList([
+              ...(await this.resolveActiveSkillNamesForToolProfile(sessionId, true)),
+              ...resourceInstance.getRuntimeActivatedSkills()
+            ])
+          : activeSkillNamesOverride === undefined
             ? await this.resolveActiveSkillNamesForToolProfile(sessionId)
             : normalizeStringList(activeSkillNamesOverride)
+        const effectiveActiveSkillNames =
+          activeSkillNamesOverride !== undefined && trustActiveSkillNamesOverride && !failClosed
+            ? normalizeStringList(activeSkillNamesOverride)
+            : await this.validateSkillNamesForAgent(
+                scopedAgentId,
+                requestedActiveSkillNames,
+                failClosed
+              )
         const profile = this.resolveToolProfile(
           sessionId,
           projectDir,
@@ -113,7 +145,7 @@ export class DeepChatToolResolver {
         return {
           profile: profile.kind,
           fingerprint: profile.fingerprint,
-          cached: resourceInstance.getToolProfileCache(),
+          cached: failClosed ? undefined : resourceInstance.getToolProfileCache(),
           context: {
             agentId,
             disabledAgentTools: toolPolicy.disabledAgentTools,
@@ -123,6 +155,7 @@ export class DeepChatToolResolver {
             agentWorkspacePath: projectDir,
             activeSkillNames: effectiveActiveSkillNames,
             subagentCapability: toolPolicy.subagentCapability,
+            ...(failClosed ? { requireCompleteCatalog: true } : {}),
             ...(enabledMcpServerIds === undefined ? {} : { enabledMcpServerIds })
           }
         }
@@ -130,6 +163,12 @@ export class DeepChatToolResolver {
       commitCache: (entry) => {
         this.assertCurrent(sessionId, resourceInstance)
         resourceInstance.setToolProfileCache(entry)
+      },
+      onResolved: ({ context }) => {
+        onResolved?.({
+          activeSkillNames: normalizeStringList(context.activeSkillNames ?? []),
+          enabledMcpServerIds: this.normalizeNullablePolicyList(context.enabledMcpServerIds)
+        })
       }
     })
 
@@ -138,6 +177,10 @@ export class DeepChatToolResolver {
         this.assertCurrent(sessionId, resourceInstance)
         const providerId = resourceInstance.getRuntimeState()?.providerId?.trim()
         if (this.dependencies.identity.isAcpBackedSubagentSession(sessionId, providerId)) {
+          onResolved?.({
+            activeSkillNames: normalizeStringList(request?.activeSkillNames ?? []),
+            enabledMcpServerIds: undefined
+          })
           return []
         }
 
@@ -145,7 +188,12 @@ export class DeepChatToolResolver {
           return await catalog.resolve(request)
         } catch (error) {
           if (isStaleDeepChatInstanceError(error)) throw error
+          if (request?.failClosed) throw error
           console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
+          onResolved?.({
+            activeSkillNames: normalizeStringList(request?.activeSkillNames ?? []),
+            enabledMcpServerIds: undefined
+          })
           return []
         }
       }
@@ -193,7 +241,8 @@ export class DeepChatToolResolver {
   }
 
   async resolveActiveSkillNamesForToolProfile(
-    sessionId: string
+    sessionId: string,
+    failClosed = false
   ): Promise<string[]> {
     if (!this.dependencies.skillSettings.isEnabled()) {
       return []
@@ -206,13 +255,15 @@ export class DeepChatToolResolver {
         `[DeepChatAgent] Failed to load active skills for tool profile in session ${sessionId}:`,
         error
       )
+      if (failClosed) throw error
       return []
     }
   }
 
   private async resolveAgentToolPolicy(
     sessionId: string,
-    resourceInstance?: DeepChatAgentInstance
+    resourceInstance?: DeepChatAgentInstance,
+    failClosed = false
   ): Promise<{
     extensionPolicy: AgentExtensionPolicy
     disabledAgentTools: string[]
@@ -244,12 +295,14 @@ export class DeepChatToolResolver {
         `[DeepChatAgent] Failed to resolve Agent type for tool policy ${agentId}:`,
         agentTypeResult.reason
       )
+      if (failClosed) throw agentTypeResult.reason
     }
     if (configResult.status === 'rejected') {
       console.warn(
         `[DeepChatAgent] Failed to resolve tool policy for agent ${agentId}:`,
         configResult.reason
       )
+      if (failClosed) throw configResult.reason
       if (sessionRow?.session_kind === 'subagent') {
         throw new Error(`Subagent Session ${sessionId} tool policy is unavailable.`)
       }
@@ -351,17 +404,36 @@ export class DeepChatToolResolver {
 
   private async validateSkillNamesForAgent(
     agentId: string | null,
-    skillNames: string[]
+    skillNames: string[],
+    failClosed = false
   ): Promise<string[]> {
-    if (!agentId || !this.dependencies.skillSettings.isEnabled()) return []
+    const normalizedSkillNames = normalizeStringList(skillNames)
+    if (!agentId || !this.dependencies.skillSettings.isEnabled()) {
+      if (failClosed && normalizedSkillNames.length > 0) {
+        throw new Error(
+          !agentId
+            ? 'Cannot validate runtime Skills without an Agent identity.'
+            : 'Cannot refresh runtime Skills while Skills are disabled.'
+        )
+      }
+      return []
+    }
 
     try {
-      return await this.dependencies.skillService.validateSkillNames(
-        agentId,
-        normalizeStringList(skillNames)
+      const validatedSkillNames = normalizeStringList(
+        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames)
       )
+      if (
+        failClosed &&
+        (validatedSkillNames.length !== normalizedSkillNames.length ||
+          validatedSkillNames.some((name, index) => name !== normalizedSkillNames[index]))
+      ) {
+        throw new Error('Runtime Skill validation did not preserve the requested Skill set.')
+      }
+      return validatedSkillNames
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to validate active skills for Agent ${agentId}:`, error)
+      if (failClosed) throw error
       return []
     }
   }

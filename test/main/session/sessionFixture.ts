@@ -32,7 +32,9 @@ export const createSessionFixture = (input: {
   }
   projection: SessionQuery
   acp: AcpAsLlmProviderSessionControlPort
-  skillService?: Pick<SkillServicePort, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
+  skillService?: Pick<SkillServicePort, 'setActiveSkills' | 'clearNewAgentSessionSkills'> & {
+    completeNewAgentSessionSkillsDeletion?: (sessionId: string) => void
+  }
   sessionPermissionPort?: Pick<SessionPermissionPort, 'clearSessionPermissions'>
 }): {
   policy: SessionAssignmentPolicy
@@ -77,7 +79,9 @@ export const createSessionFixture = (input: {
     },
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
-        await input.skillService?.clearNewAgentSessionSkills?.(sessionId)
+        await input.skillService?.clearNewAgentSessionSkills?.(sessionId),
+      completeNewAgentSessionSkillsDeletion: (sessionId) =>
+        input.skillService?.completeNewAgentSessionSkillsDeletion?.(sessionId)
     }
   })
   const assignment = new SessionAssignment({

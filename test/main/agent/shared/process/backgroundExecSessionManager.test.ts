@@ -4,8 +4,16 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUtilityProcessFork } = vi.hoisted(() => ({
-  mockUtilityProcessFork: vi.fn()
+const {
+  mockUtilityProcessFork,
+  mockAssertPackageTree,
+  mockCleanupPackageTree,
+  mockTerminateProcessTree
+} = vi.hoisted(() => ({
+  mockUtilityProcessFork: vi.fn(),
+  mockAssertPackageTree: vi.fn(),
+  mockCleanupPackageTree: vi.fn(),
+  mockTerminateProcessTree: vi.fn()
 }))
 
 vi.mock('child_process', () => ({
@@ -36,6 +44,15 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
+vi.mock('@/skill/skillExecutionPackageTree', () => ({
+  assertSkillExecutionPackageTreeIntact: mockAssertPackageTree,
+  cleanupOwnedSkillExecutionPackageTree: mockCleanupPackageTree
+}))
+
+vi.mock('@/agent/shared/process/processTree', () => ({
+  terminateProcessTree: mockTerminateProcessTree
+}))
+
 import {
   BackgroundExecSessionManager,
   backgroundExecSessionManager
@@ -46,7 +63,9 @@ import {
   WINDOWS_POWERSHELL_COMMAND_SHELL
 } from '../../../../helpers/commandShell'
 
-class MockStream extends EventEmitter {}
+class MockStream extends EventEmitter {
+  destroy = vi.fn()
+}
 
 class MockChildProcess extends EventEmitter {
   stdout = new MockStream()
@@ -54,9 +73,11 @@ class MockChildProcess extends EventEmitter {
   stdin = {
     write: vi.fn(),
     end: vi.fn(),
+    destroy: vi.fn(),
     destroyed: false
   }
   pid = 321
+  unref = vi.fn()
 }
 
 class MockUtilityProcess extends EventEmitter {
@@ -78,6 +99,20 @@ function normalizedPath(candidate: unknown): string {
 const PLATFORM_COMMAND_SHELL =
   process.platform === 'win32' ? WINDOWS_POWERSHELL_COMMAND_SHELL : POSIX_COMMAND_SHELL
 
+const ownedPackageTree = () => ({
+  schemaVersion: 1 as const,
+  rootPath: '/tmp/deepchat-skill-exec-fixture',
+  ownershipToken: '12345678-1234-4234-9234-123456789abc',
+  packageHash: 'a'.repeat(64),
+  files: [
+    {
+      relativePath: 'scripts/run.js',
+      byteCount: 1,
+      sha256: 'b'.repeat(64)
+    }
+  ]
+})
+
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -88,6 +123,9 @@ describe('BackgroundExecSessionManager', () => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
     mockUtilityProcessFork.mockReset()
+    mockAssertPackageTree.mockResolvedValue(undefined)
+    mockCleanupPackageTree.mockResolvedValue(undefined)
+    mockTerminateProcessTree.mockResolvedValue(true)
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
       String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
@@ -126,6 +164,9 @@ describe('BackgroundExecSessionManager', () => {
     outputFilePath: '/mock/session/bgexec_bg_123.log',
     outputWriteQueue: Promise.resolve(),
     totalOutputLength: 10001,
+    totalOutputBytes: 10001,
+    maxOutputBytes: null,
+    outputLimitExceeded: false,
     previewChars: 500,
     offloadThresholdChars: 10000,
     offloadDisabled: false,
@@ -196,6 +237,31 @@ describe('BackgroundExecSessionManager', () => {
         value: originalAppendFile
       })
     }
+  })
+
+  it('terminates a background process when its output byte limit is exceeded', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    mockTerminateProcessTree.mockImplementationOnce(async () => {
+      child.emit('close', 0, null)
+      return true
+    })
+
+    const started = await manager.start('conv-1', 'node script.js', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0,
+      maxOutputBytes: 8
+    })
+
+    child.stdout.emit('data', Buffer.from('12345678'))
+    child.stdout.emit('data', Buffer.from('discarded'))
+    await vi.waitFor(() => expect(mockTerminateProcessTree).toHaveBeenCalledOnce())
+
+    const result = await manager.getCompletionResult('conv-1', started.sessionId, 500)
+    expect(result.status).toBe('killed')
+    expect(result.output).toContain('12345678')
+    expect(result.output).toContain('output exceeded 8 bytes')
+    expect(result.output).not.toContain('discarded')
   })
 
   it('waits for completion and returns a completion snapshot before cleanup', async () => {
@@ -336,6 +402,33 @@ describe('BackgroundExecSessionManager', () => {
     await manager.kill('conv-1', 'bg_123', beforeMutation)
 
     expect(beforeMutation).not.toHaveBeenCalled()
+  })
+
+  it('retains an owned package tree when the process tree cannot be terminated', async () => {
+    const descriptor = ownedPackageTree()
+    let resolveClose = () => {}
+    const closePromise = new Promise<void>((resolve) => {
+      resolveClose = resolve
+    })
+    const session = createSession({
+      status: 'running',
+      child: new MockChildProcess(),
+      closeSettled: false,
+      closePromise,
+      resolveClose,
+      ownedSkillExecutionPackageTree: descriptor
+    })
+    setSession(session)
+    mockTerminateProcessTree.mockResolvedValueOnce(false)
+
+    await manager.kill('conv-1', 'bg_123')
+
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+    expect(session.ownedSkillExecutionPackageTree).toBeUndefined()
+    expect(session.child.stdout.destroy).toHaveBeenCalledOnce()
+    expect(session.child.stderr.destroy).toHaveBeenCalledOnce()
+    expect(session.child.stdin.destroy).toHaveBeenCalledOnce()
+    expect(session.child.unref).toHaveBeenCalledOnce()
   })
 
   it('merges the prepared env on top of process env when starting a session', async () => {
@@ -620,6 +713,43 @@ describe('BackgroundExecSessionManager', () => {
       }
     })
   })
+
+  it('verifies and cleans an owned package tree when its process completes', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    const descriptor = ownedPackageTree()
+
+    const result = await manager.start('conv-1', 'node script.js', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0,
+      ownedSkillExecutionPackageTree: descriptor
+    })
+    expect(mockAssertPackageTree).toHaveBeenCalledWith(descriptor)
+
+    child.stdout.emit('end')
+    child.stderr.emit('end')
+    child.emit('close', 0, null)
+    await manager.waitForCompletionOrYield('conv-1', result.sessionId, 100)
+
+    expect(mockCleanupPackageTree).toHaveBeenCalledOnce()
+    expect(mockCleanupPackageTree).toHaveBeenCalledWith(descriptor)
+  })
+
+  it('fails closed and cleans before spawn when an owned package tree drifts', async () => {
+    const descriptor = ownedPackageTree()
+    mockAssertPackageTree.mockRejectedValueOnce(new Error('package drifted'))
+
+    await expect(
+      manager.start('conv-1', 'node script.js', '/workspace', {
+        commandShell: PLATFORM_COMMAND_SHELL,
+        timeout: 0,
+        ownedSkillExecutionPackageTree: descriptor
+      })
+    ).rejects.toThrow('package drifted')
+
+    expect(spawn).not.toHaveBeenCalled()
+    expect(mockCleanupPackageTree).toHaveBeenCalledWith(descriptor)
+  })
 })
 
 describe('backgroundExecSessionManager utility proxy', () => {
@@ -637,6 +767,9 @@ describe('backgroundExecSessionManager utility proxy', () => {
 
   beforeEach(() => {
     mockUtilityProcessFork.mockReset()
+    mockAssertPackageTree.mockResolvedValue(undefined)
+    mockCleanupPackageTree.mockResolvedValue(undefined)
+    mockTerminateProcessTree.mockResolvedValue(true)
     resetProxyState()
   })
 
@@ -669,6 +802,106 @@ describe('backgroundExecSessionManager utility proxy', () => {
         })
       })
     )
+  })
+
+  it('cleans an owned tree when utility ownership was never posted', async () => {
+    const proxy = backgroundExecSessionManager as any
+    const descriptor = ownedPackageTree()
+    vi.spyOn(proxy, 'request').mockRejectedValue(new Error('host unavailable'))
+
+    await expect(
+      backgroundExecSessionManager.start('conv-1', 'node script.js', '/workspace', {
+        commandShell: PLATFORM_COMMAND_SHELL,
+        ownedSkillExecutionPackageTree: descriptor
+      })
+    ).rejects.toThrow('host unavailable')
+
+    expect(mockCleanupPackageTree).toHaveBeenCalledWith(descriptor)
+  })
+
+  it('runs the final start guard after the utility is ready but before posting ownership', async () => {
+    const proxy = backgroundExecSessionManager as any
+    const descriptor = ownedPackageTree()
+    const order: string[] = []
+    vi.spyOn(proxy, 'request').mockImplementation(
+      async (
+        _method: string,
+        _args: unknown[],
+        lifecycle: { beforePost?: () => Promise<void>; onPosted?: () => void }
+      ) => {
+        await lifecycle.beforePost?.()
+        lifecycle.onPosted?.()
+        order.push('posted')
+        throw new Error('utility rejected start')
+      }
+    )
+
+    await expect(
+      backgroundExecSessionManager.start(
+        'conv-1',
+        'node script.js',
+        '/workspace',
+        {
+          commandShell: PLATFORM_COMMAND_SHELL,
+          ownedSkillExecutionPackageTree: descriptor
+        },
+        async () => {
+          order.push('guarded')
+        }
+      )
+    ).rejects.toThrow('utility rejected start')
+
+    expect(order).toEqual(['guarded', 'posted'])
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+  })
+
+  it('does not delete utility-owned package trees when the host crashes', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.activeSessions.set('bg_owned', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_owned',
+      command: 'node script.js',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+
+    proxy.handleHostExit(1)
+    await Promise.resolve()
+
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+    expect(proxy.activeSessions.size).toBe(0)
+    expect(proxy.crashedSessions.has('bg_owned')).toBe(true)
+  })
+
+  it('clears local conversation state when utility-host cleanup fails', async () => {
+    const proxy = backgroundExecSessionManager as any
+    const session = {
+      conversationId: 'conv-1',
+      sessionId: 'bg_session',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    }
+    proxy.activeSessions.set('bg_active', { ...session, sessionId: 'bg_active' })
+    proxy.crashedSessions.set('bg_crashed', { ...session, sessionId: 'bg_crashed' })
+    proxy.completedSessions.set('bg_completed', {
+      ...session,
+      sessionId: 'bg_completed',
+      status: 'done',
+      outputLength: 0,
+      offloaded: false,
+      timedOut: false
+    })
+    vi.spyOn(proxy, 'request').mockRejectedValue(new Error('utility host unavailable'))
+
+    await expect(backgroundExecSessionManager.cleanupConversation('conv-1')).rejects.toThrow(
+      'utility host unavailable'
+    )
+
+    expect(proxy.activeSessions.size).toBe(0)
+    expect(proxy.crashedSessions.size).toBe(0)
+    expect(proxy.completedSessions.size).toBe(0)
+    expect(proxy.completedSessionReconciliationTimer).toBeNull()
   })
 
   it('returns crashed completion results without starting a fresh utility host', async () => {

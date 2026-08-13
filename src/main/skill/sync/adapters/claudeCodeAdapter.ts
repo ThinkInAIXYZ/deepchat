@@ -30,6 +30,11 @@ export class ClaudeCodeAdapter implements IFormatAdapter {
    */
   parse(content: string, context: ParseContext): CanonicalSkill {
     const { data, content: body } = matter(content)
+    if (data.executionSupportPaths !== undefined) {
+      throw new Error(
+        'Skills with executionSupportPaths cannot be converted until Skill Sync preserves their support files'
+      )
+    }
 
     // Extract name from frontmatter or fallback to directory name
     const name = this.extractName(data, context)

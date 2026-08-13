@@ -26,7 +26,7 @@ import type {
   DeepChatMemoryIngestionProjectionRow
 } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import type { TapeAnchorWriter, TapeRawEntryReader } from '@/tape/ports/capabilities'
+import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,
@@ -92,7 +92,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
   getMemoryCursorOrderSeq(sessionId: string): number | null
   updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
   rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
-  tapeReader: TapeRawEntryReader
+  tapeReader: TapeNonContextEntryReader
   tapeAnchorWriter: TapeAnchorWriter
   getIngestionProjection(): MemoryIngestionProjection | undefined
 }

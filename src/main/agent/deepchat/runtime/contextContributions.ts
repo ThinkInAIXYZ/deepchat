@@ -25,6 +25,7 @@ export interface ContextRuntimeContributions {
   checkpoint: ContextCheckpoint
   readonly memory: MemoryContextContribution
   readonly directives: DirectiveContextContribution
+  messageSkillActiveTurnContext?: string | null
   memoryIncluded: boolean
   directivesIncluded: boolean
 }
@@ -34,9 +35,19 @@ export function createEmptyContextRuntimeContributions(): ContextRuntimeContribu
     checkpoint: { message: null, contributions: [] },
     memory: EMPTY_MEMORY_CONTEXT_CONTRIBUTION,
     directives: EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION,
+    messageSkillActiveTurnContext: null,
     memoryIncluded: false,
     directivesIncluded: false
   }
+}
+
+export function setMessageSkillActiveTurnContext(
+  context: ContextRuntimeContributions,
+  content: string | null | undefined
+): ContextRuntimeContributions {
+  context.messageSkillActiveTurnContext =
+    typeof content === 'string' && content.trim() ? content : null
+  return context
 }
 
 function hashContent(content: string): string {

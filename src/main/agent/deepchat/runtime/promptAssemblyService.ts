@@ -65,13 +65,26 @@ export class PromptAssemblyService {
     toolDefinitions: MCPToolDefinition[],
     commandShell: ResolvedCommandShell,
     activeSkillNamesOverride: string[] | undefined,
-    resourceInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    resourceInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance,
+    routingContext: {
+      sessionActiveSkillNamesOverride?: string[]
+      sessionSkillBodiesOverride?: readonly Readonly<{ name: string; content: string }>[]
+      contextLength?: number
+    } = {}
   ): Promise<string> {
     return await buildSystemPromptWithSkills(this.builderDependencies, {
       sessionId,
       basePrompt,
       toolDefinitions,
       activeSkillNamesOverride,
+      ...routingContext,
+      ...(routingContext.sessionSkillBodiesOverride
+        ? {
+            sessionSkillBodiesOverride: routingContext.sessionSkillBodiesOverride.map((skill) => ({
+              ...skill
+            }))
+          }
+        : {}),
       orchestrationPolicy: this.deps.orchestrationPolicy.resolveOrchestrationPolicy(sessionId),
       commandShell,
       resourceInstance
@@ -84,13 +97,26 @@ export class PromptAssemblyService {
     toolDefinitions: MCPToolDefinition[],
     commandShell: ResolvedCommandShell,
     activeSkillNamesOverride?: string[],
-    resourceInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    resourceInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance,
+    routingContext: {
+      sessionActiveSkillNamesOverride?: string[]
+      sessionSkillBodiesOverride?: readonly Readonly<{ name: string; content: string }>[]
+      contextLength?: number
+    } = {}
   ): Promise<DeepChatPromptAssembly> {
     return await buildSystemPromptAssemblyWithSkills(this.builderDependencies, {
       sessionId,
       basePrompt,
       toolDefinitions,
       activeSkillNamesOverride,
+      ...routingContext,
+      ...(routingContext.sessionSkillBodiesOverride
+        ? {
+            sessionSkillBodiesOverride: routingContext.sessionSkillBodiesOverride.map((skill) => ({
+              ...skill
+            }))
+          }
+        : {}),
       orchestrationPolicy: this.deps.orchestrationPolicy.resolveOrchestrationPolicy(sessionId),
       commandShell,
       resourceInstance
@@ -106,7 +132,12 @@ export class PromptAssemblyService {
           [...input.toolDefinitions],
           input.commandShell,
           [...input.activeSkillNames],
-          expectedInstance
+          expectedInstance,
+          {
+            sessionActiveSkillNamesOverride: [...input.sessionActiveSkillNames],
+            sessionSkillBodiesOverride: input.sessionSkillBodiesOverride,
+            contextLength: input.contextLength
+          }
         ),
       assembleWithProvenance: async (input) =>
         await this.buildWithProvenance(
@@ -115,7 +146,12 @@ export class PromptAssemblyService {
           [...input.toolDefinitions],
           input.commandShell,
           [...input.activeSkillNames],
-          expectedInstance
+          expectedInstance,
+          {
+            sessionActiveSkillNamesOverride: [...input.sessionActiveSkillNames],
+            sessionSkillBodiesOverride: input.sessionSkillBodiesOverride,
+            contextLength: input.contextLength
+          }
         )
     }
   }
@@ -132,6 +168,7 @@ export class PromptAssemblyService {
           checkpoint: buildContextCheckpoint(input.summaryText, input.reconstructionAnchor),
           memory: contribution.memory,
           directives: contribution.directives,
+          messageSkillActiveTurnContext: null,
           memoryIncluded: Boolean(contribution.memory.content),
           directivesIncluded: Boolean(contribution.directives.content)
         }

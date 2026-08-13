@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import {
+  createLoopRun,
+  registerMaterializedSkillContext,
+  registerRuntimeSkillContext
+} from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ModelConfig } from '@shared/types/provider'
@@ -50,6 +55,7 @@ function createPreflight(
 ) {
   return {
     messages,
+    contextLength: 1_000,
     inputTokens: 10,
     toolReserveTokens: 0,
     requestedMaxTokens: overrides.requestedMaxTokens ?? 100,
@@ -75,9 +81,11 @@ function createAttemptInput(options?: {
   providerEvents?: LLMCoreStreamEvent[][]
   providerAttempts?: Array<{ events?: LLMCoreStreamEvent[]; error?: unknown }>
   appendManifest?: (manifest: any) => void
+  assertAuthority?: (authority: any, attempt: number) => void
   buildExecutionContract?: (input: any) => any
   viewContext?: false
   strictViewContract?: boolean
+  requireDurableManifest?: boolean
 }) {
   const run = createRun()
   const order: string[] = []
@@ -88,6 +96,7 @@ function createAttemptInput(options?: {
   const contractBuildInputs: any[] = []
   const executionContractErrors: unknown[] = []
   const manifestErrors: unknown[] = []
+  const authorityChecks: any[] = []
   const outcomes: any[] = []
   const outcomeErrors: unknown[] = []
   const providerAttempts =
@@ -114,6 +123,7 @@ function createAttemptInput(options?: {
     contractBuildInputs,
     executionContractErrors,
     manifestErrors,
+    authorityChecks,
     outcomes,
     outcomeErrors,
     actualRateClears,
@@ -132,6 +142,7 @@ function createAttemptInput(options?: {
       supportsAudioInput: true,
       traceDebugEnabled: true,
       strictViewContract: options?.strictViewContract,
+      requireDurableManifest: options?.requireDurableManifest,
       viewContext:
         options?.viewContext === false
           ? undefined
@@ -197,8 +208,19 @@ function createAttemptInput(options?: {
           manifestContractRefs.push(manifest.executionContract)
           manifests.push(structuredClone(manifest))
           options?.appendManifest?.(manifest)
+          return {
+            manifestHash: 'a'.repeat(64),
+            ...(manifest.tapeIncarnationId ? { tapeIncarnationId: manifest.tapeIncarnationId } : {})
+          }
         },
         onAppendError: (error: unknown) => manifestErrors.push(error)
+      },
+      authority: {
+        assertCurrent: ({ authority }: any) => {
+          order.push(`authority:${authority.requestSeq}`)
+          authorityChecks.push(structuredClone(authority))
+          options?.assertAuthority?.(authority, authorityChecks.length)
+        }
       },
       rateGate: {
         beforeWait: () => order.push('before-rate'),
@@ -243,6 +265,46 @@ function createAttemptInput(options?: {
       createAbortError: () => Object.assign(new Error('aborted'), { name: 'AbortError' })
     }
   }
+}
+
+function registerMessageSkill(
+  fixture: ReturnType<typeof createAttemptInput>,
+  skillName = 'skill-1'
+) {
+  const effectiveContent = 'Follow only this turn instruction.'
+  const completeBodyFragment = `### ${skillName}\n${effectiveContent}`
+  const contentHash = hashSkillEffectiveContent(effectiveContent)
+  fixture.run.resources.tapeIncarnationId = 'incarnation-1'
+  fixture.run.messages[0] = {
+    role: 'user',
+    content: `## Skills Selected for This Turn\n\n${completeBodyFragment}\n\nhello`
+  }
+  const context = {
+    activationScope: 'message' as const,
+    agentId: 'agent-1',
+    sourceType: 'created' as const,
+    sourceId: `/skills/${skillName}`,
+    skillName,
+    authoritativeRef: {
+      kind: 'context' as const,
+      entryId: 13,
+      provenanceKey: `skill-materialization:v1:${skillName}`,
+      payloadHash: 'a'.repeat(64)
+    },
+    providerRole: 'user' as const,
+    sourceEntryIds: [7],
+    projectedContentHash: contentHash,
+    projectionVersion: 1 as const,
+    deduplicationSource: 'message' as const
+  }
+  registerMaterializedSkillContext(fixture.run, {
+    tapeIncarnationId: 'incarnation-1',
+    effectiveContent,
+    completeBodyFragment,
+    providerMessageIndex: 0,
+    context
+  })
+  return context
 }
 
 describe('DeepChatContextCoordinator', () => {
@@ -400,6 +462,243 @@ describe('DeepChatContextCoordinator', () => {
     })
     expect(fixture.run.requestSeq).toBe(1)
     expect(fixture.actualRateClears).toEqual(['clear'])
+    expect(fixture.authorityChecks).toEqual([])
+  })
+
+  it('durably binds a projected runtime Skill result to its provider request occurrence', async () => {
+    const fixture = createAttemptInput()
+    const responseText = '{"success":true,"content":"effective Skill body"}'
+    const contentHash = hashSkillEffectiveContent(responseText)
+    fixture.run.resources.tapeIncarnationId = 'incarnation-1'
+    fixture.run.messages.push({
+      role: 'tool',
+      tool_call_id: 'tool-call-1',
+      content: responseText
+    })
+    const identity = {
+      agentId: 'agent-1',
+      sourceType: 'created' as const,
+      sourceId: '/skills/skill-1',
+      skillName: 'skill-1'
+    }
+    registerRuntimeSkillContext(fixture.run, {
+      identity,
+      toolCallId: 'tool-call-1',
+      entryId: 12,
+      tapeIncarnationId: 'incarnation-1',
+      contentHash,
+      executionRef: {
+        kind: 'materialization',
+        entryId: 11,
+        tapeIncarnationId: 'incarnation-1',
+        ...identity,
+        effectiveContentHash: hashSkillEffectiveContent('effective Skill body')
+      }
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.manifests[0]).toMatchObject({
+      runId: 'run-1',
+      tapeIncarnationId: 'incarnation-1',
+      requireDurableManifest: true,
+      skillContexts: [
+        {
+          activationScope: 'runtime_view',
+          skillName: 'skill-1',
+          projectedContentHash: contentHash,
+          authoritativeRef: {
+            kind: 'tool_result',
+            entryId: 12,
+            contentHash
+          }
+        }
+      ]
+    })
+    expect(fixture.manifests[0].messages).toEqual(fixture.providerRequests[0].messages)
+    expect(fixture.run.activeRequestView).toEqual({
+      requestSeq: 1,
+      manifestHash: 'a'.repeat(64),
+      tapeIncarnationId: 'incarnation-1'
+    })
+  })
+
+  it('durably binds a materialized message Skill to the exact provider projection', async () => {
+    const fixture = createAttemptInput({
+      assertAuthority: (authority) => {
+        expect(Object.isFrozen(authority)).toBe(true)
+        expect(Object.isFrozen(authority.skillContexts)).toBe(true)
+        expect(Object.isFrozen(authority.skillContexts[0])).toBe(true)
+        expect(Object.isFrozen(authority.skillContexts[0].sourceEntryIds)).toBe(true)
+        expect(Object.isFrozen(authority.skillContexts[0].authoritativeRef)).toBe(true)
+      }
+    })
+    const context = registerMessageSkill(fixture)
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.manifests[0]).toMatchObject({
+      runId: 'run-1',
+      tapeIncarnationId: 'incarnation-1',
+      requireDurableManifest: true,
+      skillContexts: [
+        {
+          activationScope: 'message',
+          skillName: 'skill-1',
+          sourceEntryIds: [7],
+          projectedContentHash: context.projectedContentHash,
+          authoritativeRef: {
+            kind: 'context',
+            entryId: 13,
+            provenanceKey: 'skill-materialization:v1:skill-1'
+          }
+        }
+      ]
+    })
+    expect(fixture.authorityChecks).toEqual([
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        runId: 'run-1',
+        requestSeq: 1,
+        manifestHash: 'a'.repeat(64),
+        tapeIncarnationId: 'incarnation-1',
+        skillContexts: [context]
+      }
+    ])
+    expect(fixture.order).toEqual([
+      'manifest:1',
+      'before-rate',
+      'rate',
+      'rate-clear',
+      'before-provider',
+      'authority:1',
+      'provider',
+      'outcome:1'
+    ])
+  })
+
+  it('fails closed when Skill authority drifts after rate admission', async () => {
+    let rateAdmissionCompleted = false
+    const fixture = createAttemptInput({
+      assertAuthority: () => {
+        expect(rateAdmissionCompleted).toBe(true)
+        throw new Error('Skill authority drifted during rate wait')
+      }
+    })
+    registerMessageSkill(fixture)
+    const wait = fixture.input.rateGate.wait
+    fixture.input.rateGate.wait = async (signal: AbortSignal) => {
+      await wait(signal)
+      rateAdmissionCompleted = true
+    }
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toThrow('Skill authority drifted during rate wait')
+
+    expect(fixture.authorityChecks).toHaveLength(1)
+    expect(fixture.providerRequests).toEqual([])
+    expect(fixture.outcomes).toEqual([])
+    expect(fixture.run.physicalAttempt).toBe(0)
+  })
+
+  it('revalidates the same Skill authority before every transient retry attempt', async () => {
+    const transientError = Object.assign(new Error('fetch failed'), {
+      code: 'ECONNRESET',
+      headers: { 'retry-after-ms': '0' }
+    })
+    const fixture = createAttemptInput({
+      providerAttempts: [
+        { error: transientError },
+        {
+          events: [
+            { type: 'text', content: 'must not be sent' },
+            { type: 'stop', stop_reason: 'complete' }
+          ]
+        }
+      ],
+      assertAuthority: (_authority, attempt) => {
+        if (attempt === 2) throw new Error('Skill authority drifted during retry delay')
+      }
+    })
+    registerMessageSkill(fixture)
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toThrow('Skill authority drifted during retry delay')
+
+    expect(fixture.authorityChecks.map(({ requestSeq }) => requestSeq)).toEqual([1, 1])
+    expect(fixture.providerRequests).toHaveLength(1)
+    expect(fixture.run.physicalAttempt).toBe(1)
+    expect(fixture.outcomes).toHaveLength(1)
+    expect(fixture.outcomes[0]).toMatchObject({ retryDecision: 'retry_scheduled' })
+  })
+
+  it('revalidates the new Skill manifest after context-overflow recovery', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    registerMessageSkill(fixture)
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    fixture.input.requestMessages.push(optionalHistory)
+    fixture.input.budget.fitStrictRetry = vi.fn(({ messages }) =>
+      messages.filter((message) => message !== optionalHistory)
+    )
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.manifests.map(({ requestSeq }) => requestSeq)).toEqual([1, 2])
+    expect(fixture.authorityChecks.map(({ requestSeq }) => requestSeq)).toEqual([1, 2])
+    expect(fixture.providerRequests.map(({ identity }) => identity.requestSeq)).toEqual([1, 2])
+  })
+
+  it('prevents provider admission when a runtime Skill manifest cannot be committed', async () => {
+    const fixture = createAttemptInput({
+      appendManifest: () => {
+        throw new Error('manifest unavailable')
+      }
+    })
+    const responseText = '{"success":true,"content":"effective Skill body"}'
+    fixture.run.resources.tapeIncarnationId = 'incarnation-1'
+    fixture.run.messages.push({
+      role: 'tool',
+      tool_call_id: 'tool-call-1',
+      content: responseText
+    })
+    const identity = {
+      agentId: 'agent-1',
+      sourceType: 'created' as const,
+      sourceId: '/skills/skill-1',
+      skillName: 'skill-1'
+    }
+    registerRuntimeSkillContext(fixture.run, {
+      identity,
+      toolCallId: 'tool-call-1',
+      entryId: 12,
+      tapeIncarnationId: 'incarnation-1',
+      contentHash: hashSkillEffectiveContent(responseText),
+      executionRef: {
+        kind: 'materialization',
+        entryId: 11,
+        tapeIncarnationId: 'incarnation-1',
+        ...identity,
+        effectiveContentHash: hashSkillEffectiveContent('effective Skill body')
+      }
+    })
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toThrow('manifest unavailable')
+    expect(fixture.providerRequests).toEqual([])
+    expect(fixture.order).toEqual(['manifest:1'])
+    expect(fixture.manifestErrors).toHaveLength(1)
   })
 
   it('uses fallback capabilities without a ViewManifest context', async () => {
@@ -423,6 +722,22 @@ describe('DeepChatContextCoordinator', () => {
     })
     expect(fixture.manifests[0].selection).toBeUndefined()
     expect(fixture.outcomes).toEqual([expectedAttemptOutcome({ requestOrigin: 'tool_loop' })])
+  })
+
+  it('records the effective preflight context ceiling in the ViewManifest', async () => {
+    const fixture = createAttemptInput()
+    fixture.input.budget.preflight = vi.fn(({ messages, requestedMaxTokens }) => ({
+      ...createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: requestedMaxTokens
+      }),
+      contextLength: 640
+    }))
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.manifests[0].tokenBudget.contextLength).toBe(640)
+    expect(fixture.input.modelConfig.contextLength).toBe(1_000)
   })
 
   it('records only the final cumulative usage snapshot for a completed attempt', async () => {
@@ -535,6 +850,37 @@ describe('DeepChatContextCoordinator', () => {
     })
   })
 
+  it('requires Skill-bearing manifest durability without requiring an ExecutionContract', async () => {
+    const optionalContract = createAttemptInput({
+      requireDurableManifest: true,
+      buildExecutionContract: () => {
+        throw new Error('optional contract unavailable')
+      }
+    })
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(optionalContract.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'ok' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+    expect(optionalContract.manifests).toHaveLength(1)
+    expect(optionalContract.manifests[0].executionContract).toBeUndefined()
+    expect(optionalContract.providerRequests[0].executionContract).toBeNull()
+
+    const missingManifest = createAttemptInput({
+      requireDurableManifest: true,
+      appendManifest: () => {
+        throw new Error('required Skill manifest unavailable')
+      }
+    })
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(missingManifest.input))
+    ).rejects.toThrow('required Skill manifest unavailable')
+    expect(missingManifest.providerRequests).toHaveLength(0)
+    expect(missingManifest.order).not.toContain('rate')
+  })
+
   it.each([
     {
       name: 'contract construction',
@@ -598,6 +944,17 @@ describe('DeepChatContextCoordinator', () => {
         ]
       ]
     })
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    const currentInput: ChatMessage = { role: 'user', content: 'current input' }
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      optionalHistory,
+      currentInput
+    )
+    fixture.input.budget.fitStrictRetry = vi.fn(({ messages }) =>
+      messages.filter((message) => message !== optionalHistory)
+    )
 
     const events = await collect(
       new DeepChatContextCoordinator().streamProviderAttempts(fixture.input)
@@ -609,6 +966,8 @@ describe('DeepChatContextCoordinator', () => {
     ])
     expect(fixture.input.recovery.recover).toHaveBeenCalledOnce()
     expect(fixture.providerRequests).toHaveLength(2)
+    expect(fixture.providerRequests[0].messages).toEqual([optionalHistory, currentInput])
+    expect(fixture.providerRequests[1].messages).toEqual([currentInput])
     expect(fixture.manifests.map((manifest) => manifest.requestSeq)).toEqual([1, 2])
     expect(fixture.run.requestSeq).toBe(2)
     expect(fixture.run.logicalRound).toBe(1)
@@ -643,6 +1002,179 @@ describe('DeepChatContextCoordinator', () => {
       fixture.providerContractRefs[1]
     )
     expect(fixture.order.indexOf('outcome:1')).toBeLessThan(fixture.order.indexOf('manifest:2'))
+  })
+
+  it('retries when handoff replaces an aliased provider message projection', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    const currentInput: ChatMessage = { role: 'user', content: 'current input' }
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      optionalHistory,
+      currentInput
+    )
+    fixture.input.recovery.recover = vi.fn(async () => ({
+      messages: [currentInput],
+      summaryCursorOrderSeq: 4
+    }))
+
+    const events = await collect(
+      new DeepChatContextCoordinator().streamProviderAttempts(fixture.input)
+    )
+
+    expect(events).toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+    expect(fixture.providerRequests.map(({ messages }) => messages)).toEqual([
+      [optionalHistory, currentInput],
+      [currentInput]
+    ])
+  })
+
+  it('skips a protected-only context retry when only its output cap would change', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [[{ type: 'error', error_message: 'context overflow' }]]
+    })
+    const facts = {
+      matched: true,
+      actualTokens: 1200,
+      limitTokens: 1000,
+      scope: 'prompt' as const,
+      confidence: 'explicit' as const
+    }
+    fixture.input.inspectContextOverflow = () => facts
+    fixture.input.onContextOverflowFacts = vi.fn()
+    fixture.input.budget.buildOverflowAfterRecoveryError = vi.fn(
+      (_preflight, observedFacts) =>
+        new Error(`provider still overflowed: ${JSON.stringify(observedFacts)}`)
+    )
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toThrow(`provider still overflowed: ${JSON.stringify(facts)}`)
+
+    expect(fixture.providerRequests).toHaveLength(1)
+    expect(fixture.input.recovery.recover).toHaveBeenCalledOnce()
+    expect(fixture.input.onContextOverflowFacts).toHaveBeenCalledWith(facts)
+  })
+
+  it('retries a total-context overflow when only the effective output cap shrinks', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    const facts = {
+      matched: true,
+      actualTokens: 1100,
+      limitTokens: 1000,
+      limitScope: 'context' as const,
+      scope: 'request' as const,
+      confidence: 'explicit' as const
+    }
+    fixture.input.inspectContextOverflow = () => facts
+    fixture.input.onContextOverflowFacts = vi.fn()
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.providerRequests).toHaveLength(2)
+    expect(fixture.providerRequests.map(({ messages }) => messages)).toEqual([
+      [{ role: 'user', content: 'hello' }],
+      [{ role: 'user', content: 'hello' }]
+    ])
+    expect(fixture.providerRequests.map(({ maxTokens }) => maxTokens)).toEqual([100, 50])
+    expect(fixture.manifests.map(({ tokenBudget }) => tokenBudget.effectiveMaxTokens)).toEqual([
+      100, 50
+    ])
+    expect(fixture.input.onContextOverflowFacts).toHaveBeenCalledWith(facts)
+  })
+
+  it('does not send a retry that fails the calibrated local preflight', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [[{ type: 'error', error_message: 'context overflow' }]]
+    })
+    fixture.input.budget.preflight = vi
+      .fn()
+      .mockImplementationOnce(({ messages, requestedMaxTokens }) =>
+        createPreflight(messages, { requestedMaxTokens, effectiveMaxTokens: requestedMaxTokens })
+      )
+      .mockImplementationOnce(({ messages, requestedMaxTokens }) =>
+        createPreflight(messages, {
+          fitsWithinContext: false,
+          requestedMaxTokens,
+          effectiveMaxTokens: 0
+        })
+      )
+    const buildFailure = vi.fn(() => new Error('calibrated request cannot fit'))
+    fixture.input.budget.buildOverflowAfterRecoveryError = buildFailure
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toThrow('calibrated request cannot fit')
+
+    expect(fixture.providerRequests).toHaveLength(1)
+    expect(buildFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ fitsWithinContext: false }),
+      undefined,
+      'retry_projection_cannot_fit'
+    )
+  })
+
+  it('commits the admitted retry projection before preparing the next request', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    const currentInput: ChatMessage = { role: 'user', content: 'current input' }
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      optionalHistory,
+      currentInput
+    )
+    let projected = false
+    fixture.input.budget.fitStrictRetry = vi.fn(({ messages }) => {
+      if (projected) return messages
+      projected = true
+      return messages.filter((message) => message !== optionalHistory)
+    })
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.providerRequests).toHaveLength(2)
+    expect(fixture.providerRequests[0].messages).toEqual([optionalHistory, currentInput])
+    expect(fixture.providerRequests[1].messages).toEqual([currentInput])
+    expect(fixture.manifests[1].messages).toEqual(fixture.providerRequests[1].messages)
   })
 
   it('runs pressure recovery before manifesting the provider request', async () => {
@@ -1079,6 +1611,47 @@ describe('DeepChatContextCoordinator', () => {
     })
   })
 
+  it('sanitizes a thrown context overflow after partial output', async () => {
+    const rawError = new Error('context overflow')
+    const fixture = createAttemptInput({
+      providerAttempts: [
+        {
+          events: [{ type: 'text', content: 'partial' }],
+          error: rawError
+        }
+      ]
+    })
+    const projected: LLMCoreStreamEvent[] = []
+
+    const consume = async () => {
+      for await (const event of new DeepChatContextCoordinator().streamProviderAttempts(
+        fixture.input
+      )) {
+        projected.push(event)
+      }
+    }
+
+    let thrown: unknown
+    try {
+      await consume()
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toEqual(
+      expect.objectContaining({
+        message:
+          'The provider reported a context overflow after response output began. DeepChat preserved the partial output and did not retry.'
+      })
+    )
+    expect(thrown).not.toBe(rawError)
+    expect(projected).toEqual([{ type: 'text', content: 'partial' }])
+    expect(fixture.providerRequests).toHaveLength(1)
+    expect(fixture.outcomes[0]).toMatchObject({
+      failureClassification: 'context_overflow',
+      retryDecision: 'output_committed'
+    })
+  })
+
   it('caps transient replay at two retries per logical round', async () => {
     const retryableFailure: LLMCoreStreamEvent[] = [
       {
@@ -1138,6 +1711,17 @@ describe('DeepChatContextCoordinator', () => {
         transientFailure
       ]
     })
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    const currentInput: ChatMessage = { role: 'user', content: 'current input' }
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      optionalHistory,
+      currentInput
+    )
+    fixture.input.budget.fitStrictRetry = vi.fn(({ messages }) =>
+      messages.filter((message) => message !== optionalHistory)
+    )
     fixture.input.retryObserver = (event) => lifecycle.push(structuredClone(event))
 
     const events = await collect(

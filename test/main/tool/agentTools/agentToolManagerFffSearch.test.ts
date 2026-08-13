@@ -24,6 +24,15 @@ vi.mock('@ff-labs/fff-node', () => ({
   }
 }))
 
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  return {
+    __esModule: true,
+    ...actual,
+    default: actual
+  }
+})
+
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => '/mock/app',

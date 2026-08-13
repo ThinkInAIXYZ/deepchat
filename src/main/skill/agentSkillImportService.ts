@@ -10,7 +10,11 @@ import type {
   AgentSkillImportSource,
   AgentSkillImportSourceInfo
 } from '@shared/types/agentSkillImport'
-import type { SkillInstallOptions, SkillServicePort } from '@shared/types/skill'
+import {
+  SKILL_NAME_MAX_LENGTH,
+  type SkillInstallOptions,
+  type SkillServicePort
+} from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { CanonicalSkill, SkillSyncServicePort } from '@shared/types/skillSync'
 import { formatConverter } from './sync/formatConverter'
@@ -257,10 +261,12 @@ export class AgentSkillImportService {
 
   private nextAvailableName(baseName: string, occupiedNames: ReadonlySet<string>): string {
     let suffix = 1
-    let candidate = `${baseName}-copy`
+    let copySuffix = '-copy'
+    let candidate = `${baseName.slice(0, SKILL_NAME_MAX_LENGTH - copySuffix.length)}${copySuffix}`
     while (occupiedNames.has(candidate)) {
       suffix += 1
-      candidate = `${baseName}-copy-${suffix}`
+      copySuffix = `-copy-${suffix}`
+      candidate = `${baseName.slice(0, SKILL_NAME_MAX_LENGTH - copySuffix.length)}${copySuffix}`
     }
     return candidate
   }
@@ -272,7 +278,10 @@ export class AgentSkillImportService {
     const seen = new Set<string>()
     for (const item of items) {
       const skillName = item.skillName.trim()
-      if (!IMPORTABLE_SKILL_NAME_PATTERN.test(skillName)) {
+      if (
+        skillName.length > SKILL_NAME_MAX_LENGTH ||
+        !IMPORTABLE_SKILL_NAME_PATTERN.test(skillName)
+      ) {
         throw new Error(`Invalid Skill name in import request: ${item.skillName}`)
       }
       if (seen.has(skillName)) {

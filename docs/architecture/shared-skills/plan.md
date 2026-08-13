@@ -73,6 +73,9 @@ The normative design is [spec.md](./spec.md). This is the only execution tracker
 
 - [x] Resolve Session, transfer, fork, and Subagent Skills as persisted selection intersected with
   the destination Agent catalog.
+- [x] Feed only the derived Agent catalog into bounded Route and Discover projections.
+- [x] Preserve Tape-backed effective content, request-bound execution packages, and opaque
+  per-binding runtime environment revisions.
 - [x] Use the derived catalog for prompts, allowed tools, Skill tools, scripts, and Run snapshots.
 - [x] Protect the entire configured Skills root and allow only active concrete package roots.
 - [x] Stop creating or deleting private roots for new Agent lifecycle operations.
@@ -126,12 +129,12 @@ The normative design is [spec.md](./spec.md). This is the only execution tracker
 
 ## Validation Record
 
-- `pnpm run format`: passed for 2,741 files.
+- `pnpm run format`: passed for 2,756 files.
 - `pnpm run i18n`: passed for 20 locales and 4,132 source message contracts.
 - `pnpm run lint`: passed the Agent cleanup guard, alert-dialog contract guard, and Oxlint.
 - `pnpm run typecheck`: passed Main and renderer projects.
-- Main Vitest: 555 files and 6,913 tests passed; 29 files and 414 tests skipped.
-- Renderer Vitest: 252 files and 2,106 tests passed.
+- Main Vitest: 561 files and 7,167 tests passed; 29 files and 417 tests skipped.
+- Renderer Vitest: 254 files and 2,118 tests passed.
 - Playwright settings navigation, IPC boundary, Skills route, and Skill sync smoke: 4 tests passed.
 - `pnpm run build`: Main, preload, renderer, and CLI production builds passed.
 - Visual inspection: the top Skill Draft setting, global list, and Skill preview passed at

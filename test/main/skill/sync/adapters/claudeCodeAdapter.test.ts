@@ -256,6 +256,21 @@ description: Test
 
       expect(result.instructions).toBe('Content here')
     })
+
+    it('fails closed when conversion would drop declared execution support files', () => {
+      const content = `---
+name: my-skill
+description: Test
+executionSupportPaths:
+  - ooxml
+---
+
+Content`
+
+      expect(() => adapter.parse(content, baseContext)).toThrow(
+        'cannot be converted until Skill Sync preserves their support files'
+      )
+    })
   })
 
   describe('serialize', () => {

@@ -13,7 +13,10 @@ import {
   recordToChatMessages,
   truncateContext
 } from '@/agent/deepchat/runtime/contextBuilder'
-import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContributions'
+import {
+  buildContextCheckpoint,
+  setMessageSkillActiveTurnContext
+} from '@/agent/deepchat/runtime/contextContributions'
 import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
 import { approximateTokenSize } from 'tokenx'
 import {
@@ -21,6 +24,10 @@ import {
   type MCPToolDefinitionBase
 } from '@shared/types/core/mcp'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
+import {
+  bindProviderProjectionIdentity,
+  getProviderProjectionIdentities
+} from '@/agent/deepchat/loop/providerProjectionIdentity'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -219,6 +226,42 @@ function makeAssistantWithToolRecord(
       }
     ]),
     status,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
+function makeAssistantWithRootSkillViewRecord(orderSeq: number, skillName: string) {
+  const effectiveContent = `# ${skillName}\n\nFULL_EFFECTIVE_SKILL_BODY`
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'skill_view',
+          params: JSON.stringify({ name: skillName }),
+          response: JSON.stringify({
+            success: true,
+            name: skillName,
+            content: effectiveContent,
+            activatedForMessage: true,
+            activationScope: 'message',
+            activationEvidenceVersion: 1
+          }),
+          server_name: 'agent-skills'
+        }
+      }
+    ]),
+    status: 'sent' as const,
     isContextEdge: 0,
     metadata: '{}',
     createdAt: Date.now(),
@@ -2150,6 +2193,139 @@ function createCacheAwareContributions(input?: {
 }
 
 describe('cache-aware context assembly', () => {
+  it('projects historical root Skill views as markers while preserving active resume bodies', () => {
+    const record = makeAssistantWithRootSkillViewRecord(2, 'database-migration')
+    const originalContent = record.content
+
+    expect(recordToChatMessages(record, false)).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: {
+              name: 'skill_view',
+              arguments: '{"name":"database-migration"}'
+            }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-2', content: '[Viewed skill: database-migration]' }
+    ])
+
+    const activeProjection = recordToChatMessages(
+      record,
+      false,
+      false,
+      false,
+      false,
+      undefined,
+      undefined,
+      true
+    )
+    expect(String(activeProjection[1]?.content)).toContain('FULL_EFFECTIVE_SKILL_BODY')
+    expect(record.content).toBe(originalContent)
+  })
+
+  it('keeps supporting-file and unrelated MCP skill_view results in history', () => {
+    const supportingFile = makeAssistantWithRootSkillViewRecord(2, 'database-migration')
+    const [supportingBlock] = JSON.parse(supportingFile.content)
+    supportingBlock.tool_call.params = JSON.stringify({
+      name: 'database-migration',
+      file_path: 'references/schema.md'
+    })
+    supportingBlock.tool_call.response = JSON.stringify({
+      success: true,
+      name: 'database-migration',
+      content: 'SUPPORTING_FILE_BODY'
+    })
+    supportingFile.content = JSON.stringify([supportingBlock])
+
+    const unrelatedMcp = makeAssistantWithRootSkillViewRecord(3, 'database-migration')
+    const [mcpBlock] = JSON.parse(unrelatedMcp.content)
+    mcpBlock.tool_call.server_name = 'third-party'
+    unrelatedMcp.content = JSON.stringify([mcpBlock])
+
+    expect(String(recordToChatMessages(supportingFile, false)[1]?.content)).toContain(
+      'SUPPORTING_FILE_BODY'
+    )
+    expect(String(recordToChatMessages(unrelatedMcp, false)[1]?.content)).toContain(
+      'FULL_EFFECTIVE_SKILL_BODY'
+    )
+  })
+
+  it('does not duplicate a historical root view when the same Skill is active again', () => {
+    const records = [
+      makeUserRecord(1, 'view the skill'),
+      makeAssistantWithRootSkillViewRecord(2, 'database-migration')
+    ]
+    const contextContributions = setMessageSkillActiveTurnContext(
+      createCacheAwareContributions(),
+      '<message-skill-context>FULL_EFFECTIVE_SKILL_BODY</message-skill-context>'
+    )
+
+    const result = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'use it again', files: [], activeSkills: ['database-migration'] },
+      'System',
+      10_000,
+      100,
+      createMockMessageStore(records),
+      false,
+      { historyRecords: records, contextContributions }
+    )
+    const projection = result.messages.map((message) => String(message.content)).join('\n')
+
+    expect(projection).toContain('[Viewed skill: database-migration]')
+    expect(projection.match(/FULL_EFFECTIVE_SKILL_BODY/g)).toHaveLength(1)
+  })
+
+  it('expands message Skill context only for the active turn and leaves a bounded history marker', () => {
+    const historical = {
+      ...makeUserRecord(1, 'old request'),
+      content: JSON.stringify({
+        text: 'old request',
+        files: [],
+        activeSkills: [
+          'z-skill',
+          `a-${'😀'.repeat(60)}`,
+          'line\nbreak',
+          'z-skill',
+          ...Array.from({ length: 70 }, (_, index) => `overflow-${index}`)
+        ]
+      })
+    }
+    const historyMessages = recordToChatMessages(historical, false)
+    expect(String(historyMessages[0]?.content)).toMatch(/^\[Used skill: /)
+    expect(String(historyMessages[0]?.content)).toContain('\n\nold request')
+    expect(String(historyMessages[0]?.content)).not.toContain('😀')
+    expect(String(historyMessages[0]?.content)).not.toContain('line')
+    expect(String(historyMessages[0]?.content).length).toBeLessThan(500)
+
+    const contextContributions = setMessageSkillActiveTurnContext(
+      createCacheAwareContributions({
+        memory: '<context-data kind="memory">memory</context-data>',
+        directives: '<runtime-directives>directive</runtime-directives>'
+      }),
+      '<message-skill-context>exact body</message-skill-context>'
+    )
+    const result = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'current request', files: [], activeSkills: ['current-skill'] },
+      'System',
+      10_000,
+      100,
+      createMockMessageStore([historical]),
+      false,
+      { historyRecords: [historical], contextContributions }
+    )
+    const activeContent = String(result.messages.at(-1)?.content)
+    expect(activeContent).toContain('<message-skill-context>exact body</message-skill-context>')
+    expect(activeContent).not.toContain('[Used skill: current-skill]')
+  })
+
   it('keeps untrusted checkpoint and memory outside system while preserving append order', () => {
     const records = [
       makeUserRecord(1, 'first user'),
@@ -2386,6 +2562,35 @@ describe('cache-aware context assembly', () => {
     expect(result.messages.some((message) => String(message.content).includes('MEMORY_'))).toBe(false)
     expect(result.messages.some((message) => message.content === 'old user context')).toBe(true)
     expect(result.messages.some((message) => message.content === 'old assistant context')).toBe(true)
+  })
+
+  it('preserves provider projection identity when optional active-turn context is omitted', () => {
+    const memory = `MEMORY_${'x'.repeat(80)}`
+    const skillContext = '### selected-skill\nFOLLOW_SELECTED_SKILL'
+    const activeUser = {
+      role: 'user' as const,
+      content: `${memory}\n\n${skillContext}\n\nlatest instruction`
+    }
+    bindProviderProjectionIdentity(activeUser, 'skill-context-1', skillContext)
+    const contributions = setMessageSkillActiveTurnContext(
+      createCacheAwareContributions({ memory }),
+      skillContext
+    )
+    const baseline = [
+      { role: 'system' as const, content: 'System' },
+      { role: 'user' as const, content: `${skillContext}\n\nlatest instruction` }
+    ]
+
+    const fitted = fitCacheAwareMessagesToContextWindow(
+      [{ role: 'system', content: 'System' }, activeUser],
+      estimateMessagesTokens(baseline) + 1,
+      0,
+      contributions
+    )
+
+    expect(contributions.memoryIncluded).toBe(false)
+    expect(fitted).toEqual(baseline)
+    expect(getProviderProjectionIdentities(fitted[1])).toEqual(['skill-context-1'])
   })
 
   it('injects resume memory into the owner user without adding a user after partial assistant', () => {

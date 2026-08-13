@@ -1,5 +1,21 @@
 # Tape 系统
 
+## 惰性的 Skill materialization fact
+
+Tape 物理支持 `context` entry。`skill/materialized` 当前 schema 3 是完整 effective Skill content
+及其有界 execution package 的保留 canonical fact：它绑定 Session 和 Tape incarnation、按内容寻址，
+并且只能通过由 `SessionTape` 组合的窄 materialization reader/writer 访问。schema 2 的 scripts-only
+payload 保持兼容读取；只存在于未合并开发分支的 schema 1 被显式拒绝。generic append 不能伪造该
+保留 fact name；DeepChat materializer 只获得冻结的窄 capability adapter。复用会在同步事务内验证
+canonical payload 全等和 hash。
+
+`context` 不进入 effective view、transcript、Tape search/context tool、search/Memory projection 或
+fork merge，Replay 导出即使显式请求普通 payload 也只暴露它的 hash/引用元数据。消息级和 Session
+级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
+view occurrence。带 runtime `skill_view` 可执行权限的上下文由 schema 7/hash 5 同时绑定 provider
+可见的 `tool_result` 和 execution package。manifest 只保存引用与证明，不成为内容 sidecar；schemas
+1–5 以及 schema 6 的既有 hash、Replay 结构和语义保持不变。
+
 Tape 是 Session 同寿命的 append-only fact store，在同一个物理 entry 序列中承载三族语义隔离的事实：
 
 - Context Tape 保存可回放消息事实、anchor、ViewManifest、provider attempt 和 Subagent lineage，
@@ -47,13 +63,14 @@ owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合
 
 | 消费方 | 允许依赖的 Tape 能力 |
 | --- | --- |
-| DeepChat loop runner | `DeepChatLoopTapePort`（Context、provider attempt 与 Journal capabilities） |
+| DeepChat loop runner | `DeepChatLoopTapePort`（manifest、Skill request/runtime-view authority、tool fact、provider attempt 与 Journal 的窄能力组合） |
+| DeepChat Skill materializer | 冻结的 `SkillContextTapePort` adapter（incarnation、materialization、有效 user source 与 Run-manifest 能力） |
 | DeepChat harness composition | `ExecutionJournalRecoveryReader` |
 | Deferred tool executor | `ExecutionJournalWriter` |
 | Live delegation repository | `ParentTaskContractWriter`、`TaskContractWriter`、`TaskEvaluationWriter` |
 | Turn coordinator / ACP compatibility | `TapeReconciliationPort` |
 | Transcript | `TapeMessageFactWriter` |
-| Memory runtime | `TapeRawEntryReader`、`TapeAnchorWriter` |
+| Memory runtime | `TapeNonContextEntryReader`、`TapeAnchorWriter` |
 | Settings / compaction | `TapeAnchorReader`、`TapeAnchorWriter`、`TapeLifecycleAdmin` |
 | Memory routes | `TapeInspectionReader` |
 | IPC / Session data | 现有 `SessionTapePort` |
@@ -62,7 +79,7 @@ owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合
 IPC boundary 按原时序执行 `ensureSessionTapeReady`。facade 只做 service 组合和兼容转发，不承载新的
 domain policy；外部方法的签名、同步/异步行为、异常和 fallback 语义保持稳定。
 
-`TapeRawEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
+`TapeNonContextEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
 `TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
 `DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
 `TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；两种历史
@@ -199,6 +216,17 @@ arguments，也不替代各工具的路径授权或 filesystem sandbox。permiss
 改变 payload 并写新 manifest，transient retry 复用原 manifest。每个真正启动的 physical attempt 另
 append 一个幂等 `provider/attempt_completed` event，provenance key 由 Session、message、requestSeq 和
 physicalAttempt 组成，`source.seq` 继续等于 requestSeq。
+
+Skill 渐进披露的目标合同由 `docs/architecture/skill-progressive-disclosure/` 定义。进入 provider 的
+消息级或 Session 级完整 Skill 指令必须先成为 Session Tape 中内容寻址、物理 kind 为 `context` 的
+materialization fact；Agent runtime 只能通过窄 writer/reader capability 写入和恢复。ViewManifest
+schema 6/hash 4 记录消息级、Session 级和早期无可执行权限 runtime view 上下文的
+run/request/incarnation binding、activation scope、source entry ref 与 projected hash；schema 7/hash 5
+还把 runtime `skill_view` 的 exact tool-result fact 与执行物化 ref 绑定到同一 occurrence。不能用 hash
+代替内容，也不能用“最新 manifest”恢复某次 Run。同一 Run 的 retry、context recovery、tool loop 和
+进程内暂停续跑复用原 fact，禁止重读可变 Skill 文件；崩溃 Run 继续沿用现有 parked 语义，用户显式
+发起的新 Run 才 fresh resolve 当前内容。materialization fact 默认从 transcript、effective view、
+搜索、Memory、普通 renderer 和 fork merge 排除，避免历史行为指令通过召回或合并重新激活。
 
 新 attempt event 使用 schema version 2，记录 logicalRound、physicalAttempt、request/attempt origin、
 failure classification、retry decision、受限错误标识、终态、stop reason、最后一个 cumulative usage

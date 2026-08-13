@@ -99,6 +99,8 @@ describe('PromptAssemblyService', () => {
           configuredPrompt: 'base',
           toolDefinitions: [],
           activeSkillNames: [],
+          sessionActiveSkillNames: [],
+          contextLength: 8_000,
           commandShell: POSIX_COMMAND_SHELL
         })
     ).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
@@ -110,12 +112,17 @@ describe('PromptAssemblyService', () => {
     const instance = runtime.getOrHydrate(toAppSessionId('other'))
     const toolDefinitions = [] as never[]
     const activeSkillNames = ['skill-a']
+    const sessionActiveSkillNames = ['session-skill']
+    const sessionSkillBodiesOverride = [{ name: 'session-skill', content: 'body' }]
 
     const assembled = await service.createBasePromptAssembler(instance).assemble({
       sessionId: SESSION_ID,
       configuredPrompt: 'base',
       toolDefinitions,
       activeSkillNames,
+      sessionActiveSkillNames,
+      sessionSkillBodiesOverride,
+      contextLength: 8_000,
       commandShell: POSIX_COMMAND_SHELL
     })
 
@@ -125,6 +132,12 @@ describe('PromptAssemblyService', () => {
     expect(input.commandShell).toBe(POSIX_COMMAND_SHELL)
     expect(input.activeSkillNamesOverride).toEqual(activeSkillNames)
     expect(input.activeSkillNamesOverride).not.toBe(activeSkillNames)
+    expect(input.sessionActiveSkillNamesOverride).toEqual(sessionActiveSkillNames)
+    expect(input.sessionActiveSkillNamesOverride).not.toBe(sessionActiveSkillNames)
+    expect(input.sessionSkillBodiesOverride).toEqual(sessionSkillBodiesOverride)
+    expect(input.sessionSkillBodiesOverride).not.toBe(sessionSkillBodiesOverride)
+    expect(input.sessionSkillBodiesOverride[0]).not.toBe(sessionSkillBodiesOverride[0])
+    expect(input.contextLength).toBe(8_000)
     expect(input.toolDefinitions).not.toBe(toolDefinitions)
   })
 
@@ -139,7 +152,9 @@ describe('PromptAssemblyService', () => {
       sessionId: SESSION_ID,
       configuredPrompt: 'base',
       toolDefinitions,
-      activeSkillNames
+      activeSkillNames,
+      sessionActiveSkillNames: [],
+      contextLength: 8_000
     })
 
     expect(assembled).toMatchObject({

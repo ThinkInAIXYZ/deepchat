@@ -51,6 +51,7 @@ export interface DeepChatTapeReplaySliceRefs {
   includedEntryIds: number[]
   excludedEntryIds: number[]
   anchorEntryIds: number[]
+  skillContextEntryIds?: number[]
 }
 
 export interface DeepChatTapeReplaySliceHashes {

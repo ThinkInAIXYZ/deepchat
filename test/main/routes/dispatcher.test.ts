@@ -1210,7 +1210,9 @@ function createRuntime() {
     })
   } as unknown as IConversationExporter
   const skillService = {
-    readSkillFileForAgent: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
+    readSkillFileForAgent: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well'),
+    setActiveSkills: vi.fn().mockResolvedValue(['write-tests']),
+    removeActiveSkill: vi.fn().mockResolvedValue([])
   } as unknown as SkillServicePort
 
   const workspaceService = {
@@ -1556,11 +1558,13 @@ function createRuntime() {
   })
   const toolRoutes = createToolRoutes(toolService)
   const pluginRoutes = createPluginRoutes(pluginService)
+  const assertSessionActiveSkillsMutable = vi.fn().mockResolvedValue(undefined)
   const skillRoutes = createSkillRoutes({
     skillService,
     skillSyncService,
     skillSettings,
     ensureInitialized: vi.fn().mockResolvedValue(undefined),
+    assertSessionActiveSkillsMutable,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const mcpRoutes = createMcpRoutes({
@@ -1817,6 +1821,7 @@ function createRuntime() {
     memoryService,
     skillService,
     skillSyncService,
+    assertSessionActiveSkillsMutable,
     exporter,
     oauthService,
     mcpService,
@@ -1846,6 +1851,62 @@ function createRuntime() {
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('does not change Session Skills while an execution is active', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+    assertSessionActiveSkillsMutable.mockRejectedValueOnce(
+      new Error('Cannot change Session Skills while the session is generating.')
+    )
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.setActive',
+        { conversationId: 'session-1', skills: ['write-tests'] },
+        context
+      )
+    ).rejects.toThrow('Cannot change Session Skills while the session is generating.')
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.setActiveSkills).not.toHaveBeenCalled()
+  })
+
+  it('changes Session Skills only after the execution-state guard passes', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.setActive',
+        { conversationId: 'session-1', skills: ['write-tests'] },
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({ skills: ['write-tests'] })
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.setActiveSkills).toHaveBeenCalledWith('session-1', ['write-tests'])
+    expect(assertSessionActiveSkillsMutable.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(skillService.setActiveSkills).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('removes one Session Skill without replacing concurrently added state', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.removeActive',
+        { conversationId: 'session-1', skill: 'write-tests' },
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({ skills: [] })
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.removeActiveSkill).toHaveBeenCalledWith('session-1', 'write-tests')
+    expect(skillService.setActiveSkills).not.toHaveBeenCalled()
+  })
+
   it('routes database imports through the App maintenance owner', async () => {
     const { runtime, appDatabaseMaintenance } = createRuntime()
     const context = createRendererRouteContext(42, 7)

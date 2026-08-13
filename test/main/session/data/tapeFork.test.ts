@@ -14,6 +14,8 @@ import {
   createRecord
 } from './tapeTestHarness'
 import { DeepChatContractStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
+import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -78,8 +80,8 @@ describe('SessionTape forks', () => {
     expect(retriedFork.parentHeadEntryId).toBe(2)
     expect(JSON.parse(forkStart.payload_json).state.parentHeadEntryId).toBe(2)
 
-    const getBoundedEntries = table.getBySessionUpToEntryId.getMockImplementation()!
-    table.getBySessionUpToEntryId.mockImplementationOnce(
+    const getBoundedEntries = table.getBySessionUpToEntryIdExcludingContext.getMockImplementation()!
+    table.getBySessionUpToEntryIdExcludingContext.mockImplementationOnce(
       (sessionId: string, maxEntryId: number) => {
         table.appendEvent({
           sessionId: fork.forkSessionId,
@@ -104,6 +106,51 @@ describe('SessionTape forks', () => {
       forkHeadEntryId: 3,
       mergedCount: 1
     })
+  })
+
+  it('never copies behavioral context facts out of a fork Tape', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'context-isolation')
+    table.ensureBootstrapAnchor(fork.forkSessionId)
+    const tapeIncarnationId = table.getBootstrapIncarnation(fork.forkSessionId)!
+    const materialization = new TapeSkillMaterializationService({
+      getSkillMaterializationStore: () => table
+    })
+    const fixtureHash = hashSkillEffectiveContent('fixture')
+    materialization.materializeSkillContexts([
+      {
+        sessionId: fork.forkSessionId,
+        expectedTapeIncarnationId: tapeIncarnationId,
+        agentId: 'agent-1',
+        sourceType: 'builtin',
+        sourceId: 'skill-source',
+        skillName: 'context-isolation',
+        effectiveContent: 'must-not-merge',
+        builderVersion: 'test-builder',
+        renderedManifestHash: fixtureHash,
+        scriptInventoryHash: fixtureHash,
+        executionPackage: {
+          files: [],
+          executables: [],
+          runtimePolicy: { python: 'auto', node: 'auto' },
+          environmentBindingId: null
+        }
+      }
+    ])
+    service.appendForkMessageRecord(fork, createRecord({ id: 'message', sessionId: 'ignored' }))
+
+    expect(service.mergeFork('parent', 'context-isolation')).toBe(1)
+    expect(table.getBySessionUpToEntryIdExcludingContext).toHaveBeenCalledWith(
+      fork.forkSessionId,
+      expect.any(Number)
+    )
+    const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
+    expect(parentEntries.some((entry) => entry.kind === 'context')).toBe(false)
+    expect(JSON.stringify(parentEntries)).not.toContain('must-not-merge')
   })
 
   it('rolls back mocked fork merge writes when a copied entry fails', () => {

@@ -16,7 +16,7 @@ import { useSkillsStore } from '@/stores/skillsStore'
  * This composable provides:
  * - Access to all available skills from the skills store
  * - Local composer skill selection for the next message
- * - Session active skills for externally/manual pinned skills
+ * - Existing persistent Session active skills
  * - Toggle functionality for selecting/deselecting message skills
  * - Event listeners for real-time updates
  */
@@ -27,11 +27,14 @@ export function useSkillsData(
   const skillClient = createSkillClient()
   const skillsStore = useSkillsStore()
   let unsubscribeSkillSessionChanged: (() => void) | null = null
+  let activeSkillsLoadSequence = 0
+  let activeSkillMutationSequence = 0
 
   // === State ===
-  const activeSkills = ref<string[]>([])
+  const sessionActiveSkills = ref<string[]>([])
   const pendingSkills = ref<string[]>([]) // Skills selected for the next message in the composer
-  const activeSkillsLoading = ref(false)
+  const sessionActiveSkillsLoading = ref(false)
+  const sessionActiveSkillRemoving = ref<string | null>(null)
   const normalizedAgentId = computed(() => agentId.value?.trim() || 'deepchat')
 
   // === Computed ===
@@ -42,17 +45,17 @@ export function useSkillsData(
     skillsStore.getSkillsForAgent(normalizedAgentId.value)
   )
   const loading = computed(
-    () => activeSkillsLoading.value || skillsStore.isSkillsLoading(normalizedAgentId.value)
+    () => sessionActiveSkillsLoading.value || skillsStore.isSkillsLoading(normalizedAgentId.value)
   )
 
   /**
-   * Effective composer skills. Session-pinned active skills are loaded separately and are not
-   * shown as message chips in the composer.
+   * Effective composer skills. Persistent Session active skills are loaded separately and are not
+   * mixed with next-message chips in the editor.
    */
   const composerActiveSkills = computed(() => pendingSkills.value)
 
   /**
-   * Count of currently active skills
+   * Count of Skills selected for the next message.
    */
   const composerActiveCount = computed(() => composerActiveSkills.value.length)
 
@@ -74,22 +77,38 @@ export function useSkillsData(
 
   // === Methods ===
   /**
-   * Load active skills for the current conversation
+   * Load persistent active skills for the current Session.
    */
   const loadActiveSkills = async () => {
-    if (!conversationId.value) {
-      activeSkills.value = []
+    const requestedConversationId = conversationId.value
+    const sequence = ++activeSkillsLoadSequence
+    if (!requestedConversationId) {
+      sessionActiveSkills.value = []
+      sessionActiveSkillsLoading.value = false
       return
     }
 
-    activeSkillsLoading.value = true
+    sessionActiveSkillsLoading.value = true
     try {
-      activeSkills.value = await skillClient.getActiveSkills(conversationId.value)
+      const loadedSkills = await skillClient.getActiveSkills(requestedConversationId)
+      if (
+        sequence === activeSkillsLoadSequence &&
+        conversationId.value === requestedConversationId
+      ) {
+        sessionActiveSkills.value = loadedSkills
+      }
     } catch (error) {
       console.error('[useSkillsData] Failed to load active skills:', error)
-      activeSkills.value = []
+      if (
+        sequence === activeSkillsLoadSequence &&
+        conversationId.value === requestedConversationId
+      ) {
+        sessionActiveSkills.value = []
+      }
     } finally {
-      activeSkillsLoading.value = false
+      if (sequence === activeSkillsLoadSequence) {
+        sessionActiveSkillsLoading.value = false
+      }
     }
   }
 
@@ -135,6 +154,45 @@ export function useSkillsData(
     pendingSkills.value = []
   }
 
+  /** Remove one existing persistent Skill without exposing a path that creates Session state. */
+  const removeSessionActiveSkill = async (skillName: string) => {
+    const requestedConversationId = conversationId.value
+    if (
+      !requestedConversationId ||
+      sessionActiveSkillsLoading.value ||
+      sessionActiveSkillRemoving.value
+    ) {
+      return
+    }
+
+    if (!sessionActiveSkills.value.includes(skillName)) {
+      return
+    }
+
+    const mutationSequence = ++activeSkillMutationSequence
+    sessionActiveSkillRemoving.value = skillName
+    try {
+      const updatedSkills = await skillClient.removeActiveSkill(requestedConversationId, skillName)
+      if (
+        mutationSequence === activeSkillMutationSequence &&
+        conversationId.value === requestedConversationId
+      ) {
+        sessionActiveSkills.value = updatedSkills
+      }
+    } catch (error) {
+      if (
+        mutationSequence === activeSkillMutationSequence &&
+        conversationId.value === requestedConversationId
+      ) {
+        throw error
+      }
+    } finally {
+      if (mutationSequence === activeSkillMutationSequence) {
+        sessionActiveSkillRemoving.value = null
+      }
+    }
+  }
+
   // === IPC Event Handlers ===
   const handleSkillSessionChanged = (payload: {
     conversationId: string
@@ -142,15 +200,22 @@ export function useSkillsData(
     change: 'activated' | 'deactivated'
   }) => {
     if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
+      if (sessionActiveSkillsLoading.value) {
+        void loadActiveSkills()
+        return
+      }
+
       if (payload.change === 'activated') {
-        const currentSet = new Set(activeSkills.value)
+        const currentSet = new Set(sessionActiveSkills.value)
         payload.skills.forEach((skill: string) => currentSet.add(skill))
-        activeSkills.value = Array.from(currentSet)
+        sessionActiveSkills.value = Array.from(currentSet)
         return
       }
 
       const deactivatedSet = new Set(payload.skills)
-      activeSkills.value = activeSkills.value.filter((s) => !deactivatedSet.has(s))
+      sessionActiveSkills.value = sessionActiveSkills.value.filter(
+        (skill) => !deactivatedSet.has(skill)
+      )
     }
   }
 
@@ -159,7 +224,10 @@ export function useSkillsData(
   watch(
     () => conversationId.value,
     () => {
-      loadActiveSkills()
+      activeSkillMutationSequence += 1
+      sessionActiveSkills.value = []
+      sessionActiveSkillRemoving.value = null
+      void loadActiveSkills()
     },
     { immediate: true }
   )
@@ -169,6 +237,10 @@ export function useSkillsData(
     (nextAgentId, previousAgentId) => {
       if (previousAgentId && previousAgentId !== nextAgentId) {
         pendingSkills.value = []
+        activeSkillMutationSequence += 1
+        sessionActiveSkills.value = []
+        sessionActiveSkillRemoving.value = null
+        void loadActiveSkills()
       }
       void skillsStore.ensureSkillsLoaded(nextAgentId)
     },
@@ -195,6 +267,9 @@ export function useSkillsData(
     availableSkills,
     loading,
     pendingSkills,
+    sessionActiveSkills,
+    sessionActiveSkillsLoading,
+    sessionActiveSkillRemoving,
 
     // Methods
     loadActiveSkills,
@@ -202,6 +277,7 @@ export function useSkillsData(
     activateSkill,
     deactivateSkill,
     consumePendingSkills,
-    clearPendingSkills
+    clearPendingSkills,
+    removeSessionActiveSkill
   }
 }

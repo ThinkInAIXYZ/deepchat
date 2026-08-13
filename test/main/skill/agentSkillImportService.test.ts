@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SkillInstallOptions } from '@shared/types/skill'
+import { SKILL_NAME_MAX_LENGTH, type SkillInstallOptions } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { CanonicalSkill, ScanResult } from '@shared/types/skillSync'
 import {
@@ -206,6 +206,34 @@ describe('AgentSkillImportService', () => {
       }),
       expect.objectContaining({ name: 'review-copy', status: 'ready' })
     ])
+  })
+
+  it('keeps suggested global names within the shared Skill name limit', async () => {
+    const name = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH - 1)}`
+    const conflictSkill = createCanonicalSkill(name)
+    await addGlobalSkill(conflictSkill, [], '# Existing content')
+    useExternalSkills([conflictSkill])
+
+    const preview = await service.preview({
+      source: { kind: 'external', toolId: 'codex' }
+    })
+
+    expect(preview.items[0].suggestedTargetName).toBe(
+      `${name.slice(0, SKILL_NAME_MAX_LENGTH - '-copy'.length)}-copy`
+    )
+    expect(preview.items[0].suggestedTargetName).toHaveLength(SKILL_NAME_MAX_LENGTH)
+  })
+
+  it('rejects selections beyond the shared Skill name limit', async () => {
+    const name = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH)}`
+
+    await expect(
+      service.execute({
+        source: { kind: 'external', toolId: 'codex' },
+        items: [{ skillName: name, strategy: 'skip' }]
+      })
+    ).rejects.toThrow('Invalid Skill name in import request')
+    expect(installImportedSkill).not.toHaveBeenCalled()
   })
 
   it('materializes an external snapshot without enabling it for an Agent', async () => {

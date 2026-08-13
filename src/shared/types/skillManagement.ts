@@ -1,14 +1,21 @@
 import type { SkillExtensionConfig } from './skill'
 
-export type SkillSourceType =
-  | 'builtin'
-  | 'created'
-  | 'folder-install'
-  | 'zip-install'
-  | 'url-install'
-  | 'git-install'
-  | 'adopted'
-  | 'imported'
+export const SKILL_SOURCE_TYPES = [
+  'builtin',
+  'created',
+  'folder-install',
+  'zip-install',
+  'url-install',
+  'git-install',
+  'adopted',
+  'imported'
+] as const
+
+export type SkillSourceType = (typeof SKILL_SOURCE_TYPES)[number]
+
+export function isSkillSourceType(value: unknown): value is SkillSourceType {
+  return typeof value === 'string' && SKILL_SOURCE_TYPES.some((sourceType) => sourceType === value)
+}
 
 export type SkillRepoFormat = 'single-skill' | 'multi-skill'
 
@@ -36,6 +43,8 @@ export interface SkillManagementItem {
   canonicalPath: string
   disabled: boolean
   extension: SkillExtensionConfig
+  /** Opaque revision for external runtime environment values; never contains those values. */
+  runtimeBindingId?: string
   source: SkillSource
   agentLinks?: Record<string, AgentLinkInfo>
 }
@@ -49,6 +58,8 @@ export interface SharedSkillManagementItem {
 export interface AgentSkillBinding {
   assigned: boolean
   extension: SkillExtensionConfig
+  /** Opaque revision for external runtime environment values; never contains those values. */
+  runtimeBindingId?: string
 }
 
 export interface AgentSkillBindingState {

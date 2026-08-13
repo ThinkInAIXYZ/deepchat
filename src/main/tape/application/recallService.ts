@@ -66,7 +66,7 @@ export class TapeRecallService {
   info(sessionId: string): TapeInfo {
     const table = this.table
     const lastAnchor = table.getLatestAnchor(sessionId)
-    const rows = table.getBySession(sessionId)
+    const rows = table.getBySessionExcludingContext(sessionId)
     const metrics = getLastEffectiveTapeMetrics(rows)
     const lastProviderAttempt = metrics.lastProviderAttemptCacheMetrics
     return {
@@ -96,7 +96,9 @@ export class TapeRecallService {
       entryIds.filter((entryId) => Number.isInteger(entryId) && entryId > 0)
     )
     if (requestedEntryIds.size === 0) return []
-    return buildEffectiveTapeView(this.table.getBySession(sessionId), { includePending: false })
+    return buildEffectiveTapeView(this.table.getBySessionExcludingContext(sessionId), {
+      includePending: false
+    })
       .messageEntries.filter((entry) => requestedEntryIds.has(entry.entryId))
       .map((entry) => ({
         entryId: entry.entryId,
@@ -146,7 +148,7 @@ export class TapeRecallService {
 
     if (projectionTable) {
       try {
-        const maxEntryId = table.getMaxEntryId(sessionId)
+        const maxEntryId = table.getMaxEntryIdExcludingContext(sessionId)
         if (projectionTable.isCurrent(sessionId, maxEntryId)) {
           return projectionTable
             .search(sessionId, query, searchInput)
@@ -158,7 +160,7 @@ export class TapeRecallService {
       }
     }
 
-    const rows = table.getBySession(sessionId)
+    const rows = table.getBySessionExcludingContext(sessionId)
     const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
     const preparedProjectionTable = skipProjectionSearch
       ? null
@@ -206,7 +208,7 @@ export class TapeRecallService {
       }
     }
 
-    const rows = table.getBySession(sessionId)
+    const rows = table.getBySessionExcludingContext(sessionId)
     const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
     const indexByEntryId = new Map(effectiveRows.map((row, index) => [row.entry_id, index]))
     const before = normalizeContextWindowValue(options.before, 2)

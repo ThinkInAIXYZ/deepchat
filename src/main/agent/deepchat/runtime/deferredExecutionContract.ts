@@ -1,7 +1,10 @@
 import type {
   DeepChatExecutionContract
 } from '@shared/types/execution-contract'
-import type { TapeViewManifestReader } from '@/tape/ports/capabilities'
+import type {
+  TapeExecutionViewManifestReader,
+  TapeViewManifestReader
+} from '@/tape/ports/capabilities'
 import {
   ExecutionContractDispatchError,
   executionContractMatchesBinding,
@@ -15,7 +18,8 @@ export interface DeferredExecutionContractResolutionInput {
   messageId: string
   rawBinding: unknown
   runtimeContract?: DeepChatExecutionContract
-  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'>
+  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'> &
+    TapeExecutionViewManifestReader
 }
 
 export function resolveDeferredExecutionContract(
@@ -57,9 +61,20 @@ export function resolveDeferredExecutionContract(
 
   let records
   try {
-    records = viewManifests
-      .listViewManifestsByMessage(sessionId, messageId)
-      .filter((record) => record.requestSeq === binding.request.requestSeq)
+    const skillManifestRecord = viewManifests.getViewManifestByExecutionBinding({
+      sessionId,
+      runId: binding.request.runId,
+      requestSeq: binding.request.requestSeq
+    })
+    records = skillManifestRecord
+      ? [skillManifestRecord]
+      : viewManifests
+          .listViewManifestsByMessage(sessionId, messageId)
+          .filter(
+            (record) =>
+              record.requestSeq === binding.request.requestSeq &&
+              record.manifest.schemaVersion === 5
+          )
   } catch (error) {
     throw new ExecutionContractDispatchError(
       'Paused tool dispatch could not recover its ExecutionContract View.',
@@ -75,7 +90,14 @@ export function resolveDeferredExecutionContract(
   }
 
   const manifest = records[0].manifest
-  if (manifest.schemaVersion !== 5 || verifyTapeViewManifestHash(manifest) !== 'valid') {
+  if (
+    (manifest.schemaVersion !== 5 &&
+      manifest.schemaVersion !== 6 &&
+      manifest.schemaVersion !== 7) ||
+    !manifest.executionContract ||
+    (manifest.schemaVersion !== 5 && manifest.runId !== binding.request.runId) ||
+    verifyTapeViewManifestHash(manifest) !== 'valid'
+  ) {
     throw new ExecutionContractDispatchError(
       'Paused tool dispatch ExecutionContract View failed integrity validation.',
       'invalid_contract'

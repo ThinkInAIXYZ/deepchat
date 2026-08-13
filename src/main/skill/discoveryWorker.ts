@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import type { SkillMetadata } from '@shared/types/skill'
+import { SKILL_NAME_MAX_LENGTH, type SkillMetadata } from '@shared/types/skill'
 import { runInlineJsonWorker } from '@/lib/runInlineJsonWorker'
 
 type SkillDiscoveryWarning =
@@ -53,6 +53,7 @@ const { parentPort, workerData } = requireFromBundle('node:worker_threads')
 const fs = requireFromBundle('fs')
 const path = requireFromBundle('path')
 const matter = requireFromBundle('gray-matter')
+const SKILL_NAME_MAX_LENGTH = ${SKILL_NAME_MAX_LENGTH}
 
 function shouldIgnoreSkillsRootEntry(entryName, sidecarDirName, excludedRootDirNames) {
   return (
@@ -127,7 +128,12 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
     const parsed = matter(content)
     const data = parsed.data || {}
 
-    if (!data.name || !data.description) {
+    if (
+      typeof data.name !== 'string' ||
+      typeof data.description !== 'string' ||
+      !data.name ||
+      !data.description.trim()
+    ) {
       warnings.push({
         type: 'invalid-frontmatter',
         dirName,
@@ -135,7 +141,11 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
       })
       return null
     }
-    if (typeof data.name !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/.test(data.name)) {
+    if (
+      typeof data.name !== 'string' ||
+      data.name.length > SKILL_NAME_MAX_LENGTH ||
+      !/^[a-z0-9][a-z0-9._-]*$/.test(data.name)
+    ) {
       warnings.push({
         type: 'unsafe-name',
         skillPath,
@@ -155,7 +165,7 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
 
     return {
       name: data.name || dirName,
-      description: data.description || '',
+      description: data.description.trim(),
       path: skillPath,
       skillRoot: path.dirname(skillPath),
       category: deriveSkillCategory(skillsDir, path.dirname(skillPath)),
@@ -168,6 +178,9 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
           : undefined,
       allowedTools: Array.isArray(data.allowedTools)
         ? data.allowedTools.filter((toolName) => typeof toolName === 'string')
+        : undefined,
+      executionSupportPaths: Array.isArray(data.executionSupportPaths)
+        ? data.executionSupportPaths.filter((supportPath) => typeof supportPath === 'string')
         : undefined
     }
   } catch (error) {

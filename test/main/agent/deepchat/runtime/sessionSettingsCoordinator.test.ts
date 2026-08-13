@@ -238,6 +238,32 @@ describe('SessionSettingsCoordinator', () => {
     expect(harness.sessionStore.updateGenerationSettings).not.toHaveBeenCalled()
   })
 
+  it('clears stale provider limits only when the configured context window changes', async () => {
+    const harness = createHarness()
+    harness.instance.recordContextWindowObservation({
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      confidence: 'explicit',
+      limitTokens: 8192,
+      limitScope: 'context'
+    })
+
+    await harness.coordinator.updateGenerationSettings(SESSION_ID, {
+      systemPrompt: 'Updated prompt'
+    })
+    expect(harness.instance.getContextWindowObservation('openai', 'gpt-4')).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      providerContextLimitTokens: 8192,
+      metadataSuspect: false
+    })
+
+    await harness.coordinator.updateGenerationSettings(SESSION_ID, { contextLength: 64_000 })
+    expect(
+      harness.instance.getContextWindowObservation('openai', 'gpt-4')
+    ).toBeUndefined()
+  })
+
   it('atomically applies the model and generation snapshot for an idle turn', async () => {
     const harness = createHarness()
     const generationSettings = {

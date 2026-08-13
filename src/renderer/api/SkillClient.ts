@@ -29,6 +29,7 @@ import {
   skillsPreviewSyncDirectoryImportRoute,
   skillsPreviewAgentImportRoute,
   skillsReadFileRoute,
+  skillsRemoveActiveRoute,
   skillsScanGitRepoRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
@@ -282,6 +283,14 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.skills
   }
 
+  async function removeActiveSkill(conversationId: string, skill: string) {
+    const result = await bridge.invoke(skillsRemoveActiveRoute.name, {
+      conversationId,
+      skill
+    })
+    return result.skills
+  }
+
   function onCatalogChanged(
     listener: (payload: DeepchatEventPayload<typeof skillsCatalogChangedEvent.name>) => void
   ) {
@@ -334,6 +343,7 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     listSkillScripts,
     getActiveSkills,
     setActiveSkills,
+    removeActiveSkill,
     onCatalogChanged,
     onSessionChanged
   }

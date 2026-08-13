@@ -53,7 +53,7 @@ describe('DeepChat tool adapters', () => {
     const getAllToolDefinitions = vi.fn().mockResolvedValue(tools)
     const toolService = createToolService({ getAllToolDefinitions })
     const commitCache = vi.fn()
-    const resolveContext = vi.fn(async (activeSkillNames?: string[]) => ({
+    const resolveContext = vi.fn(async (request) => ({
       profile: 'code' as const,
       fingerprint: 'revision:1',
       context: {
@@ -62,7 +62,7 @@ describe('DeepChat tool adapters', () => {
         chatMode: 'agent' as const,
         conversationId: 'session-1',
         agentWorkspacePath: '/workspace',
-        activeSkillNames
+        activeSkillNames: request?.activeSkillNames
       }
     }))
     const port = createToolCatalogPort({
@@ -71,8 +71,13 @@ describe('DeepChat tool adapters', () => {
       commitCache
     })
 
-    await expect(port.resolve({ activeSkillNames: ['approved-skill'] })).resolves.toEqual(tools)
-    expect(resolveContext).toHaveBeenCalledWith(['approved-skill'])
+    await expect(
+      port.resolve({ activeSkillNames: ['approved-skill'], failClosed: true })
+    ).resolves.toEqual(tools)
+    expect(resolveContext).toHaveBeenCalledWith({
+      activeSkillNames: ['approved-skill'],
+      failClosed: true
+    })
     expect(getAllToolDefinitions).toHaveBeenCalledWith({
       agentId: 'agent-1',
       disabledAgentTools: ['write'],
@@ -132,6 +137,39 @@ describe('DeepChat tool adapters', () => {
       fingerprint: 'revision:2',
       tools: revisedTools
     })
+  })
+
+  it('publishes a catalog context only after its definitions and cache commit succeed', async () => {
+    const events: string[] = []
+    const tools = [makeTool('read')]
+    const port = createToolCatalogPort({
+      toolService: createToolService({
+        getAllToolDefinitions: vi.fn(async () => {
+          events.push('definitions')
+          return tools
+        })
+      }),
+      resolveContext: async () => ({
+        profile: 'code' as const,
+        fingerprint: 'revision:1',
+        context: {
+          conversationId: 'session-1',
+          activeSkillNames: ['runtime-skill'],
+          enabledMcpServerIds: ['server-a']
+        }
+      }),
+      commitCache: () => {
+        events.push('cache')
+      },
+      onResolved: ({ context, tools: resolvedTools }) => {
+        events.push('publish')
+        expect(context.activeSkillNames).toEqual(['runtime-skill'])
+        expect(resolvedTools).toBe(tools)
+      }
+    })
+
+    await expect(port.resolve({ failClosed: true })).resolves.toBe(tools)
+    expect(events).toEqual(['definitions', 'cache', 'publish'])
   })
 
   it('forwards pre-check and execution options without changing the abort signal', async () => {

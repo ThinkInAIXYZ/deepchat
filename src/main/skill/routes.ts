@@ -29,6 +29,7 @@ import {
   skillsPreviewSyncDirectoryImportRoute,
   skillsPreviewAgentImportRoute,
   skillsReadFileRoute,
+  skillsRemoveActiveRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsScanGitRepoRoute,
@@ -51,6 +52,7 @@ export function createSkillRoutes(deps: {
   skillSyncService: SkillSyncServicePort
   skillSettings: SkillSettingsPort
   ensureInitialized(): Promise<void>
+  assertSessionActiveSkillsMutable(conversationId: string): Promise<void>
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
   const { skillService, skillSyncService } = deps
@@ -386,6 +388,7 @@ export function createSkillRoutes(deps: {
       skillsSetActiveRoute.name,
       async (rawInput) => {
         const input = skillsSetActiveRoute.input.parse(rawInput)
+        await deps.assertSessionActiveSkillsMutable(input.conversationId)
         const skills = await skillService.setActiveSkills(input.conversationId, input.skills)
         recordActivity({
           category: 'knowledge',
@@ -396,6 +399,24 @@ export function createSkillRoutes(deps: {
           summaryParams: { key: `active skills (${input.skills.length})` }
         })
         return skillsSetActiveRoute.output.parse({ skills })
+      }
+    ],
+    [
+      skillsRemoveActiveRoute.name,
+      async (rawInput) => {
+        const input = skillsRemoveActiveRoute.input.parse(rawInput)
+        await deps.assertSessionActiveSkillsMutable(input.conversationId)
+        const skills = await skillService.removeActiveSkill(input.conversationId, input.skill)
+        recordActivity({
+          category: 'knowledge',
+          action: 'updated',
+          targetType: 'active-skills',
+          targetLabel: 'active skills',
+          routeName: 'settings-skills',
+          summaryKey: 'settings.controlCenter.activity.settingUpdated',
+          summaryParams: { key: `removed active skill (${input.skill})` }
+        })
+        return skillsRemoveActiveRoute.output.parse({ skills })
       }
     ],
     [

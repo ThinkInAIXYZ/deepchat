@@ -1,4 +1,10 @@
-export type DeepChatTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
+export type DeepChatTapeEntryKind =
+  | 'event'
+  | 'anchor'
+  | 'message'
+  | 'tool_call'
+  | 'tool_result'
+  | 'context'
 
 export const TAPE_INCARNATION_META_KEY = 'tapeIncarnationId'
 

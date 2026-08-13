@@ -23,6 +23,7 @@ import {
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+  SKILL_LIST_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   TAPE_TOOL_NAMES,
   getAgentToolExposure,
@@ -186,13 +187,14 @@ export class ToolService implements ToolServicePort {
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
+    const skillsEnabled = this.options.skillSettings.isEnabled()
     this.rememberConversationMcpAccessContext(context.conversationId, {
       agentId: context.agentId,
       enabledMcpServerIds: context.enabledMcpServerIds,
       sessionKind: context.sessionKind
     })
     // 1. Get MCP tools
-    const mcpDefs = withToolSource(
+    const candidateMcpDefs = withToolSource(
       (
         await this.options.mcpService.getAllToolDefinitions({
           enabledTools: context.enabledMcpTools,
@@ -203,25 +205,43 @@ export class ToolService implements ToolServicePort {
       ).filter((tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)),
       'mcp'
     )
-    defs.push(...mcpDefs)
-    mapper.registerTools(mcpDefs, 'mcp')
-    this.rememberMcpDefinitions(context.conversationId, mcpDefs)
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
     const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
+    let agentDefs: MCPToolDefinition[] = []
 
     try {
-      const agentDefs = withToolSource(
+      agentDefs = withToolSource(
         await agentToolManager.getAllToolDefinitions({
           chatMode,
           supportsVision,
           agentWorkspacePath,
           conversationId: context.conversationId,
           activeSkillNames: context.activeSkillNames,
-          subagentCapability: context.subagentCapability
+          subagentCapability: context.subagentCapability,
+          skillsEnabled,
+          ...(context.requireCompleteCatalog ? { requireCompleteCatalog: true } : {})
         }),
         'agent'
       )
+    } catch (error) {
+      console.warn('[Tool] Failed to load Agent tool definitions', error)
+      if (context.requireCompleteCatalog) throw error
+    }
+
+    const hasBuiltInSkillDiscovery = agentDefs.some(
+      (tool) =>
+        tool.function.name === SKILL_LIST_AGENT_TOOL_NAME &&
+        getAgentToolExposure(tool.function.name) === 'system-model'
+    )
+    const mcpDefs = hasBuiltInSkillDiscovery
+      ? candidateMcpDefs.filter((tool) => tool.function.name !== SKILL_LIST_AGENT_TOOL_NAME)
+      : candidateMcpDefs
+    defs.push(...mcpDefs)
+    mapper.registerTools(mcpDefs, 'mcp')
+    this.rememberMcpDefinitions(context.conversationId, mcpDefs)
+
+    try {
       const disabledAgentToolSet = new Set(normalizeToolNames(context.disabledAgentTools))
       const dedupedAgentDefs = agentDefs.filter((tool) => {
         if (!mapper.hasTool(tool.function.name)) return true
@@ -236,7 +256,8 @@ export class ToolService implements ToolServicePort {
       defs.push(...filteredAgentDefs)
       mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
-      console.warn('[Tool] Failed to load Agent tool definitions', error)
+      console.warn('[Tool] Failed to merge Agent tool definitions', error)
+      if (context.requireCompleteCatalog) throw error
     }
 
     this.publishMapper(context.conversationId, mapper, defs)
@@ -394,6 +415,9 @@ export class ToolService implements ToolServicePort {
         {
           toolCallId: request.id,
           runId: options?.runId,
+          requestSeq: options?.requestSeq,
+          manifestHash: options?.manifestHash,
+          tapeIncarnationId: options?.tapeIncarnationId,
           onProgress: options?.onProgress,
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(permissionMode),

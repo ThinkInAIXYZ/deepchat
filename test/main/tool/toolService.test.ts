@@ -15,6 +15,7 @@ import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
+  SKILL_LIST_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   assertAgentToolExposure,
   getAgentToolExposure
@@ -618,6 +619,35 @@ describe('ToolService', () => {
     expect(defs.some((definition) => tapeToolNames.has(definition.function.name))).toBe(false)
   })
 
+  it('propagates Agent catalog failures only for fail-closed resolutions', async () => {
+    const toolService = new ToolService({
+      mcpService: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const agentToolManager = (toolService as any).ensureAgentToolManager(null)
+    vi.spyOn(agentToolManager, 'getAllToolDefinitions').mockRejectedValue(
+      new Error('Agent catalog unavailable')
+    )
+    const context = {
+      chatMode: 'agent' as const,
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conversation-1'
+    }
+
+    await expect(toolService.getAllToolDefinitions(context)).resolves.toEqual([])
+    await expect(
+      toolService.getAllToolDefinitions({ ...context, requireCompleteCatalog: true })
+    ).rejects.toThrow('Agent catalog unavailable')
+  })
+
   it('keeps ToolService collision resolution behind the DeepChat catalog port', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpService = {
@@ -879,6 +909,140 @@ describe('ToolService', () => {
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
+  it('keeps skill discovery available when configurable Skill tools are disabled', async () => {
+    const conflictingMcpSkillList = buildToolDefinition(SKILL_LIST_AGENT_TOOL_NAME, 'mcp')
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => true } as any,
+      mcpService: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([conflictingMcpSkillList])
+      } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+
+    const defs = await toolService.getAllToolDefinitions({
+      disabledAgentTools: [SKILL_LIST_AGENT_TOOL_NAME, 'skill_view'],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace'
+    })
+
+    expect(defs.filter((tool) => tool.function.name === SKILL_LIST_AGENT_TOOL_NAME)).toEqual([
+      expect.objectContaining({ source: 'agent' })
+    ])
+    expect(defs.some((tool) => tool.function.name === 'skill_view')).toBe(false)
+  })
+
+  it('keeps one published discovery mapping stable across a Skills setting change', async () => {
+    let skillsEnabled = true
+    const isEnabled = vi.fn(() => skillsEnabled)
+    const skillService = {
+      resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
+      getMetadataList: vi
+        .fn()
+        .mockResolvedValue([{ name: 'routing-skill', description: 'Routes tasks' }]),
+      getActiveSkills: vi.fn().mockResolvedValue([]),
+      getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      getSkillExtension: vi.fn().mockResolvedValue({
+        version: 1,
+        env: {},
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        scriptOverrides: {}
+      })
+    }
+    const toolService = new ToolService({
+      skillSettings: { isEnabled } as any,
+      mcpService: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([buildToolDefinition(SKILL_LIST_AGENT_TOOL_NAME, 'mcp')])
+      } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock({ skillService })
+    })
+
+    const defs = await toolService.getAllToolDefinitions({
+      disabledAgentTools: [],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace'
+    })
+    skillsEnabled = false
+    const result = await toolService.callTool({
+      id: 'skill-list-1',
+      type: 'function',
+      function: { name: SKILL_LIST_AGENT_TOOL_NAME, arguments: '{}' }
+    })
+
+    expect(defs.filter((tool) => tool.function.name === SKILL_LIST_AGENT_TOOL_NAME)).toEqual([
+      expect.objectContaining({ source: 'agent' })
+    ])
+    expect(JSON.parse(String(result.content))).toMatchObject({
+      skills: [{ name: 'routing-skill' }]
+    })
+  })
+
+  it('preserves an MCP skill_list tool when built-in Skills are disabled', async () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([buildToolDefinition(SKILL_LIST_AGENT_TOOL_NAME, 'mcp')])
+      } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+
+    const defs = await toolService.getAllToolDefinitions({
+      disabledAgentTools: [],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace'
+    })
+
+    expect(defs.filter((tool) => tool.function.name === SKILL_LIST_AGENT_TOOL_NAME)).toEqual([
+      expect.objectContaining({ source: 'mcp' })
+    ])
+  })
+
+  it('preserves an MCP skill_list tool for ACP agents when Skills are enabled', async () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => true } as any,
+      mcpService: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([buildToolDefinition(SKILL_LIST_AGENT_TOOL_NAME, 'mcp')])
+      } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+
+    const defs = await toolService.getAllToolDefinitions({
+      disabledAgentTools: [],
+      chatMode: 'acp agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace'
+    })
+
+    expect(defs.filter((tool) => tool.function.name === SKILL_LIST_AGENT_TOOL_NAME)).toEqual([
+      expect.objectContaining({ source: 'mcp' })
+    ])
+  })
+
   it('uses one exposure policy for Tape tools and defaults existing tools to configurable', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.search)).toBe('system-model')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.context)).toBe('system-model')
@@ -887,6 +1051,7 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure(LIVE_DELEGATION_AGENT_TOOL_NAME)).toBe('system-model')
+    expect(getAgentToolExposure(SKILL_LIST_AGENT_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(

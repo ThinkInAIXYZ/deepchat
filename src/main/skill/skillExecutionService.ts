@@ -2,18 +2,18 @@ import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
 import logger from '@shared/logger'
-import type {
-  SkillServicePort,
-  SkillExtensionConfig,
-  SkillRuntimePreference,
-  SkillScriptDescriptor
+import {
+  SKILL_RUN_MAX_ARGUMENTS,
+  SKILL_RUN_MAX_ARGUMENT_CHARS,
+  SKILL_RUN_MAX_OUTPUT_BYTES,
+  SKILL_RUN_MAX_STDIN_CHARS,
+  SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS,
+  type SkillRuntimePreference,
+  type SkillRuntimePolicy,
+  type SkillScriptRuntime
 } from '@shared/types/skill'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
-import {
-  RTK_ENABLED_SETTING_KEY,
-  rtkRuntimeService
-} from '@/agent/shared/process/rtkRuntimeService'
-import { getShellEnvironment, mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
+import { mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareProcessEnvForUtf8Output,
@@ -21,15 +21,21 @@ import {
 } from '@/agent/shared/process/shellOutputEncoding'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import type { SettingsStore } from '@/config/settingsStore'
 import type { CommandShellDialect, ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedSkillExecutionAuthority } from './skillExecutionAuthority'
+import {
+  materializeSkillExecutionPackageTree,
+  type MaterializedSkillExecutionPackageTree
+} from './skillExecutionPackageTree'
+import { canonicalSkillExecutionPackagePath } from '@/tape/domain/skillMaterialization'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000
 const FOREGROUND_PREVIEW_CHARS = 12000
 const FOREGROUND_KILL_GRACE_MS = 2000
-const FOREGROUND_FORCE_SETTLE_MS = 500
+const RUNTIME_PATH_MAX_ENTRIES = 256
 
 export interface SkillRunRequest {
   skill: string
@@ -43,8 +49,9 @@ export interface SkillRunRequest {
 export interface SkillRunOptions {
   conversationId: string
   commandShell: ResolvedCommandShell
-  activeSkillNames?: string[]
   outputPreviewChars?: number
+  signal?: AbortSignal
+  assertAuthorityCurrent: () => Promise<void>
   beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
 }
 
@@ -54,6 +61,7 @@ interface SkillExecutionServiceOptions {
 
 interface SkillExecutionResult {
   output: string | { status: 'running'; sessionId: string }
+  outputLimited?: boolean
   rtkApplied: boolean
   rtkMode: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
@@ -66,6 +74,13 @@ interface RuntimeCommand {
   mode: 'uv' | 'python' | 'node' | 'shell'
 }
 
+interface MaterializedSkillScript {
+  relativePath: string
+  absolutePath: string
+  runtime: SkillScriptRuntime
+  enabled: boolean
+}
+
 interface SpawnPlan {
   command: string
   args: string[]
@@ -76,157 +91,215 @@ interface SpawnPlan {
   spawnMode: 'direct' | 'shell'
 }
 
+interface ForegroundExecutionResult {
+  output: string
+  outputOffloadPath?: string
+  releasePackageTree: boolean
+  aborted: boolean
+  outputLimited: boolean
+  abortReason?: unknown
+}
+
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly settings: Pick<SettingsStore, 'get'>
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
-  constructor(
-    private readonly skillService: SkillServicePort,
-    settings: Pick<SettingsStore, 'get'>,
-    options: SkillExecutionServiceOptions = {}
-  ) {
-    this.settings = settings
+  constructor(options: SkillExecutionServiceOptions = {}) {
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
     this.runtimeHelper.initializeRuntimes()
   }
 
-  async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
-    const preparedPlan = await this.preparePlanForExecution(
-      await this.buildSpawnPlan(
-        input,
+  async execute(
+    input: SkillRunRequest,
+    authority: ResolvedSkillExecutionAuthority,
+    options: SkillRunOptions
+  ): Promise<SkillExecutionResult> {
+    this.assertInputWithinLimits(input)
+    options.signal?.throwIfAborted()
+    await options.assertAuthorityCurrent()
+    const tree = await materializeSkillExecutionPackageTree(authority.executionPackage)
+    let ownershipTransferred = false
+    try {
+      await options.assertAuthorityCurrent()
+      const preparedPlan = await this.preparePlanForExecution(
+        await this.buildSpawnPlan(
+          input,
+          authority,
+          tree,
+          options.conversationId,
+          options.commandShell,
+          options.signal
+        ),
+        options.commandShell
+      )
+      const plan = { ...preparedPlan, cwd: resolveUsableSpawnCwd(preparedPlan.cwd) }
+      const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+      const dispatchArguments = {
+        skill: input.skill,
+        script: input.script,
+        args: input.args ?? [],
+        ...(input.stdin === undefined ? {} : { stdin: input.stdin }),
+        background: input.background === true,
+        timeoutMs,
+        resolvedCommand: plan.command,
+        resolvedArgs: plan.args,
+        resolvedCwd: plan.cwd,
+        ...(plan.shellCommand === undefined ? {} : { shellCommand: plan.shellCommand }),
+        spawnMode: plan.spawnMode,
+        packageHash: authority.executionPackage.packageHash
+      }
+      const assertReadyForDispatch = async (): Promise<void> => {
+        await tree.assertIntact()
+        await options.assertAuthorityCurrent()
+        options.beforeExecute?.(dispatchArguments)
+      }
+
+      if (input.background) {
+        const displayCommand =
+          plan.shellCommand ?? this.formatDirectInvocation(plan.command, plan.args)
+        ownershipTransferred = true
+        const result = await backgroundExecSessionManager.start(
+          options.conversationId,
+          displayCommand,
+          plan.cwd,
+          {
+            commandShell: options.commandShell,
+            ...(plan.spawnMode === 'direct'
+              ? {
+                  directInvocation: {
+                    executable: plan.command,
+                    args: plan.args
+                  }
+                }
+              : {}),
+            timeout: timeoutMs,
+            env: plan.env,
+            previewChars: options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS,
+            offloadThresholdChars: Math.min(
+              FOREGROUND_OFFLOAD_THRESHOLD,
+              options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
+            ),
+            maxOutputBytes: SKILL_RUN_MAX_OUTPUT_BYTES,
+            ownedSkillExecutionPackageTree: tree.descriptor
+          },
+          assertReadyForDispatch
+        )
+
+        if (input.stdin !== undefined) {
+          try {
+            await backgroundExecSessionManager.write(
+              options.conversationId,
+              result.sessionId,
+              input.stdin,
+              true
+            )
+          } catch (error) {
+            await backgroundExecSessionManager
+              .remove(options.conversationId, result.sessionId)
+              .catch((cleanupError) => {
+                logger.warn('[SkillExecutionService] Failed to remove background session', {
+                  sessionId: result.sessionId,
+                  cleanupError
+                })
+              })
+            throw error
+          }
+        }
+
+        return {
+          output: { status: 'running', sessionId: result.sessionId },
+          rtkApplied: plan.spawnMode === 'shell',
+          rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+        }
+      }
+
+      await assertReadyForDispatch()
+      const foregroundResult = await this.runForeground(
+        plan,
+        timeoutMs,
         options.conversationId,
         options.commandShell,
-        options.activeSkillNames
-      ),
-      options.commandShell
-    )
-    const plan = { ...preparedPlan, cwd: resolveUsableSpawnCwd(preparedPlan.cwd) }
-    const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    options.beforeExecute?.({
-      skill: input.skill,
-      script: input.script,
-      args: input.args ?? [],
-      ...(input.stdin === undefined ? {} : { stdin: input.stdin }),
-      background: input.background === true,
-      timeoutMs,
-      resolvedCommand: plan.command,
-      resolvedArgs: plan.args,
-      resolvedCwd: plan.cwd,
-      ...(plan.shellCommand === undefined ? {} : { shellCommand: plan.shellCommand }),
-      spawnMode: plan.spawnMode
-    })
-
-    if (input.background) {
-      const displayCommand =
-        plan.shellCommand ?? this.formatDirectInvocation(plan.command, plan.args)
-      const result = await backgroundExecSessionManager.start(
-        options.conversationId,
-        displayCommand,
-        plan.cwd,
-        {
-          commandShell: options.commandShell,
-          ...(plan.spawnMode === 'direct'
-            ? {
-                directInvocation: {
-                  executable: plan.command,
-                  args: plan.args
-                }
-              }
-            : {}),
-          timeout: timeoutMs,
-          env: plan.env,
-          previewChars: options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS,
-          offloadThresholdChars: Math.min(
-            FOREGROUND_OFFLOAD_THRESHOLD,
-            options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
-          )
-        }
+        input.stdin,
+        options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS,
+        options.signal
       )
-
-      if (input.stdin) {
-        await backgroundExecSessionManager.write(
-          options.conversationId,
-          result.sessionId,
-          input.stdin,
-          true
-        )
+      if (foregroundResult.releasePackageTree === false) {
+        ownershipTransferred = true
+        logger.warn('[SkillExecutionService] Retaining package tree for an unclosed process tree', {
+          rootPath: tree.rootPath
+        })
       }
-
+      if (foregroundResult.aborted) {
+        throw foregroundResult.abortReason
+      }
       return {
-        output: { status: 'running', sessionId: result.sessionId },
+        output: foregroundResult.output,
+        outputLimited: foregroundResult.outputLimited,
         rtkApplied: plan.spawnMode === 'shell',
-        rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+        rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass',
+        outputOffloadPath: foregroundResult.outputOffloadPath
+      }
+    } finally {
+      if (!ownershipTransferred) {
+        await tree.cleanup().catch((error) => {
+          logger.warn('[SkillExecutionService] Failed to clean foreground package tree', {
+            rootPath: tree.rootPath,
+            error
+          })
+        })
       }
     }
+  }
 
-    const foregroundResult = await this.runForeground(
-      plan,
-      timeoutMs,
-      options.conversationId,
-      options.commandShell,
-      input.stdin,
-      options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
-    )
-    return {
-      output: foregroundResult.output,
-      rtkApplied: plan.spawnMode === 'shell',
-      rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass',
-      outputOffloadPath: foregroundResult.outputOffloadPath
+  private assertInputWithinLimits(input: SkillRunRequest): void {
+    const args = input.args ?? []
+    if (
+      args.length > SKILL_RUN_MAX_ARGUMENTS ||
+      args.some((argument) => argument.length > SKILL_RUN_MAX_ARGUMENT_CHARS) ||
+      args.reduce((total, argument) => total + argument.length, 0) >
+        SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS
+    ) {
+      throw new Error('Skill execution arguments exceed the supported input limits.')
+    }
+    if ((input.stdin?.length ?? 0) > SKILL_RUN_MAX_STDIN_CHARS) {
+      throw new Error('Skill execution stdin exceeds the supported input limit.')
     }
   }
 
   private async buildSpawnPlan(
     input: SkillRunRequest,
+    authority: ResolvedSkillExecutionAuthority,
+    tree: MaterializedSkillExecutionPackageTree,
     conversationId: string,
     commandShell: ResolvedCommandShell,
-    activeSkillNames?: string[]
+    signal?: AbortSignal
   ): Promise<SpawnPlan> {
-    const activeSkills =
-      activeSkillNames ?? (await this.skillService.getActiveSkills(conversationId))
-    if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
+    if (input.skill !== authority.identity.skillName) {
+      throw new Error('Skill execution request does not match its request-bound package authority.')
     }
 
-    const agentId = await this.skillService.resolveSessionAgentId(conversationId)
-    if (!agentId) {
-      throw new Error('No DeepChat Agent context available for skill execution')
-    }
-    const metadata = (
-      activeSkillNames === undefined
-        ? await this.skillService.getMetadataList(agentId)
-        : await this.skillService.getAllSkills()
-    ).find((item) => item.name === input.skill)
-    if (!metadata) {
-      throw new Error(`Skill "${input.skill}" not found`)
-    }
-
-    const scripts = await this.skillService.listSkillScriptsForAgent(agentId, input.skill)
-    const script = this.resolveRequestedScript(input.script, scripts)
+    const script = this.resolveRequestedScript(input.script, authority, tree)
     if (!script.enabled) {
       throw new Error(`Skill script "${script.relativePath}" is disabled`)
     }
 
-    const extension = await this.skillService.getSkillExtensionForAgent(agentId, input.skill)
-    const shellEnv = await getShellEnvironment()
-    const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
+    const executionCwd = await this.resolveExecutionCwd(conversationId, tree.packageRoot)
     const mergedEnv = mergeCommandEnvironment({
-      shellEnv,
       overrides: {
-        ...extension.env,
-        SKILL_ROOT: metadata.skillRoot,
-        DEEPCHAT_SKILL_ROOT: metadata.skillRoot
+        ...authority.environment,
+        SKILL_ROOT: tree.packageRoot,
+        DEEPCHAT_SKILL_ROOT: tree.packageRoot
       }
     })
 
     const runtime = await this.resolveRuntimeCommand(
       script,
-      extension,
-      metadata.skillRoot,
+      authority.executionPackage.runtimePolicy,
       mergedEnv,
-      commandShell
+      commandShell,
+      signal
     )
-    const args = this.buildRuntimeArgs(runtime, script, metadata.skillRoot, input.args ?? [])
+    const args = this.buildRuntimeArgs(runtime, script, tree.packageRoot, input.args ?? [])
 
     return {
       command: runtime.command,
@@ -241,10 +314,10 @@ export class SkillExecutionService {
     }
   }
 
-  private async resolveExecutionCwd(conversationId: string, skillRoot: string): Promise<string> {
-    const normalizedSkillRoot = path.resolve(skillRoot)
+  private async resolveExecutionCwd(conversationId: string, packageRoot: string): Promise<string> {
+    const normalizedPackageRoot = path.resolve(packageRoot)
     if (!this.resolveConversationWorkdir) {
-      return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
+      return this.resolveFallbackExecutionCwd(conversationId, normalizedPackageRoot)
     }
 
     try {
@@ -278,15 +351,15 @@ export class SkillExecutionService {
 
     logger.warn('[SkillExecutionService] Missing conversation workdir, using session directory', {
       conversationId,
-      skillRoot: normalizedSkillRoot
+      packageRoot: normalizedPackageRoot
     })
-    return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
+    return this.resolveFallbackExecutionCwd(conversationId, normalizedPackageRoot)
   }
 
-  private resolveFallbackExecutionCwd(conversationId: string, skillRoot: string): string {
+  private resolveFallbackExecutionCwd(conversationId: string, packageRoot: string): string {
     const sessionDir = resolveSessionDir(conversationId)
     if (!sessionDir) {
-      return skillRoot
+      return packageRoot
     }
 
     try {
@@ -294,57 +367,47 @@ export class SkillExecutionService {
       return sessionDir
     } catch (error) {
       logger.warn(
-        '[SkillExecutionService] Failed to create session directory, falling back to skill root',
+        '[SkillExecutionService] Failed to create session directory, using package root',
         {
           conversationId,
           sessionDir,
-          skillRoot,
+          packageRoot,
           error
         }
       )
     }
 
-    return skillRoot
+    return packageRoot
   }
 
   private resolveRequestedScript(
     requestedScript: string,
-    scripts: SkillScriptDescriptor[]
-  ): SkillScriptDescriptor {
-    const normalized = requestedScript.trim().replace(/\\/g, '/')
-    if (!normalized) {
-      throw new Error('script is required')
+    authority: ResolvedSkillExecutionAuthority,
+    tree: MaterializedSkillExecutionPackageTree
+  ): MaterializedSkillScript {
+    let canonicalPath: string
+    try {
+      canonicalPath = canonicalSkillExecutionPackagePath(requestedScript)
+    } catch {
+      throw new Error(`Skill script "${requestedScript}" is not a canonical package path`)
     }
-
-    const exact = scripts.find((script) => script.relativePath.replace(/\\/g, '/') === normalized)
-    if (exact) {
-      return exact
-    }
-
-    const prefixed = scripts.find(
-      (script) => script.relativePath.replace(/\\/g, '/') === `scripts/${normalized}`
+    const executable = authority.executionPackage.executables.find(
+      (candidate) => candidate.relativePath === canonicalPath
     )
-    if (prefixed) {
-      return prefixed
-    }
+    if (!executable) throw new Error(`Skill script "${requestedScript}" not found in package`)
 
-    const byName = scripts.filter((script) => script.name === path.basename(normalized))
-    if (byName.length === 1) {
-      return byName[0]
+    return {
+      ...executable,
+      absolutePath: tree.resolveFile(executable.relativePath)
     }
-    if (byName.length > 1) {
-      throw new Error(`Multiple scripts match "${requestedScript}". Use the full relative path.`)
-    }
-
-    throw new Error(`Skill script "${requestedScript}" not found`)
   }
 
   private async resolveRuntimeCommand(
-    script: SkillScriptDescriptor,
-    extension: SkillExtensionConfig,
-    skillRoot: string,
+    script: MaterializedSkillScript,
+    runtimePolicy: SkillRuntimePolicy,
     env: Record<string, string>,
-    commandShell: ResolvedCommandShell
+    commandShell: ResolvedCommandShell,
+    signal?: AbortSignal
   ): Promise<RuntimeCommand> {
     if (script.runtime === 'shell') {
       if (commandShell.profile !== 'posix' && commandShell.profile !== 'git-bash') {
@@ -354,16 +417,16 @@ export class SkillExecutionService {
     }
 
     if (script.runtime === 'node') {
-      return await this.resolveNodeRuntime(extension.runtimePolicy.node, env)
+      return await this.resolveNodeRuntime(runtimePolicy.node, env, signal)
     }
 
-    return await this.resolvePythonRuntime(extension.runtimePolicy.python, env, skillRoot)
+    return await this.resolvePythonRuntime(runtimePolicy.python, env, signal)
   }
 
   private async resolvePythonRuntime(
     preference: SkillRuntimePreference,
     env: Record<string, string>,
-    _skillRoot: string
+    signal?: AbortSignal
   ): Promise<RuntimeCommand> {
     if (preference === 'builtin') {
       const bundledUv = this.getBundledRuntimeCommand('uv')
@@ -374,15 +437,16 @@ export class SkillExecutionService {
     }
 
     if (preference === 'system') {
-      const system = await this.findSystemPythonRuntime(env)
+      const system = await this.findSystemPythonRuntime(env, signal)
       if (!system) {
         throw new Error('No compatible system Python runtime found for this skill')
       }
       return system
     }
 
-    if (await this.hasCommand('uv', ['--version'], env)) {
-      return { command: 'uv', mode: 'uv' }
+    const systemUv = await this.resolveSystemCommand('uv', env, signal)
+    if (systemUv) {
+      return { command: systemUv, mode: 'uv' }
     }
 
     const bundledUv = this.getBundledRuntimeCommand('uv')
@@ -390,7 +454,7 @@ export class SkillExecutionService {
       return { command: bundledUv, mode: 'uv' }
     }
 
-    const fallback = await this.findSystemPythonRuntime(env)
+    const fallback = await this.findSystemPythonRuntime(env, signal)
     if (!fallback) {
       throw new Error('No compatible Python runtime found for this skill')
     }
@@ -399,7 +463,8 @@ export class SkillExecutionService {
 
   private async resolveNodeRuntime(
     preference: SkillRuntimePreference,
-    env: Record<string, string>
+    env: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<RuntimeCommand> {
     if (preference === 'builtin') {
       const bundledNode = this.getBundledRuntimeCommand('node')
@@ -410,14 +475,16 @@ export class SkillExecutionService {
     }
 
     if (preference === 'system') {
-      if (!(await this.hasCommand('node', ['--version'], env))) {
+      const systemNode = await this.resolveSystemCommand('node', env, signal)
+      if (!systemNode) {
         throw new Error('System node runtime is not available')
       }
-      return { command: 'node', mode: 'node' }
+      return { command: systemNode, mode: 'node' }
     }
 
-    if (await this.hasCommand('node', ['--version'], env)) {
-      return { command: 'node', mode: 'node' }
+    const systemNode = await this.resolveSystemCommand('node', env, signal)
+    if (systemNode) {
+      return { command: systemNode, mode: 'node' }
     }
 
     const bundledNode = this.getBundledRuntimeCommand('node')
@@ -428,23 +495,19 @@ export class SkillExecutionService {
   }
 
   private async findSystemPythonRuntime(
-    env: Record<string, string>
+    env: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<RuntimeCommand | null> {
-    const candidates: Array<{ command: string; probeArgs: string[]; argsPrefix?: string[] }> =
+    const candidates: Array<{ command: string; argsPrefix?: string[] }> =
       process.platform === 'win32'
-        ? [
-            { command: 'python', probeArgs: ['--version'] },
-            { command: 'py', probeArgs: ['-3', '--version'], argsPrefix: ['-3'] }
-          ]
-        : [
-            { command: 'python3', probeArgs: ['--version'] },
-            { command: 'python', probeArgs: ['--version'] }
-          ]
+        ? [{ command: 'python' }, { command: 'py', argsPrefix: ['-3'] }]
+        : [{ command: 'python3' }, { command: 'python' }]
 
     for (const candidate of candidates) {
-      if (await this.hasCommand(candidate.command, candidate.probeArgs, env)) {
+      const executable = await this.resolveSystemCommand(candidate.command, env, signal)
+      if (executable) {
         return {
-          command: candidate.command,
+          command: executable,
           argsPrefix: candidate.argsPrefix,
           mode: 'python'
         }
@@ -456,14 +519,14 @@ export class SkillExecutionService {
 
   private buildRuntimeArgs(
     runtime: RuntimeCommand,
-    script: SkillScriptDescriptor,
-    skillRoot: string,
+    script: MaterializedSkillScript,
+    packageRoot: string,
     args: string[]
   ): string[] {
     if (runtime.mode === 'uv') {
       const commandArgs = ['run']
-      if (fs.existsSync(path.join(skillRoot, 'pyproject.toml'))) {
-        commandArgs.push('--project', skillRoot)
+      if (fs.existsSync(path.join(packageRoot, 'pyproject.toml'))) {
+        commandArgs.push('--project', packageRoot)
       }
       commandArgs.push(script.absolutePath, ...args)
       return commandArgs
@@ -486,8 +549,11 @@ export class SkillExecutionService {
     conversationId: string,
     commandShell: ResolvedCommandShell,
     stdin?: string,
-    outputPreviewChars = FOREGROUND_PREVIEW_CHARS
-  ): Promise<{ output: string; outputOffloadPath?: string }> {
+    outputPreviewChars = FOREGROUND_PREVIEW_CHARS,
+    signal?: AbortSignal,
+    maxOutputBytes = SKILL_RUN_MAX_OUTPUT_BYTES
+  ): Promise<ForegroundExecutionResult> {
+    signal?.throwIfAborted()
     const outputFilePath = this.createForegroundOutputPath(conversationId, plan.outputPrefix)
     const offloadThresholdChars = Math.min(FOREGROUND_OFFLOAD_THRESHOLD, outputPreviewChars)
 
@@ -513,15 +579,19 @@ export class SkillExecutionService {
 
       let outputBuffer = ''
       let totalOutputLength = 0
+      let totalOutputBytes = 0
       let offloaded = false
       let offloadDisabled = outputFilePath === null
       let activeOutputFilePath = outputFilePath
       let timedOut = false
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
-      let killTimeoutId: NodeJS.Timeout | null = null
-      let forceSettleTimeoutId: NodeJS.Timeout | null = null
       let settled = false
+      let releasePackageTree = true
+      let aborted = false
+      let abortReason: unknown
+      let terminationStarted = false
+      let outputLimited = false
 
       const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
 
@@ -530,14 +600,28 @@ export class SkillExecutionService {
           clearTimeout(timeoutId)
           timeoutId = null
         }
-        if (killTimeoutId) {
-          clearTimeout(killTimeoutId)
-          killTimeoutId = null
+      }
+
+      const onAbort = () => {
+        aborted = true
+        abortReason = signal?.reason ?? new DOMException('Aborted', 'AbortError')
+        requestTermination('cancelled')
+      }
+
+      const cleanupAbortListener = () => {
+        signal?.removeEventListener('abort', onAbort)
+      }
+
+      const settleUnclosedProcessTree = () => {
+        if (settled) return
+        releasePackageTree = false
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+        child.stdin?.destroy()
+        if (typeof child.unref === 'function') {
+          child.unref()
         }
-        if (forceSettleTimeoutId) {
-          clearTimeout(forceSettleTimeoutId)
-          forceSettleTimeoutId = null
-        }
+        void settleProcess(null)
       }
 
       const settleProcess = async (code: number | null, error?: Error) => {
@@ -546,6 +630,7 @@ export class SkillExecutionService {
         }
         settled = true
         cleanupTimers()
+        cleanupAbortListener()
         child.removeAllListeners('error')
         child.removeAllListeners('close')
         outputDecoders.flush()
@@ -556,7 +641,7 @@ export class SkillExecutionService {
           // Already logged when the queue failed.
         }
 
-        if (error) {
+        if (error && !aborted) {
           reject(error)
           return
         }
@@ -579,8 +664,29 @@ export class SkillExecutionService {
         }
         resolve({
           output: lines.join('\n'),
-          outputOffloadPath: offloaded ? (activeOutputFilePath ?? undefined) : undefined
+          outputOffloadPath: offloaded ? (activeOutputFilePath ?? undefined) : undefined,
+          releasePackageTree,
+          aborted,
+          outputLimited,
+          ...(aborted ? { abortReason } : {})
         })
+      }
+
+      const requestTermination = (cause: 'cancelled' | 'timed-out' | 'output-limited') => {
+        if (settled || terminationStarted) return
+        terminationStarted = true
+        timedOut = cause === 'timed-out'
+        void terminateProcessTree(child, { graceMs: FOREGROUND_KILL_GRACE_MS })
+          .then((closed) => {
+            if (closed || settled) return
+            settleUnclosedProcessTree()
+          })
+          .catch((error) => {
+            logger.warn(`[SkillExecutionService] Failed to terminate ${cause} process tree`, {
+              error
+            })
+            settleUnclosedProcessTree()
+          })
       }
 
       const appendToOutputBuffer = (data: string) => {
@@ -638,7 +744,7 @@ export class SkillExecutionService {
           })
       }
 
-      const appendOutput = (data: string) => {
+      const appendAcceptedOutput = (data: string) => {
         totalOutputLength += data.length
         const shouldOffload =
           !offloadDisabled &&
@@ -656,40 +762,40 @@ export class SkillExecutionService {
         queueOutputWrite(chunk)
       }
 
+      const appendOutput = (data: string) => {
+        if (!data || outputLimited) return
+        const dataBytes = Buffer.byteLength(data, 'utf8')
+        if (totalOutputBytes + dataBytes > maxOutputBytes) {
+          outputLimited = true
+          appendAcceptedOutput(`\n[Process terminated: output exceeded ${maxOutputBytes} bytes.]\n`)
+          requestTermination('output-limited')
+          return
+        }
+        totalOutputBytes += dataBytes
+        appendAcceptedOutput(data)
+      }
+
       child.stdout?.on('data', (data: Buffer | string) => outputDecoders.writeStdout(data))
       child.stderr?.on('data', (data: Buffer | string) => outputDecoders.writeStderr(data))
 
-      if (stdin !== undefined) {
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true })
+        if (signal.aborted) onAbort()
+      }
+
+      child.stdin?.on('error', (error) => {
+        logger.warn('[SkillExecutionService] Failed to write skill stdin', { error })
+      })
+      if (!aborted && stdin !== undefined) {
         child.stdin?.write(stdin)
       }
       child.stdin?.end()
 
-      timeoutId = setTimeout(() => {
-        timedOut = true
-        try {
-          child.kill('SIGTERM')
-        } catch {
-          // ignore kill errors
-        }
-
-        killTimeoutId = setTimeout(() => {
-          try {
-            child.kill('SIGKILL')
-          } catch {
-            // ignore kill errors
-          }
-
-          forceSettleTimeoutId = setTimeout(() => {
-            child.stdout?.destroy()
-            child.stderr?.destroy()
-            child.stdin?.destroy()
-            if (typeof child.unref === 'function') {
-              child.unref()
-            }
-            void settleProcess(null)
-          }, FOREGROUND_FORCE_SETTLE_MS)
-        }, FOREGROUND_KILL_GRACE_MS)
-      }, timeoutMs)
+      if (!settled) {
+        timeoutId = setTimeout(() => {
+          requestTermination('timed-out')
+        }, timeoutMs)
+      }
 
       child.on('error', (error) => {
         void settleProcess(null, error)
@@ -711,8 +817,7 @@ export class SkillExecutionService {
       }
       return {
         ...plan,
-        shellCommand: undefined,
-        env: await rtkRuntimeService.prepareExecutionEnv(plan.env)
+        shellCommand: undefined
       }
     }
 
@@ -722,8 +827,7 @@ export class SkillExecutionService {
       }
       return {
         ...plan,
-        shellCommand: undefined,
-        env: await rtkRuntimeService.prepareExecutionEnv(plan.env)
+        shellCommand: undefined
       }
     }
 
@@ -731,25 +835,7 @@ export class SkillExecutionService {
       throw new Error('Shell-capable skill plan is missing a serialized command')
     }
 
-    const prepared = await rtkRuntimeService.prepareShellCommand(
-      plan.shellCommand,
-      plan.env,
-      this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
-    )
-
-    if (!prepared.rewritten) {
-      return {
-        ...plan,
-        env: prepared.env
-      }
-    }
-
-    return {
-      ...plan,
-      env: prepared.env,
-      shellCommand: prepared.command,
-      spawnMode: 'shell'
-    }
+    return plan
   }
 
   private buildShellCommand(
@@ -786,22 +872,52 @@ export class SkillExecutionService {
     return resolved === command ? null : resolved
   }
 
-  private async hasCommand(
+  private async resolveSystemCommand(
     command: string,
-    args: string[],
-    env: Record<string, string>
-  ): Promise<boolean> {
-    return await new Promise((resolve) => {
-      const child = spawn(command, args, {
-        env,
-        stdio: 'ignore',
-        shell: false,
-        windowsHide: true
-      })
+    env: Record<string, string>,
+    signal?: AbortSignal
+  ): Promise<string | null> {
+    signal?.throwIfAborted()
+    const pathValue = Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH')?.[1]
+    if (!pathValue) return null
+    const platformPath = process.platform === 'win32' ? path.win32 : path.posix
+    const pathEntries = pathValue
+      .split(platformPath.delimiter, RUNTIME_PATH_MAX_ENTRIES)
+      .map((entry) => entry.trim().replace(/^"(.*)"$/, '$1'))
+      .filter((entry) => platformPath.isAbsolute(entry))
+    const pathExtValue = Object.entries(env).find(([key]) => key.toUpperCase() === 'PATHEXT')?.[1]
+    const extensions =
+      process.platform !== 'win32' || platformPath.extname(command)
+        ? ['']
+        : (pathExtValue || '.COM;.EXE')
+            .split(';')
+            .map((extension) => extension.trim().toUpperCase())
+            .filter((extension) => extension === '.COM' || extension === '.EXE')
 
-      child.on('error', () => resolve(false))
-      child.on('close', (code) => resolve(code === 0))
-    })
+    for (const directory of pathEntries) {
+      for (const extension of extensions) {
+        signal?.throwIfAborted()
+        const candidate = platformPath.resolve(directory, `${command}${extension}`)
+        let resolved: string
+        let stat: fs.Stats
+        try {
+          resolved = await fs.promises.realpath(candidate)
+          signal?.throwIfAborted()
+          stat = await fs.promises.stat(resolved)
+          signal?.throwIfAborted()
+          await fs.promises.access(
+            resolved,
+            process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK
+          )
+        } catch {
+          signal?.throwIfAborted()
+          continue
+        }
+        if (stat.isFile()) return resolved
+      }
+    }
+
+    return null
   }
 
   private createForegroundOutputPath(conversationId: string, prefix: string): string | null {

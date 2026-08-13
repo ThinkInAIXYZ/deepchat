@@ -105,6 +105,27 @@ function makeTool(
   }
 }
 
+function makeRuntimeSkillResolution(content = '# Effective Skill body') {
+  return {
+    identity: {
+      agentId: 'deepchat',
+      sourceType: 'created' as const,
+      sourceId: '/skills/deepchat-settings',
+      skillName: 'deepchat-settings'
+    },
+    effectiveContent: content,
+    builderVersion: 'builder-1',
+    renderedManifestHash: 'a'.repeat(64),
+    scriptInventoryHash: 'a'.repeat(64),
+    executionPackage: {
+      files: [],
+      executables: [],
+      runtimePolicy: { python: 'auto' as const, node: 'auto' as const },
+      environmentBindingId: null
+    }
+  }
+}
+
 function makeAgentTool(
   name: string,
   execution: ToolExecutionContract = TOOL_EXECUTION.write
@@ -3352,20 +3373,44 @@ describe('dispatch', () => {
 
     it('flags toolsChanged when skill_view activates a skill via main SKILL.md', async () => {
       const tools = [makeTool('skill_view')]
+      const activationOrder: string[] = []
+      const skillResolution = makeRuntimeSkillResolution()
+      const commitRuntimeSkillView = vi.fn(async () => {
+        activationOrder.push('commit')
+      })
+      const activateSkill = vi.fn(async (skillName: string) => {
+        activationOrder.push('activate')
+        return [skillName]
+      })
       const toolService = {
         ...createMockToolService(),
-        callTool: vi.fn().mockResolvedValue({
-          content:
-            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
-          rawData: {
-            toolCallId: 'tc1',
+        callTool: vi.fn().mockImplementation(async (request, options) => {
+          options?.commitDispatch?.({
+            toolName: request.function.name,
+            toolSource: 'mcp',
+            normalizedArguments: { name: 'deepchat-settings' },
+            target: { serverName: 'test-server', originalName: 'skill_view' }
+          })
+          return {
             content:
               '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
-            isError: false,
-            toolResult: {
-              activationApplied: true,
-              activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings'
+            rawData: {
+              toolCallId: 'tc1',
+              content:
+                '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
+              isError: false,
+              toolResult: {
+                activationApplied: true,
+                activationSource: 'skill_md',
+                activatedSkill: 'deepchat-settings',
+                skillContext: {
+                  agentId: 'deepchat',
+                  sourceType: 'created',
+                  sourceId: '/skills/deepchat-settings',
+                  skillName: 'deepchat-settings'
+                },
+                skillResolution
+              }
             }
           }
         })
@@ -3398,14 +3443,596 @@ describe('dispatch', () => {
         'full_access',
         new ToolOutputGuard(),
         32000,
-        1024
+        1024,
+        { commitRuntimeSkillView, activateSkill }
       )
 
       expect(result.toolsChanged).toBe(true)
+      expect(commitRuntimeSkillView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCallId: 'tc1',
+          responseText: expect.stringContaining('deepchat-settings'),
+          resolution: skillResolution
+        })
+      )
+      expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
+      expect(activationOrder).toEqual(['commit', 'activate'])
+    })
+
+    it('returns a confirmation for a repeated root skill_view in the same batch', async () => {
+      const tools = [makeAgentTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
+      const rootViewText = JSON.stringify({
+        success: true,
+        name: 'deepchat-settings',
+        content: skillResolution.effectiveContent,
+        activatedForMessage: true
+      })
+      const confirmationText = JSON.stringify({
+        success: true,
+        name: 'deepchat-settings',
+        activeForCurrentMessage: true,
+        activatedForMessage: false,
+        message: 'Skill is already active for the current message.'
+      })
+      const toolService = {
+        ...createMockToolService(),
+        callTool: vi.fn().mockImplementation(async (request, options) => {
+          if (options?.activeSkillNames?.includes('deepchat-settings')) {
+            return {
+              content: confirmationText,
+              rawData: {
+                toolCallId: request.id,
+                content: confirmationText,
+                isError: false,
+                toolResult: { activationApplied: false, activationSource: 'none' }
+              }
+            }
+          }
+          options?.commitDispatch?.({
+            toolName: request.function.name,
+            toolSource: 'agent',
+            normalizedArguments: { name: 'deepchat-settings' },
+            target: { serverName: 'agent-skills', originalName: 'skill_view' }
+          })
+          return {
+            content: rootViewText,
+            rawData: {
+              toolCallId: request.id,
+              content: rootViewText,
+              isError: false,
+              toolResult: {
+                activationApplied: true,
+                activationSource: 'skill_md',
+                activatedSkill: 'deepchat-settings',
+                skillContext: {
+                  agentId: 'deepchat',
+                  sourceType: 'created',
+                  sourceId: '/skills/deepchat-settings',
+                  skillName: 'deepchat-settings'
+                },
+                skillResolution
+              }
+            }
+          }
+        })
+      } as unknown as ToolServicePort
+      const commitRuntimeSkillView = vi.fn().mockResolvedValue(undefined)
+      const activateSkill = vi.fn(async (skillName: string) => [skillName])
+      const conversation: Array<{ role: string; content: string }> = []
+
+      for (const toolCallId of ['tc1', 'tc2']) {
+        state.blocks.push({
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: {
+            id: toolCallId,
+            name: 'skill_view',
+            params: '{"name":"deepchat-settings"}',
+            response: ''
+          }
+        })
+      }
+      state.completedToolCalls = ['tc1', 'tc2'].map((id) => ({
+        id,
+        name: 'skill_view',
+        arguments: '{"name":"deepchat-settings"}'
+      }))
+
+      await settleToolBatch(
+        state,
+        conversation,
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { getActiveSkillNames: () => [], commitRuntimeSkillView, activateSkill }
+      )
+
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
+      expect(vi.mocked(toolService.callTool).mock.calls[1][1]?.activeSkillNames).toEqual([
+        'deepchat-settings'
+      ])
+      expect(commitRuntimeSkillView).toHaveBeenCalledOnce()
+      expect(commitRuntimeSkillView).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'tc1', responseText: rootViewText })
+      )
+      expect(activateSkill).toHaveBeenCalledOnce()
+      expect(state.blocks[0].tool_call?.response).toBe(rootViewText)
+      expect(state.blocks[1].tool_call?.response).toBe(confirmationText)
+      expect(conversation.filter((message) => message.content.includes('# Effective Skill body')))
+        .toHaveLength(1)
+    })
+
+    it.each([
+      ['missing', undefined],
+      [
+        'identity-mismatched',
+        {
+          ...makeRuntimeSkillResolution(),
+          identity: {
+            ...makeRuntimeSkillResolution().identity,
+            sourceId: '/skills/another-skill'
+          }
+        }
+      ]
+    ])('fails closed for %s runtime Skill execution evidence', async (_case, skillResolution) => {
+      const tools = [makeTool('skill_view')]
+      const toolService = {
+        ...createMockToolService(),
+        callTool: vi.fn().mockImplementation(async (request, options) => {
+          options?.commitDispatch?.({
+            toolName: request.function.name,
+            toolSource: 'mcp',
+            normalizedArguments: { name: 'deepchat-settings' },
+            target: { serverName: 'test-server', originalName: 'skill_view' }
+          })
+          return {
+            content: '{"success":true,"name":"deepchat-settings"}',
+            rawData: {
+              toolCallId: 'tc1',
+              content: '{"success":true,"name":"deepchat-settings"}',
+              isError: false,
+              toolResult: {
+                activationApplied: true,
+                activationSource: 'skill_md',
+                activatedSkill: 'deepchat-settings',
+                skillContext: {
+                  agentId: 'deepchat',
+                  sourceType: 'created',
+                  sourceId: '/skills/deepchat-settings',
+                  skillName: 'deepchat-settings'
+                },
+                ...(skillResolution ? { skillResolution } : {})
+              }
+            }
+          }
+        })
+      } as unknown as ToolServicePort
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+      const commitRuntimeSkillView = vi.fn()
+      const activateSkill = vi.fn()
+
+      await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { commitRuntimeSkillView, activateSkill }
+      )
+      expect(commitRuntimeSkillView).not.toHaveBeenCalled()
+      expect(activateSkill).not.toHaveBeenCalled()
+      expect(state.blocks[0]).toMatchObject({
+        status: 'error',
+        tool_call: {
+          response: 'Error: Runtime Skill-view activation metadata is invalid.'
+        }
+      })
+    })
+
+    it('fails closed when runtime Skill activation does not enter the active set', async () => {
+      const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
+      const toolService = {
+        ...createMockToolService(),
+        callTool: vi.fn().mockImplementation(async (request, options) => {
+          options?.commitDispatch?.({
+            toolName: request.function.name,
+            toolSource: 'mcp',
+            normalizedArguments: { name: 'deepchat-settings' },
+            target: { serverName: 'test-server', originalName: 'skill_view' }
+          })
+          return {
+            content: '{"success":true,"name":"deepchat-settings"}',
+            rawData: {
+              toolCallId: 'tc1',
+              content: '{"success":true,"name":"deepchat-settings"}',
+              isError: false,
+              toolResult: {
+                activationApplied: true,
+                activationSource: 'skill_md',
+                activatedSkill: 'deepchat-settings',
+                skillContext: {
+                  agentId: 'deepchat',
+                  sourceType: 'created',
+                  sourceId: '/skills/deepchat-settings',
+                  skillName: 'deepchat-settings'
+                },
+                skillResolution
+              }
+            }
+          }
+        })
+      } as unknown as ToolServicePort
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      await expect(
+        settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          {
+            commitRuntimeSkillView: vi.fn().mockResolvedValue(undefined),
+            activateSkill: vi.fn().mockResolvedValue([])
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'CommittedToolOutcomeProjectionError',
+        code: 'projection_failed',
+        cause: expect.objectContaining({
+          message: 'Runtime Skill-view activation did not activate deepchat-settings.'
+        })
+      })
+
+      expect(state.blocks[0]).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
+    })
+
+    it('rejects an impossible runtime Skill view before journaling its large body', async () => {
+      const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution('x'.repeat(20_000))
+      const responseText = JSON.stringify({
+        success: true,
+        name: 'deepchat-settings',
+        content: 'x'.repeat(20_000)
+      })
+      const commitToolOutcome = vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
+      const commitRuntimeSkillView = vi.fn()
+      const activateSkill = vi.fn()
+      const toolService = createMockToolService()
+      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+        options?.commitDispatch?.({
+          toolName: request.function.name,
+          toolSource: 'mcp',
+          normalizedArguments: { name: 'deepchat-settings' },
+          target: { serverName: 'test-server', originalName: 'skill_view' }
+        })
+        return {
+          content: responseText,
+          rawData: {
+            toolCallId: request.id,
+            content: responseText,
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings',
+              skillContext: {
+                agentId: 'deepchat',
+                sourceType: 'created',
+                sourceId: '/skills/deepchat-settings',
+                skillName: 'deepchat-settings'
+              },
+              skillResolution
+            }
+          }
+        }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        1000,
+        100,
+        {
+          commitRuntimeSkillView,
+          activateSkill,
+          executionJournal: {
+            commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
+            commitToolOutcome
+          }
+        }
+      )
+
+      expect(commitRuntimeSkillView).not.toHaveBeenCalled()
+      expect(activateSkill).not.toHaveBeenCalled()
+      expect(commitToolOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isError: true,
+          responseText: expect.stringContaining('cannot fit this model context')
+        })
+      )
+      expect(commitToolOutcome.mock.calls[0][0].responseText).not.toContain('x'.repeat(100))
+    })
+
+    it('fails closed when final fitting changes a committed runtime Skill view', async () => {
+      const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
+      const responseText = '{"success":true,"name":"deepchat-settings"}'
+      const toolService = createMockToolService()
+      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+        options?.commitDispatch?.({
+          toolName: request.function.name,
+          toolSource: 'mcp',
+          normalizedArguments: { name: 'deepchat-settings' },
+          target: { serverName: 'test-server', originalName: 'skill_view' }
+        })
+        return {
+          content: responseText,
+          rawData: {
+            toolCallId: request.id,
+            content: responseText,
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings',
+              skillContext: {
+                agentId: 'deepchat',
+                sourceType: 'created',
+                sourceId: '/skills/deepchat-settings',
+                skillName: 'deepchat-settings'
+              },
+              skillResolution
+            }
+          }
+        }
+      })
+      const outputGuard = new ToolOutputGuard()
+      vi.spyOn(outputGuard, 'fitToolBatchOutputs').mockResolvedValue({
+        kind: 'ok',
+        results: [
+          {
+            toolCallId: 'tc1',
+            toolName: 'skill_view',
+            responseText: '[changed]',
+            contextResponseText: '[changed]',
+            isError: false,
+            requiresInline: true,
+            downgraded: true
+          }
+        ]
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+      const commitRuntimeSkillView = vi.fn()
+      const activateSkill = vi.fn()
+      const commitToolOutcome = vi.fn(() => ({
+        sessionId: 's1',
+        entryId: 2,
+        created: true
+      }))
+
+      await expect(
+        settleToolBatch(
+          state,
+          [{ role: 'user', content: 'optional history '.repeat(10_000) }],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          outputGuard,
+          32000,
+          1024,
+          {
+            commitRuntimeSkillView,
+            activateSkill,
+            executionJournal: {
+              commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
+              commitToolOutcome
+            }
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'CommittedToolOutcomeProjectionError',
+        code: 'projection_failed'
+      })
+
+      expect(commitToolOutcome).toHaveBeenCalledOnce()
+      expect(commitRuntimeSkillView).not.toHaveBeenCalled()
+      expect(activateSkill).not.toHaveBeenCalled()
+      expect(state.blocks[0]).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
+    })
+
+    it('fails closed when final fitting cannot keep a committed runtime Skill view inline', async () => {
+      const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
+      const responseText = '{"success":true,"name":"deepchat-settings"}'
+      const toolService = createMockToolService()
+      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+        options?.commitDispatch?.({
+          toolName: request.function.name,
+          toolSource: 'mcp',
+          normalizedArguments: { name: 'deepchat-settings' },
+          target: { serverName: 'test-server', originalName: 'skill_view' }
+        })
+        return {
+          content: responseText,
+          rawData: {
+            toolCallId: request.id,
+            content: responseText,
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings',
+              skillContext: {
+                agentId: 'deepchat',
+                sourceType: 'created',
+                sourceId: '/skills/deepchat-settings',
+                skillName: 'deepchat-settings'
+              },
+              skillResolution
+            }
+          }
+        }
+      })
+      const outputGuard = new ToolOutputGuard()
+      vi.spyOn(outputGuard, 'fitToolBatchOutputs').mockResolvedValue({
+        kind: 'terminal_error',
+        message: 'Tool results cannot fit the context window.',
+        results: [
+          {
+            toolCallId: 'tc1',
+            toolName: 'skill_view',
+            responseText: 'Tool result omitted.',
+            contextResponseText: '',
+            isError: true,
+            requiresInline: true,
+            downgraded: true
+          }
+        ]
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      await expect(
+        settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          outputGuard,
+          32000,
+          1024,
+          {
+            commitRuntimeSkillView: vi.fn(),
+            activateSkill: vi.fn()
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'CommittedToolOutcomeProjectionError',
+        code: 'projection_failed',
+        cause: expect.objectContaining({ message: expect.stringContaining('remain inline') })
+      })
+      expect(state.blocks[0]).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
     })
 
     it('keeps a committed tool outcome authoritative when skill activation fails', async () => {
       const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
       const toolService = createMockToolService()
       const commitToolOutcome = vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
       vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
@@ -3423,7 +4050,14 @@ describe('dispatch', () => {
             isError: false,
             toolResult: {
               activationApplied: true,
-              activatedSkill: 'deepchat-settings'
+              activatedSkill: 'deepchat-settings',
+              skillContext: {
+                agentId: 'deepchat',
+                sourceType: 'created',
+                sourceId: '/skills/deepchat-settings',
+                skillName: 'deepchat-settings'
+              },
+              skillResolution
             }
           }
         }
@@ -3459,6 +4093,7 @@ describe('dispatch', () => {
           1024,
           {
             activateSkill: vi.fn().mockRejectedValue(new Error('activation failed')),
+            commitRuntimeSkillView: vi.fn().mockResolvedValue(undefined),
             executionJournal: {
               commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
               commitToolOutcome
@@ -3481,6 +4116,197 @@ describe('dispatch', () => {
       expect(state.blocks[0]).toMatchObject({
         status: 'pending',
         tool_call: { response: '' }
+      })
+    })
+
+    it('does not activate a runtime Skill when its strict Tape commit fails', async () => {
+      const tools = [makeTool('skill_view')]
+      const activateSkill = vi.fn()
+      const skillResolution = makeRuntimeSkillResolution()
+      const toolService = {
+        ...createMockToolService(),
+        callTool: vi.fn().mockImplementation(async (request, options) => {
+          options?.commitDispatch?.({
+            toolName: request.function.name,
+            toolSource: 'mcp',
+            normalizedArguments: { name: 'deepchat-settings' },
+            target: { serverName: 'test-server', originalName: 'skill_view' }
+          })
+          return {
+            content: '{"success":true,"name":"deepchat-settings"}',
+            rawData: {
+              toolCallId: 'tc1',
+              content: '{"success":true,"name":"deepchat-settings"}',
+              isError: false,
+              toolResult: {
+                activationApplied: true,
+                activationSource: 'skill_md',
+                activatedSkill: 'deepchat-settings',
+                skillContext: {
+                  agentId: 'deepchat',
+                  sourceType: 'created',
+                  sourceId: '/skills/deepchat-settings',
+                  skillName: 'deepchat-settings'
+                },
+                skillResolution
+              }
+            }
+          }
+        })
+      } as unknown as ToolServicePort
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      await expect(
+        settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          {
+            commitRuntimeSkillView: vi.fn().mockRejectedValue(new Error('tape unavailable')),
+            activateSkill
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'CommittedToolOutcomeProjectionError',
+        code: 'projection_failed',
+        cause: expect.objectContaining({ message: 'tape unavailable' })
+      })
+
+      expect(activateSkill).not.toHaveBeenCalled()
+      expect(state.blocks[0]).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
+    })
+
+    it('never projects a successful runtime Skill view when cancellation wins after return', async () => {
+      const abortController = new AbortController()
+      const abortIo = createIo({ abortSignal: abortController.signal })
+      const tools = [makeTool('skill_view')]
+      const skillResolution = makeRuntimeSkillResolution()
+      const responseText = JSON.stringify({
+        success: true,
+        name: 'deepchat-settings',
+        content: '# Effective Skill body',
+        activatedForMessage: true,
+        activationScope: 'message',
+        activationEvidenceVersion: 1
+      })
+      const toolService = createMockToolService()
+      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+        options?.commitDispatch?.({
+          toolName: request.function.name,
+          toolSource: 'mcp',
+          normalizedArguments: { name: 'deepchat-settings' },
+          target: { serverName: 'test-server', originalName: 'skill_view' }
+        })
+        return {
+          content: responseText,
+          rawData: {
+            toolCallId: request.id,
+            content: responseText,
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings',
+              skillContext: {
+                agentId: 'deepchat',
+                sourceType: 'created',
+                sourceId: '/skills/deepchat-settings',
+                skillName: 'deepchat-settings'
+              },
+              skillResolution
+            }
+          }
+        }
+      })
+      const commitToolOutcome = vi.fn(() => ({
+        sessionId: 's1',
+        entryId: 2,
+        created: true
+      }))
+      const commitRuntimeSkillView = vi.fn()
+      const activateSkill = vi.fn()
+      const conversation: any[] = []
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      await expect(
+        settleToolBatch(
+          state,
+          conversation,
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          abortIo,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          {
+            resultNormalizer: vi.fn(async ({ content }) => {
+              abortController.abort()
+              return content
+            }),
+            commitRuntimeSkillView,
+            activateSkill,
+            executionJournal: {
+              commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
+              commitToolOutcome
+            }
+          }
+        )
+      ).resolves.toMatchObject({ type: 'completed', executed: 1 })
+
+      expect(commitToolOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseText: 'Error: Runtime Skill view was canceled before activation.',
+          isError: true
+        })
+      )
+      expect(commitRuntimeSkillView).not.toHaveBeenCalled()
+      expect(activateSkill).not.toHaveBeenCalled()
+      expect(JSON.stringify(conversation)).not.toContain('# Effective Skill body')
+      expect(state.blocks[0]).toMatchObject({
+        status: 'error',
+        tool_call: { response: 'Error: Runtime Skill view was canceled before activation.' }
       })
     })
 

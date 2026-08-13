@@ -54,7 +54,10 @@ import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookScope, RuntimeHookSink } from './runtimeHookSink'
 import { ExecutionJournalError, isExecutionJournalError } from '@/tape/domain/executionJournal'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
-import type { TapeViewManifestReader } from '@/tape/ports/capabilities'
+import type {
+  TapeExecutionViewManifestReader,
+  TapeViewManifestReader
+} from '@/tape/ports/capabilities'
 import { resolveDeferredExecutionContract } from './deferredExecutionContract'
 import { CommandShellProfileSchema } from '@shared/commandShell'
 import { isCommandSignatureForProfile } from '@/tool/permission'
@@ -102,7 +105,8 @@ export interface InteractionCoordinatorPorts {
   continuationAdmission: InteractionContinuationAdmissionPort
   publishEvent: DeepChatEventPublisher
   interactionParking: Pick<InteractionParkingRegistry, 'isParked' | 'park'>
-  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'>
+  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'> &
+    TapeExecutionViewManifestReader
 }
 
 export interface InteractionContinuationAdmissionPort {

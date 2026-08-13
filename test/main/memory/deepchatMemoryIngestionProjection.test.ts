@@ -1,6 +1,8 @@
 import { describe, expect, vi } from 'vitest'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
+import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
+import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
 const entriesModule = Database ? await import('@/session/data/tables/deepchatTapeEntries') : null
@@ -185,6 +187,32 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
           data: { count: 1 },
           createdAt: 300
         })
+        const tapeIncarnationId = tape.getBootstrapIncarnation('s1')!
+        const materialization = new TapeSkillMaterializationService({
+          getSkillMaterializationStore: () => tape
+        })
+        const fixtureHash = hashSkillEffectiveContent('fixture')
+        const receipts = materialization.materializeSkillContexts([
+          {
+            sessionId: 's1',
+            expectedTapeIncarnationId: tapeIncarnationId,
+            agentId: 'agent-1',
+            sourceType: 'builtin',
+            sourceId: 'skill-source',
+            skillName: 'memory-isolation',
+            effectiveContent: 'must-not-enter-memory',
+            builderVersion: 'test-builder',
+            renderedManifestHash: fixtureHash,
+            scriptInventoryHash: fixtureHash,
+            executionPackage: {
+              files: [],
+              executables: [],
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              environmentBindingId: null
+            }
+          }
+        ])
+        expect(receipts).toHaveLength(1)
 
         expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(true)
         const currentRange = projection.readCurrentRange('s1', 0, 10)
@@ -206,6 +234,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
             had_tool_use: 0
           }
         ])
+        expect(JSON.stringify(currentRange.rows)).not.toContain('must-not-enter-memory')
         expect(replacement.entry_id).toBeGreaterThan(originalM1EntryId)
       } finally {
         db.close()

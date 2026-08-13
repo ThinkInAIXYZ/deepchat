@@ -16,6 +16,7 @@ import type {
   RateLimitQueueSnapshot
 } from '@shared/types/provider'
 import type {
+  DeepChatTapeSkillContext,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
@@ -30,9 +31,7 @@ import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAg
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import {
-  resolveEffectiveActiveSkillNames
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import {
   createOpaquePromptAssembly,
   reconcilePromptAssembly
@@ -40,18 +39,25 @@ import {
 import type { SessionPermissionPort } from '@/session/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
+  buildRequestContextLedger,
   buildRequestContextBudgetDiagnostics,
   buildRequestContextOverflowErrorMessage,
   capAgentRequestMaxTokens,
   AGENT_CONTEXT_SAFETY_MARGIN_TOKENS,
   estimateToolReserveTokens,
   fitRequestMessagesToContextWindow,
-  preflightRequestContext
+  formatRequestContextLedger,
+  preflightRequestContext,
+  resolveEffectiveContextBudget
 } from '@/agent/deepchat/runtime/contextBudget'
 import type { ContextBuildMetadata } from '@/agent/deepchat/runtime/contextBuilder'
 import type { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
-import { isContextWindowErrorLike } from '@/agent/deepchat/runtime/contextWindowError'
+import {
+  inspectContextOverflow,
+  isContextWindowErrorLike,
+  type ContextOverflowFacts
+} from '@/agent/deepchat/runtime/contextWindowError'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
 import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 import type { SessionTranscript } from '@/session/data/transcript'
@@ -69,7 +75,11 @@ import {
   type TapeViewContextSelection
 } from '@/tape/domain/viewManifest'
 import type { DeepChatLoopTapePort } from '@/tape/ports/capabilities'
-import { buildExecutionContract } from '@/tape/domain/executionContract'
+import {
+  buildExecutionContract,
+  buildProviderMessagesHash,
+  buildProviderVisibleToolDefinitionsHash
+} from '@/tape/domain/executionContract'
 import {
   ExecutionJournalCorruptionError,
   ExecutionJournalError,
@@ -77,7 +87,10 @@ import {
 } from '@/tape/domain/executionJournal'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { RuntimeHookSink } from './runtimeHookSink'
-import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
+import type {
+  DeepChatToolCatalogSnapshot,
+  DeepChatToolResolver
+} from '@/agent/deepchat/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
   DeepChatSessionUpdatePublisher,
@@ -94,8 +107,20 @@ import type {
 } from '@/provider/requestTrace'
 import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
 import type { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
-import type { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import type {
+  DeepChatContextCoordinator,
+  ProviderContextOverflowDisposition
+} from '@/agent/deepchat/loop/contextCoordinator'
+import {
+  collectRuntimeSkillViewProjections,
+  createLoopRun,
+  registerMaterializedSkillContext,
+  registerRuntimeSkillContext
+} from '@/agent/deepchat/loop/loopRun'
+import type {
+  MaterializedSkillProjection,
+  RuntimeSkillExecutionMaterializer
+} from './skillContextMaterializer'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
 import {
   buildContextCheckpoint,
@@ -196,6 +221,7 @@ export type DeepChatLoopRunInput = {
   providerModelFacts?: ProviderModelRuntimeFacts
   taskContractContext: DeepChatTaskContractContext | null
   tools?: MCPToolDefinition[]
+  toolCatalogSnapshot?: DeepChatToolCatalogSnapshot
   commandShell: ResolvedCommandShell
   baseSystemPrompt?: string
   basePromptAssembly?: DeepChatPromptAssembly
@@ -207,10 +233,7 @@ export type DeepChatLoopRunInput = {
   search?: boolean
   interleavedReasoning?: InterleavedReasoningConfig
   viewContext?: PendingTapeViewContext
-  refreshSystemPrompt?: (
-    activeSkillNames: string[] | undefined,
-    toolDefinitions: MCPToolDefinition[]
-  ) => Promise<DeepChatPromptAssembly | string>
+  materializedSkillContexts?: readonly MaterializedSkillProjection[]
   maxProviderRounds?: number
   onBeforeProviderStream?: () => void
   onRunRegistered?: (runId: string) => void
@@ -237,6 +260,10 @@ export interface AppendTapeViewManifestInput {
   contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
   executionContract?: DeepChatExecutionContract
+  runId?: string
+  tapeIncarnationId?: string
+  skillContexts?: DeepChatTapeSkillContext[]
+  requireDurableManifest?: boolean
 }
 
 export interface DeepChatLoopRunnerPorts {
@@ -261,6 +288,7 @@ export interface DeepChatLoopRunnerPorts {
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'getEffectiveGenerationSettings'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
+  skillContextMaterializer: RuntimeSkillExecutionMaterializer
   runLifecycle: LoopRunLifecyclePort
   identity: Pick<
     SessionIdentityService,
@@ -316,17 +344,54 @@ function normalizeObservedToolCalls(value: number | undefined): number {
 }
 
 function buildProviderContextOverflowAfterRecoveryErrorMessage(
-  preflight: ReturnType<typeof preflightRequestContext>
+  preflight: ReturnType<typeof preflightRequestContext>,
+  ledger: ReturnType<typeof buildRequestContextLedger>,
+  facts: ContextOverflowFacts | undefined,
+  configuredContextLength: number,
+  sessionObservation: {
+    providerContextLimitTokens?: number
+    providerPromptLimitTokens?: number
+    metadataSuspect: boolean
+  } | undefined,
+  disposition: ProviderContextOverflowDisposition = 'provider_rejected_retry'
 ): string {
   const diagnostics = buildRequestContextBudgetDiagnostics(preflight)
   const formatTokenCount = (value: number): string =>
     Number.isFinite(value) ? String(Math.floor(value)) : 'unknown'
 
+  const providerFacts =
+    facts?.confidence === 'explicit'
+      ? `Provider observation: ${facts.actualTokens === undefined ? 'actual token count not reported' : `actual ${formatTokenCount(facts.actualTokens)} tokens`}, ${facts.limitTokens === undefined ? 'limit not reported' : `limit ${formatTokenCount(facts.limitTokens)} tokens`}.`
+      : 'The provider did not report a numeric context limit for this rejection.'
+  const sessionCeiling = [
+    sessionObservation?.providerContextLimitTokens
+      ? `explicit total-context limit ${formatTokenCount(sessionObservation.providerContextLimitTokens)} tokens`
+      : null,
+    sessionObservation?.providerPromptLimitTokens
+      ? `explicit prompt limit ${formatTokenCount(sessionObservation.providerPromptLimitTokens)} tokens`
+      : null
+  ].filter((value): value is string => Boolean(value))
+  const sessionCeilingMessage =
+    sessionCeiling.length > 0
+      ? ` This Session is using the provider's ${sessionCeiling.join(' and ')} as local ceilings.`
+      : ''
+  const metadataGuidance = sessionObservation?.metadataSuspect
+    ? ' The configured model context metadata may be inaccurate; check the custom model settings.'
+    : ''
+  const summary =
+    disposition === 'retry_projection_unchanged'
+      ? 'The provider reported a context overflow. DeepChat skipped a second provider call because recovery would not remove or rewrite any provider messages; lowering only the requested output limit is not a reliable recovery for an input overflow.'
+      : disposition === 'retry_projection_cannot_fit'
+        ? 'The provider reported a context overflow. After applying the available context ceiling, the protected request still cannot fit, so DeepChat did not send a doomed retry.'
+        : 'The provider still reported a context overflow after DeepChat compacted or trimmed the request.'
+
   return [
-    'The provider still reported a context overflow after DeepChat compacted or trimmed the request.',
+    summary,
     `DeepChat local estimate: usable context ${formatTokenCount(diagnostics.usableContextLength)} tokens, estimated input ${formatTokenCount(diagnostics.inputTokens)} tokens, tool schemas ${formatTokenCount(diagnostics.toolReserveTokens)} tokens, requested output ${formatTokenCount(diagnostics.requestedMaxTokens)} tokens, effective output ${formatTokenCount(diagnostics.effectiveMaxTokens)} tokens, remaining output room ${formatTokenCount(diagnostics.remainingOutputTokens)} tokens.`,
+    `${providerFacts} Configured context length: ${formatTokenCount(configuredContextLength)} tokens.${sessionCeilingMessage}${metadataGuidance}`,
+    formatRequestContextLedger(ledger),
     'The provider may count tokens, system prompts, or tool schemas differently. Try shortening the latest input or attachments, reducing active tools, skills, or system prompt content, lowering max output tokens, or increasing context length.'
-  ].join(' ')
+  ].join('\n')
 }
 
 function selectProcessTerminal(result: ProcessResult): ProcessTerminalSelection {
@@ -388,6 +453,7 @@ export class DeepChatLoopRunner {
       providerModelFacts: providedProviderModelFacts,
       taskContractContext,
       tools: providedTools,
+      toolCatalogSnapshot: providedToolCatalogSnapshot,
       commandShell,
       baseSystemPrompt,
       basePromptAssembly,
@@ -399,7 +465,7 @@ export class DeepChatLoopRunner {
       search,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
-      refreshSystemPrompt,
+      materializedSkillContexts = [],
       maxProviderRounds,
       onBeforeProviderStream,
       onRunRegistered,
@@ -494,6 +560,50 @@ export class DeepChatLoopRunner {
       this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId),
       this.ports.tape.getMaxProviderAttemptRequestSeq(sessionId, messageId)
     )
+    const tapeIncarnationId = this.ports.tape.getTapeIncarnationId(sessionId)
+    const runtimeSkillViewProjections = collectRuntimeSkillViewProjections(
+      messages,
+      initialBlocks ?? []
+    )
+    let recoveredRuntimeSkillContexts = [] as ReturnType<
+      DeepChatLoopTapePort['recoverRuntimeSkillViewContexts']
+    >
+    if (runtimeSkillViewProjections.length > 0) {
+      const message = this.ports.messageStore.getMessage(messageId)
+      if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
+        throw new Error('Runtime Skill-view recovery lost its assistant message identity.')
+      }
+      recoveredRuntimeSkillContexts = this.ports.tape.recoverRuntimeSkillViewContexts({
+        sessionId,
+        messageId,
+        messageOrderSeq: message.orderSeq,
+        expectedTapeIncarnationId: tapeIncarnationId,
+        projections: runtimeSkillViewProjections
+      })
+    }
+    const activeAgentId =
+      resourceInstance.getAgentId()?.trim() ||
+      this.ports.identity.getAgentId(sessionId) ||
+      'deepchat'
+    for (const projection of materializedSkillContexts) {
+      if (projection.context.agentId !== activeAgentId) {
+        throw new Error('Materialized Skill context belongs to another DeepChat Agent.')
+      }
+      if (
+        projection.ref.sessionId !== sessionId ||
+        projection.ref.tapeIncarnationId !== tapeIncarnationId
+      ) {
+        throw new Error(
+          'Materialized Skill context belongs to another Session or Tape incarnation.'
+        )
+      }
+    }
+    for (const recovered of recoveredRuntimeSkillContexts) {
+      if (recovered.identity.agentId !== activeAgentId) {
+        throw new Error('Recovered runtime Skill context belongs to another DeepChat Agent.')
+      }
+      resourceInstance.activateRuntimeSkill(recovered.identity.skillName)
+    }
     const temperature = generationSettings.temperature
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
     const effectiveSystemPrompt =
@@ -508,35 +618,54 @@ export class DeepChatLoopRunner {
       effectiveSystemPrompt
     )
 
-    const streamSessionActiveSkillNames = await awaitWithAbort(
-      this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
-      abortSignal
-    )
-    resourceScope.assertCurrent()
-    const streamExtensionPolicy = await awaitWithAbort(
-      this.ports.toolResolver.resolveAgentExtensionPolicy(sessionId, resourceInstance),
-      abortSignal
-    )
-    resourceScope.assertCurrent()
-    const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
-      resolveEffectiveActiveSkillNames(baseSkillNames, resourceInstance)
+    let catalogActiveSkillNames = [...(providedToolCatalogSnapshot?.activeSkillNames ?? [])]
+    let catalogEnabledMcpServerIds = providedToolCatalogSnapshot?.enabledMcpServerIds
+    if (!providedToolCatalogSnapshot) {
+      const compatibleSessionActiveSkillNames = await awaitWithAbort(
+        this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
+        abortSignal
+      )
+      resourceScope.assertCurrent()
+      const compatibleExtensionPolicy = await awaitWithAbort(
+        this.ports.toolResolver.resolveAgentExtensionPolicy(sessionId, resourceInstance),
+        abortSignal
+      )
+      resourceScope.assertCurrent()
+      catalogActiveSkillNames = resolveEffectiveActiveSkillNames(
+        compatibleSessionActiveSkillNames,
+        resourceInstance
+      )
+      catalogEnabledMcpServerIds = this.ports.toolResolver.normalizeNullablePolicyList(
+        compatibleExtensionPolicy.enabledMcpServerIds
+      )
+    }
+    const getCandidateActiveSkillNames = () =>
+      resolveEffectiveActiveSkillNames(catalogActiveSkillNames, resourceInstance)
     const unconstrainedToolCatalog = this.ports.toolResolver.createSessionToolCatalogPort(
       sessionId,
       projectDir,
-      resourceInstance
+      resourceInstance,
+      (snapshot) => {
+        catalogActiveSkillNames = [...snapshot.activeSkillNames]
+        catalogEnabledMcpServerIds = snapshot.enabledMcpServerIds
+      }
     )
     const toolCatalog = {
-      resolve: async (request?: { activeSkillNames?: string[] }) => {
+      resolve: async (request?: { activeSkillNames?: string[]; failClosed?: boolean }) => {
         const resolved = await unconstrainedToolCatalog.resolve(request)
         return meetTaskContractToolDefinitions(sessionId, resolved, taskContractContext)
       }
     }
     const tools =
-      providedTools ??
-      (await awaitWithAbort(
-        toolCatalog.resolve({ activeSkillNames: getEffectiveRuntimeSkillNames() }),
-        abortSignal
-      ))
+      providedTools && providedToolCatalogSnapshot && recoveredRuntimeSkillContexts.length === 0
+        ? providedTools
+        : await awaitWithAbort(
+            toolCatalog.resolve({
+              activeSkillNames: getCandidateActiveSkillNames(),
+              failClosed: recoveredRuntimeSkillContexts.length > 0
+            }),
+            abortSignal
+          )
     resourceScope.assertCurrent()
     const { supportsVision, supportsAudioInput } = resolveProviderInputCapabilities(
       this.ports.providerSettings,
@@ -555,12 +684,29 @@ export class DeepChatLoopRunner {
       streamState: createState(),
       resources: {
         toolDefinitions: tools,
-        activeSkillNames: getEffectiveRuntimeSkillNames(),
+        activeSkillNames: [...catalogActiveSkillNames],
         promptAssembly: initialPromptAssembly,
         commandShell
       },
       initialRequestSeq
     })
+    loopRun.resources.tapeIncarnationId = tapeIncarnationId
+    for (const projection of materializedSkillContexts) {
+      const providerMessageIndex =
+        projection.scope === 'session'
+          ? 0
+          : loopRun.messages.findLastIndex((message) => message.role === 'user')
+      registerMaterializedSkillContext(loopRun, {
+        tapeIncarnationId: projection.ref.tapeIncarnationId,
+        effectiveContent: projection.effectiveContent,
+        completeBodyFragment: projection.completeBodyFragment,
+        providerMessageIndex,
+        context: projection.context
+      })
+    }
+    for (const recovered of recoveredRuntimeSkillContexts) {
+      registerRuntimeSkillContext(loopRun, recovered)
+    }
     const runStarted = this.ports.tape.commitRunStarted({
       sessionId,
       runId: loopRun.runId,
@@ -676,26 +822,6 @@ export class DeepChatLoopRunner {
         maxProviderRounds,
         providerReplayProjector,
         toolCatalog,
-        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          if (refreshSystemPrompt) {
-            const refreshed = await refreshSystemPrompt(
-              getEffectiveRuntimeSkillNames(activeSkillNames),
-              refreshedTools
-            )
-            return typeof refreshed === 'string'
-              ? createOpaquePromptAssembly(refreshed)
-              : refreshed
-          }
-          return await this.ports.promptAssembly
-            .createBasePromptAssembler(resourceInstance)
-            .assembleWithProvenance({
-              sessionId: toAppSessionId(sessionId),
-              configuredPrompt: generationSettings.systemPrompt,
-              toolDefinitions: refreshedTools,
-              activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames),
-              commandShell: loopRun.resources.commandShell
-            })
-        },
         toolExecution: this.ports.toolExecutionPort,
         toolResults: this.ports.toolResultPort,
         coreStream: async function* (
@@ -715,6 +841,35 @@ export class DeepChatLoopRunner {
           const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
           // ACP and non-chat media routes are not safe to replay before their first visible event.
           const allowTransientRetry = !requestBypassesContextBudget && !isTtsRequest
+          const getEffectiveContextBudget = (requestedMaxTokens: number) => {
+            const observation = resourceInstance.getContextWindowObservation(
+              state.providerId,
+              requestModelId
+            )
+            return resolveEffectiveContextBudget({
+              configuredContextLength: requestModelConfig.contextLength,
+              requestedMaxTokens,
+              providerContextLimitTokens: observation?.providerContextLimitTokens,
+              providerPromptLimitTokens: observation?.providerPromptLimitTokens
+            })
+          }
+          const buildCurrentContextLedger = (
+            preflight: ReturnType<typeof preflightRequestContext>
+          ) =>
+            buildRequestContextLedger({
+              preflight,
+              promptAssembly: loopRun.resources.promptAssembly,
+              contextContributions: activeContextContributions,
+              skills: loopRun.resources.materializedSkillContexts.map((binding) => ({
+                scope: binding.context.activationScope === 'session' ? 'session' : 'message',
+                name: binding.context.skillName,
+                effectiveContent: binding.effectiveContent
+              })),
+              runtimeSkills: loopRun.resources.runtimeSkillContexts.map((binding) => ({
+                name: binding.context.skillName,
+                toolCallId: binding.toolCallId
+              }))
+            })
           let queuedForRateLimit = false
           yield* ports.contextCoordinator.streamProviderAttempts({
             run: loopRun,
@@ -733,29 +888,48 @@ export class DeepChatLoopRunner {
             viewContext,
             budget: {
               estimateToolReserveTokens,
-              preflight: ({ messages, tools, requestedMaxTokens }) =>
-                preflightRequestContext({
+              preflight: ({ messages, tools, requestedMaxTokens }) => {
+                const budget = getEffectiveContextBudget(requestedMaxTokens)
+                return preflightRequestContext({
                   messages,
                   tools,
-                  contextLength: requestModelConfig.contextLength,
+                  contextLength: budget.contextLength,
+                  outputCapContextLength: budget.outputCapContextLength,
                   requestedMaxTokens,
                   contextContributions: activeContextContributions
-                }),
-              fitStrictRetry: ({ messages, reserveTokens }) =>
+                })
+              },
+              fitStrictRetry: ({ messages, reserveTokens, requestedMaxTokens }) =>
                 fitRequestMessagesToContextWindow({
                   messages,
-                  contextLength: requestModelConfig.contextLength,
+                  contextLength: getEffectiveContextBudget(requestedMaxTokens).contextLength,
                   reserveTokens,
                   minimumProtectedTailCount: 0,
                   contextContributions: activeContextContributions
                 }),
               getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
               getStrictRetryExtraReserve: () =>
-                getProviderOverflowRetryExtraReserve(requestModelConfig.contextLength),
+                getProviderOverflowRetryExtraReserve(
+                  getEffectiveContextBudget(requestMaxTokens).contextLength
+                ),
               buildOverflowError: (preflight) =>
-                new Error(buildRequestContextOverflowErrorMessage(preflight)),
-              buildOverflowAfterRecoveryError: (preflight) =>
-                new Error(buildProviderContextOverflowAfterRecoveryErrorMessage(preflight))
+                new Error(
+                  buildRequestContextOverflowErrorMessage(
+                    preflight,
+                    buildCurrentContextLedger(preflight)
+                  )
+                ),
+              buildOverflowAfterRecoveryError: (preflight, facts, disposition) =>
+                new Error(
+                  buildProviderContextOverflowAfterRecoveryErrorMessage(
+                    preflight,
+                    buildCurrentContextLedger(preflight),
+                    facts,
+                    requestModelConfig.contextLength,
+                    resourceInstance.getContextWindowObservation(state.providerId, requestModelId),
+                    disposition
+                  )
+                )
             },
             recovery: {
               recover: async ({ requestMessages, requestedMaxTokens, tools }) =>
@@ -765,7 +939,7 @@ export class DeepChatLoopRunner {
                   modelId: requestModelId,
                   requestMessages,
                   baseSystemPrompt,
-                  contextLength: requestModelConfig.contextLength,
+                  contextLength: getEffectiveContextBudget(requestedMaxTokens).contextLength,
                   requestedMaxTokens,
                   tools,
                   supportsVision,
@@ -856,6 +1030,15 @@ export class DeepChatLoopRunner {
                     error instanceof Error ? error.message : String(error)
                   }`
                 )
+            },
+            authority: {
+              assertCurrent: ({ authority, messages, tools }) => {
+                ports.tape.assertSkillRequestAuthority({
+                  ...authority,
+                  promptHash: buildProviderMessagesHash(messages),
+                  toolDefinitionsHash: buildProviderVisibleToolDefinitionsHash(tools)
+                })
+              }
             },
             rateGate: {
               beforeWait: crossPreStreamBoundary,
@@ -965,6 +1148,15 @@ export class DeepChatLoopRunner {
             },
             isContextOverflowEvent: isFirstProviderContextOverflowEvent,
             isContextOverflowError: isContextWindowErrorLike,
+            inspectContextOverflow,
+            onContextOverflowFacts: (facts) =>
+              resourceInstance.recordContextWindowObservation({
+                providerId: state.providerId,
+                modelId: requestModelId,
+                confidence: facts.confidence,
+                limitTokens: facts.limitTokens,
+                limitScope: facts.limitScope
+              }),
             createAbortError
           })
         },
@@ -984,11 +1176,8 @@ export class DeepChatLoopRunner {
           Boolean(this.ports.pendingInputCoordinator.getNextSteerInput(sessionId)),
         notificationObserver: hooks.toolObserver(),
         controls: {
-          getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
-          getEnabledMcpServerIds: () =>
-            this.ports.toolResolver.normalizeNullablePolicyList(
-              streamExtensionPolicy.enabledMcpServerIds
-            ),
+          getActiveSkillNames: getCandidateActiveSkillNames,
+          getEnabledMcpServerIds: () => catalogEnabledMcpServerIds,
           getAgentId: () =>
             resourceInstance.getAgentId()?.trim() ||
             this.ports.identity.getAgentId(sessionId) ||
@@ -1000,10 +1189,62 @@ export class DeepChatLoopRunner {
               resourceInstance
             )
             if (!validated.includes(skillName)) {
-              return getEffectiveRuntimeSkillNames()
+              return getCandidateActiveSkillNames()
             }
             resourceInstance.activateRuntimeSkill(skillName)
-            return getEffectiveRuntimeSkillNames()
+            return getCandidateActiveSkillNames()
+          },
+          commitRuntimeSkillView: async (input) => {
+            const tapeIncarnationId = loopRun.resources.tapeIncarnationId
+            if (!tapeIncarnationId) {
+              throw new Error('Loop Run is not bound to a Session Tape incarnation.')
+            }
+            const message = this.ports.messageStore.getMessage(messageId)
+            if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
+              throw new Error('Runtime Skill-view result lost its assistant message identity.')
+            }
+            let result: Record<string, unknown>
+            try {
+              const parsed = JSON.parse(input.responseText) as unknown
+              if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error()
+              result = parsed as Record<string, unknown>
+            } catch {
+              throw new Error('Runtime Skill-view result cannot materialize execution authority.')
+            }
+            if (typeof result.content !== 'string' || !result.content) {
+              throw new Error('Runtime Skill-view result has no effective content to materialize.')
+            }
+            if (result.content !== input.resolution.effectiveContent) {
+              throw new Error('Runtime Skill-view result does not match its execution snapshot.')
+            }
+            const receipt = this.ports.tape.appendSkillViewResultFact({
+              sessionId,
+              expectedTapeIncarnationId: tapeIncarnationId,
+              messageId,
+              orderSeq: message.orderSeq,
+              blockIndex: input.blockIndex,
+              toolCallId: input.toolCallId,
+              toolName: 'skill_view',
+              responseText: input.responseText,
+              timestamp: input.timestamp,
+              identity: input.resolution.identity,
+              operation: input.operation,
+              outcomeEntryId: input.outcomeEntryId
+            })
+            const executionRef = await this.ports.skillContextMaterializer.materializeRuntimeView({
+              sessionId,
+              expectedTapeIncarnationId: tapeIncarnationId,
+              resolution: input.resolution,
+              abortSignal
+            })
+            registerRuntimeSkillContext(loopRun, {
+              identity: input.resolution.identity,
+              toolCallId: input.toolCallId,
+              entryId: receipt.entryId,
+              tapeIncarnationId: receipt.tapeIncarnationId,
+              contentHash: receipt.contentHash,
+              executionRef
+            })
           },
           onStreamingProviderPermission: (permission, tool, commitDecision) => {
             this.ports.providerPermissionCoordinator.register(
@@ -1103,7 +1344,10 @@ export class DeepChatLoopRunner {
     }
   }
 
-  appendTapeViewManifest(params: AppendTapeViewManifestInput): void {
+  appendTapeViewManifest(params: AppendTapeViewManifestInput): {
+    manifestHash: string
+    tapeIncarnationId?: string
+  } {
     const sourceMaps = this.ports.tape.getViewManifestSourceMaps(
       params.sessionId,
       params.messageId
@@ -1144,9 +1388,24 @@ export class DeepChatLoopRunner {
       supportsVision: params.supportsVision,
       supportsAudioInput: params.supportsAudioInput,
       traceDebugEnabled: params.traceDebugEnabled,
-      ...(params.executionContract ? { executionContract: params.executionContract } : {})
+      ...(params.executionContract ? { executionContract: params.executionContract } : {}),
+      ...(params.runId !== undefined ? { runId: params.runId } : {}),
+      ...(params.tapeIncarnationId !== undefined
+        ? { tapeIncarnationId: params.tapeIncarnationId }
+        : {}),
+      ...(params.skillContexts?.length ? { skillContexts: params.skillContexts } : {}),
+      ...(params.requireDurableManifest !== undefined
+        ? { requireDurableManifest: params.requireDurableManifest }
+        : {})
     })
     this.ports.tape.appendViewManifest(manifest)
+    return {
+      manifestHash: manifest.hashes.manifestHash,
+      ...((manifest.schemaVersion === 6 || manifest.schemaVersion === 7) &&
+      manifest.tapeIncarnationId
+        ? { tapeIncarnationId: manifest.tapeIncarnationId }
+        : {})
+    }
   }
 
   emitRateLimitWaitingMessage(

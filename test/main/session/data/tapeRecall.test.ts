@@ -21,6 +21,8 @@ import {
   createRecord,
   createTapeService
 } from './tapeTestHarness'
+import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
+import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -680,6 +682,80 @@ describe('SessionTape recall', () => {
     expect(exhaustedContext.matchedEntryIds).toEqual([])
   })
 
+  it('keeps physical context facts out of fallback search and context windows', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    const first = table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'm1', seq: 0 },
+      payload: {
+        record: createRecord({
+          id: 'm1',
+          orderSeq: 1,
+          content: JSON.stringify({ text: 'visible before', files: [], links: [] })
+        })
+      },
+      meta: { status: 'sent' }
+    })
+    const hidden = table.append({
+      sessionId: 's1',
+      kind: 'context',
+      name: 'skill/materialized',
+      source: { type: 'runtime_event', id: 'skill-source', seq: 0 },
+      payload: { effectiveContent: 'private-skill-materialization-needle' },
+      meta: {}
+    })
+    const second = table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'm2', seq: 0 },
+      payload: {
+        record: createRecord({
+          id: 'm2',
+          orderSeq: 2,
+          content: JSON.stringify({ text: 'visible after', files: [], links: [] })
+        })
+      },
+      meta: { status: 'sent' }
+    })
+
+    expect(service.search('s1', 'private-skill-materialization-needle')).toEqual([])
+    expect(table.search('s1', 'private-skill-materialization-needle')).toEqual([])
+    expect(service.getBySession('s1').some((entry) => entry.kind === 'context')).toBe(false)
+    expect(service.getContext('s1', [hidden.entry_id])).toMatchObject({
+      requestedEntryIds: [hidden.entry_id],
+      matchedEntryIds: [],
+      entries: []
+    })
+    expect(
+      service
+        .getContext('s1', [first.entry_id], { before: 0, after: 2 })
+        .entries.map((entry) => entry.entryId)
+    ).toEqual([first.entry_id, second.entry_id])
+    expect(service.getEffectiveMessageSourceSpan('s1', [hidden.entry_id])).toEqual([])
+  })
+
+  it('keeps ViewManifest audit payloads out of fallback search', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'm1', seq: 1 },
+      data: {
+        manifest: {
+          executionContract: { workspace: { path: '/private/workspace/manifest-secret' } }
+        }
+      },
+      meta: { viewId: 'view-1' }
+    })
+
+    expect(service.search('s1', 'manifest-secret')).toEqual([])
+  })
+
   it('projects user message attachment metadata into search text and refs', () => {
     const { table } = createTapeTableMock()
     const projectionTable = {
@@ -1273,7 +1349,7 @@ describe('SessionTape recall', () => {
 
     const hits = service.search('s1', 'Redis compact', { limit: 5 })
 
-    expect(table.getMaxEntryId).toHaveBeenCalledWith('s1')
+    expect(table.getMaxEntryIdExcludingContext).toHaveBeenCalledWith('s1')
     expect(table.getBySession).not.toHaveBeenCalled()
     expect(projectionTable.search).toHaveBeenCalledWith(
       's1',
@@ -2036,6 +2112,65 @@ describe('SessionTape recall', () => {
             'new linked marker'
           )
         ).toEqual([])
+      } finally {
+        db.close()
+      }
+    }
+  )
+
+  itIfSqlite(
+    `keeps materialized Skill bodies out of linked search and context${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const table = new DeepChatTapeEntriesTable(db)
+        table.createTable()
+        table.ensureBootstrapAnchor('child-context')
+        const tapeIncarnationId = table.getBootstrapIncarnation('child-context')!
+        const materialization = new TapeSkillMaterializationService({
+          getSkillMaterializationStore: () => table
+        })
+        const fixtureHash = hashSkillEffectiveContent('fixture')
+        materialization.materializeSkillContexts([
+          {
+            sessionId: 'child-context',
+            expectedTapeIncarnationId: tapeIncarnationId,
+            agentId: 'agent-1',
+            sourceType: 'builtin',
+            sourceId: 'skill-source',
+            skillName: 'linked-isolation',
+            effectiveContent: 'must-not-enter-linked-reads',
+            builderVersion: 'test-builder',
+            renderedManifestHash: fixtureHash,
+            scriptInventoryHash: fixtureHash,
+            executionPackage: {
+              files: [],
+              executables: [],
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              environmentBindingId: null
+            }
+          }
+        ])
+        const visibleEntry = table.appendEvent({
+          sessionId: 'child-context',
+          name: 'child/visible',
+          data: { marker: 'linked-visible-marker' }
+        })
+        const source = {
+          sessionId: 'child-context',
+          maxEntryId: table.getMaxEntryId('child-context')
+        }
+
+        expect(
+          table.searchEffectiveSourcesAtHeads([source], 'must-not-enter-linked-reads')
+        ).toEqual([])
+        const contextRows = table.getEffectiveContextRowsAtHead(source, [visibleEntry.entry_id], {
+          before: 10,
+          after: 10,
+          limit: 20
+        })
+        expect(contextRows.some((row) => row.kind === 'context')).toBe(false)
+        expect(JSON.stringify(contextRows)).not.toContain('must-not-enter-linked-reads')
       } finally {
         db.close()
       }
@@ -2806,6 +2941,8 @@ describe('SessionTape recall', () => {
         const projectionTable = new DeepChatTapeSearchProjectionTable(db)
         table.createTable()
         projectionTable.createTable()
+        table.ensureBootstrapAnchor('s1')
+        const tapeIncarnationId = table.getBootstrapIncarnation('s1')!
         const service = new SessionTape({
           deepchatTapeEntriesTable: table,
           deepchatTapeSearchProjectionTable: projectionTable,
@@ -2864,6 +3001,37 @@ describe('SessionTape recall', () => {
         expect(service.search('s1', 'Redis TTL', { limit: 5 }).map((hit) => hit.entryId)).toContain(
           pathHits[0].entryId
         )
+        const replaceProjection = vi.spyOn(projectionTable, 'replaceSession')
+        const effectiveContent = 'private-skill-materialization-needle'
+        const fixtureHash = hashSkillEffectiveContent(effectiveContent)
+        const [receipt] = new TapeSkillMaterializationService({
+          getSkillMaterializationStore: () => table
+        }).materializeSkillContexts([
+          {
+            sessionId: 's1',
+            expectedTapeIncarnationId: tapeIncarnationId,
+            agentId: 'agent-1',
+            sourceType: 'builtin',
+            sourceId: 'skill-source',
+            skillName: 'projection-isolation',
+            effectiveContent,
+            builderVersion: 'test-builder',
+            renderedManifestHash: fixtureHash,
+            scriptInventoryHash: fixtureHash,
+            executionPackage: {
+              files: [],
+              executables: [],
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              environmentBindingId: null
+            }
+          }
+        ])
+        const contextFact = table.getByEntryId('s1', receipt.entryId)!
+        expect(table.getMaxEntryId('s1')).toBe(contextFact.entry_id)
+        expect(table.getMaxEntryIdExcludingContext('s1')).toBeLessThan(contextFact.entry_id)
+        expect(service.search('s1', 'Redis TTL', { limit: 5 })).toHaveLength(1)
+        expect(replaceProjection).not.toHaveBeenCalled()
+        replaceProjection.mockRestore()
         const errorHits = service.search('s1', '42', { kinds: ['tool_result'], limit: 5 })
         expect(errorHits[0]).toMatchObject({
           refs: {
@@ -2872,7 +3040,10 @@ describe('SessionTape recall', () => {
             exitStatus: 42
           }
         })
-        expect(projectionTable.isCurrent('s1', table.getMaxEntryId('s1'))).toBe(true)
+        expect(projectionTable.isCurrent('s1', table.getMaxEntryIdExcludingContext('s1'))).toBe(
+          true
+        )
+        expect(projectionTable.isCurrent('s1', table.getMaxEntryId('s1'))).toBe(false)
 
         table.append({
           sessionId: 's1',

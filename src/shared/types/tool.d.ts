@@ -30,6 +30,7 @@ export type AgentToolProgressUpdate =
 export interface ToolDefinitionContext {
   enabledMcpTools?: string[]
   enabledMcpServerIds?: string[]
+  requireCompleteCatalog?: boolean
   agentId?: string
   disabledAgentTools?: string[]
   chatMode?: 'agent' | 'acp agent'
@@ -45,6 +46,8 @@ export interface ToolCallOptions {
   runId?: string
   messageId?: string
   requestSeq?: number
+  manifestHash?: string
+  tapeIncarnationId?: string
   executionContract?: DeepChatExecutionContract
   onProgress?: (update: AgentToolProgressUpdate) => void
   signal?: AbortSignal

@@ -179,6 +179,9 @@ function createProjectionHarness() {
       getLatestSummaryAnchor: vi.fn(),
       getBySession: vi.fn((sessionId: string) =>
         tapeRows.filter((row) => row.session_id === sessionId)
+      ),
+      getBySessionExcludingContext: vi.fn((sessionId: string) =>
+        tapeRows.filter((row) => row.session_id === sessionId && row.kind !== 'context')
       )
     }
   } as unknown as MainDatabase

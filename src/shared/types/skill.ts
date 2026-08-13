@@ -11,10 +11,30 @@ import type {
   SkillDeleteResult,
   SkillManagementState,
   SkillSyncDirectoryConfig,
+  SkillSourceType,
   UnifiedSkillItem
 } from './skillManagement'
 
 export const SKILL_ARCHIVE_MAX_INPUT_BYTES = 200 * 1024 * 1024
+export const SKILL_NAME_MAX_LENGTH = 255
+export const SKILL_EFFECTIVE_CONTENT_MAX_BYTES = 512 * 1024
+export const SKILL_EFFECTIVE_CONTENT_MAX_BATCH_BYTES = 2 * 1024 * 1024
+export const SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES = SKILL_EFFECTIVE_CONTENT_MAX_BYTES + 256 * 1024
+export const SKILL_EXECUTION_PACKAGE_MAX_FILE_BYTES = 512 * 1024
+export const SKILL_EXECUTION_PACKAGE_MAX_FILES = 256
+export const SKILL_EXECUTION_PACKAGE_MAX_BYTES = 4 * 1024 * 1024
+export const SKILL_EXECUTION_PACKAGE_MAX_DIRECTORIES = 256
+export const SKILL_EXECUTION_PACKAGE_MAX_DEPTH = 16
+export const SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES = 4096
+export const SKILL_EXECUTION_PACKAGE_MAX_SUPPORT_PATHS = 16
+export const SKILL_EXECUTION_PACKAGE_MAX_BATCH_BYTES = 16 * 1024 * 1024
+export const SKILL_EXECUTION_PACKAGE_MAX_ENCODED_BYTES = 7 * 1024 * 1024
+export const SKILL_EXECUTION_PACKAGE_MAX_BATCH_ENCODED_BYTES = 28 * 1024 * 1024
+export const SKILL_RUN_MAX_ARGUMENTS = 128
+export const SKILL_RUN_MAX_ARGUMENT_CHARS = 8 * 1024
+export const SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS = 24 * 1024
+export const SKILL_RUN_MAX_STDIN_CHARS = 1024 * 1024
+export const SKILL_RUN_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 /**
  * Skill metadata extracted from SKILL.md frontmatter.
@@ -37,6 +57,8 @@ export interface SkillMetadata {
   metadata?: Record<string, unknown>
   /** Optional additional tools required by this skill */
   allowedTools?: string[]
+  /** Explicit non-executable paths required by scripts at runtime. */
+  executionSupportPaths?: string[]
   /** Plugin owner id when the skill is contributed by a plugin */
   ownerPluginId?: string
   /** DeepChat-owned resource exposed read-only without copying into an Agent Skill root */
@@ -52,6 +74,45 @@ export interface SkillContent {
   name: string
   /** Full SKILL.md content (body after frontmatter) */
   content: string
+}
+
+/** Canonical main-process identity for a Skill body materialized from disk. */
+export interface EffectiveSkillContentIdentity {
+  agentId: string
+  sourceType: SkillSourceType
+  sourceId: string
+  skillName: string
+}
+
+/** Main-process-only source snapshot used to materialize a bounded Skill execution package. */
+export interface EffectiveSkillExecutionPackage {
+  files: Array<{
+    relativePath: string
+    base64: string
+    byteCount: number
+    sha256: string
+  }>
+  executables: Array<{
+    relativePath: string
+    runtime: SkillScriptRuntime
+    enabled: boolean
+  }>
+  runtimePolicy: SkillRuntimePolicy
+  /**
+   * Opaque version of an external environment binding. Secret values remain in Skill settings and
+   * execution must fail closed when the current binding no longer matches this identifier.
+   */
+  environmentBindingId: string | null
+}
+
+/** Fresh canonical Skill content and evidence used by internal runtime materializers. */
+export interface EffectiveSkillContentResolution {
+  identity: EffectiveSkillContentIdentity
+  effectiveContent: string
+  builderVersion: string
+  renderedManifestHash: string
+  scriptInventoryHash: string
+  executionPackage: EffectiveSkillExecutionPackage
 }
 
 export type SkillRuntimePreference = 'auto' | 'system' | 'builtin'
@@ -210,12 +271,35 @@ export interface SkillState {
  */
 export interface SkillListItem {
   name: string
-  description: string
-  category?: string | null
+  description?: string
+  category?: string
   platforms?: string[]
-  metadata?: Record<string, unknown>
+  sessionActive: boolean
+  activeForExecution: boolean
+  /** @deprecated Use sessionActive. */
   isPinned: boolean
-  active?: boolean
+  /** @deprecated Use activeForExecution. */
+  active: boolean
+}
+
+export interface SkillListInput {
+  query?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface SkillListResult {
+  skills: SkillListItem[]
+  sessionActiveCount: number
+  activeForExecutionCount: number
+  /** @deprecated Use sessionActiveCount. */
+  pinnedCount: number
+  /** @deprecated Use activeForExecutionCount. */
+  activeCount: number
+  totalCount: number
+  totalMatched: number
+  omittedCount: number
+  nextCursor?: string
 }
 
 export interface SkillLinkedFile {
@@ -285,7 +369,6 @@ export interface SkillServicePort {
   getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]>
   getUnifiedSkillCatalog(agentId: string): Promise<UnifiedSkillItem[]>
   getAllSkills(): Promise<UnifiedSkillItem[]>
-  getMetadataPrompt(): Promise<string>
   getSkillManagementState(): Promise<SkillManagementState>
   setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
   setSkillDisabledForAgent(agentId: string, name: string, disabled: boolean): Promise<void>
@@ -296,13 +379,16 @@ export interface SkillServicePort {
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>
   loadSkillContent(agentId: string, name: string): Promise<SkillContent | null>
+  resolveFreshEffectiveSkillContents(
+    agentId: string,
+    names: readonly string[]
+  ): Promise<EffectiveSkillContentResolution[]>
   viewSkillForAgent(
     agentId: string,
     name: string,
     options?: {
       filePath?: string
       conversationId?: string
-      allowUnassigned?: boolean
     }
   ): Promise<SkillViewResult>
   viewSkill(
@@ -310,7 +396,6 @@ export interface SkillServicePort {
     options?: {
       filePath?: string
       conversationId?: string
-      allowUnassigned?: boolean
     }
   ): Promise<SkillViewResult>
   viewDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
@@ -406,6 +491,11 @@ export interface SkillServicePort {
   openSkillsFolderForAgent(agentId: string): Promise<void>
   getSkillExtension(name: string): Promise<SkillExtensionConfig>
   getSkillExtensionForAgent(agentId: string, name: string): Promise<SkillExtensionConfig>
+  resolveSkillRuntimeEnvironmentBinding(
+    agentId: string,
+    name: string,
+    expectedBindingId: string | null
+  ): Promise<Record<string, string>>
   saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void>
   saveSkillExtensionForAgent(
     agentId: string,
@@ -418,7 +508,9 @@ export interface SkillServicePort {
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
+  removeActiveSkill(conversationId: string, skill: string): Promise<string[]>
   clearNewAgentSessionSkills(conversationId: string): Promise<void>
+  completeNewAgentSessionSkillsDeletion(conversationId: string): void
   resolveSessionAgentId(conversationId: string): Promise<string | null>
   revalidateActiveSkillsForAgent(conversationId: string, agentId: string): Promise<string[]>
   validateSkillNames(names: string[]): Promise<string[]>

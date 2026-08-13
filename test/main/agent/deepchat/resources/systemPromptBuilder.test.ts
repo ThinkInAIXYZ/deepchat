@@ -199,7 +199,7 @@ describe('DeepChat system prompt builder', () => {
     expect(assertCurrent).toHaveBeenCalled()
   })
 
-  it('uses every active Skill from the scoped catalog', async () => {
+  it('does not project active Skill bodies without Tape-materialized overrides', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.promises.readFile).mockRejectedValue(
       Object.assign(new Error('missing'), { code: 'ENOENT' })
@@ -246,19 +246,115 @@ describe('DeepChat system prompt builder', () => {
       {
         sessionId: 'session-1',
         basePrompt: '',
-        toolDefinitions: [],
+        toolDefinitions: [
+          {
+            source: 'agent',
+            server: { name: 'agent-skills' },
+            function: { name: 'skill_list' }
+          }
+        ] as any,
         activeSkillNamesOverride: ['skill-a', 'skill-b'],
         commandShell: POSIX_COMMAND_SHELL,
         resourceInstance: instance
       }
     )
 
-    expect(prompt).toContain('### skill-a')
-    expect(prompt).toContain('### skill-b')
-    expect(loadSkillContent).toHaveBeenCalledWith('writer', 'skill-b')
+    expect(prompt).not.toContain('### skill-a')
+    expect(prompt).not.toContain('### skill-b')
+    expect(prompt).toContain('- skill-a: Skill A')
+    expect(prompt).toContain('- skill-b: Skill B')
+    expect(prompt).toContain('use `skill_list` with a query')
+    expect(prompt).not.toContain('call `skill_view` first')
+    expect(prompt).not.toContain('Viewing a skill root')
+    expect(loadSkillContent).not.toHaveBeenCalled()
   })
 
-  it('loads requested Skills when catalog metadata is temporarily unavailable', async () => {
+  it('keeps routing catalog bytes stable across message-scoped activation changes', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    vi.mocked(fs.promises.readFile).mockRejectedValue(
+      Object.assign(new Error('missing'), { code: 'ENOENT' })
+    )
+    const instance = {
+      getRuntimeState: () => ({ providerId: 'openai', modelId: 'gpt-4o' }),
+      hasProjectDir: () => false
+    } as unknown as DeepChatAgentInstance
+    const compactCatalog = [
+      { name: 'skill-a', description: 'Skill A routes alpha tasks' },
+      { name: 'skill-b', description: 'Skill B routes beta tasks' }
+    ]
+    const getMetadataList = vi.fn().mockResolvedValue(compactCatalog)
+    const dependencies = {
+      providerSettings: {} as unknown as ProviderSettingsPort,
+      skillSettings: {
+        isEnabled: () => true,
+        isDraftSuggestionsEnabled: () => false
+      },
+      providerCatalogPort: {
+        getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
+        getCustomModels: () => []
+      },
+      skillService: {
+        resolveSessionAgentId: vi.fn().mockResolvedValue('writer'),
+        getMetadataList,
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        loadSkillContent: vi.fn(async (_agentId: string, skillName: string) => ({
+          name: skillName,
+          content: `${skillName} instructions`
+        }))
+      },
+      toolService: { buildToolSystemPrompt: vi.fn().mockReturnValue('') },
+      assertCurrent: vi.fn(),
+      isAcpBackedSubagentSession: () => false,
+      resolveProjectDir: () => null,
+      logSlowStep: vi.fn()
+    }
+    const toolDefinitions = [
+      {
+        source: 'agent',
+        server: { name: 'agent-skills' },
+        function: { name: 'skill_list' }
+      },
+      {
+        source: 'agent',
+        server: { name: 'agent-skills' },
+        function: { name: 'skill_view' }
+      }
+    ] as any
+    const build = async (activeSkillNamesOverride: string[]) =>
+      await buildSystemPromptAssemblyWithSkills(dependencies, {
+        sessionId: 'session-1',
+        basePrompt: '',
+        toolDefinitions,
+        activeSkillNamesOverride,
+        sessionActiveSkillNamesOverride: [],
+        contextLength: 8_000,
+        commandShell: POSIX_COMMAND_SHELL,
+        resourceInstance: instance
+      })
+
+    const first = await build(['skill-a'])
+    const second = await build(['skill-b'])
+
+    expect(first.sections.find((section) => section.kind === 'skills_metadata')?.content).toBe(
+      second.sections.find((section) => section.kind === 'skills_metadata')?.content
+    )
+    expect(
+      first.sections.find((section) => section.kind === 'skills_metadata')?.degradationCodes ?? []
+    ).not.toContain('skill_catalog_omitted')
+
+    getMetadataList.mockResolvedValue(
+      Array.from({ length: 100 }, (_, index) => ({
+        name: `catalog-${index}`,
+        description: `Catalog entry ${index} ${'detail '.repeat(100)}`
+      }))
+    )
+    const omitted = await build([])
+    expect(
+      omitted.sections.find((section) => section.kind === 'skills_metadata')?.degradationCodes
+    ).toContain('skill_catalog_omitted')
+  })
+
+  it('does not bypass materialization when catalog metadata is temporarily unavailable', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.promises.readFile).mockRejectedValue(
       Object.assign(new Error('missing'), { code: 'ENOENT' })
@@ -308,18 +404,89 @@ describe('DeepChat system prompt builder', () => {
         }
       )
 
-      expect(loadSkillContent).toHaveBeenCalledWith('writer', 'skill-a')
-      expect(assembly.prompt).toContain('### skill-a\nskill-a instructions')
+      expect(loadSkillContent).not.toHaveBeenCalled()
+      expect(assembly.prompt).not.toContain('### skill-a\nskill-a instructions')
       expect(assembly.sections.find((section) => section.kind === 'skills_metadata')).toMatchObject({
         inclusion: 'omitted',
         degradationCodes: ['skill_metadata_unavailable']
       })
       const pinnedSkills = assembly.sections.find((section) => section.kind === 'pinned_skills')
-      expect(pinnedSkills).toMatchObject({ inclusion: 'included' })
+      expect(pinnedSkills).toMatchObject({ inclusion: 'omitted' })
       expect(pinnedSkills).not.toHaveProperty('degradationCodes')
     } finally {
       consoleWarn.mockRestore()
     }
+  })
+
+  it('renders exact Session Skill overrides without reading cached Skill content', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    vi.mocked(fs.promises.readFile).mockRejectedValue(
+      Object.assign(new Error('missing'), { code: 'ENOENT' })
+    )
+    const loadSkillContent = vi.fn()
+    const instance = {
+      getRuntimeState: () => ({ providerId: 'openai', modelId: 'gpt-4o' }),
+      hasProjectDir: () => false
+    } as unknown as DeepChatAgentInstance
+    const dependencies = {
+      providerSettings: {} as unknown as ProviderSettingsPort,
+      skillSettings: {
+        isEnabled: () => true,
+        isDraftSuggestionsEnabled: () => false
+      },
+      providerCatalogPort: {
+        getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
+        getCustomModels: () => []
+      },
+      skillService: {
+        resolveSessionAgentId: vi.fn().mockResolvedValue('writer'),
+        getMetadataList: vi.fn().mockResolvedValue([
+          { name: 'skill-a', description: 'Skill A' },
+          { name: 'skill-b', description: 'Skill B' }
+        ]),
+        getActiveSkills: vi.fn(),
+        loadSkillContent
+      },
+      toolService: { buildToolSystemPrompt: vi.fn().mockReturnValue('') },
+      assertCurrent: vi.fn(),
+      isAcpBackedSubagentSession: () => false,
+      resolveProjectDir: () => null,
+      logSlowStep: vi.fn()
+    }
+
+    const assembly = await buildSystemPromptAssemblyWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '',
+      toolDefinitions: [],
+      activeSkillNamesOverride: ['skill-a'],
+      sessionActiveSkillNamesOverride: ['skill-a'],
+      sessionSkillBodiesOverride: [{ name: 'skill-a', content: 'exact materialized body' }],
+      commandShell: POSIX_COMMAND_SHELL,
+      resourceInstance: instance
+    })
+
+    expect(loadSkillContent).not.toHaveBeenCalled()
+    expect(assembly.sections.find((section) => section.kind === 'pinned_skills')?.content).toBe(
+      [
+        '## Active Skills',
+        'These Session Skills are persistent context for this conversation. Follow them when relevant.',
+        '',
+        '### skill-a',
+        'exact materialized body'
+      ].join('\n')
+    )
+    await expect(
+      buildSystemPromptAssemblyWithSkills(dependencies, {
+        sessionId: 'session-1',
+        basePrompt: '',
+        toolDefinitions: [],
+        activeSkillNamesOverride: ['skill-a'],
+        sessionActiveSkillNamesOverride: ['skill-a'],
+        sessionSkillBodiesOverride: [{ name: 'skill-b', content: 'wrong body' }],
+        commandShell: POSIX_COMMAND_SHELL,
+        resourceInstance: instance
+      })
+    ).rejects.toThrow('does not match the active Skill set')
   })
 
   it('observes model, tool prompt, and package script changes on the next assembly', async () => {
@@ -394,7 +561,7 @@ describe('DeepChat system prompt builder', () => {
     expect(fs.readFileSync).toHaveBeenCalledTimes(2)
   })
 
-  it('records pinned-skill and tooling degradation without blocking assembly', async () => {
+  it('does not load unmaterialized Skill bodies when tooling degrades', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.promises.readFile).mockRejectedValue(
       Object.assign(new Error('missing'), { code: 'ENOENT' })
@@ -429,10 +596,7 @@ describe('DeepChat system prompt builder', () => {
               { name: 'skill-b', description: 'Skill B' }
             ]),
             getActiveSkills: vi.fn().mockResolvedValue([]),
-            loadSkillContent: vi.fn(async (_agentId: string, skillName: string) => {
-              if (skillName === 'skill-b') throw new Error('unavailable')
-              return { name: skillName, content: `${skillName} instructions` }
-            })
+            loadSkillContent: vi.fn()
           },
           toolService: {
             buildToolSystemPrompt: vi.fn(() => {
@@ -454,12 +618,11 @@ describe('DeepChat system prompt builder', () => {
         }
       )
 
-      expect(assembly.prompt).toContain('### skill-a')
+      expect(assembly.prompt).not.toContain('### skill-a')
       expect(assembly.prompt).not.toContain('### skill-b')
-      expect(assembly.sections.find((section) => section.kind === 'pinned_skills')).toMatchObject({
-        inclusion: 'degraded',
-        degradationCodes: ['pinned_skill_load_failed']
-      })
+      const pinnedSkills = assembly.sections.find((section) => section.kind === 'pinned_skills')
+      expect(pinnedSkills).toMatchObject({ inclusion: 'omitted' })
+      expect(pinnedSkills).not.toHaveProperty('degradationCodes')
       expect(assembly.sections.find((section) => section.kind === 'tooling')).toMatchObject({
         inclusion: 'omitted',
         degradationCodes: ['tooling_build_failed']

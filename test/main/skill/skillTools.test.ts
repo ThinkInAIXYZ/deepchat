@@ -48,7 +48,6 @@ describe('SkillTools', () => {
       resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       getMetadataList: vi.fn().mockResolvedValue(mockSkillMetadata),
       getAllSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
-      getMetadataPrompt: vi.fn().mockResolvedValue('# Skills'),
       loadSkillContent: vi.fn().mockResolvedValue({ name: 'test', content: '# Test' }),
       viewSkillForAgent: vi.fn().mockResolvedValue({
         success: true,
@@ -102,7 +101,7 @@ describe('SkillTools', () => {
   })
 
   describe('handleSkillList', () => {
-    it('returns metadata with pinned status when no conversation is provided', async () => {
+    it('returns bounded routing cards without private metadata', async () => {
       const result = await skillTools.handleSkillList()
 
       expect(result.totalCount).toBe(2)
@@ -110,19 +109,19 @@ describe('SkillTools', () => {
       expect(result.activeCount).toBe(0)
       expect(result.skills).toEqual([
         expect.objectContaining({
+          name: 'git-commit',
+          isPinned: false,
+          active: false
+        }),
+        expect.objectContaining({
           name: 'code-review',
           category: 'engineering',
           platforms: ['macos'],
           isPinned: false,
           active: false
-        }),
-        expect.objectContaining({
-          name: 'git-commit',
-          metadata: { tags: ['git'] },
-          isPinned: false,
-          active: false
         })
       ])
+      expect(result.skills.every((skill) => !('metadata' in skill))).toBe(true)
     })
 
     it('marks pinned skills for the current conversation', async () => {
@@ -151,12 +150,28 @@ describe('SkillTools', () => {
 
       await expect(skillTools.handleSkillList('acp-session')).resolves.toEqual({
         skills: [],
+        sessionActiveCount: 0,
+        activeForExecutionCount: 0,
         pinnedCount: 0,
         activeCount: 0,
-        totalCount: 0
+        totalCount: 0,
+        totalMatched: 0,
+        omittedCount: 0
       })
       expect(mockSkillService.getMetadataList).not.toHaveBeenCalled()
       expect(mockSkillService.getActiveSkills).not.toHaveBeenCalled()
+    })
+
+    it('rejects a stale cursor when the conversation loses its Agent scope', async () => {
+      const firstPage = await skillTools.handleSkillList('conv-123', [], { limit: 1 })
+      ;(mockSkillService.resolveSessionAgentId as Mock).mockResolvedValue(null)
+
+      await expect(
+        skillTools.handleSkillList('conv-123', [], {
+          cursor: firstPage.nextCursor,
+          limit: 1
+        })
+      ).rejects.toThrow('does not match the current query and catalog')
     })
 
     it('reports current-message active skills without pinning them', async () => {
@@ -189,6 +204,41 @@ describe('SkillTools', () => {
 
       expect(result.skills.map((skill) => skill.name)).toEqual(['plugin-skill'])
     })
+
+    it('finds skills omitted from the first page through deterministic search', async () => {
+      const firstPage = await skillTools.handleSkillList('conv-123', [], { limit: 1 })
+
+      expect(firstPage.skills).toHaveLength(1)
+      expect(firstPage.nextCursor).toBeTypeOf('string')
+      expect(firstPage.omittedCount).toBe(1)
+
+      const searched = await skillTools.handleSkillList('conv-123', [], {
+        query: 'commit',
+        limit: 1
+      })
+      expect(searched.skills.map((skill) => skill.name)).toEqual(['git-commit'])
+      expect(searched.totalMatched).toBe(1)
+    })
+
+    it('rejects a cursor after the searchable catalog changes', async () => {
+      const firstPage = await skillTools.handleSkillList('conv-123', [], { limit: 1 })
+      ;(mockSkillService.getMetadataList as Mock).mockResolvedValue([
+        ...mockSkillMetadata,
+        {
+          name: 'new-skill',
+          description: 'New skill',
+          path: '/skills/new-skill/SKILL.md',
+          skillRoot: '/skills/new-skill'
+        }
+      ])
+
+      await expect(
+        skillTools.handleSkillList('conv-123', [], {
+          cursor: firstPage.nextCursor,
+          limit: 1
+        })
+      ).rejects.toThrow('does not match the current query and catalog')
+    })
   })
 
   describe('handleSkillView', () => {
@@ -208,16 +258,6 @@ describe('SkillTools', () => {
           name: 'code-review'
         })
       )
-    })
-
-    it('keeps an active Run snapshot viewable after its Agent assignment changes', async () => {
-      await skillTools.handleSkillView('conv-123', { name: 'git-commit' }, ['git-commit'])
-
-      expect(mockSkillService.viewSkillForAgent).toHaveBeenCalledWith('deepchat', 'git-commit', {
-        filePath: undefined,
-        conversationId: 'conv-123',
-        allowUnassigned: true
-      })
     })
   })
 

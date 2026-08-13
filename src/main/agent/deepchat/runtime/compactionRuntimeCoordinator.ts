@@ -221,6 +221,8 @@ export class CompactionRuntimeCoordinator {
           configuredPrompt: generationSettings.systemPrompt,
           toolDefinitions: tools,
           activeSkillNames,
+          sessionActiveSkillNames: activeSkillNames,
+          contextLength: generationSettings.contextLength,
           commandShell
         }),
         compactionAbortSignal

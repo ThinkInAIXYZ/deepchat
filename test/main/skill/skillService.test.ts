@@ -54,6 +54,9 @@ vi.mock('fs', () => {
     readdirSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
+    openSync: vi.fn().mockReturnValue(42),
+    closeSync: vi.fn(),
+    chmodSync: vi.fn(),
     rmSync: vi.fn(),
     copyFileSync: vi.fn(),
     renameSync: vi.fn(),
@@ -76,6 +79,23 @@ vi.mock('fs', () => {
     realpath: vi.fn(async (...args: unknown[]) => fsMock.realpathSync(...(args as [string]))),
     readFile: vi.fn(async (...args: unknown[]) => fsMock.readFileSync(...(args as [string]))),
     readdir: vi.fn(async (...args: unknown[]) => fsMock.readdirSync(...(args as [string]))),
+    opendir: vi.fn(async (target: string) => ({
+      async *[Symbol.asyncIterator]() {
+        for (const entry of fsMock.readdirSync(target) ?? []) yield entry
+      }
+    })),
+    open: vi.fn(async (target: string) => {
+      const bytes = Buffer.from(fsMock.readFileSync(target) ?? '')
+      return {
+        stat: vi.fn(async () => fsMock.statSync(target)),
+        read: vi.fn(async (buffer: Buffer, offset: number, length: number, position: number) => {
+          const bytesRead = Math.max(0, Math.min(length, bytes.byteLength - position))
+          if (bytesRead > 0) bytes.copy(buffer, offset, position, position + bytesRead)
+          return { bytesRead, buffer }
+        }),
+        close: vi.fn(async () => undefined)
+      }
+    }),
     access: vi.fn(async (target: string) => {
       if (!fsMock.existsSync(target)) {
         throw Object.assign(new Error(`ENOENT: no such file or directory, access '${target}'`), {
@@ -87,6 +107,7 @@ vi.mock('fs', () => {
   return {
     default: {
       ...fsMock,
+      constants: { O_RDONLY: 0, O_NOFOLLOW: 0, O_CREAT: 0, O_EXCL: 0, O_WRONLY: 0 },
       promises
     }
   }
@@ -150,7 +171,8 @@ vi.mock('node:child_process', () => ({
   )
 }))
 
-vi.mock('node:crypto', () => ({
+vi.mock('node:crypto', async () => ({
+  ...(await vi.importActual<typeof import('node:crypto')>('node:crypto')),
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
@@ -345,14 +367,28 @@ describe('SkillService', () => {
     ;(fs.mkdtempSync as Mock).mockReturnValue('/mock/temp/deepchat-skill-123')
     ;(fs.readdirSync as Mock).mockReturnValue([])
     ;(fs.statSync as Mock).mockReturnValue({
+      dev: 1,
+      ino: 1,
+      nlink: 1,
       isFile: () => true,
-      size: 1024,
-      mtimeMs: Date.now()
+      size: 0,
+      mtimeMs: 1,
+      ctimeMs: 1
     })
     ;(fs.realpathSync as Mock).mockImplementation((target: string) => target)
-    ;(fs.lstatSync as Mock).mockReturnValue({
-      isDirectory: () => true,
-      isSymbolicLink: () => false
+    ;(fs.lstatSync as Mock).mockImplementation((target: string) => {
+      const isFile = target.endsWith('/SKILL.md')
+      return {
+        dev: 1,
+        ino: isFile ? 1 : 2,
+        nlink: 1,
+        size: 0,
+        mtimeMs: 1,
+        ctimeMs: 1,
+        isDirectory: () => !isFile,
+        isFile: () => isFile,
+        isSymbolicLink: () => false
+      }
     })
     ;(fs.promises.stat as Mock).mockImplementation(async (...args: unknown[]) =>
       (fs.statSync as Mock)(...args)
@@ -903,6 +939,28 @@ describe('SkillService', () => {
       expect(pluginSkillContent?.content).toContain('Plugin root: `/plugins/fixture`')
       expect(pluginSkillContent?.content).toContain(`Arch: \`${process.arch}\``)
       expect(pluginSkillContent?.content).toContain('Owner: `com.deepchat.plugins.fixture`')
+      const statPluginPath = (target: string) => {
+        const isFile = target.endsWith('/SKILL.md')
+        const size = isFile
+          ? Buffer.byteLength(String((fs.readFileSync as Mock)(target) ?? ''), 'utf8')
+          : 0
+        return {
+          dev: 1,
+          ino: isFile ? 1 : 2,
+          nlink: 1,
+          size,
+          mtimeMs: 1,
+          ctimeMs: 1,
+          isDirectory: () => !isFile,
+          isFile: () => isFile,
+          isSymbolicLink: () => false
+        }
+      }
+      ;(fs.statSync as Mock).mockImplementation(statPluginPath)
+      ;(fs.lstatSync as Mock).mockImplementation(statPluginPath)
+      expect(
+        (await skillService.viewSkillForAgent('deepchat', 'plugin-skill')).contentIdentity?.sourceId
+      ).toBe('/plugins/fixture/plugin-skill')
 
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       await skillService.setActiveSkills('plugin-conv', ['plugin-skill'])
@@ -1006,41 +1064,35 @@ describe('SkillService', () => {
     })
   })
 
-  describe('getMetadataPrompt', () => {
-    it('should return formatted prompt with no skills', async () => {
-      ;(fs.readdirSync as Mock).mockReturnValue([])
-
-      const prompt = await skillService.getMetadataPrompt()
-
-      expect(prompt).toContain('# Available Skills')
-      expect(prompt).toContain('Skills directory: `')
-      expect(prompt).toContain('No skills are currently installed')
-    })
-
-    it('should return formatted prompt with skills list', async () => {
-      mockSkillTree(['my-skill'])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.readFileSync as Mock).mockReturnValue('test')
-      ;(matter as unknown as Mock).mockReturnValue({
-        data: { name: 'my-skill', description: 'My skill description' },
-        content: ''
-      })
-      await skillService.discoverSkills()
-      await assignDiscoveredSkills()
-
-      const prompt = await skillService.getMetadataPrompt()
-
-      expect(prompt).toContain('# Available Skills')
-      expect(prompt).toContain('my-skill')
-      expect(prompt).toContain('My skill description')
-    })
-  })
-
   describe('loadSkillContent', () => {
     beforeEach(() => {
+      const manifestBytes = Buffer.from('test content')
       mockSkillTree(['test-skill'])
       ;(fs.existsSync as Mock).mockImplementation((target: string) => !target.includes('/scripts'))
-      ;(fs.readFileSync as Mock).mockReturnValue('test content')
+      ;(fs.readFileSync as Mock).mockReturnValue(manifestBytes)
+      ;(fs.statSync as Mock).mockReturnValue({
+        dev: 1,
+        ino: 1,
+        nlink: 1,
+        isFile: () => true,
+        size: manifestBytes.byteLength,
+        mtimeMs: 1,
+        ctimeMs: 1
+      })
+      ;(fs.lstatSync as Mock).mockImplementation((target: string) => {
+        const isFile = target.endsWith('/SKILL.md')
+        return {
+          dev: 1,
+          ino: isFile ? 1 : 2,
+          nlink: 1,
+          size: isFile ? manifestBytes.byteLength : 0,
+          mtimeMs: 1,
+          ctimeMs: 1,
+          isDirectory: () => !isFile,
+          isFile: () => isFile,
+          isSymbolicLink: () => false
+        }
+      })
       ;(matter as unknown as Mock).mockReturnValue({
         data: { name: 'test-skill', description: 'Test' },
         content: '# Skill content here'
@@ -1095,6 +1147,280 @@ describe('SkillService', () => {
       expect(content?.content).not.toContain('${SKILL_ROOT}')
       expect(content?.content).not.toContain('${SKILLS_DIR}')
     })
+
+    it('resolves the same canonical effective content as a root skill view', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+
+      const view = await skillService.viewSkill('test-skill')
+      const [resolved] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+
+      expect(view.success).toBe(true)
+      expect(resolved.effectiveContent).toBe(view.content)
+    })
+
+    it('resolves fresh disk content despite a populated content cache', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      const cached = await skillService.loadSkillContent('test-skill')
+      expect(cached?.content).toContain('Skill content here')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: '# Fresh disk edit'
+      })
+
+      const [resolved] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+
+      expect(resolved.effectiveContent).toContain('Fresh disk edit')
+      expect((await skillService.loadSkillContent('test-skill'))?.content).toBe(cached?.content)
+    })
+
+    it('rejects a fresh manifest that grows after its bounded file handle is opened', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      const manifestBytes = Buffer.from('test content')
+      const stats = {
+        dev: 1,
+        ino: 1,
+        nlink: 1,
+        isFile: () => true,
+        size: manifestBytes.byteLength,
+        mtimeMs: 1,
+        ctimeMs: 1
+      }
+      ;(fs.promises.open as Mock).mockResolvedValueOnce({
+        stat: vi.fn().mockResolvedValue(stats),
+        read: vi.fn(async (buffer: Buffer, offset: number, length: number, position: number) => {
+          if (position === manifestBytes.byteLength) return { bytesRead: 1, buffer }
+          const bytesRead = Math.min(length, manifestBytes.byteLength - position)
+          manifestBytes.copy(buffer, offset, position, position + bytesRead)
+          return { bytesRead, buffer }
+        }),
+        close: vi.fn().mockResolvedValue(undefined)
+      })
+
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow('execution evidence file exceeds')
+    })
+
+    it('rejects a manifest that changes while its execution package is being snapshotted', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      vi.spyOn(skillService as any, 'readStableRegularFile')
+        .mockResolvedValueOnce(Buffer.from('first manifest'))
+        .mockResolvedValueOnce(Buffer.from('changed manifest'))
+
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow('manifest changed while its execution package was being snapshotted')
+    })
+
+    it('returns deterministic canonical identity and evidence hashes', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+
+      const [first] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+      const [second] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+
+      expect(second).toEqual(first)
+      expect(first.identity).toMatchObject({ agentId: 'deepchat', skillName: 'test-skill' })
+      expect(first.builderVersion).toBe('skill-effective-content-v3')
+      expect(first.renderedManifestHash).toMatch(/^[a-f0-9]{64}$/)
+      expect(first.scriptInventoryHash).toMatch(/^[a-f0-9]{64}$/)
+      expect(first.executionPackage).toEqual({
+        files: [],
+        executables: [],
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        environmentBindingId: null
+      })
+      expect(fs.promises.opendir).not.toHaveBeenCalled()
+    })
+
+    it('snapshots executable bytes and supporting files only for fresh materialization', async () => {
+      const skillRoot = `${DEFAULT_SKILLS_DIR}/test-skill`
+      const directories = new Set([
+        DEFAULT_SKILLS_DIR,
+        skillRoot,
+        `${skillRoot}/scripts`,
+        `${skillRoot}/scripts/templates`,
+        `${skillRoot}/ooxml`,
+        `${skillRoot}/ooxml/schemas`
+      ])
+      const contents = new Map([
+        [`${skillRoot}/SKILL.md`, Buffer.from('---\nname: test-skill\n---\nUse the script')],
+        [`${skillRoot}/scripts/run.js`, Buffer.from("require('./templates/config.json')")],
+        [`${skillRoot}/scripts/templates/config.json`, Buffer.from('{"value":1}')],
+        [`${skillRoot}/ooxml/schemas/document.xsd`, Buffer.from('<schema/>')]
+      ])
+      const entries = new Map<string, ReturnType<typeof createDirEntry>[] | any[]>([
+        [DEFAULT_SKILLS_DIR, [createDirEntry('test-skill')]],
+        [
+          skillRoot,
+          [createFileEntry('SKILL.md'), createDirEntry('scripts'), createDirEntry('ooxml')]
+        ],
+        [`${skillRoot}/scripts`, [createFileEntry('run.js'), createDirEntry('templates')]],
+        [`${skillRoot}/scripts/templates`, [createFileEntry('config.json')]],
+        [`${skillRoot}/ooxml`, [createDirEntry('schemas')]],
+        [`${skillRoot}/ooxml/schemas`, [createFileEntry('document.xsd')]]
+      ])
+      const inode = (target: string) =>
+        Array.from(target).reduce((total, char) => total + char.charCodeAt(0), 1)
+      const stats = (target: string) => {
+        const isDirectory = directories.has(target)
+        const bytes = contents.get(target) ?? Buffer.alloc(0)
+        return {
+          dev: 1,
+          ino: inode(target),
+          nlink: 1,
+          size: bytes.byteLength,
+          mtimeMs: 1,
+          isDirectory: () => isDirectory,
+          isFile: () => !isDirectory && contents.has(target),
+          isSymbolicLink: () => false
+        }
+      }
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => entries.get(target) ?? [])
+      ;(fs.lstatSync as Mock).mockImplementation(stats)
+      ;(fs.statSync as Mock).mockImplementation(stats)
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => contents.get(target))
+      ;(matter as unknown as Mock).mockReturnValue({
+        content: 'Use the script',
+        data: {
+          name: 'test-skill',
+          description: 'Test',
+          executionSupportPaths: ['ooxml']
+        }
+      })
+
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      await skillService.saveSkillExtension('test-skill', {
+        version: 1,
+        env: { API_TOKEN: 'must-not-enter-tape' },
+        runtimePolicy: { python: 'auto', node: 'builtin' },
+        scriptOverrides: {}
+      })
+      ;(fs.promises.opendir as Mock).mockClear()
+      ;(fs.promises.readdir as Mock).mockClear()
+      const [first] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+
+      expect(first.executionPackage.files.map(({ relativePath }) => relativePath)).toEqual([
+        'ooxml/schemas/document.xsd',
+        'scripts/run.js',
+        'scripts/templates/config.json'
+      ])
+      expect(first.executionPackage.executables).toEqual([
+        { relativePath: 'scripts/run.js', runtime: 'node', enabled: true }
+      ])
+      expect(first.executionPackage.runtimePolicy.node).toBe('builtin')
+      expect(first.executionPackage.environmentBindingId).toBe(
+        '12345678-1234-1234-1234-123456789abc'
+      )
+      expect(first.executionPackage).not.toHaveProperty('env')
+      expect(JSON.stringify(first.executionPackage)).not.toContain('API_TOKEN')
+      expect(first.executionPackage.files[1].base64).toBe(
+        contents.get(`${skillRoot}/scripts/run.js`)!.toString('base64')
+      )
+      expect((fs.promises.opendir as Mock).mock.calls.map(([target]) => target)).toEqual(
+        expect.arrayContaining([
+          `${skillRoot}/scripts`,
+          `${skillRoot}/scripts/templates`,
+          `${skillRoot}/ooxml`,
+          `${skillRoot}/ooxml/schemas`
+        ])
+      )
+      expect(fs.promises.readdir).not.toHaveBeenCalledWith(
+        `${skillRoot}/scripts`,
+        expect.anything()
+      )
+
+      contents.set(`${skillRoot}/scripts/run.js`, Buffer.from("console.log('new version')"))
+      const [second] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+      expect(second.executionPackage.files[1].sha256).not.toBe(
+        first.executionPackage.files[1].sha256
+      )
+
+      ;(matter as unknown as Mock).mockReturnValue({
+        content: 'Use the script',
+        data: { name: 'test-skill', description: 'Test' }
+      })
+      const [withoutSupport] = await skillService.resolveFreshEffectiveSkillContents('deepchat', [
+        'test-skill'
+      ])
+      expect(withoutSupport.executionPackage.files.map(({ relativePath }) => relativePath)).toEqual(
+        ['scripts/run.js', 'scripts/templates/config.json']
+      )
+
+      ;(matter as unknown as Mock).mockReturnValue({
+        content: 'Use the script',
+        data: {
+          name: 'test-skill',
+          description: 'Test',
+          executionSupportPaths: 'ooxml'
+        }
+      })
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow('executionSupportPaths must be an array of strings')
+    })
+
+    it('bounds scripts directory enumeration before reading package candidates', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      const scriptsDir = `${DEFAULT_SKILLS_DIR}/test-skill/scripts`
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) =>
+        target === scriptsDir
+          ? Array.from({ length: 513 }, (_, index) => createFileEntry(`file-${index}.txt`))
+          : []
+      )
+
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow('execution package directory contains too many entries')
+    })
+
+    it('fails clearly when a selected visible skill disappeared from disk', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      ;(fs.promises.lstat as Mock).mockRejectedValueOnce(
+        Object.assign(new Error('ENOENT: missing manifest'), { code: 'ENOENT' })
+      )
+
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow(
+        'Failed to resolve requested Skill "test-skill": manifest could not be loaded safely'
+      )
+    })
+
+    it('fails closed when the catalog changes during a fresh resolve', async () => {
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      const lstat = fs.promises.lstat as Mock
+      lstat.mockImplementationOnce(async (...args: Parameters<typeof fs.promises.lstat>) => {
+        await skillService.discoverSkills('deepchat')
+        return (fs.lstatSync as Mock)(...args)
+      })
+
+      await expect(
+        skillService.resolveFreshEffectiveSkillContents('deepchat', ['test-skill'])
+      ).rejects.toThrow('catalog changed while effective content was being resolved')
+    })
   })
 
   describe('viewSkill', () => {
@@ -1137,6 +1463,26 @@ describe('SkillService', () => {
         }
         return '---\nname: test-skill\ndescription: Test\nplatforms:\n  - macos\n---\n\n# Skill body'
       })
+      const statForViewPath = (target: string) => {
+        const isFile =
+          target.endsWith('/SKILL.md') || target.endsWith('/guide.md') || target.endsWith('/run.py')
+        const bytes = isFile
+          ? Buffer.from((fs.readFileSync as Mock)(target) ?? '')
+          : Buffer.alloc(0)
+        return {
+          dev: 1,
+          ino: target.endsWith('/SKILL.md') ? 1 : target.endsWith('/run.py') ? 2 : 3,
+          nlink: 1,
+          size: bytes.byteLength,
+          mtimeMs: 1,
+          ctimeMs: 1,
+          isDirectory: () => !isFile,
+          isFile: () => isFile,
+          isSymbolicLink: () => false
+        }
+      }
+      ;(fs.statSync as Mock).mockImplementation(statForViewPath)
+      ;(fs.lstatSync as Mock).mockImplementation(statForViewPath)
       ;(matter as unknown as Mock).mockReturnValue({
         data: {
           name: 'test-skill',
@@ -1153,7 +1499,7 @@ describe('SkillService', () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       await skillService.setActiveSkills('conv-view', ['test-skill'])
 
-      const result = await skillService.viewSkill('test-skill', {
+      const result = await skillService.viewSkillForAgent('deepchat', 'test-skill', {
         conversationId: 'conv-view'
       })
 
@@ -1170,6 +1516,72 @@ describe('SkillService', () => {
         { kind: 'reference', path: 'references/guide.md' },
         { kind: 'script', path: 'scripts/run.py' }
       ])
+      expect(result.content).toContain('# Skill body')
+      expect(result.content).toContain('## DeepChat Runtime Context')
+      expect(result.content).toContain('scripts/run.py (python)')
+      expect(result.contentIdentity).toEqual(
+        expect.objectContaining({
+          agentId: 'deepchat',
+          skillName: 'test-skill'
+        })
+      )
+      expect(result.contentResolution).toEqual(
+        expect.objectContaining({
+          identity: result.contentIdentity,
+          effectiveContent: result.content,
+          executionPackage: expect.objectContaining({
+            files: [
+              expect.objectContaining({
+                relativePath: 'scripts/run.py',
+                base64: Buffer.from('print("hi")').toString('base64')
+              })
+            ],
+            executables: [
+              expect.objectContaining({
+                relativePath: 'scripts/run.py',
+                runtime: 'python',
+                enabled: true
+              })
+            ]
+          })
+        })
+      )
+    })
+
+    it('freshly resolves the root view instead of reusing cached effective content', async () => {
+      await skillService.loadSkillContent('test-skill')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: {
+          name: 'test-skill',
+          description: 'Test',
+          platforms: ['macos']
+        },
+        content: '# Updated skill body'
+      })
+
+      const result = await skillService.viewSkill('test-skill')
+
+      expect(result.success).toBe(true)
+      expect(result.content).toContain('# Updated skill body')
+      expect(result.content).not.toContain('# Skill body\n\n')
+      expect(result).not.toHaveProperty('contentIdentity')
+      expect(result).not.toHaveProperty('contentResolution')
+    })
+
+    it('refuses runtime activation when the scoped catalog changes during snapshotting', async () => {
+      const lstat = fs.promises.lstat as Mock
+      lstat.mockImplementationOnce(async (...args: Parameters<typeof fs.promises.lstat>) => {
+        await skillService.discoverSkills('deepchat')
+        return (fs.lstatSync as Mock)(...args)
+      })
+
+      const result = await skillService.viewSkillForAgent('deepchat', 'test-skill')
+
+      expect(result).toEqual({
+        success: false,
+        error:
+          'Failed to load skill view: Skill catalog changed while its execution snapshot was being built'
+      })
     })
 
     it('does not pin a skill after viewing the main SKILL.md in a new-agent session', async () => {
@@ -1213,6 +1625,9 @@ describe('SkillService', () => {
           isPinned: false
         })
       )
+      expect(result.content).toBe('# Guide')
+      expect(result.content).not.toContain('DeepChat Runtime Context')
+      expect(result.contentIdentity).toBeUndefined()
       expect(await skillService.getActiveSkills('conv-view-file-only')).toEqual([])
       expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
         'skills.session.changed',
@@ -1266,6 +1681,20 @@ describe('SkillService', () => {
       )
     })
 
+    it('rejects oversized effective content without truncating it', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: 'x'.repeat(512 * 1024 + 1)
+      })
+
+      const result = await skillService.viewSkill('test-skill')
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Effective Skill content exceeds 524288 bytes and cannot be activated inline'
+      })
+    })
+
     it('rejects file paths outside the skill root', async () => {
       const result = await skillService.viewSkill('test-skill', {
         filePath: '../secrets.txt'
@@ -1300,6 +1729,22 @@ describe('SkillService', () => {
     })
 
     it('returns a structured error when main skill content access throws', async () => {
+      const statBeforeReadFailure = (target: string) => {
+        const isFile = String(target).endsWith('/SKILL.md')
+        return {
+          dev: 1,
+          ino: isFile ? 1 : 2,
+          nlink: 1,
+          size: isFile ? 128 : 0,
+          mtimeMs: 1,
+          ctimeMs: 1,
+          isDirectory: () => !isFile,
+          isFile: () => isFile,
+          isSymbolicLink: () => false
+        }
+      }
+      ;(fs.statSync as Mock).mockImplementation(statBeforeReadFailure)
+      ;(fs.lstatSync as Mock).mockImplementation(statBeforeReadFailure)
       ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
         if (String(target).endsWith('/test-skill/SKILL.md')) {
           throw new Error('Read failure')
@@ -2597,6 +3042,108 @@ describe('SkillService', () => {
       expect(loaded).toEqual(extension)
     })
 
+    it('versions only environment changes in the opaque runtime binding', async () => {
+      ;(randomUUID as Mock)
+        .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+        .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
+      const original = {
+        version: 1 as const,
+        env: { B: 'two', A: 'one' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+      await skillService.saveSkillExtension('test-skill', original)
+      const firstBinding = (configSettings.get('skills.managementState') as any).agents.deepchat
+        .bindings['test-skill'].runtimeBindingId
+
+      await skillService.saveSkillExtension('test-skill', {
+        ...original,
+        env: { A: 'one', B: 'two' },
+        runtimePolicy: { python: 'system', node: 'builtin' },
+        scriptOverrides: { 'scripts/run.py': { enabled: false } }
+      })
+      const policyOnlyBinding = (configSettings.get('skills.managementState') as any).agents
+        .deepchat.bindings['test-skill'].runtimeBindingId
+
+      await skillService.saveSkillWithExtension('test-skill', 'new content', {
+        ...original,
+        env: { A: 'one', B: 'two' }
+      })
+      const contentOnlyBinding = (configSettings.get('skills.managementState') as any).agents
+        .deepchat.bindings['test-skill'].runtimeBindingId
+
+      await skillService.saveSkillExtension('test-skill', {
+        ...original,
+        env: { A: 'changed', B: 'two' }
+      })
+      const changedBinding = (configSettings.get('skills.managementState') as any).agents.deepchat
+        .bindings['test-skill'].runtimeBindingId
+
+      expect(firstBinding).toBe('11111111-1111-4111-8111-111111111111')
+      expect(policyOnlyBinding).toBe(firstBinding)
+      expect(contentOnlyBinding).toBe(firstBinding)
+      expect(changedBinding).toBe('22222222-2222-4222-8222-222222222222')
+      await expect(
+        skillService.resolveSkillRuntimeEnvironmentBinding('deepchat', 'test-skill', firstBinding)
+      ).rejects.toThrow(/binding changed/)
+      await expect(
+        skillService.resolveSkillRuntimeEnvironmentBinding('deepchat', 'test-skill', changedBinding)
+      ).resolves.toEqual({ A: 'changed', B: 'two' })
+
+      delete (configSettings.get('skills.managementState') as any).agents.deepchat.bindings[
+        'test-skill'
+      ].runtimeBindingId
+      await expect(
+        skillService.resolveSkillRuntimeEnvironmentBinding('deepchat', 'test-skill', null)
+      ).rejects.toThrow(/missing an execution binding/)
+
+      await skillService.saveSkillExtension('test-skill', { ...original, env: {} })
+      expect(
+        (configSettings.get('skills.managementState') as any).agents.deepchat.bindings['test-skill']
+          .runtimeBindingId
+      ).toBeUndefined()
+      await expect(
+        skillService.resolveSkillRuntimeEnvironmentBinding('deepchat', 'test-skill', null)
+      ).resolves.toEqual({})
+    })
+
+    it('migrates legacy sidecar runtime config into database state', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'legacy-secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+      const sidecarPath = `${DEFAULT_SKILLS_DIR}/.deepchat-meta/test-skill.json`
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === sidecarPath) return true
+        return !target.includes('/scripts')
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target === sidecarPath) return JSON.stringify(extension)
+        return 'test'
+      })
+      delete (configSettings.get('skills.managementState') as any).agents.deepchat.bindings[
+        'test-skill'
+      ]
+
+      const loaded = await skillService.getSkillExtension('test-skill')
+
+      expect(loaded).toEqual(extension)
+      expect(
+        (configSettings.get('skills.managementState') as any).agents.deepchat.bindings['test-skill']
+          .extension
+      ).toEqual(extension)
+      const bindingId = (configSettings.get('skills.managementState') as any).agents.deepchat
+        .bindings['test-skill'].runtimeBindingId
+      expect(bindingId).toBe('12345678-1234-1234-1234-123456789abc')
+      expect(await skillService.getSkillExtension('test-skill')).toEqual(extension)
+      expect(
+        (configSettings.get('skills.managementState') as any).agents.deepchat.bindings['test-skill']
+          .runtimeBindingId
+      ).toBe(bindingId)
+      expect(fs.rmSync).toHaveBeenCalledWith(sidecarPath, { force: true })
+    })
     it('reads raw skill file content by skill name', async () => {
       ;(fs.promises.readFile as Mock).mockImplementation(async (target: string) => {
         if (target.endsWith('/test-skill/SKILL.md')) {
@@ -2867,6 +3414,33 @@ describe('SkillService', () => {
       )
     })
 
+    it('serializes an atomic removal with concurrent Session replacements', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-concurrent', ['skill-1'])
+
+      const replace = skillService.setActiveSkills('new-session-concurrent', ['skill-1', 'skill-2'])
+      const remove = skillService.removeActiveSkill('new-session-concurrent', 'skill-1')
+
+      await expect(Promise.all([replace, remove])).resolves.toEqual([
+        ['skill-1', 'skill-2'],
+        ['skill-2']
+      ])
+      await expect(skillService.getActiveSkills('new-session-concurrent')).resolves.toEqual([
+        'skill-2'
+      ])
+    })
+
+    it('treats removing a missing Session Skill as an idempotent no-op', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-noop', ['skill-2'])
+      ;(skillSessionStatePort.setPersistedNewSessionSkills as Mock).mockClear()
+
+      await expect(skillService.removeActiveSkill('new-session-noop', 'skill-1')).resolves.toEqual([
+        'skill-2'
+      ])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).not.toHaveBeenCalled()
+    })
+
     it('normalizes the old CUA skill name when setting active skills', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       mockSkillTree(['computer-use'])
@@ -2929,6 +3503,79 @@ describe('SkillService', () => {
         'new-session-4',
         []
       )
+    })
+
+    it('prevents in-flight Session Skill validation from restoring deleted state', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      mockSkillTree(['skill-1'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-1', description: 'Test' },
+        content: ''
+      })
+      await skillService.discoverSkills()
+      let releaseValidation!: () => void
+      let markValidationStarted!: () => void
+      const validationStarted = new Promise<void>((resolve) => {
+        markValidationStarted = resolve
+      })
+      const originalValidate = skillService.validateSkillNames.bind(skillService)
+      vi.spyOn(skillService, 'validateSkillNames').mockImplementation(async (...args: never[]) => {
+        markValidationStarted()
+        await new Promise<void>((resolve) => {
+          releaseValidation = resolve
+        })
+        return await (originalValidate as (...values: never[]) => Promise<string[]>)(...args)
+      })
+
+      const set = skillService.setActiveSkills('new-session-deleting', ['skill-1'])
+      await validationStarted
+      const clear = skillService.clearNewAgentSessionSkills('new-session-deleting')
+      releaseValidation()
+
+      await expect(set).resolves.toEqual([])
+      await expect(clear).resolves.toBeUndefined()
+      await expect(skillService.getActiveSkills('new-session-deleting')).resolves.toEqual([])
+      expect(newSessionActiveSkillsStore.get('new-session-deleting')).toEqual([])
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
+        expect.objectContaining({ conversationId: 'new-session-deleting', change: 'activated' })
+      )
+    })
+
+    it('rejects Session Skill writes queued after deletion cleanup begins', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+
+      const clear = skillService.clearNewAgentSessionSkills('new-session-retired')
+      const set = skillService.setActiveSkills('new-session-retired', ['skill-1'])
+
+      await expect(Promise.all([clear, set])).resolves.toEqual([undefined, []])
+      expect(newSessionActiveSkillsStore.get('new-session-retired')).toEqual([])
+    })
+
+    it('accepts writes for a reused Session identity after deletion finalization', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      mockSkillTree(['skill-1'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-1', description: 'Test' },
+        content: ''
+      })
+      await skillService.discoverSkills()
+      await assignDiscoveredSkills()
+      await skillService.clearNewAgentSessionSkills('new-session-deleted')
+
+      await expect(
+        skillService.setActiveSkills('new-session-deleted', ['skill-1'])
+      ).resolves.toEqual([])
+
+      skillService.completeNewAgentSessionSkillsDeletion('new-session-deleted')
+
+      await expect(
+        skillService.setActiveSkills('new-session-deleted', ['skill-1'])
+      ).resolves.toEqual(['skill-1'])
     })
   })
 

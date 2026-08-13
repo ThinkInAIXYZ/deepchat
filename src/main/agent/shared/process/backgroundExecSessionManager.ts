@@ -15,6 +15,11 @@ import {
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import {
+  assertSkillExecutionPackageTreeIntact,
+  cleanupOwnedSkillExecutionPackageTree,
+  type OwnedSkillExecutionPackageTree
+} from '@/skill/skillExecutionPackageTree'
 
 // Configuration with environment variable support
 const FOREGROUND_PREVIEW_CHARS = 12000
@@ -70,6 +75,9 @@ export interface BackgroundExecStartOptions {
   outputPrefix?: string
   previewChars?: number
   offloadThresholdChars?: number
+  maxOutputBytes?: number
+  /** Ownership transfers to the background manager as soon as start is called. */
+  ownedSkillExecutionPackageTree?: OwnedSkillExecutionPackageTree
 }
 
 const DirectInvocationSchema = z
@@ -99,6 +107,9 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
+  totalOutputBytes: number
+  maxOutputBytes: number | null
+  outputLimitExceeded: boolean
   previewChars: number
   offloadThresholdChars: number
   offloadDisabled: boolean
@@ -110,6 +121,7 @@ interface BackgroundSession {
   flushOutputDecoders?: () => void
   killTimeoutId?: NodeJS.Timeout
   timedOut: boolean
+  ownedSkillExecutionPackageTree?: OwnedSkillExecutionPackageTree
 }
 
 interface StartSessionResult {
@@ -216,6 +228,35 @@ export class BackgroundExecSessionManager {
     cwd: string,
     options: BackgroundExecStartOptions
   ): Promise<StartSessionResult> {
+    const ownedTree = options.ownedSkillExecutionPackageTree
+    if (ownedTree) {
+      try {
+        await assertSkillExecutionPackageTreeIntact(ownedTree)
+      } catch (error) {
+        await cleanupOwnedSkillExecutionPackageTree(ownedTree).catch(() => {})
+        throw error
+      }
+    }
+
+    try {
+      return this.startValidated(conversationId, command, cwd, options, ownedTree)
+    } catch (error) {
+      if (ownedTree) {
+        await cleanupOwnedSkillExecutionPackageTree(ownedTree).catch((cleanupError) => {
+          logger.warn('[BackgroundExec] Failed to clean rejected owned package tree:', cleanupError)
+        })
+      }
+      throw error
+    }
+  }
+
+  private startValidated(
+    conversationId: string,
+    command: string,
+    cwd: string,
+    options: BackgroundExecStartOptions,
+    ownedSkillExecutionPackageTree?: OwnedSkillExecutionPackageTree
+  ): StartSessionResult {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
     const commandShell = ResolvedCommandShellSchema.parse(options.commandShell)
@@ -275,6 +316,14 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
+      totalOutputBytes: 0,
+      maxOutputBytes:
+        typeof options.maxOutputBytes === 'number' &&
+        Number.isSafeInteger(options.maxOutputBytes) &&
+        options.maxOutputBytes > 0
+          ? options.maxOutputBytes
+          : null,
+      outputLimitExceeded: false,
       previewChars: Math.max(1, Math.round(options?.previewChars ?? config.maxOutputChars)),
       offloadThresholdChars: Math.min(
         config.offloadThresholdChars,
@@ -286,7 +335,8 @@ export class BackgroundExecSessionManager {
       closePromise,
       resolveClose,
       closeSettled: false,
-      timedOut: false
+      timedOut: false,
+      ...(ownedSkillExecutionPackageTree ? { ownedSkillExecutionPackageTree } : {})
     }
 
     this.setupOutputHandling(session)
@@ -617,6 +667,25 @@ export class BackgroundExecSessionManager {
   }
 
   private appendOutput(session: BackgroundSession, data: string): void {
+    if (!data || session.outputLimitExceeded) return
+    const dataBytes = Buffer.byteLength(data, 'utf8')
+    if (
+      session.maxOutputBytes !== null &&
+      session.totalOutputBytes + dataBytes > session.maxOutputBytes
+    ) {
+      session.outputLimitExceeded = true
+      this.appendAcceptedOutput(
+        session,
+        `\n[Process terminated: output exceeded ${session.maxOutputBytes} bytes.]\n`
+      )
+      void this.killInternal(session, 'output-limit')
+      return
+    }
+    session.totalOutputBytes += dataBytes
+    this.appendAcceptedOutput(session, data)
+  }
+
+  private appendAcceptedOutput(session: BackgroundSession, data: string): void {
     session.totalOutputLength += data.length
 
     const shouldOffload =
@@ -661,12 +730,14 @@ export class BackgroundExecSessionManager {
         clearTimeout(session.killTimeoutId)
       }
 
-      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
-        session.status = 'killed'
-      } else if (code !== 0 && code !== null) {
-        session.status = 'error'
-      } else {
-        session.status = 'done'
+      if (session.status !== 'killed') {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+          session.status = 'killed'
+        } else if (code !== 0 && code !== null) {
+          session.status = 'error'
+        } else {
+          session.status = 'done'
+        }
       }
 
       session.exitCode = code ?? undefined
@@ -688,8 +759,24 @@ export class BackgroundExecSessionManager {
     }
     session.status = 'killed'
 
-    const closed = await terminateProcessTree(session.child, { graceMs: 2000 })
+    let closed = false
+    try {
+      closed = await terminateProcessTree(session.child, { graceMs: 2000 })
+    } catch (error) {
+      logger.warn('[BackgroundExec] Failed to terminate process tree:', error)
+    }
     if (!closed && !session.closeSettled) {
+      if (session.ownedSkillExecutionPackageTree) {
+        logger.warn(
+          '[BackgroundExec] Retaining owned Skill package tree for an unclosed process tree:',
+          { rootPath: session.ownedSkillExecutionPackageTree.rootPath }
+        )
+        session.ownedSkillExecutionPackageTree = undefined
+      }
+      session.child.stdout?.destroy()
+      session.child.stderr?.destroy()
+      session.child.stdin?.destroy()
+      session.child.unref()
       session.exitCode = undefined
       await this.finalizeSession(session, null, 'SIGKILL')
     }
@@ -881,6 +968,7 @@ export class BackgroundExecSessionManager {
       await session.outputWriteQueue.catch((error) => {
         logger.warn('[BackgroundExec] Failed while draining output queue:', error)
       })
+      await this.cleanupOwnedPackageTree(session)
     } finally {
       if (!session.closeSettled) {
         session.closeSettled = true
@@ -891,6 +979,15 @@ export class BackgroundExecSessionManager {
     logger.info(
       `[BackgroundExec] Session ${session.sessionId} closed with code ${code}, signal ${signal}`
     )
+  }
+
+  private async cleanupOwnedPackageTree(session: BackgroundSession): Promise<void> {
+    const descriptor = session.ownedSkillExecutionPackageTree
+    if (!descriptor) return
+    session.ownedSkillExecutionPackageTree = undefined
+    await cleanupOwnedSkillExecutionPackageTree(descriptor).catch((error) => {
+      logger.warn('[BackgroundExec] Failed to clean owned Skill package tree:', error)
+    })
   }
 
   private buildCompletionResult(
@@ -1034,25 +1131,44 @@ class BackgroundExecUtilityProxy {
     conversationId: string,
     command: string,
     cwd: string,
-    options: BackgroundExecStartOptions
+    options: BackgroundExecStartOptions,
+    beforeStart?: () => Promise<void>
   ): Promise<StartSessionResult> {
-    const result = await this.request<StartSessionResult>('start', [
-      conversationId,
-      command,
-      cwd,
-      options
-    ])
-    this.activeSessions.set(result.sessionId, {
-      conversationId,
-      sessionId: result.sessionId,
-      command,
-      createdAt: Date.now(),
-      lastAccessedAt: Date.now()
-    })
-    this.completedSessions.delete(result.sessionId)
-    this.crashedSessions.delete(result.sessionId)
-    this.stopCompletedSessionReconciliationIfIdle()
-    return result
+    const ownedTree = options.ownedSkillExecutionPackageTree
+    let ownershipPosted = false
+    try {
+      const result = await this.request<StartSessionResult>(
+        'start',
+        [conversationId, command, cwd, options],
+        {
+          beforePost: beforeStart,
+          onPosted: () => {
+            ownershipPosted = true
+          }
+        }
+      )
+      this.activeSessions.set(result.sessionId, {
+        conversationId,
+        sessionId: result.sessionId,
+        command,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now()
+      })
+      this.completedSessions.delete(result.sessionId)
+      this.crashedSessions.delete(result.sessionId)
+      this.stopCompletedSessionReconciliationIfIdle()
+      return result
+    } catch (error) {
+      if (ownedTree && !ownershipPosted) {
+        await cleanupOwnedSkillExecutionPackageTree(ownedTree).catch((cleanupError) => {
+          logger.warn(
+            '[BackgroundExecProxy] Failed to clean rejected owned package tree:',
+            cleanupError
+          )
+        })
+      }
+      throw error
+    }
   }
 
   async list(conversationId: string): Promise<SessionMeta[]> {
@@ -1261,23 +1377,26 @@ class BackgroundExecUtilityProxy {
   }
 
   async cleanupConversation(conversationId: string): Promise<void> {
-    for (const [sessionId, session] of this.activeSessions) {
-      if (session.conversationId === conversationId) {
-        this.activeSessions.delete(sessionId)
+    try {
+      await this.request('cleanupConversation', [conversationId])
+    } finally {
+      for (const [sessionId, session] of this.activeSessions) {
+        if (session.conversationId === conversationId) {
+          this.activeSessions.delete(sessionId)
+        }
       }
-    }
-    for (const [sessionId, session] of this.crashedSessions) {
-      if (session.conversationId === conversationId) {
-        this.crashedSessions.delete(sessionId)
+      for (const [sessionId, session] of this.crashedSessions) {
+        if (session.conversationId === conversationId) {
+          this.crashedSessions.delete(sessionId)
+        }
       }
-    }
-    for (const [sessionId, session] of this.completedSessions) {
-      if (session.conversationId === conversationId) {
-        this.completedSessions.delete(sessionId)
+      for (const [sessionId, session] of this.completedSessions) {
+        if (session.conversationId === conversationId) {
+          this.completedSessions.delete(sessionId)
+        }
       }
+      this.stopCompletedSessionReconciliationIfIdle()
     }
-    this.stopCompletedSessionReconciliationIfIdle()
-    await this.request('cleanupConversation', [conversationId])
   }
 
   async shutdown(): Promise<void> {
@@ -1298,8 +1417,13 @@ class BackgroundExecUtilityProxy {
     }
   }
 
-  private async request<T = void>(method: BackgroundExecRpcMethod, args: unknown[]): Promise<T> {
+  private async request<T = void>(
+    method: BackgroundExecRpcMethod,
+    args: unknown[],
+    lifecycle: { beforePost?: () => Promise<void>; onPosted?: () => void } = {}
+  ): Promise<T> {
     const host = await this.ensureHost()
+    await lifecycle.beforePost?.()
     const id = `exec_rpc_${++this.requestId}`
 
     return await new Promise<T>((resolve, reject) => {
@@ -1317,6 +1441,7 @@ class BackgroundExecUtilityProxy {
 
       try {
         host.postMessage(payload)
+        lifecycle.onPosted?.()
       } catch (error) {
         this.pendingRequests.delete(id)
         reject(error)

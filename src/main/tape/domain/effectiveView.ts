@@ -16,6 +16,7 @@ import {
   toTapeProviderAttemptCacheMetrics,
   type TapeProviderAttemptCacheMetrics
 } from './providerAttempt'
+import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
 
 export interface EffectiveMessageEntry {
   entryId: number
@@ -43,6 +44,7 @@ export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES = [
   'message/retracted',
   'message/compaction_indicator',
   'migration/backfill',
+  TAPE_VIEW_MANIFEST_EVENT_NAME,
   ...CONTRACT_TAPE_EVENT_NAMES,
   ...EXECUTION_JOURNAL_EVENT_NAMES
 ] as const
@@ -183,6 +185,10 @@ export function buildEffectiveTapeView(
   const eventRows: DeepChatTapeEntryRow[] = []
 
   for (const row of [...rows].sort((left, right) => left.entry_id - right.entry_id)) {
+    // Context facts are behavioral evidence, never transcript/effective/search content.
+    if (row.kind === 'context') {
+      continue
+    }
     if (row.kind === 'anchor') {
       anchorRows.push(row)
       continue

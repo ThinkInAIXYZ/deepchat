@@ -312,6 +312,7 @@ export class ToolOutputGuard {
       const current = fittedResults[index]
       if (
         current.isError ||
+        current.requiresInline ||
         current.offloadPath ||
         current.responseText.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)
       ) {

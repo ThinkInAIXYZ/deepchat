@@ -520,6 +520,7 @@ describe('SessionLifecycle', () => {
       fallbackProviderId: 'openai',
       fallbackModelId: 'model-1'
     })
+    expect(harness.skills.setActiveSkills).not.toHaveBeenCalled()
   })
 
   it('deletes an empty new session when initial attachment preparation is cancelled', async () => {

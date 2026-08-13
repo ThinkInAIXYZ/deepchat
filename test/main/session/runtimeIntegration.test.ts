@@ -64,12 +64,29 @@ function createMockSqlitePresenter() {
   const pendingInputsStore = new Map<string, any>()
   const assistantBlocksStore = new Map<string, any[]>()
   const tapeEntries: any[] = []
+  let tapeIncarnationSequence = 0
   let messagesList: any[] = []
 
   const tapeTable = {
     runInTransaction: vi.fn((operation: () => unknown) => operation()),
     isInTransaction: vi.fn(() => false),
-    ensureBootstrapAnchor: vi.fn(),
+    ensureBootstrapAnchor: vi.fn((sessionId: string) => {
+      if (
+        tapeEntries.some(
+          (entry) => entry.session_id === sessionId && entry.name === 'session/start'
+        )
+      ) {
+        return
+      }
+      tapeTable.appendAnchor({
+        sessionId,
+        name: 'session/start',
+        source: { type: 'session', id: sessionId, seq: 0 },
+        state: { owner: 'human' },
+        meta: { tapeIncarnationId: `test-tape-${++tapeIncarnationSequence}` },
+        idempotent: true
+      })
+    }),
     append: vi.fn((input: any) => {
       if (input.idempotent && input.provenanceKey) {
         const existing = tapeEntries.find(
@@ -112,6 +129,46 @@ function createMockSqlitePresenter() {
     ),
     getBySession: vi.fn((sessionId: string) =>
       tapeEntries.filter((entry) => entry.session_id === sessionId)
+    ),
+    getBySessionExcludingContext: vi.fn((sessionId: string) =>
+      tapeEntries.filter((entry) => entry.session_id === sessionId && entry.kind !== 'context')
+    ),
+    getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
+      const requestedIds = new Set(entryIds)
+      return tapeEntries.filter(
+        (entry) => entry.session_id === sessionId && requestedIds.has(entry.entry_id)
+      )
+    }),
+    getMessageSourceEntries: vi.fn((sessionId: string, messageId: string) =>
+      tapeEntries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.source_type === 'message' &&
+          entry.source_id === messageId &&
+          (entry.kind === 'message' ||
+            (entry.kind === 'event' && entry.name === 'message/retracted'))
+      )
+    ),
+    getBootstrapIncarnation: vi.fn((sessionId: string) => {
+      const row = tapeEntries.find(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.kind === 'anchor' &&
+          entry.name === 'session/start'
+      )
+      if (!row) return undefined
+      const meta = JSON.parse(row.meta_json) as Record<string, unknown>
+      return typeof meta.tapeIncarnationId === 'string' ? meta.tapeIncarnationId : undefined
+    }),
+    getViewManifestEventsByMessage: vi.fn((sessionId: string, messageId: string) =>
+      tapeEntries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.kind === 'event' &&
+          entry.name === 'view/assembled' &&
+          entry.source_type === 'runtime_event' &&
+          entry.source_id === messageId
+      )
     ),
     getMaxEventSourceSeq: vi.fn(
       (sessionId: string, name: string, sourceType: string, sourceId: string) =>
@@ -1287,7 +1344,7 @@ describe('Integration: multi-turn context', () => {
     })
   })
 
-  it('keeps a strict overflow retry in one active provider round', async () => {
+  it('skips a protected-only overflow retry in one active provider round', async () => {
     const sessionId = 's-loop-run'
     const observedRuns: DeepChatActiveGeneration[] = []
     let providerAttempt = 0
@@ -1317,15 +1374,15 @@ describe('Integration: multi-turn context', () => {
     })
     await deepchatAgent.processMessage(sessionId, 'Hello', { maxProviderRounds: 2 })
 
-    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
-    expect(observedRuns).toHaveLength(2)
-    expect(observedRuns[0]).toBe(observedRuns[1])
-    expect(observedRuns[1]).toMatchObject({
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(1)
+    expect(observedRuns).toHaveLength(1)
+    expect(observedRuns[0]).toMatchObject({
       logicalRound: 1,
-      requestSeq: 2,
+      requestSeq: 1,
       physicalAttempt: 1,
       providerRecovery: {
-        strictProviderOverflowRetryUsed: true
+        contextOverflowHandoffAttempted: true,
+        strictProviderOverflowRetryUsed: false
       }
     })
   })

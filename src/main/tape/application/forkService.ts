@@ -197,9 +197,10 @@ export class TapeForkService {
 
       const forkHeadEntryId = table.getMaxEntryId(forkSessionIdValue)
       const forkEntries = table
-        .getBySessionUpToEntryId(forkSessionIdValue, forkHeadEntryId)
+        .getBySessionUpToEntryIdExcludingContext(forkSessionIdValue, forkHeadEntryId)
         .filter(
           (entry) =>
+            entry.kind !== 'context' &&
             !isExecutionJournalReservedName(entry.name) &&
             !isContractTapeReservedName(entry.name) &&
             !(

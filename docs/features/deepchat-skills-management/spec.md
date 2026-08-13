@@ -37,7 +37,8 @@ list. Their provider retains content and lifecycle ownership.
 Management state version 3 stores global provenance in `skills` and per-Agent
 `assigned + extension` bindings in `agents`. `assigned` is internal terminology; UI describes the
 Agent as enabled for the Skill. Per-Agent environment, runtime, and script override state remains
-independent even when Agents share a package root.
+independent even when Agents share a package root. Secret-bearing environment values stay in the
+binding; Tape records only its opaque `runtimeBindingId` revision.
 
 Legacy `<skillsRoot>/.agent-scopes/<agentId>/` directories and the historically named
 `.library-migration-v3` recovery directory are migration evidence only. Runtime discovery never
@@ -57,8 +58,20 @@ The derived Agent catalog authorizes Skill list/view/manage tools, prompt assemb
 scripts, and filesystem roots. The global `skills.listAll` management result never grants Agent
 access.
 
-A Run snapshots effective names and roots at start. Transfer, rebind, fork, and Subagent creation
-recompute the destination Agent intersection.
+The runtime applies the bounded progressive-disclosure contract from
+[Skill Progressive Disclosure](../../architecture/skill-progressive-disclosure/spec.md) to that
+derived catalog:
+
+- Route renders bounded deterministic cards from enabled Skills only;
+- Discover searches and paginates the same bounded catalog;
+- message and Session activation materialize effective content into Tape; and
+- `skill_view` and `skill_run` bind provider-visible content and execution to the same
+  request-scoped package evidence.
+
+A Run snapshots effective names, content identity, and executable package authority at start.
+Transfer, rebind, fork, and Subagent creation recompute the destination Agent intersection. Direct
+ACP compatibility receives bounded Route metadata but never local full Skill bodies without
+DeepChat Tape authority.
 
 ## Operations
 
@@ -110,7 +123,11 @@ is written again.
 ## UI contract
 
 ```text
-Skills                                  [Search] [Sync directory] [Import from external Agent]
+Skills
++----------------------------------------------------------+
+| Suggest Skill Drafts                               [off] |
++----------------------------------------------------------+
+[Search] [Sync directory] [Import from external Agent]
 
 [Skill card] [Skill card] [Skill card]
 

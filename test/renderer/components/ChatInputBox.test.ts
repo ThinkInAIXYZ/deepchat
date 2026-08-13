@@ -18,8 +18,13 @@ const insertContentMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
 const activeSkillsRef = ref<string[]>([])
 const pendingSkillsRef = ref<string[]>([])
+const sessionActiveSkillsRef = ref<string[]>([])
+const sessionActiveSkillsLoadingRef = ref(false)
+const sessionActiveSkillRemovingRef = ref<string | null>(null)
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
+const removeSessionActiveSkillMock = vi.fn().mockResolvedValue(undefined)
+const notifyRendererMock = vi.hoisted(() => vi.fn())
 const closeDialogMock = vi.fn()
 const getOcrRuntimeStatusMock = vi.fn()
 
@@ -51,12 +56,16 @@ const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) 
   availableSkills: ref([]),
   loading: ref(false),
   pendingSkills: pendingSkillsRef,
+  sessionActiveSkills: sessionActiveSkillsRef,
+  sessionActiveSkillsLoading: sessionActiveSkillsLoadingRef,
+  sessionActiveSkillRemoving: sessionActiveSkillRemovingRef,
   loadActiveSkills: vi.fn(),
   toggleSkill: vi.fn(),
   activateSkill: activateSkillMock,
   deactivateSkill: deactivateSkillMock,
   consumePendingSkills: consumePendingSkillsMock,
-  clearPendingSkills: clearPendingSkillsMock
+  clearPendingSkills: clearPendingSkillsMock,
+  removeSessionActiveSkill: removeSessionActiveSkillMock
 }))
 let lastEditorOptions: any = null
 let lastEditorInstance: any = null
@@ -222,6 +231,10 @@ vi.mock('@api/OcrClient', () => ({
   })
 }))
 
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: notifyRendererMock
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
@@ -234,6 +247,9 @@ describe('ChatInputBox attachments', () => {
     selectedFilesRef.value = []
     activeSkillsRef.value = []
     pendingSkillsRef.value = []
+    sessionActiveSkillsRef.value = []
+    sessionActiveSkillsLoadingRef.value = false
+    sessionActiveSkillRemovingRef.value = null
     lastEditorOptions = null
     lastEditorInstance = null
     mockEditorText = ''
@@ -297,6 +313,38 @@ describe('ChatInputBox attachments', () => {
 
     expect(skillsAgentId?.value).toBe('agent-a')
     expect(mentionOptions?.agentId.value).toBe('agent-a')
+  })
+
+  it('shows persistent Session Skills separately from message Skill chips', async () => {
+    sessionActiveSkillsRef.value = ['database-migration']
+
+    const wrapper = await mountComponent()
+
+    expect(wrapper.get('[data-testid="session-skills-indicator"]').text()).toBe(
+      'chat.skills.indicator.active'
+    )
+    expect(activeSkillsRef.value).toEqual([])
+  })
+
+  it('delegates Session Skill removal and reports route failures', async () => {
+    sessionActiveSkillsRef.value = ['database-migration']
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    removeSessionActiveSkillMock.mockRejectedValueOnce(new Error('generation active'))
+    const wrapper = await mountComponent()
+
+    wrapper
+      .findComponent({ name: 'SessionSkillsIndicator' })
+      .vm.$emit('remove', 'database-migration')
+    await flushPromises()
+
+    expect(removeSessionActiveSkillMock).toHaveBeenCalledWith('database-migration')
+    expect(notifyRendererMock).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.skill.removeSessionActiveFailed',
+      title: 'common.error.operationFailed',
+      description: 'common.error.requestFailed'
+    })
+    errorSpy.mockRestore()
   })
 
   it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
