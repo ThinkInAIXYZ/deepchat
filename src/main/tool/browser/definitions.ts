@@ -71,7 +71,7 @@ export function getYoBrowserToolDefinitions(): MCPToolDefinition[] {
       'get_browser_status',
       'Get the current session browser status',
       yoBrowserSchemas.get_browser_status,
-      TOOL_EXECUTION.read.sequential
+      TOOL_EXECUTION.read.parallel
     ),
     toDefinition(
       'load_url',

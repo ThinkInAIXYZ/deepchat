@@ -162,8 +162,8 @@ Session route is required.
 
 A small main-process ordering change is required:
 
-- `NewEnvironmentPreferencesTable.activateAtTop()` uses one upsert to preserve an already-active
-  path's order or assign a newly active path before the current minimum explicit order.
+- `NewEnvironmentPreferencesTable.activateAtTop()` uses a transaction to preserve an already-active
+  path's order or shift existing explicit orders before assigning a newly active path order zero.
 - `ProjectService.selectDirectory()` wraps recent-project upsert and preference activation in one
   database transaction. It does not call `getEnvironments()` or synchronously check unrelated
   filesystem paths.

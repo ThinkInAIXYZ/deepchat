@@ -123,7 +123,7 @@ function buildToolDefinition(
   schema: z.ZodTypeAny
 ): MCPToolDefinition {
   return {
-    execution: TOOL_EXECUTION.read.sequential,
+    execution: TOOL_EXECUTION.read.parallel,
     type: 'function',
     function: {
       name,
