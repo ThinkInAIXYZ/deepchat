@@ -610,7 +610,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     })
     expect(skillService.viewSkillForAgent).toHaveBeenCalledWith('agent-a', 'deepchat-settings', {
       filePath: 'references/guide.md',
-      conversationId: 'conv-1'
+      conversationId: 'conv-1',
+      activeSkillNames: ['deepchat-settings']
     })
     expect(commitDispatch).not.toHaveBeenCalled()
   })
