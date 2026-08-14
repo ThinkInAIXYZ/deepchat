@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const inspectorStore = vi.hoisted(() => ({
   sessionId: null as string | null,
   loadedSearch: '',
+  loadingSearchFill: false,
   serverFilters: {},
   records: [],
   evidence: [],

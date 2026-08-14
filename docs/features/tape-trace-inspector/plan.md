@@ -4,7 +4,7 @@
 
 Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes,
 renderer projection store, historical panel, gated entry points, and committed-head following are
-complete; bounded loaded-scope page filling is next.
+complete. P2 is complete; P3 sorting and interaction closure is next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -131,7 +131,7 @@ durable regression coverage without mirroring private control flow.
 - [x] Emit payload-free pulses only when the pair changes.
 - [x] Release subscriptions on panel close, session change, renderer destruction, and app shutdown.
 - [x] Pull `newer` pages on pulse; implement pause/resume and follow-tail without changing execution.
-- [ ] Add cancellable bounded page filling for loaded-scope text search.
+- [x] Add cancellable bounded page filling for loaded-scope text search.
 
 Completion condition: committed tail facts are never starved, uncommitted rows are never observed,
 and pause changes only automatic fetching/follow.

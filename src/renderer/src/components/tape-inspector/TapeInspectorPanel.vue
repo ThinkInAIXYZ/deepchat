@@ -13,10 +13,15 @@
         />
         <Input
           :model-value="store.loadedSearch"
-          class="h-7 pl-7 text-xs"
+          class="h-7 px-7 text-xs"
           :placeholder="t('tapeInspector.search.loadedPlaceholder')"
           :aria-label="t('tapeInspector.search.loadedLabel')"
           @update:model-value="store.setLoadedSearch(String($event))"
+        />
+        <Icon
+          v-if="store.loadingSearchFill"
+          icon="lucide:loader-circle"
+          class="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
         />
       </div>
 

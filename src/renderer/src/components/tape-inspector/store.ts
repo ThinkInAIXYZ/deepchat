@@ -22,6 +22,8 @@ import {
 const PAGE_LIMIT = 100
 const EVIDENCE_PAGE_LIMIT = 100
 const LIVE_RETRY_DELAY_MS = 1_000
+const SEARCH_FILL_DEBOUNCE_MS = 250
+const SEARCH_FILL_MAX_PAGES = 6
 
 export type TapeInspectorErrorCode = 'load_failed' | 'detail_failed' | 'record_not_found' | null
 
@@ -59,6 +61,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const evidenceTraceIds = ref<string[]>([])
   const serverFilters = shallowRef<TapeInspectorFactFilters>({})
   const loadedSearch = ref('')
+  const loadingSearchFill = ref(false)
   const livePaused = ref(false)
   const collapsedKeys = ref(new Set<string>())
   const selectedKey = ref<string | null>(null)
@@ -81,6 +84,10 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const liveSyncing = ref(false)
   let liveRetryTimer: ReturnType<typeof setTimeout> | null = null
   let newerPageRequest: { generation: number; promise: Promise<boolean> } | null = null
+  let searchFillGeneration = 0
+  let searchFillTimer: ReturnType<typeof setTimeout> | null = null
+  let searchFillActive = false
+  let searchFillRequested = false
 
   const records = computed(() =>
     factEntryIds.value.flatMap((entryId) => {
@@ -116,7 +123,87 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       !loadingNewer.value
   )
 
+  function clearSearchFillTimer(): void {
+    if (searchFillTimer === null) return
+    clearTimeout(searchFillTimer)
+    searchFillTimer = null
+  }
+
+  function cancelLoadedSearchFill(): void {
+    searchFillGeneration += 1
+    searchFillRequested = false
+    clearSearchFillTimer()
+    loadingSearchFill.value = false
+  }
+
+  function scheduleLoadedSearchFill(generation: number, delayMs: number): void {
+    clearSearchFillTimer()
+    searchFillTimer = setTimeout(() => {
+      searchFillTimer = null
+      void fillLoadedSearch(generation)
+    }, delayMs)
+  }
+
+  function requestLoadedSearchFill(delayMs = SEARCH_FILL_DEBOUNCE_MS): void {
+    const generation = ++searchFillGeneration
+    clearSearchFillTimer()
+    if (
+      loadedSearch.value.trim().length === 0 ||
+      rows.value.length > 0 ||
+      (olderCursor.value === null && evidenceCursor.value === null)
+    ) {
+      searchFillRequested = false
+      loadingSearchFill.value = false
+      return
+    }
+    searchFillRequested = true
+    loadingSearchFill.value = true
+    scheduleLoadedSearchFill(generation, delayMs)
+  }
+
+  async function fillLoadedSearch(generation: number): Promise<void> {
+    if (generation !== searchFillGeneration || !searchFillRequested || searchFillActive) {
+      return
+    }
+    searchFillActive = true
+    let pagesLoaded = 0
+    try {
+      while (
+        generation === searchFillGeneration &&
+        loadedSearch.value.trim().length > 0 &&
+        rows.value.length === 0 &&
+        pagesLoaded < SEARCH_FILL_MAX_PAGES
+      ) {
+        let advanced = false
+        if (olderCursor.value !== null && pagesLoaded < SEARCH_FILL_MAX_PAGES) {
+          if (await loadOlderPage()) {
+            pagesLoaded += 1
+            advanced = true
+          }
+          if (generation !== searchFillGeneration || rows.value.length > 0) break
+        }
+        if (evidenceCursor.value !== null && pagesLoaded < SEARCH_FILL_MAX_PAGES) {
+          if (await loadMoreEvidence()) {
+            pagesLoaded += 1
+            advanced = true
+          }
+          if (generation !== searchFillGeneration || rows.value.length > 0) break
+        }
+        if (!advanced) break
+      }
+    } finally {
+      searchFillActive = false
+      if (generation !== searchFillGeneration && searchFillRequested) {
+        scheduleLoadedSearchFill(searchFillGeneration, 0)
+      } else if (generation === searchFillGeneration) {
+        searchFillRequested = false
+        loadingSearchFill.value = false
+      }
+    }
+  }
+
   function cancelPendingRequests(): number {
+    cancelLoadedSearchFill()
     requestGeneration += 1
     detailRequestGeneration += 1
     loadingInitial.value = false
@@ -273,6 +360,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       upsertEvidence(evidencePage.records, true)
       evidenceCursor.value = evidencePage.nextCursor
       resolvePreselection()
+      requestLoadedSearchFill()
       return true
     } catch {
       if (isCurrentRequest(generation, normalizedSessionId)) errorCode.value = 'load_failed'
@@ -539,6 +627,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
 
   function setLoadedSearch(search: string): void {
     loadedSearch.value = search
+    requestLoadedSearchFill()
   }
 
   function toggleCollapsed(key: string): void {
@@ -687,6 +776,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     evidence,
     serverFilters,
     loadedSearch,
+    loadingSearchFill,
     livePaused,
     liveSyncing,
     collapsedKeys,

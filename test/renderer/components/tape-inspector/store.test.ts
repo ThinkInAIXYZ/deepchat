@@ -46,7 +46,10 @@ function fact(
   }
 }
 
-function evidence(traceId: string): TapeInspectorEvidenceRecord {
+function evidence(
+  traceId: string,
+  overrides: Partial<TapeInspectorEvidenceRecord> = {}
+): TapeInspectorEvidenceRecord {
   return {
     recordType: 'evidence',
     key: `trace:${traceId}`,
@@ -57,7 +60,8 @@ function evidence(traceId: string): TapeInspectorEvidenceRecord {
     providerId: 'provider-1',
     modelId: 'model-1',
     createdAt: 100,
-    truncated: false
+    truncated: false,
+    ...overrides
   }
 }
 
@@ -187,6 +191,89 @@ describe('Tape Inspector store', () => {
     await expect(store.applyServerFilters({ errorsOnly: true })).resolves.toBe(true)
     expect(store.selectedKey).toBe('fact:incarnation-1:entry:10')
     expect(store.selectedRow).toBeNull()
+  })
+
+  it('fills bounded fact and evidence pages until the loaded search finds a match', async () => {
+    vi.useFakeTimers()
+    const store = useTapeInspectorStore()
+    try {
+      client.listTapeInspectorPage
+        .mockResolvedValueOnce(
+          page([fact(20, { name: 'recent' })], {
+            nextCursor: { sort: 'entryId', entryId: 19 }
+          })
+        )
+        .mockResolvedValueOnce(
+          page([fact(19, { name: 'older' })], {
+            nextCursor: { sort: 'entryId', entryId: 18 }
+          })
+        )
+      client.listTapeInspectorEvidence
+        .mockResolvedValueOnce(
+          evidencePage([evidence('recent-trace')], {
+            nextCursor: { createdAt: 100, traceId: 'recent-trace' }
+          })
+        )
+        .mockResolvedValueOnce(
+          evidencePage([
+            evidence('matching-trace', {
+              providerId: 'target-provider',
+              createdAt: 90
+            })
+          ])
+        )
+      await store.initialize('session-1')
+
+      store.setLoadedSearch('target-provider')
+      expect(store.loadingSearchFill).toBe(true)
+      await vi.advanceTimersByTimeAsync(250)
+
+      expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(2)
+      expect(client.listTapeInspectorEvidence).toHaveBeenCalledTimes(2)
+      expect(store.evidence.map((record) => record.traceId)).toContain('matching-trace')
+      expect(store.rows.some((row) => row.key === 'trace:matching-trace')).toBe(true)
+      expect(store.loadingSearchFill).toBe(false)
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels superseded search debounce and stops after six supplemental pages', async () => {
+    vi.useFakeTimers()
+    const store = useTapeInspectorStore()
+    try {
+      client.listTapeInspectorPage.mockResolvedValueOnce(
+        page([fact(20, { name: 'recent' })], {
+          nextCursor: { sort: 'entryId', entryId: 19 }
+        })
+      )
+      for (let entryId = 19; entryId >= 14; entryId -= 1) {
+        client.listTapeInspectorPage.mockResolvedValueOnce(
+          page([fact(entryId, { name: 'not-a-match' })], {
+            nextCursor: { sort: 'entryId', entryId: entryId - 1 }
+          })
+        )
+      }
+      client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+      await store.initialize('session-1')
+
+      store.setLoadedSearch('superseded-query')
+      store.setLoadedSearch('missing-target')
+      await vi.advanceTimersByTimeAsync(250)
+
+      expect(store.loadedSearch).toBe('missing-target')
+      expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(7)
+      expect(store.hasOlder).toBe(true)
+      expect(store.rows).toEqual([])
+      expect(store.loadingSearchFill).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(7)
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
   })
 
   it('discards a late bootstrap response after switching sessions', async () => {
