@@ -1,0 +1,218 @@
+import type { TapeInspectorHead, TapeInspectorHeadPulse } from '@shared/types/tape-inspector'
+
+const DEFAULT_POLL_INTERVAL_MS = 500
+const MAX_SUBSCRIPTIONS_PER_RENDERER = 16
+
+export interface TapeInspectorHeadWatcherScheduler {
+  setInterval(callback: () => void, intervalMs: number): unknown
+  clearInterval(handle: unknown): void
+}
+
+export interface TapeInspectorHeadWatcherOptions {
+  readHead(sessionId: string): TapeInspectorHead | null
+  emit(webContentsId: number, pulse: TapeInspectorHeadPulse): void
+  watchRendererDestroyed(webContentsId: number, listener: () => void): () => void
+  scheduler?: TapeInspectorHeadWatcherScheduler
+  pollIntervalMs?: number
+  onError?: (error: unknown, sessionId: string) => void
+}
+
+interface WatchedSession {
+  subscriptions: Map<string, number>
+  lastHead: TapeInspectorHead
+  timer: unknown
+}
+
+interface WatchedRenderer {
+  subscriptionKeys: Set<string>
+  stopWatching: () => void
+}
+
+function sameHead(left: TapeInspectorHead, right: TapeInspectorHead): boolean {
+  return left.tapeIncarnationId === right.tapeIncarnationId && left.maxEntryId === right.maxEntryId
+}
+
+function defaultScheduler(): TapeInspectorHeadWatcherScheduler {
+  return {
+    setInterval(callback, intervalMs) {
+      const timer = setInterval(callback, intervalMs)
+      timer.unref()
+      return timer
+    },
+    clearInterval(handle) {
+      clearInterval(handle as NodeJS.Timeout)
+    }
+  }
+}
+
+export class TapeInspectorHeadWatcher {
+  private readonly sessions = new Map<string, WatchedSession>()
+  private readonly renderers = new Map<number, WatchedRenderer>()
+  private readonly subscriptionSessions = new Map<string, string>()
+  private readonly scheduler: TapeInspectorHeadWatcherScheduler
+  private readonly pollIntervalMs: number
+
+  constructor(private readonly options: TapeInspectorHeadWatcherOptions) {
+    this.scheduler = options.scheduler ?? defaultScheduler()
+    this.pollIntervalMs = Math.max(
+      100,
+      Math.floor(options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS)
+    )
+  }
+
+  subscribe(input: {
+    sessionId: string
+    subscriptionId: string
+    webContentsId: number
+  }): TapeInspectorHead {
+    const subscriptionKey = this.subscriptionKey(input.webContentsId, input.subscriptionId)
+    const existingSessionId = this.subscriptionSessions.get(subscriptionKey)
+    const watchedRenderer = this.renderers.get(input.webContentsId)
+    if (
+      !existingSessionId &&
+      watchedRenderer &&
+      watchedRenderer.subscriptionKeys.size >= MAX_SUBSCRIPTIONS_PER_RENDERER
+    ) {
+      throw new RangeError('Tape Inspector live subscription limit exceeded.')
+    }
+    if (existingSessionId && existingSessionId !== input.sessionId) {
+      this.unsubscribeByKey(subscriptionKey)
+    }
+
+    const head = this.options.readHead(input.sessionId)
+    if (!head) throw new Error('Session Tape bootstrap is missing or invalid.')
+
+    let watchedSession = this.sessions.get(input.sessionId)
+    if (!watchedSession) {
+      watchedSession = {
+        subscriptions: new Map(),
+        lastHead: head,
+        timer: this.scheduler.setInterval(() => this.poll(input.sessionId), this.pollIntervalMs)
+      }
+      this.sessions.set(input.sessionId, watchedSession)
+    } else if (!sameHead(watchedSession.lastHead, head)) {
+      watchedSession.lastHead = head
+      this.emitHead(input.sessionId, watchedSession)
+    }
+
+    watchedSession.subscriptions.set(subscriptionKey, input.webContentsId)
+    this.subscriptionSessions.set(subscriptionKey, input.sessionId)
+    try {
+      this.trackRenderer(input.webContentsId, subscriptionKey)
+    } catch (error) {
+      this.unsubscribeByKey(subscriptionKey)
+      throw error
+    }
+    return head
+  }
+
+  unsubscribe(input: { subscriptionId: string; webContentsId: number }): void {
+    this.unsubscribeByKey(this.subscriptionKey(input.webContentsId, input.subscriptionId))
+  }
+
+  close(): void {
+    for (const watchedSession of this.sessions.values()) {
+      this.scheduler.clearInterval(watchedSession.timer)
+    }
+    for (const watchedRenderer of this.renderers.values()) watchedRenderer.stopWatching()
+    this.sessions.clear()
+    this.renderers.clear()
+    this.subscriptionSessions.clear()
+  }
+
+  private poll(sessionId: string): void {
+    const watchedSession = this.sessions.get(sessionId)
+    if (!watchedSession) return
+    try {
+      const head = this.options.readHead(sessionId)
+      if (!head) {
+        this.releaseSession(sessionId)
+        return
+      }
+      if (sameHead(watchedSession.lastHead, head)) return
+      watchedSession.lastHead = head
+      this.emitHead(sessionId, watchedSession)
+    } catch (error) {
+      this.options.onError?.(error, sessionId)
+    }
+  }
+
+  private emitHead(sessionId: string, watchedSession: WatchedSession): void {
+    const pulse = { sessionId, ...watchedSession.lastHead }
+    for (const webContentsId of new Set(watchedSession.subscriptions.values())) {
+      this.options.emit(webContentsId, pulse)
+    }
+  }
+
+  private trackRenderer(webContentsId: number, subscriptionKey: string): void {
+    let watchedRenderer = this.renderers.get(webContentsId)
+    if (!watchedRenderer) {
+      watchedRenderer = {
+        subscriptionKeys: new Set([subscriptionKey]),
+        stopWatching: () => {}
+      }
+      this.renderers.set(webContentsId, watchedRenderer)
+      try {
+        watchedRenderer.stopWatching = this.options.watchRendererDestroyed(webContentsId, () => {
+          this.releaseRenderer(webContentsId)
+        })
+      } catch (error) {
+        if (this.renderers.get(webContentsId) === watchedRenderer) {
+          this.renderers.delete(webContentsId)
+        }
+        throw error
+      }
+      if (this.renderers.get(webContentsId) !== watchedRenderer) {
+        watchedRenderer.stopWatching()
+        this.unsubscribeByKey(subscriptionKey)
+        return
+      }
+    } else {
+      watchedRenderer.subscriptionKeys.add(subscriptionKey)
+    }
+  }
+
+  private releaseRenderer(webContentsId: number): void {
+    const watchedRenderer = this.renderers.get(webContentsId)
+    if (!watchedRenderer) return
+    this.renderers.delete(webContentsId)
+    for (const subscriptionKey of watchedRenderer.subscriptionKeys) {
+      this.unsubscribeByKey(subscriptionKey)
+    }
+    watchedRenderer.stopWatching()
+  }
+
+  private releaseSession(sessionId: string): void {
+    const watchedSession = this.sessions.get(sessionId)
+    if (!watchedSession) return
+    for (const subscriptionKey of watchedSession.subscriptions.keys()) {
+      this.unsubscribeByKey(subscriptionKey)
+    }
+  }
+
+  private unsubscribeByKey(subscriptionKey: string): void {
+    const sessionId = this.subscriptionSessions.get(subscriptionKey)
+    if (!sessionId) return
+    this.subscriptionSessions.delete(subscriptionKey)
+
+    const watchedSession = this.sessions.get(sessionId)
+    watchedSession?.subscriptions.delete(subscriptionKey)
+    if (watchedSession && watchedSession.subscriptions.size === 0) {
+      this.scheduler.clearInterval(watchedSession.timer)
+      this.sessions.delete(sessionId)
+    }
+
+    const separator = subscriptionKey.indexOf(':')
+    const webContentsId = Number(subscriptionKey.slice(0, separator))
+    const watchedRenderer = this.renderers.get(webContentsId)
+    watchedRenderer?.subscriptionKeys.delete(subscriptionKey)
+    if (watchedRenderer && watchedRenderer.subscriptionKeys.size === 0) {
+      watchedRenderer.stopWatching()
+      this.renderers.delete(webContentsId)
+    }
+  }
+
+  private subscriptionKey(webContentsId: number, subscriptionId: string): string {
+    return `${webContentsId}:${subscriptionId}`
+  }
+}

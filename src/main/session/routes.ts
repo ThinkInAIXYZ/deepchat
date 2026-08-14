@@ -39,6 +39,8 @@ import {
   sessionsListRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
+  sessionsSubscribeTapeInspectorHeadRoute,
+  sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
   sessionsMoveToAgentRoute,
@@ -118,6 +120,13 @@ export function createSessionRoutes(deps: {
   translation: Pick<SessionTranslation, 'translate'>
   usageStats: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntime: { retryHealthCheck(): Promise<unknown> }
+  tapeInspectorHeadWatcher: {
+    subscribe(input: { sessionId: string; subscriptionId: string; webContentsId: number }): {
+      tapeIncarnationId: string
+      maxEntryId: number
+    }
+    unsubscribe(input: { subscriptionId: string; webContentsId: number }): void
+  }
 }): DeepchatRouteMap {
   const submissionCancellations = new SubmissionCancellationRegistry()
   const sessionService = new SessionService({
@@ -453,6 +462,32 @@ export function createSessionRoutes(deps: {
         return sessionsGetTapeInspectorRecordDetailRoute.output.parse(
           await deps.projection.getTapeInspectorRecordDetail(input)
         )
+      }
+    ],
+    [
+      sessionsSubscribeTapeInspectorHeadRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsSubscribeTapeInspectorHeadRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        return sessionsSubscribeTapeInspectorHeadRoute.output.parse({
+          subscribed: true,
+          ...deps.tapeInspectorHeadWatcher.subscribe({
+            ...input,
+            webContentsId: caller.webContentsId
+          })
+        })
+      }
+    ],
+    [
+      sessionsUnsubscribeTapeInspectorHeadRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsUnsubscribeTapeInspectorHeadRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        deps.tapeInspectorHeadWatcher.unsubscribe({
+          ...input,
+          webContentsId: caller.webContentsId
+        })
+        return sessionsUnsubscribeTapeInspectorHeadRoute.output.parse({ unsubscribed: true })
       }
     ],
     [

@@ -73,6 +73,15 @@ export const sessionsMessagesChangedEvent = defineEventContract({
   })
 })
 
+export const sessionsTapeInspectorHeadChangedEvent = defineEventContract({
+  name: 'sessions.tapeInspector.head.changed',
+  payload: z.object({
+    sessionId: EntityIdSchema,
+    tapeIncarnationId: EntityIdSchema,
+    maxEntryId: z.number().int().nonnegative()
+  })
+})
+
 export const sessionsAcpModesReadyEvent = defineEventContract({
   name: 'sessions.acp.modes.ready',
   payload: z.object({

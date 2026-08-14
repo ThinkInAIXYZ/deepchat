@@ -31,7 +31,7 @@ import {
   decodeMemoryPageCursor
 } from '@shared/contracts/routes'
 import { createRouteDispatcher, dispatchDeepchatRoute } from '@/routes'
-import { createRendererRouteContext } from '@/routes/routeRegistry'
+import { createRendererRouteContext, type RouteContext } from '@/routes/routeRegistry'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { ProviderImportService } from '@/provider/providerImportService'
 import { createProviderRoutes } from '@/provider/routes'
@@ -1641,6 +1641,13 @@ function createRuntime() {
       })
     }
   })
+  const tapeInspectorHeadWatcher = {
+    subscribe: vi.fn().mockReturnValue({
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 20
+    }),
+    unsubscribe: vi.fn()
+  }
   const sessionRoutes = createSessionRoutes({
     lifecycle: sessionLifecyclePort,
     projection: sessionProjectionPort,
@@ -1654,7 +1661,8 @@ function createRuntime() {
     exportService: agentSessionExportService,
     translation: sessionTranslation,
     usageStats: usageStatsService,
-    rtkRuntime: rtkRuntimeService
+    rtkRuntime: rtkRuntimeService,
+    tapeInspectorHeadWatcher
   })
   const agentRoutes = createAgentRoutes({
     agentSettings: providerSettings,
@@ -1863,6 +1871,7 @@ function createRuntime() {
     cronJobs,
     usageStatsService,
     rtkRuntimeService,
+    tapeInspectorHeadWatcher,
     sessionHistorySearch,
     agentSessionExportService,
     sessionTranslation
@@ -4980,6 +4989,60 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).rejects.toThrow()
     expect(sessionProjectionPort.listTapeInspectorPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('scopes Tape Inspector head subscriptions to the calling renderer', async () => {
+    const { runtime, tapeInspectorHeadWatcher } = createRuntime()
+    const renderer = createRendererRouteContext(88, 3)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'session-1', subscriptionId: 'subscription-1' },
+        renderer
+      )
+    ).resolves.toEqual({
+      subscribed: true,
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 20
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.unsubscribeTapeInspectorHead',
+        { subscriptionId: 'subscription-1' },
+        renderer
+      )
+    ).resolves.toEqual({ unsubscribed: true })
+
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      subscriptionId: 'subscription-1',
+      webContentsId: 88
+    })
+    expect(tapeInspectorHeadWatcher.unsubscribe).toHaveBeenCalledWith({
+      subscriptionId: 'subscription-1',
+      webContentsId: 88
+    })
+
+    const cliContext: RouteContext = {
+      caller: {
+        kind: 'cli',
+        principal: 'human',
+        connectionId: 'cli-1',
+        scopes: ['runs:read']
+      }
+    }
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'session-1', subscriptionId: 'subscription-2' },
+        cliContext
+      )
+    ).rejects.toThrow('Route requires a renderer caller')
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledOnce()
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {

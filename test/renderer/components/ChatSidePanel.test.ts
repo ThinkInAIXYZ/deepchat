@@ -292,6 +292,16 @@ describe('ChatSidePanel', () => {
     expect(hidden.wrapper.find('[data-testid="tape-inspector-sidepanel-tab"]').exists()).toBe(false)
   })
 
+  it('does not keep the Inspector mounted while the sidepanel is closed', async () => {
+    const { wrapper } = await setup({
+      open: false,
+      activeTab: 'tape-inspector',
+      traceDebugEnabled: true
+    })
+
+    expect(wrapper.find('[data-testid="tape-inspector-panel-stub"]').exists()).toBe(false)
+  })
+
   it('closes an active Inspector when there is no session to inspect', async () => {
     const { sidepanelStore } = await setup({
       activeTab: 'tape-inspector',

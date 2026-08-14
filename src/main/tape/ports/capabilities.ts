@@ -37,7 +37,8 @@ import type {
 import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
-  ListTapeInspectorPageOutput
+  ListTapeInspectorPageOutput,
+  TapeInspectorHead
 } from '@shared/types/tape-inspector'
 import type {
   CreateTapeProgrammaticToolSurfaceFactInput,
@@ -324,6 +325,7 @@ export interface TapeInspectionReader {
 }
 
 export interface TapeSessionInspectionReader {
+  getTapeInspectorHead(sessionId: string): TapeInspectorHead | null
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput
   getTapeInspectorRecordDetail(input: {
     sessionId: string

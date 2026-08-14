@@ -122,7 +122,9 @@
         />
         <TapeInspectorPanel
           v-else-if="
-            sidepanelStore.activeTab === 'tape-inspector' && uiSettingsStore.traceDebugEnabled
+            sidepanelStore.activeTab === 'tape-inspector' &&
+            uiSettingsStore.traceDebugEnabled &&
+            shouldShow
           "
           :session-id="props.sessionId"
           :open-request="sidepanelStore.tapeInspectorOpenRequest"

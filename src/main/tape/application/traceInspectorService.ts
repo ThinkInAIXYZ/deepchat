@@ -2,7 +2,8 @@ import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
-  TapeInspectorFactRecord
+  TapeInspectorFactRecord,
+  TapeInspectorHead
 } from '@shared/types/tape-inspector'
 import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
 import {
@@ -37,6 +38,18 @@ function normalizedLimit(limit: number | undefined): number {
 
 export class TapeTraceInspectorService {
   constructor(private readonly providers: TraceInspectorProviders) {}
+
+  getHead(sessionId: string): TapeInspectorHead | null {
+    const table = this.providers.getEntryStore()
+    return table.runInTransaction(() => {
+      const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
+      if (!tapeIncarnationId) return null
+      return {
+        tapeIncarnationId,
+        maxEntryId: table.getMaxEntryId(sessionId)
+      }
+    })
+  }
 
   listPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput {
     if ((input.mode === 'tail') === Boolean(input.cursor)) {

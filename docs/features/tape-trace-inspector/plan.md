@@ -3,8 +3,8 @@
 ## Status
 
 Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes,
-renderer projection store, historical panel, and gated entry points are complete; committed-head
-following is next.
+renderer projection store, historical panel, gated entry points, and committed-head following are
+complete; bounded loaded-scope page filling is next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -124,13 +124,13 @@ durable regression coverage without mirroring private control flow.
 
 ## 8. P2 Committed-head Watcher
 
-- [ ] Add typed subscribe/unsubscribe routes or equivalent renderer-target ownership for active
+- [x] Add typed subscribe/unsubscribe routes or equivalent renderer-target ownership for active
   Inspector sessions.
-- [ ] Reference-count watchers by session and renderer target.
-- [ ] Atomically poll `(tapeIncarnationId, maxEntryId)` only while subscribed.
-- [ ] Emit payload-free pulses only when the pair changes.
-- [ ] Release subscriptions on panel close, session change, renderer destruction, and app shutdown.
-- [ ] Pull `newer` pages on pulse; implement pause/resume and follow-tail without changing execution.
+- [x] Reference-count watchers by session and renderer target.
+- [x] Atomically poll `(tapeIncarnationId, maxEntryId)` only while subscribed.
+- [x] Emit payload-free pulses only when the pair changes.
+- [x] Release subscriptions on panel close, session change, renderer destruction, and app shutdown.
+- [x] Pull `newer` pages on pulse; implement pause/resume and follow-tail without changing execution.
 - [ ] Add cancellable bounded page filling for loaded-scope text search.
 
 Completion condition: committed tail facts are never starved, uncommitted rows are never observed,
@@ -138,9 +138,9 @@ and pause changes only automatic fetching/follow.
 
 ## 9. P2 Lifecycle Verification
 
-- [ ] Cover watcher sharing, cleanup, reset, pause/resume catch-up, and no-change polling.
-- [ ] Cover terminal facts arriving at the end of a burst.
-- [ ] Cover session deletion and renderer destruction while a watcher is active.
+- [x] Cover watcher sharing, cleanup, reset, pause/resume catch-up, and no-change polling.
+- [x] Cover terminal facts arriving at the end of a burst.
+- [x] Cover session deletion and renderer destruction while a watcher is active.
 
 Completion condition: the watcher has no timer, window, or session leaks and never pushes row
 payloads.

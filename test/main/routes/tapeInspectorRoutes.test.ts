@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   sessionsGetTapeInspectorRecordDetailRoute,
   sessionsListTapeInspectorEvidenceRoute,
-  sessionsListTapeInspectorPageRoute
+  sessionsListTapeInspectorPageRoute,
+  sessionsSubscribeTapeInspectorHeadRoute,
+  sessionsUnsubscribeTapeInspectorHeadRoute
 } from '@shared/contracts/routes'
 
 describe('Tape Inspector route contracts', () => {
@@ -88,5 +90,31 @@ describe('Tape Inspector route contracts', () => {
         entryId: 1
       }).success
     ).toBe(true)
+  })
+
+  it('bounds opaque live subscription ids and projects committed heads', () => {
+    expect(
+      sessionsSubscribeTapeInspectorHeadRoute.input.safeParse({
+        sessionId: 'session-1',
+        subscriptionId: ''
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsUnsubscribeTapeInspectorHeadRoute.input.safeParse({
+        subscriptionId: 'x'.repeat(129)
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsSubscribeTapeInspectorHeadRoute.output.parse({
+        subscribed: true,
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 20,
+        payload: 'must not cross the boundary'
+      })
+    ).toEqual({
+      subscribed: true,
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 20
+    })
   })
 })

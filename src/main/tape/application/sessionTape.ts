@@ -22,7 +22,8 @@ import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journ
 import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
-  ListTapeInspectorPageOutput
+  ListTapeInspectorPageOutput,
+  TapeInspectorHead
 } from '@shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeMessageReplacementOptions, TapeToolFactInput } from '../domain/facts'
@@ -461,6 +462,10 @@ export class SessionTape
 
   getBySession(sessionId: string): DeepChatTapeEntryRow[] {
     return this.providers.getEntryStore().getBySessionExcludingContext(sessionId)
+  }
+
+  getTapeInspectorHead(sessionId: string): TapeInspectorHead | null {
+    return this.traceInspector.getHead(sessionId)
   }
 
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput {

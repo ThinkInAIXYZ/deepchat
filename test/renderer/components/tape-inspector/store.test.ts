@@ -311,4 +311,198 @@ describe('Tape Inspector store', () => {
     await expect(load).resolves.toBe(false)
     expect(store.selectedDetail).toBeNull()
   })
+
+  it('follows a committed head through multiple bounded newer pages', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20)]))
+      .mockResolvedValueOnce(
+        page([fact(21), fact(120)], {
+          snapshotMaxEntryId: 250,
+          nextCursor: { sort: 'entryId', entryId: 120 }
+        })
+      )
+      .mockResolvedValueOnce(page([fact(121), fact(250)], { snapshotMaxEntryId: 250 }))
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    await expect(
+      store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 250
+      })
+    ).resolves.toBe(true)
+
+    expect(store.records.map((record) => record.entryId)).toEqual([20, 21, 120, 121, 250])
+    expect(client.listTapeInspectorPage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        mode: 'newer',
+        cursor: { sort: 'entryId', entryId: 20 }
+      })
+    )
+    expect(client.listTapeInspectorPage).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        mode: 'newer',
+        cursor: { sort: 'entryId', entryId: 120 }
+      })
+    )
+  })
+
+  it('advances filtered live scans even when no projected records match', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([], { snapshotMaxEntryId: 20 }))
+      .mockResolvedValueOnce(
+        page([], {
+          snapshotMaxEntryId: 300,
+          nextCursor: { sort: 'entryId', entryId: 220 }
+        })
+      )
+      .mockResolvedValueOnce(page([], { snapshotMaxEntryId: 300 }))
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1', { filters: { errorsOnly: true } })
+
+    await expect(
+      store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 300
+      })
+    ).resolves.toBe(false)
+
+    expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(3)
+    expect(store.records).toEqual([])
+    expect(store.snapshotMaxEntryId).toBe(300)
+  })
+
+  it('keeps only the latest head while paused and catches up on resume', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20)]))
+      .mockResolvedValueOnce(page([fact(30)], { snapshotMaxEntryId: 30 }))
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    await store.setLivePaused(true)
+    await store.handleLiveHeadPulse({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 21
+    })
+    await store.handleLiveHeadPulse({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 30
+    })
+    expect(client.listTapeInspectorPage).toHaveBeenCalledOnce()
+
+    await expect(store.setLivePaused(false)).resolves.toBe(true)
+
+    expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(2)
+    expect(store.records.map((record) => record.entryId)).toEqual([20, 30])
+  })
+
+  it('replaces the projection when a head announces a new incarnation', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20)]))
+      .mockResolvedValueOnce(
+        page([fact(2)], { tapeIncarnationId: 'incarnation-2', snapshotMaxEntryId: 2 })
+      )
+    client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage([evidence('old')]))
+      .mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+    store.selectRow('fact:incarnation-1:entry:20')
+
+    await expect(
+      store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-2',
+        maxEntryId: 2
+      })
+    ).resolves.toBe(true)
+
+    expect(store.tapeIncarnationId).toBe('incarnation-2')
+    expect(store.records.map((record) => record.entryId)).toEqual([2])
+    expect(store.evidence).toEqual([])
+    expect(store.selectedKey).toBeNull()
+  })
+
+  it('reports a reset discovered during a newer-page pull as a visible change', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20)]))
+      .mockResolvedValueOnce({
+        status: 'reset',
+        tapeIncarnationId: 'incarnation-2',
+        snapshotMaxEntryId: 2
+      })
+      .mockResolvedValueOnce(
+        page([fact(2)], { tapeIncarnationId: 'incarnation-2', snapshotMaxEntryId: 2 })
+      )
+    client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage())
+      .mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    await expect(
+      store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 30
+      })
+    ).resolves.toBe(true)
+    expect(store.tapeIncarnationId).toBe('incarnation-2')
+    expect(store.records.map((record) => record.entryId)).toEqual([2])
+  })
+
+  it('serializes concurrent pulses and retries a failed catch-up without another pulse', async () => {
+    vi.useFakeTimers()
+    const firstNewer = deferred<ListTapeInspectorPageOutput>()
+    const store = useTapeInspectorStore()
+    try {
+      client.listTapeInspectorPage
+        .mockResolvedValueOnce(page([fact(20)]))
+        .mockReturnValueOnce(firstNewer.promise)
+        .mockRejectedValueOnce(new Error('temporary read failure'))
+        .mockResolvedValueOnce(page([fact(40)], { snapshotMaxEntryId: 40 }))
+      client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+      await store.initialize('session-1')
+
+      const first = store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 30
+      })
+      const concurrent = store.handleLiveHeadPulse({
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        maxEntryId: 40
+      })
+      expect(store.liveSyncing).toBe(true)
+      firstNewer.resolve(
+        page([fact(30)], {
+          snapshotMaxEntryId: 30
+        })
+      )
+
+      await expect(concurrent).resolves.toBe(false)
+      await expect(first).resolves.toBe(true)
+      expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(3)
+      expect(store.records.map((record) => record.entryId)).toEqual([20, 30])
+      expect(store.liveSyncing).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(4)
+      expect(store.records.map((record) => record.entryId)).toEqual([20, 30, 40])
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
+  })
 })

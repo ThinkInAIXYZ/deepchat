@@ -57,6 +57,7 @@ const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullab
 const ExecutionAuditIdentitySchema = z.string().min(1).max(1_024)
 const ExecutionAuditHashSchema = z.string().regex(/^[0-9a-f]{64}$/u)
 const TapeInspectorIdentitySchema = z.string().min(1).max(1_024)
+const TapeInspectorSubscriptionIdSchema = z.string().min(1).max(128)
 const TapeInspectorListTextSchema = z.string().max(1_024)
 const TapeInspectorEntryKindSchema = z.enum([
   'event',
@@ -710,6 +711,29 @@ export const sessionsGetTapeInspectorRecordDetailRoute = defineRouteContract({
   }),
   output: GetTapeInspectorRecordDetailOutputSchema
 }) satisfies RouteContract<'sessions.getTapeInspectorRecordDetail'>
+
+export const sessionsSubscribeTapeInspectorHeadRoute = defineRouteContract({
+  name: 'sessions.subscribeTapeInspectorHead',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    subscriptionId: TapeInspectorSubscriptionIdSchema
+  }),
+  output: z.object({
+    subscribed: z.literal(true),
+    tapeIncarnationId: TapeInspectorIdentitySchema,
+    maxEntryId: z.number().int().nonnegative()
+  })
+}) satisfies RouteContract<'sessions.subscribeTapeInspectorHead'>
+
+export const sessionsUnsubscribeTapeInspectorHeadRoute = defineRouteContract({
+  name: 'sessions.unsubscribeTapeInspectorHead',
+  input: z.object({
+    subscriptionId: TapeInspectorSubscriptionIdSchema
+  }),
+  output: z.object({
+    unsubscribed: z.literal(true)
+  })
+}) satisfies RouteContract<'sessions.unsubscribeTapeInspectorHead'>
 
 export const sessionsListMessageTracesRoute = defineRouteContract({
   name: 'sessions.listMessageTraces',

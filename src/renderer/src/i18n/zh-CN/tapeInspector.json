@@ -8,7 +8,9 @@
     "loadOlder": "加载更早记录",
     "loadEvidence": "加载更多证据",
     "openSession": "打开 Tape 检查器",
-    "openMessage": "在 Tape 检查器中打开"
+    "openMessage": "在 Tape 检查器中打开",
+    "pause": "暂停实时更新",
+    "resume": "恢复实时更新"
   },
   "columns": {
     "name": "名称",
@@ -47,7 +49,10 @@
   "states": {
     "unknown": "未知",
     "empty": "没有匹配的 Tape 事实或请求证据",
-    "loadedCounts": "{facts} 条事实 · {evidence} 条证据"
+    "loadedCounts": "{facts} 条事实 · {evidence} 条证据",
+    "live": "实时",
+    "paused": "已暂停",
+    "liveUnavailable": "实时更新不可用"
   },
   "waterfall": {
     "sequence": "Tape 规范序列位置",

@@ -81,6 +81,30 @@
         </form>
       </DcPopover>
 
+      <span
+        data-testid="tape-inspector-live-status"
+        class="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+        :title="liveStatusLabel"
+      >
+        <Icon :icon="liveStatusIcon" class="size-3.5" />
+        {{ liveStatusLabel }}
+      </span>
+
+      <DcButton
+        data-testid="tape-inspector-live-toggle"
+        size="icon-sm"
+        variant="ghost"
+        :icon="store.livePaused ? 'lucide:play' : 'lucide:pause'"
+        :disabled="!liveConnected"
+        :label="
+          store.livePaused ? t('tapeInspector.actions.resume') : t('tapeInspector.actions.pause')
+        "
+        :tooltip="
+          store.livePaused ? t('tapeInspector.actions.resume') : t('tapeInspector.actions.pause')
+        "
+        @click="toggleLivePaused"
+      />
+
       <DcButton
         size="sm"
         variant="ghost"
@@ -218,9 +242,11 @@ import { DcButton } from '@dc-ui/components/button'
 import { DcPopover } from '@dc-ui/components/popover'
 import type {
   TapeInspectorFactFamily,
-  TapeInspectorFactFilters
+  TapeInspectorFactFilters,
+  TapeInspectorHeadPulse
 } from '@shared/types/tape-inspector'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
+import { createSessionClient } from '../../../api/SessionClient'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
 import TapeInspectorRow from './TapeInspectorRow.vue'
@@ -252,13 +278,17 @@ const familyOptions: TapeInspectorFactFamily[] = [
 
 const { t } = useI18n()
 const store = useTapeInspectorStore()
+const sessionClient = createSessionClient()
 const scrollerRef = ref<RecycleScrollerHandle | null>(null)
 const filterOpen = ref(false)
+const liveConnected = ref(false)
 const draftFamily = ref<TapeInspectorFactFamily | ''>('')
 const draftName = ref('')
 const draftStatus = ref('')
 const draftMessageId = ref('')
 const draftErrorsOnly = ref(false)
+let liveLifecycleGeneration = 0
+let liveSubscription: { sessionId: string; subscriptionId: string } | null = null
 
 const activeFilterCount = computed(() => {
   const filters = store.serverFilters
@@ -270,6 +300,18 @@ const activeFilterCount = computed(() => {
     filters.errorsOnly === true
   ].filter(Boolean).length
 })
+const liveStatusLabel = computed(() =>
+  liveConnected.value
+    ? t(store.livePaused ? 'tapeInspector.states.paused' : 'tapeInspector.states.live')
+    : t('tapeInspector.states.liveUnavailable')
+)
+const liveStatusIcon = computed(() =>
+  liveConnected.value
+    ? store.livePaused
+      ? 'lucide:circle-pause'
+      : 'lucide:radio'
+    : 'lucide:radio-tower'
+)
 const detailErrorCode = computed<TapeInspectorErrorCode>(() => {
   return store.errorCode === 'detail_failed' || store.errorCode === 'record_not_found'
     ? store.errorCode
@@ -281,6 +323,10 @@ function matchingRequest(): TapeInspectorOpenRequest | null {
 }
 
 async function initialize(): Promise<void> {
+  const generation = ++liveLifecycleGeneration
+  await releaseLiveSubscription()
+  if (generation !== liveLifecycleGeneration) return
+
   const request = matchingRequest()
   const loaded = await store.initialize(props.sessionId, {
     preselection: request?.messageId
@@ -295,6 +341,37 @@ async function initialize(): Promise<void> {
   await nextTick()
   scrollToSelected()
   if (store.selectedKey) await store.loadSelectedDetail()
+  if (generation !== liveLifecycleGeneration) return
+
+  const subscriptionId = crypto.randomUUID()
+  try {
+    const head = await sessionClient.subscribeTapeInspectorHead(props.sessionId, subscriptionId)
+    if (generation !== liveLifecycleGeneration || props.sessionId !== store.sessionId) {
+      await sessionClient.unsubscribeTapeInspectorHead(subscriptionId)
+      return
+    }
+    liveSubscription = { sessionId: props.sessionId, subscriptionId }
+    liveConnected.value = true
+    await handleLiveHeadPulse({
+      sessionId: props.sessionId,
+      tapeIncarnationId: head.tapeIncarnationId,
+      maxEntryId: head.maxEntryId
+    })
+  } catch {
+    if (generation === liveLifecycleGeneration) liveConnected.value = false
+  }
+}
+
+async function releaseLiveSubscription(): Promise<void> {
+  const subscription = liveSubscription
+  liveSubscription = null
+  liveConnected.value = false
+  if (!subscription) return
+  try {
+    await sessionClient.unsubscribeTapeInspectorHead(subscription.subscriptionId)
+  } catch {
+    // Main also releases subscriptions when the owning renderer is destroyed.
+  }
 }
 
 function syncFilterDrafts(): void {
@@ -342,6 +419,26 @@ async function selectRow(key: string): Promise<void> {
 function scrollToSelected(): void {
   const index = store.rows.findIndex((row) => row.key === store.selectedKey)
   if (index >= 0) scrollerRef.value?.scrollToItem(index)
+}
+
+function isAtTail(): boolean {
+  const element = scrollerRef.value?.$el
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= ROW_HEIGHT * 2
+}
+
+async function followTail(): Promise<void> {
+  await nextTick()
+  if (store.rows.length > 0) scrollerRef.value?.scrollToItem(store.rows.length - 1)
+}
+
+async function handleLiveHeadPulse(pulse: TapeInspectorHeadPulse): Promise<void> {
+  if (pulse.sessionId !== props.sessionId) return
+  await store.handleLiveHeadPulse(pulse)
+}
+
+async function toggleLivePaused(): Promise<void> {
+  await store.setLivePaused(!store.livePaused)
 }
 
 async function loadOlder(): Promise<void> {
@@ -394,5 +491,25 @@ watch(
   { immediate: true }
 )
 
-onBeforeUnmount(() => store.clear())
+watch(
+  () => [store.tapeIncarnationId, store.records.length] as const,
+  () => {
+    if (!liveConnected.value || !store.liveSyncing || store.livePaused || !isAtTail()) {
+      return
+    }
+    void followTail()
+  },
+  { flush: 'sync' }
+)
+
+const stopHeadListener = sessionClient.onTapeInspectorHeadChanged((pulse) => {
+  void handleLiveHeadPulse(pulse)
+})
+
+onBeforeUnmount(() => {
+  liveLifecycleGeneration += 1
+  stopHeadListener()
+  void releaseLiveSubscription()
+  store.clear()
+})
 </script>

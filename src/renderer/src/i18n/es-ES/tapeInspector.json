@@ -8,7 +8,9 @@
     "loadOlder": "Load older",
     "loadEvidence": "Load more evidence",
     "openSession": "Open Tape Inspector",
-    "openMessage": "Open in Tape Inspector"
+    "openMessage": "Open in Tape Inspector",
+    "pause": "Pause live updates",
+    "resume": "Resume live updates"
   },
   "columns": {
     "name": "Name",
@@ -34,7 +36,10 @@
   "states": {
     "unknown": "unknown",
     "empty": "No matching Tape facts or request evidence",
-    "loadedCounts": "{facts} facts · {evidence} evidence records"
+    "loadedCounts": "{facts} facts · {evidence} evidence records",
+    "live": "Live",
+    "paused": "Paused",
+    "liveUnavailable": "Live updates unavailable"
   },
   "waterfall": {
     "sequence": "Canonical Tape sequence position",

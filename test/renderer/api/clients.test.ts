@@ -1310,6 +1310,10 @@ describe('renderer api clients', () => {
       expectedTapeIncarnationId: 'incarnation-1',
       entryId: 10
     })
+    await sessionClient.subscribeTapeInspectorHead('session-1', 'subscription-1')
+    await sessionClient.unsubscribeTapeInspectorHead('subscription-1')
+    const headListener = vi.fn()
+    sessionClient.onTapeInspectorHeadChanged(headListener)
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.listTapeInspectorPage', {
       sessionId: 'session-1',
@@ -1328,6 +1332,14 @@ describe('renderer api clients', () => {
       expectedTapeIncarnationId: 'incarnation-1',
       entryId: 10
     })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.subscribeTapeInspectorHead', {
+      sessionId: 'session-1',
+      subscriptionId: 'subscription-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.unsubscribeTapeInspectorHead', {
+      subscriptionId: 'subscription-1'
+    })
+    expect(bridge.on).toHaveBeenCalledWith('sessions.tapeInspector.head.changed', headListener)
   })
 
   it('normalizes reactive attachment payloads before crossing the renderer bridge', async () => {

@@ -7,7 +7,8 @@ import type {
   TapeInspectorEvidenceCursor,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactFilters,
-  TapeInspectorFactRecord
+  TapeInspectorFactRecord,
+  TapeInspectorHeadPulse
 } from '@shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
@@ -20,6 +21,7 @@ import {
 
 const PAGE_LIMIT = 100
 const EVIDENCE_PAGE_LIMIT = 100
+const LIVE_RETRY_DELAY_MS = 1_000
 
 export type TapeInspectorErrorCode = 'load_failed' | 'detail_failed' | 'record_not_found' | null
 
@@ -31,6 +33,11 @@ export interface TapeInspectorPreselection {
 export interface TapeInspectorScrollAnchor {
   key: string
   offset: number
+}
+
+interface LiveHeadSyncResult {
+  changed: boolean
+  retry: boolean
 }
 
 function copyFilters(filters: TapeInspectorFactFilters): TapeInspectorFactFilters {
@@ -52,6 +59,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const evidenceTraceIds = ref<string[]>([])
   const serverFilters = shallowRef<TapeInspectorFactFilters>({})
   const loadedSearch = ref('')
+  const livePaused = ref(false)
   const collapsedKeys = ref(new Set<string>())
   const selectedKey = ref<string | null>(null)
   const selectedDetail = ref<TapeInspectorDetailState | null>(null)
@@ -69,6 +77,10 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const errorCode = ref<TapeInspectorErrorCode>(null)
   let requestGeneration = 0
   let detailRequestGeneration = 0
+  let pendingLiveHead: TapeInspectorHeadPulse | null = null
+  const liveSyncing = ref(false)
+  let liveRetryTimer: ReturnType<typeof setTimeout> | null = null
+  let newerPageRequest: { generation: number; promise: Promise<boolean> } | null = null
 
   const records = computed(() =>
     factEntryIds.value.flatMap((entryId) => {
@@ -116,6 +128,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   }
 
   function clearProjection(): void {
+    clearLiveRetryTimer()
     tapeIncarnationId.value = null
     snapshotMaxEntryId.value = 0
     factsByEntryId.value = new Map()
@@ -131,6 +144,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     newerCursor.value = null
     evidenceCursor.value = null
     errorCode.value = null
+    pendingLiveHead = null
   }
 
   function upsertFacts(incoming: readonly TapeInspectorFactRecord[], replace = false): void {
@@ -271,10 +285,10 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     }
   }
 
-  async function resetForIncarnationChange(): Promise<void> {
+  async function resetForIncarnationChange(): Promise<boolean> {
     const currentSessionId = sessionId.value
-    if (!currentSessionId) return
-    await initialize(currentSessionId, {
+    if (!currentSessionId) return false
+    return await initialize(currentSessionId, {
       preselection: preselection.value,
       filters: serverFilters.value
     })
@@ -316,32 +330,152 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     const currentSessionId = sessionId.value
     const incarnation = tapeIncarnationId.value
     const cursor = newerCursor.value
-    if (!currentSessionId || !incarnation || !cursor || loadingNewer.value) return false
+    if (!currentSessionId || !incarnation || !cursor) return false
     const generation = requestGeneration
-    loadingNewer.value = true
-    errorCode.value = null
-    try {
-      const page = await sessionClient.listTapeInspectorPage({
-        sessionId: currentSessionId,
-        expectedTapeIncarnationId: incarnation,
-        mode: 'newer',
-        cursor,
-        limit: PAGE_LIMIT,
-        filters: serverFilters.value
-      })
-      if (!isCurrentRequest(generation, currentSessionId)) return false
-      if (page.status === 'reset' || page.tapeIncarnationId !== incarnation) {
-        await resetForIncarnationChange()
+    if (newerPageRequest?.generation === generation) return await newerPageRequest.promise
+
+    const promise = (async () => {
+      loadingNewer.value = true
+      errorCode.value = null
+      try {
+        const page = await sessionClient.listTapeInspectorPage({
+          sessionId: currentSessionId,
+          expectedTapeIncarnationId: incarnation,
+          mode: 'newer',
+          cursor,
+          limit: PAGE_LIMIT,
+          filters: serverFilters.value
+        })
+        if (!isCurrentRequest(generation, currentSessionId)) return false
+        if (page.status === 'reset' || page.tapeIncarnationId !== incarnation) {
+          await resetForIncarnationChange()
+          return false
+        }
+        applyPage(page, 'newer')
+        return true
+      } catch {
+        if (isCurrentRequest(generation, currentSessionId)) errorCode.value = 'load_failed'
         return false
+      } finally {
+        if (isCurrentRequest(generation, currentSessionId)) loadingNewer.value = false
       }
-      applyPage(page, 'newer')
-      return true
-    } catch {
-      if (isCurrentRequest(generation, currentSessionId)) errorCode.value = 'load_failed'
-      return false
+    })()
+    newerPageRequest = { generation, promise }
+    try {
+      return await promise
     } finally {
-      if (isCurrentRequest(generation, currentSessionId)) loadingNewer.value = false
+      if (newerPageRequest?.promise === promise) newerPageRequest = null
     }
+  }
+
+  function queueLiveHead(pulse: TapeInspectorHeadPulse): void {
+    const pending = pendingLiveHead
+    if (
+      !pending ||
+      pending.tapeIncarnationId !== pulse.tapeIncarnationId ||
+      pulse.maxEntryId > pending.maxEntryId
+    ) {
+      pendingLiveHead = pulse
+    }
+  }
+
+  async function synchronizeLiveHead(pulse: TapeInspectorHeadPulse): Promise<LiveHeadSyncResult> {
+    const currentSessionId = sessionId.value
+    if (!currentSessionId || pulse.sessionId !== currentSessionId) {
+      return { changed: false, retry: false }
+    }
+    if (tapeIncarnationId.value !== pulse.tapeIncarnationId) {
+      const reset = await resetForIncarnationChange()
+      return {
+        changed: reset,
+        retry: !reset && sessionId.value === currentSessionId
+      }
+    }
+
+    let changed = false
+    while (
+      !livePaused.value &&
+      sessionId.value === currentSessionId &&
+      tapeIncarnationId.value === pulse.tapeIncarnationId &&
+      (newerCursor.value?.entryId ?? snapshotMaxEntryId.value) < pulse.maxEntryId
+    ) {
+      const beforeCursor = newerCursor.value?.entryId ?? snapshotMaxEntryId.value
+      const beforeRecords = factsByEntryId.value.size
+      const beforeIncarnation = tapeIncarnationId.value
+      if (!(await loadNewerPage())) {
+        changed = changed || tapeIncarnationId.value !== beforeIncarnation
+        const currentCursor = newerCursor.value?.entryId ?? snapshotMaxEntryId.value
+        return {
+          changed,
+          retry:
+            sessionId.value === currentSessionId &&
+            errorCode.value === 'load_failed' &&
+            (tapeIncarnationId.value === null ||
+              (tapeIncarnationId.value === pulse.tapeIncarnationId &&
+                currentCursor < pulse.maxEntryId))
+        }
+      }
+      changed = changed || factsByEntryId.value.size !== beforeRecords
+      const afterCursor = newerCursor.value?.entryId ?? snapshotMaxEntryId.value
+      if (afterCursor <= beforeCursor) break
+    }
+    return { changed, retry: false }
+  }
+
+  function clearLiveRetryTimer(): void {
+    if (liveRetryTimer === null) return
+    clearTimeout(liveRetryTimer)
+    liveRetryTimer = null
+  }
+
+  function scheduleLiveRetry(): void {
+    if (
+      liveRetryTimer !== null ||
+      livePaused.value ||
+      pendingLiveHead === null ||
+      sessionId.value === null
+    ) {
+      return
+    }
+    liveRetryTimer = setTimeout(() => {
+      liveRetryTimer = null
+      void drainLiveHead()
+    }, LIVE_RETRY_DELAY_MS)
+  }
+
+  async function drainLiveHead(): Promise<boolean> {
+    if (livePaused.value || liveSyncing.value) return false
+    clearLiveRetryTimer()
+    liveSyncing.value = true
+    let changed = false
+    try {
+      while (!livePaused.value && pendingLiveHead) {
+        const pulse = pendingLiveHead
+        pendingLiveHead = null
+        const result = await synchronizeLiveHead(pulse)
+        changed = result.changed || changed
+        if (result.retry) {
+          queueLiveHead(pulse)
+          break
+        }
+      }
+      return changed
+    } finally {
+      liveSyncing.value = false
+      scheduleLiveRetry()
+    }
+  }
+
+  async function handleLiveHeadPulse(pulse: TapeInspectorHeadPulse): Promise<boolean> {
+    if (pulse.sessionId !== sessionId.value) return false
+    queueLiveHead(pulse)
+    return await drainLiveHead()
+  }
+
+  async function setLivePaused(paused: boolean): Promise<boolean> {
+    livePaused.value = paused
+    if (paused) clearLiveRetryTimer()
+    return paused ? false : await drainLiveHead()
   }
 
   async function loadMoreEvidence(): Promise<boolean> {
@@ -541,6 +675,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     prependScrollAnchor.value = null
     serverFilters.value = {}
     loadedSearch.value = ''
+    livePaused.value = false
     clearProjection()
   }
 
@@ -552,6 +687,8 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     evidence,
     serverFilters,
     loadedSearch,
+    livePaused,
+    liveSyncing,
     collapsedKeys,
     selectedKey,
     selectedDetail,
@@ -572,6 +709,8 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     initialize,
     loadOlderPage,
     loadNewerPage,
+    handleLiveHeadPulse,
+    setLivePaused,
     loadMoreEvidence,
     applyServerFilters,
     setLoadedSearch,

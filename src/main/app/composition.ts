@@ -19,11 +19,12 @@ import {
   approvalClosedEvent,
   approvalRequestedEvent,
   liveDelegationChangedEvent,
+  sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, webContents as electronWebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
@@ -192,6 +193,7 @@ import { LiveDelegationSafetyCoordinator } from '@/orchestration/liveDelegationS
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { TaskContractService } from '@/tape/application/taskContractService'
 import { TaskEvaluationService } from '@/tape/application/taskEvaluationService'
+import { TapeInspectorHeadWatcher } from '@/tape/application/traceInspectorHeadWatcher'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -784,6 +786,30 @@ export async function createMainProcessControl(dependencies: {
         })
     }
   )
+  const tapeInspectorHeadWatcher = new TapeInspectorHeadWatcher({
+    readHead: (sessionId) => sessionData.tapeStore.getTapeInspectorHead(sessionId),
+    emit: (webContentsId, pulse) => {
+      typedEventHub.publish(sessionsTapeInspectorHeadChangedEvent.name, pulse, {
+        kind: 'renderer',
+        webContentsId
+      })
+    },
+    watchRendererDestroyed: (webContentsId, listener) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(listener)
+        return () => {}
+      }
+      target.once('destroyed', listener)
+      return () => target.removeListener('destroyed', listener)
+    },
+    onError: (error, sessionId) => {
+      logger.warn('[TapeInspectorHeadWatcher] Failed to read committed head', {
+        sessionId,
+        error
+      })
+    }
+  })
   const programmaticToolParents = new ProgrammaticToolParentRegistry({
     tokenAuthority: agentCliTokenAuthority,
     executionJournal: sessionData.programmaticExecutionJournal
@@ -2523,6 +2549,7 @@ export async function createMainProcessControl(dependencies: {
   async function destroy(): Promise<void> {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
     await runDestroyStep('typedEventHub.close', () => typedEventHub.close())
     await runDestroyStep('cliMutationGuard.clear', () => cliMutationGuard.clear())
     await runDestroyStep('cliAuditLog.close', () => cliAuditLog.close())
@@ -2770,7 +2797,8 @@ export async function createMainProcessControl(dependencies: {
       exportService: agentSessionExportService,
       translation: sessionTranslation,
       usageStats: usageStatsService,
-      rtkRuntime: rtkRuntimeService
+      rtkRuntime: rtkRuntimeService,
+      tapeInspectorHeadWatcher
     })
     const agentRoutes = createAgentRoutes({
       agentSettings,

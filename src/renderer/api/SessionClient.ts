@@ -7,6 +7,7 @@ import {
   sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
+  sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
@@ -45,6 +46,8 @@ import {
   sessionsListPendingInputsRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
+  sessionsSubscribeTapeInspectorHeadRoute,
+  sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
   sessionsMoveToAgentRoute,
@@ -308,6 +311,17 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
   }
 
+  async function subscribeTapeInspectorHead(sessionId: string, subscriptionId: string) {
+    return await bridge.invoke(sessionsSubscribeTapeInspectorHeadRoute.name, {
+      sessionId,
+      subscriptionId
+    })
+  }
+
+  async function unsubscribeTapeInspectorHead(subscriptionId: string) {
+    return await bridge.invoke(sessionsUnsubscribeTapeInspectorHeadRoute.name, { subscriptionId })
+  }
+
   async function listMessageTraces(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     return result.traces
@@ -550,6 +564,16 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(sessionsMessagesChangedEvent.name, listener)
   }
 
+  function onTapeInspectorHeadChanged(
+    listener: (payload: {
+      sessionId: string
+      tapeIncarnationId: string
+      maxEntryId: number
+    }) => void
+  ) {
+    return bridge.on(sessionsTapeInspectorHeadChangedEvent.name, listener)
+  }
+
   function onAcpCommandsReady(
     listener: (payload: {
       conversationId: string
@@ -637,6 +661,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     listTapeInspectorPage,
     listTapeInspectorEvidence,
     getTapeInspectorRecordDetail,
+    subscribeTapeInspectorHead,
+    unsubscribeTapeInspectorHead,
     listMessageTraces,
     listMessageTraceDiagnostics,
     listMessageViewManifests,
@@ -671,6 +697,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     onCompactionChanged,
     onPendingInputsChanged,
     onMessagesChanged,
+    onTapeInspectorHeadChanged,
     onAcpModesReady,
     onAcpCommandsReady,
     onAcpConfigOptionsReady

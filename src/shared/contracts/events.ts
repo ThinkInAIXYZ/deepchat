@@ -107,6 +107,7 @@ import {
   sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
+  sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
 } from './events/sessions.events'
 import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from './events/skills.events'
@@ -216,6 +217,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [sessionsCompactionChangedEvent.name]: sessionsCompactionChangedEvent,
   [sessionsMessagesChangedEvent.name]: sessionsMessagesChangedEvent,
   [sessionsPendingInputsChangedEvent.name]: sessionsPendingInputsChangedEvent,
+  [sessionsTapeInspectorHeadChangedEvent.name]: sessionsTapeInspectorHeadChangedEvent,
   [sessionsAcpModesReadyEvent.name]: sessionsAcpModesReadyEvent,
   [sessionsAcpCommandsReadyEvent.name]: sessionsAcpCommandsReadyEvent,
   [sessionsAcpConfigOptionsReadyEvent.name]: sessionsAcpConfigOptionsReadyEvent,

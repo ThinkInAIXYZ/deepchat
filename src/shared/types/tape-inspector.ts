@@ -90,6 +90,15 @@ export interface TapeInspectorEntryCursor {
   entryId: number
 }
 
+export interface TapeInspectorHead {
+  tapeIncarnationId: string
+  maxEntryId: number
+}
+
+export interface TapeInspectorHeadPulse extends TapeInspectorHead {
+  sessionId: string
+}
+
 export interface TapeInspectorFactFilters {
   kinds?: TapeInspectorEntryKind[]
   families?: TapeInspectorFactFamily[]

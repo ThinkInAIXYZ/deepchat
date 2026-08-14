@@ -168,6 +168,10 @@ describe('Tape Trace Inspector storage contracts', () => {
         nextCursor: { sort: 'entryId', entryId: 5 }
       })
       if (tail.status !== 'ok' || !tail.nextCursor) throw new Error('Expected a tail page')
+      expect(inspector.getHead('session-1')).toEqual({
+        tapeIncarnationId: tail.tapeIncarnationId,
+        maxEntryId: 6
+      })
 
       const older = inspector.listPage({
         sessionId: 'session-1',
