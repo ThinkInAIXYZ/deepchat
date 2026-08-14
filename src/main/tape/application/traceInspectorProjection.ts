@@ -69,6 +69,11 @@ function boundedIdentity(value: unknown): string | undefined {
     : undefined
 }
 
+function boundedNullableString(value: string | null): string | null {
+  if (value === null || Buffer.byteLength(value, 'utf8') <= MAX_LIST_TEXT_BYTES) return value
+  return boundedString(value) ?? ''
+}
+
 function eventData(row: DeepChatTapeEntryRow): Record<string, unknown> | null {
   const payload = parseJsonObject(row.payload_json)
   return payload.name === row.name &&
@@ -345,7 +350,7 @@ export function projectTapeInspectorFact(row: DeepChatTapeEntryRow): TapeInspect
     entryId: row.entry_id,
     kind: row.kind,
     family: semantic.family ?? 'other',
-    name: row.name,
+    name: boundedNullableString(row.name),
     ...(row.source_type ? { sourceType: row.source_type } : {}),
     ...(boundedIdentity(row.source_id) ? { sourceId: boundedIdentity(row.source_id) } : {}),
     ...(row.source_seq === null ? {} : { sourceSeq: row.source_seq }),

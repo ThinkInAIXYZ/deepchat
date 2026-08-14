@@ -2,7 +2,8 @@
 
 ## Status
 
-Implementation approved on `feat/tape-trace-inspector`. No implementation slice is complete yet.
+Implementation approved on `feat/tape-trace-inspector`. The P1 read model and typed session routes
+are complete; renderer work is next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -33,30 +34,30 @@ facts, leaks payloads, invents identity, or relies on unbounded reads.
 
 ## 2. P1 Tape Read Model
 
-- [ ] Add shared Zod contracts and TypeScript types for fact pages, evidence pages, detail results,
+- [x] Add shared Zod contracts and TypeScript types for fact pages, evidence pages, detail results,
   cursors, filters, and canonical sort.
-- [ ] Add bounded tail/older/newer storage reads beside the existing Tape entry readers.
-- [ ] Read incarnation, snapshot head, rows, and page evidence counts in one explicit SQLite
+- [x] Add bounded tail/older/newer storage reads beside the existing Tape entry readers.
+- [x] Read incarnation, snapshot head, rows, and page evidence counts in one explicit SQLite
   transaction.
-- [ ] Implement total `traceInspectorProjection.ts` mapping with `tool` and `other` fallbacks,
+- [x] Implement total `traceInspectorProjection.ts` mapping with `tool` and `other` fallbacks,
   nullable names, bounded code values, and context/Skill body withholding.
-- [ ] Reuse stored-string SHA-256 semantics and expose integrity only through existing verifiers.
-- [ ] Add the narrow Tape Inspector reader capability and forward it through `SessionTape` and the
+- [x] Reuse stored-string SHA-256 semantics and expose integrity only through existing verifiers.
+- [x] Add the narrow Tape Inspector reader capability and forward it through `SessionTape` and the
   session data/query boundary.
-- [ ] Extend the Tape layer-boundary allowlist only for this narrow consumer.
+- [x] Extend the Tape layer-boundary allowlist only for this narrow consumer.
 
 Completion condition: a session can request a bounded canonical page without loading an effective
 view or omitting any physical Tape row.
 
 ## 3. P1 Evidence and Detail Reads
 
-- [ ] Add session-scoped trace metadata keyset pagination with optional message/request/attempt
+- [x] Add session-scoped trace metadata keyset pagination with optional message/request/attempt
   filters and no endpoint/headers/body fields.
-- [ ] Keep its cursor independent from Tape entry cursors.
-- [ ] Batch page-level evidence counts rather than issuing per-row lookups.
-- [ ] Add `sessions.getTapeInspectorRecordDetail` with incarnation validation.
-- [ ] Implement exact schema allowlists, then redaction, then byte/collection truncation.
-- [ ] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
+- [x] Keep its cursor independent from Tape entry cursors.
+- [x] Batch page-level evidence counts rather than issuing per-row lookups.
+- [x] Add `sessions.getTapeInspectorRecordDetail` with incarnation validation.
+- [x] Implement exact schema allowlists, then redaction, then byte/collection truncation.
+- [x] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
 - [ ] Define the row-to-detail capability matrix in the renderer client.
 
 Completion condition: bound and unbound evidence are discoverable without payloads, and every fact
@@ -64,11 +65,11 @@ selection has a safe, explicit detail result.
 
 ## 4. P1 Typed Session Routes
 
-- [ ] Register list, evidence, and detail route contracts.
-- [ ] Add `SessionQuery`, session data-port, and `SessionClient` methods using existing validation and
+- [x] Register list, evidence, and detail route contracts.
+- [x] Add `SessionQuery`, session data-port, and `SessionClient` methods using existing validation and
   session-existence checks.
-- [ ] Keep list and evidence outputs JSON-bounded and fully projected through public schemas.
-- [ ] Preserve existing Trace dialog and ReplaySlice routes unchanged.
+- [x] Keep list and evidence outputs JSON-bounded and fully projected through public schemas.
+- [x] Preserve existing Trace dialog and ReplaySlice routes unchanged.
 
 Completion condition: renderer access is typed and context-isolated with no direct database or raw
 IPC path.

@@ -25,6 +25,7 @@ import {
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetTapeInspectorRecordDetailRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetLightweightByIdsRoute,
   sessionsGetPermissionModeRoute,
@@ -36,6 +37,8 @@ import {
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
   sessionsListRoute,
+  sessionsListTapeInspectorEvidenceRoute,
+  sessionsListTapeInspectorPageRoute,
   sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
   sessionsMoveToAgentRoute,
@@ -90,6 +93,9 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
     | 'getLightweightByIds'
     | 'getSearchResults'
     | 'getTapeContext'
+    | 'listTapeInspectorPage'
+    | 'listTapeInspectorEvidence'
+    | 'getTapeInspectorRecordDetail'
     | 'listMessageTraces'
     | 'listMessageViewManifests'
     | 'listNestedExecutionAudit'
@@ -420,6 +426,33 @@ export function createSessionRoutes(deps: {
             input.options
           )
         })
+      }
+    ],
+    [
+      sessionsListTapeInspectorPageRoute.name,
+      async (rawInput) => {
+        const input = sessionsListTapeInspectorPageRoute.input.parse(rawInput)
+        return sessionsListTapeInspectorPageRoute.output.parse(
+          await deps.projection.listTapeInspectorPage(input)
+        )
+      }
+    ],
+    [
+      sessionsListTapeInspectorEvidenceRoute.name,
+      async (rawInput) => {
+        const input = sessionsListTapeInspectorEvidenceRoute.input.parse(rawInput)
+        return sessionsListTapeInspectorEvidenceRoute.output.parse(
+          await deps.projection.listTapeInspectorEvidence(input)
+        )
+      }
+    ],
+    [
+      sessionsGetTapeInspectorRecordDetailRoute.name,
+      async (rawInput) => {
+        const input = sessionsGetTapeInspectorRecordDetailRoute.input.parse(rawInput)
+        return sessionsGetTapeInspectorRecordDetailRoute.output.parse(
+          await deps.projection.getTapeInspectorRecordDetail(input)
+        )
       }
     ],
     [

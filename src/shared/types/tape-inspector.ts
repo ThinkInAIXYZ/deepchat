@@ -101,14 +101,23 @@ export interface TapeInspectorFactFilters {
   requestSeq?: number
 }
 
-export interface ListTapeInspectorPageInput {
+interface ListTapeInspectorPageInputBase {
   sessionId: string
   expectedTapeIncarnationId?: string
-  mode: TapeInspectorPageMode
-  cursor?: TapeInspectorEntryCursor
   limit?: number
   filters?: TapeInspectorFactFilters
 }
+
+export type ListTapeInspectorPageInput =
+  | (ListTapeInspectorPageInputBase & {
+      mode: 'tail'
+      cursor?: never
+    })
+  | (ListTapeInspectorPageInputBase & {
+      expectedTapeIncarnationId: string
+      mode: Exclude<TapeInspectorPageMode, 'tail'>
+      cursor: TapeInspectorEntryCursor
+    })
 
 export type ListTapeInspectorPageOutput =
   | {

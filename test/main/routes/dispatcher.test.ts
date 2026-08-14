@@ -431,6 +431,18 @@ function createRuntime() {
     getLightweightByIds: vi.fn().mockResolvedValue([]),
     getSearchResults: vi.fn().mockResolvedValue([]),
     getTapeContext: vi.fn().mockResolvedValue({ entries: [] }),
+    listTapeInspectorPage: vi.fn().mockResolvedValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0,
+      records: [],
+      nextCursor: null
+    }),
+    listTapeInspectorEvidence: vi.fn().mockResolvedValue({ records: [], nextCursor: null }),
+    getTapeInspectorRecordDetail: vi.fn().mockResolvedValue({
+      status: 'not_found',
+      tapeIncarnationId: 'incarnation-1'
+    }),
     listMessageTraces: vi.fn().mockResolvedValue([]),
     listMessageViewManifests: vi.fn().mockResolvedValue([]),
     listNestedExecutionAudit: vi.fn().mockResolvedValue({
@@ -4915,6 +4927,59 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(sessionProjectionPort.listNestedExecutionAudit).toHaveBeenCalledWith('message-1')
     expect(result).toEqual({ traces: [], manifests: [], nestedExecutions })
+  })
+
+  it('dispatches typed Tape Inspector reads and rejects invalid cursors', async () => {
+    const { runtime, sessionProjectionPort } = createRuntime()
+    const context = createRendererRouteContext(88, 3)
+
+    const page = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listTapeInspectorPage',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        mode: 'tail'
+      },
+      context
+    )
+    const evidence = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listTapeInspectorEvidence',
+      { sessionId: 'session-1', physicalAttempt: null },
+      context
+    )
+    const detail = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getTapeInspectorRecordDetail',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        entryId: 1
+      },
+      context
+    )
+
+    expect(page).toMatchObject({ status: 'ok', tapeIncarnationId: 'incarnation-1' })
+    expect(evidence).toEqual({ records: [], nextCursor: null })
+    expect(detail).toEqual({ status: 'not_found', tapeIncarnationId: 'incarnation-1' })
+    expect(sessionProjectionPort.listTapeInspectorEvidence).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      physicalAttempt: null
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.listTapeInspectorPage',
+        {
+          sessionId: 'session-1',
+          mode: 'tail',
+          cursor: { sort: 'entryId', entryId: 1 }
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(sessionProjectionPort.listTapeInspectorPage).toHaveBeenCalledTimes(1)
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {

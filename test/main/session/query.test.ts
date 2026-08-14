@@ -87,13 +87,16 @@ function createHarness() {
       operations: [],
       truncated: false
     }),
-    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null)
+    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
+    listTapeInspectorPage: vi.fn(),
+    getTapeInspectorRecordDetail: vi.fn()
   }
   const messages = { get: vi.fn() }
   const searchResults = { listByMessageId: vi.fn().mockReturnValue([]) }
   const traces = {
     listByMessageId: vi.fn().mockReturnValue([]),
-    countByMessageId: vi.fn().mockReturnValue(0)
+    countByMessageId: vi.fn().mockReturnValue(0),
+    listInspectorMetadata: vi.fn().mockReturnValue({ rows: [], hasMore: false })
   }
   const titles = { summaryTitles: vi.fn().mockResolvedValue('Generated title') }
   const agentConfig = { getAssistantModel: vi.fn().mockResolvedValue(null) }
@@ -299,6 +302,80 @@ describe('SessionQuery', () => {
       sourceSessionId: 'acp-child'
     })
     warn.mockRestore()
+  })
+
+  it('projects bounded Inspector pages, details, and metadata-only evidence', async () => {
+    const harness = createHarness()
+    harness.tape.listTapeInspectorPage.mockReturnValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 8,
+      records: [],
+      nextCursor: null
+    })
+    harness.tape.getTapeInspectorRecordDetail.mockReturnValue({
+      status: 'not_found',
+      tapeIncarnationId: 'incarnation-1'
+    })
+    harness.traces.listInspectorMetadata.mockReturnValue({
+      rows: [
+        {
+          id: 'trace-2',
+          message_id: 'm1',
+          session_id: 's1',
+          provider_id: 'openai',
+          model_id: 'gpt-4',
+          request_seq: 3,
+          logical_round: 2,
+          physical_attempt: null,
+          truncated: 1,
+          created_at: 456
+        }
+      ],
+      hasMore: true
+    })
+
+    await expect(
+      harness.coordinator.listTapeInspectorPage({ sessionId: 's1', mode: 'tail' })
+    ).resolves.toMatchObject({ status: 'ok', snapshotMaxEntryId: 8 })
+    await expect(
+      harness.coordinator.getTapeInspectorRecordDetail({
+        sessionId: 's1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        entryId: 8
+      })
+    ).resolves.toEqual({ status: 'not_found', tapeIncarnationId: 'incarnation-1' })
+    await expect(
+      harness.coordinator.listTapeInspectorEvidence({
+        sessionId: 's1',
+        limit: 500,
+        physicalAttempt: null
+      })
+    ).resolves.toEqual({
+      records: [
+        {
+          recordType: 'evidence',
+          key: 'trace:trace-2',
+          traceId: 'trace-2',
+          messageId: 'm1',
+          requestSeq: 3,
+          logicalRound: 2,
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          createdAt: 456,
+          truncated: true
+        }
+      ],
+      nextCursor: { createdAt: 456, traceId: 'trace-2' }
+    })
+    expect(harness.traces.listInspectorMetadata).toHaveBeenCalledWith({
+      sessionId: 's1',
+      limit: 200,
+      physicalAttempt: null
+    })
+    await expect(
+      harness.coordinator.listTapeInspectorEvidence({ sessionId: 'missing' })
+    ).rejects.toThrow('Session not found: missing')
   })
 
   it('keeps opaque provider replay out of client message pages', async () => {

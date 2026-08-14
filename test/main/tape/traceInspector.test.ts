@@ -78,6 +78,9 @@ describe('Tape Trace Inspector projection', () => {
     expect(projectTapeInspectorDetail(rows[0])).toMatchObject({ disclosure: 'metadata_only' })
     expect(projectTapeInspectorDetail(rows[1])).toMatchObject({ disclosure: 'metadata_only' })
     expect(projectTapeInspectorDetail(rows[5])).toMatchObject({ disclosure: 'metadata_only' })
+    expect(projectTapeInspectorFact(row(7, { name: 'x'.repeat(2_048) })).name).toBe(
+      'x'.repeat(1_024)
+    )
   })
 
   it('preserves exact provider-attempt identity and stored-string hashes', () => {

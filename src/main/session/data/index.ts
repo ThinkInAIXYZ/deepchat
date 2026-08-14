@@ -91,6 +91,12 @@ export function createSessionDataFromDatabase(
       ensureTape(sessionId)
       return Promise.resolve(tapeStore.exportReplaySlice(sessionId, messageId, options))
     },
+    listTapeInspectorPage(input) {
+      return tapeStore.listTapeInspectorPage(input)
+    },
+    getTapeInspectorRecordDetail(input) {
+      return tapeStore.getTapeInspectorRecordDetail(input)
+    },
     linkSubagentTape(input) {
       ensureTape(input.parentSessionId)
       ensureTape(input.childSessionId)

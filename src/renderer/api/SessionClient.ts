@@ -31,6 +31,7 @@ import {
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetTapeInspectorRecordDetailRoute,
   sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
@@ -42,6 +43,8 @@ import {
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
+  sessionsListTapeInspectorEvidenceRoute,
+  sessionsListTapeInspectorPageRoute,
   sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
   sessionsMoveToAgentRoute,
@@ -79,6 +82,10 @@ import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
+import type {
+  ListTapeInspectorEvidenceInput,
+  ListTapeInspectorPageInput
+} from '@shared/types/tape-inspector'
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -283,6 +290,22 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
       options
     })
     return result.context
+  }
+
+  async function listTapeInspectorPage(input: ListTapeInspectorPageInput) {
+    return await bridge.invoke(sessionsListTapeInspectorPageRoute.name, input)
+  }
+
+  async function listTapeInspectorEvidence(input: ListTapeInspectorEvidenceInput) {
+    return await bridge.invoke(sessionsListTapeInspectorEvidenceRoute.name, input)
+  }
+
+  async function getTapeInspectorRecordDetail(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+    entryId: number
+  }) {
+    return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
   }
 
   async function listMessageTraces(messageId: string) {
@@ -611,6 +634,9 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     searchHistory,
     getSearchResults,
     getTapeContext,
+    listTapeInspectorPage,
+    listTapeInspectorEvidence,
+    getTapeInspectorRecordDetail,
     listMessageTraces,
     listMessageTraceDiagnostics,
     listMessageViewManifests,

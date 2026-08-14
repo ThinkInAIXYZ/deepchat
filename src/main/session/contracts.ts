@@ -49,6 +49,10 @@ import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { CommandShellProfile } from '@shared/commandShell'
 import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
+import type {
+  ListTapeInspectorEvidenceInput,
+  TapeInspectorEvidenceCursor
+} from '@shared/types/tape-inspector'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'
@@ -138,6 +142,8 @@ export type SessionProjectionTapePort = Pick<
   | 'listMessageViewManifests'
   | 'listNestedExecutionAuditForMessage'
   | 'exportMessageTapeReplaySlice'
+  | 'listTapeInspectorPage'
+  | 'getTapeInspectorRecordDetail'
 >
 
 export interface SessionProjectionMessageLookupPort {
@@ -151,6 +157,31 @@ export interface SessionProjectionSearchResultStorePort {
 export interface SessionProjectionTraceStorePort {
   listByMessageId(messageId: string): DeepChatMessageTraceRow[]
   countByMessageId(messageId: string): number
+  listInspectorMetadata(input: {
+    sessionId: string
+    limit: number
+    cursor?: TapeInspectorEvidenceCursor
+    messageId?: ListTapeInspectorEvidenceInput['messageId']
+    requestSeq?: ListTapeInspectorEvidenceInput['requestSeq']
+    physicalAttempt?: ListTapeInspectorEvidenceInput['physicalAttempt']
+  }): {
+    rows: Array<
+      Pick<
+        DeepChatMessageTraceRow,
+        | 'id'
+        | 'message_id'
+        | 'session_id'
+        | 'provider_id'
+        | 'model_id'
+        | 'request_seq'
+        | 'logical_round'
+        | 'physical_attempt'
+        | 'truncated'
+        | 'created_at'
+      >
+    >
+    hasMore: boolean
+  }
 }
 
 export interface SessionProjectionTitlePort {

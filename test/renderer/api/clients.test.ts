@@ -1289,6 +1289,47 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('routes Tape Inspector reads through typed session contracts', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+
+    await sessionClient.listTapeInspectorPage({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      mode: 'newer',
+      cursor: { sort: 'entryId', entryId: 10 }
+    })
+    await sessionClient.listTapeInspectorEvidence({
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      requestSeq: 2,
+      physicalAttempt: null
+    })
+    await sessionClient.getTapeInspectorRecordDetail({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      entryId: 10
+    })
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.listTapeInspectorPage', {
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      mode: 'newer',
+      cursor: { sort: 'entryId', entryId: 10 }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.listTapeInspectorEvidence', {
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      requestSeq: 2,
+      physicalAttempt: null
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.getTapeInspectorRecordDetail', {
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      entryId: 10
+    })
+  })
+
   it('normalizes reactive attachment payloads before crossing the renderer bridge', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)

@@ -29,6 +29,13 @@ import type {
   DeepChatNestedExecutionAudit,
   DeepChatNestedExecutionAuditState
 } from '@shared/types/execution-journal-audit'
+import type {
+  GetTapeInspectorRecordDetailOutput,
+  ListTapeInspectorEvidenceInput,
+  ListTapeInspectorEvidenceOutput,
+  ListTapeInspectorPageInput,
+  ListTapeInspectorPageOutput
+} from '@shared/types/tape-inspector'
 import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
 import type {
   SessionLightweightOptions,
@@ -83,6 +90,11 @@ function emptyNestedExecutionAudit(): DeepChatNestedExecutionAudit {
     operations: [],
     truncated: false
   }
+}
+
+function normalizeInspectorEvidenceLimit(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit)) return 100
+  return Math.min(Math.max(Math.floor(limit), 1), 200)
 }
 
 export class SessionQuery implements SessionProjectionReadPort, SessionProjectionMutationPort {
@@ -192,6 +204,22 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
   ): Promise<AgentTapeContextResult> {
     this.requireSession(sessionId)
     return await this.dependencies.tape.getTapeContext(sessionId, entryIds, options)
+  }
+
+  async listTapeInspectorPage(
+    input: ListTapeInspectorPageInput
+  ): Promise<ListTapeInspectorPageOutput> {
+    this.requireSession(input.sessionId)
+    return await this.dependencies.tape.listTapeInspectorPage(input)
+  }
+
+  async getTapeInspectorRecordDetail(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+    entryId: number
+  }): Promise<GetTapeInspectorRecordDetailOutput> {
+    this.requireSession(input.sessionId)
+    return await this.dependencies.tape.getTapeInspectorRecordDetail(input)
   }
 
   async listTapeAnchors(
@@ -327,6 +355,39 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
       truncated: row.truncated === 1,
       createdAt: row.created_at
     }))
+  }
+
+  async listTapeInspectorEvidence(
+    input: ListTapeInspectorEvidenceInput
+  ): Promise<ListTapeInspectorEvidenceOutput> {
+    this.requireSession(input.sessionId)
+    const page = this.dependencies.traces.listInspectorMetadata({
+      sessionId: input.sessionId,
+      limit: normalizeInspectorEvidenceLimit(input.limit),
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+      ...(input.messageId === undefined ? {} : { messageId: input.messageId }),
+      ...(input.requestSeq === undefined ? {} : { requestSeq: input.requestSeq }),
+      ...(input.physicalAttempt === undefined ? {} : { physicalAttempt: input.physicalAttempt })
+    })
+    const records = page.rows.map((row) => ({
+      recordType: 'evidence' as const,
+      key: `trace:${row.id}` as const,
+      traceId: row.id,
+      messageId: row.message_id,
+      requestSeq: row.request_seq,
+      ...(row.logical_round === null ? {} : { logicalRound: row.logical_round }),
+      ...(row.physical_attempt === null ? {} : { physicalAttempt: row.physical_attempt }),
+      providerId: row.provider_id,
+      modelId: row.model_id,
+      createdAt: row.created_at,
+      truncated: row.truncated === 1
+    }))
+    const lastRow = page.rows.at(-1)
+    return {
+      records,
+      nextCursor:
+        page.hasMore && lastRow ? { createdAt: lastRow.created_at, traceId: lastRow.id } : null
+    }
   }
 
   async getMessageTraceCount(messageId: string): Promise<number> {
