@@ -80,4 +80,49 @@ describe('sidepanel store', () => {
     expect(store.activeTab).toBe('workspace')
     expect(store.mcpAppPreviewOwnerId).toBeNull()
   })
+
+  it('opens the Tape Inspector with normalized session-scoped preselection', async () => {
+    const { store } = await setupSidepanelStore(1200)
+
+    store.openTapeInspector('  session-1  ', {
+      messageId: '  message-1  ',
+      requestSeq: 3
+    })
+
+    expect(store.open).toBe(true)
+    expect(store.activeTab).toBe('tape-inspector')
+    expect(store.tapeInspectorOpenRequest).toEqual({
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      requestSeq: 3,
+      token: 1
+    })
+
+    store.openTapeInspector('session-1', { messageId: 'message-1' })
+    expect(store.tapeInspectorOpenRequest?.token).toBe(2)
+    expect(store.tapeInspectorOpenRequest?.requestSeq).toBeUndefined()
+  })
+
+  it('ignores Inspector requests without a session and preserves the active panel', async () => {
+    const { store } = await setupSidepanelStore(1200)
+    store.openBrowser()
+
+    store.openTapeInspector('   ', { messageId: 'message-1' })
+
+    expect(store.open).toBe(true)
+    expect(store.activeTab).toBe('browser')
+    expect(store.tapeInspectorOpenRequest).toBeNull()
+  })
+
+  it('drops invalid request sequence values instead of forwarding unusable identity', async () => {
+    const { store } = await setupSidepanelStore(1200)
+
+    store.openTapeInspector('session-1', { messageId: 'message-1', requestSeq: 0 })
+
+    expect(store.tapeInspectorOpenRequest).toEqual({
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      token: 1
+    })
+  })
 })

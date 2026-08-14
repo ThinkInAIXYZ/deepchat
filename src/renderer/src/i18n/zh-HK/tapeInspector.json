@@ -1,0 +1,74 @@
+{
+  "title": "Tape 檢查器",
+  "actions": {
+    "apply": "套用",
+    "expand": "展開",
+    "collapse": "收合",
+    "refresh": "重新整理",
+    "loadOlder": "載入更早記錄",
+    "loadEvidence": "載入更多證據",
+    "openSession": "開啟 Tape 檢查器",
+    "openMessage": "在 Tape 檢查器中開啟"
+  },
+  "columns": {
+    "name": "名稱",
+    "kind": "類型",
+    "status": "狀態",
+    "start": "開始時間",
+    "duration": "持續時間",
+    "waterfall": "瀑布圖"
+  },
+  "search": {
+    "loadedLabel": "搜尋已載入記錄",
+    "loadedPlaceholder": "搜尋已載入記錄",
+    "loadedScope": "文字搜尋僅涵蓋已載入範圍"
+  },
+  "filters": { "title": "篩選", "allFamilies": "全部類別", "errorsOnly": "僅顯示錯誤" },
+  "groups": { "run": "執行", "request": "請求", "attempt": "嘗試", "tool": "工具操作" },
+  "evidence": {
+    "request": "請求證據",
+    "legacy": "舊版 / 未歸屬",
+    "unbound": "未綁定證據（{count}）"
+  },
+  "kinds": { "evidence": "證據", "lane": "證據通道", "group": "衍生群組" },
+  "states": {
+    "unknown": "未知",
+    "empty": "沒有相符的 Tape 事實或請求證據",
+    "loadedCounts": "{facts} 筆事實 · {evidence} 筆證據"
+  },
+  "waterfall": { "sequence": "Tape 標準序列位置", "point": "單一時間點事實；持續時間未知" },
+  "detail": {
+    "title": "詳細資料",
+    "selectPrompt": "選取一列以檢視其可用詳細資料",
+    "integrity": "完整性",
+    "provenance": "來源",
+    "payload": "允許揭露的承載資料",
+    "truncated": "已截斷",
+    "hashes": "雜湊與大小",
+    "sources": { "tape": "Tape 事實", "message_trace": "請求證據", "derived": "衍生檢視" }
+  },
+  "fields": {
+    "entryId": "項目 ID",
+    "family": "類別",
+    "name": "名稱",
+    "kind": "類型",
+    "status": "事實狀態",
+    "disclosure": "揭露層級",
+    "traceId": "Trace ID",
+    "messageId": "訊息 ID",
+    "requestSeq": "請求序號",
+    "attempt": "實體嘗試",
+    "provider": "供應商",
+    "model": "模型",
+    "endpoint": "端點",
+    "group": "群組",
+    "identity": "識別資訊",
+    "records": "記錄數"
+  },
+  "integrity": { "valid": "有效", "invalid": "無效", "unverified": "未驗證" },
+  "errors": {
+    "load_failed": "無法載入檢查器記錄",
+    "detail_failed": "無法載入記錄詳細資料",
+    "record_not_found": "選取的記錄已無法使用"
+  }
+}

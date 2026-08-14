@@ -108,6 +108,17 @@
         @click="sidepanelStore.toggleWorkspace(props.sessionId)"
       />
 
+      <DcButton
+        v-if="uiSettingsStore.traceDebugEnabled"
+        variant="ghost"
+        icon="lucide:scan-search"
+        size="icon-sm"
+        :label="t('tapeInspector.actions.openSession')"
+        :tooltip="t('tapeInspector.actions.openSession')"
+        data-testid="open-tape-inspector-button"
+        @click="sidepanelStore.openTapeInspector(props.sessionId)"
+      />
+
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <DcButton
@@ -242,6 +253,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 defineOptions({
@@ -261,6 +273,7 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
+const uiSettingsStore = useUiSettingsStore()
 
 const isRenaming = ref(false)
 const clearDialogOpen = ref(false)

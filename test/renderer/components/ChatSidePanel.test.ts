@@ -8,9 +8,10 @@ describe('ChatSidePanel', () => {
 
   const setup = async (options?: {
     open?: boolean
-    activeTab?: 'workspace' | 'browser' | 'mcp-app'
+    activeTab?: 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
     mcpAppPreviewOwnerId?: string | null
     sessionId?: string | null
+    traceDebugEnabled?: boolean
   }) => {
     vi.resetModules()
 
@@ -19,6 +20,7 @@ describe('ChatSidePanel', () => {
       open: options?.open ?? true,
       activeTab: options?.activeTab ?? 'workspace',
       mcpAppPreviewOwnerId: options?.mcpAppPreviewOwnerId ?? null,
+      tapeInspectorOpenRequest: null as { sessionId: string; token: number } | null,
       width: 520,
       openWorkspace: vi.fn(),
       openBrowser: vi.fn(() => {
@@ -28,6 +30,14 @@ describe('ChatSidePanel', () => {
       openMcpAppPreview: vi.fn((ownerId: string) => {
         sidepanelStore.mcpAppPreviewOwnerId = ownerId
         sidepanelStore.activeTab = 'mcp-app'
+        sidepanelStore.open = true
+      }),
+      openTapeInspector: vi.fn((sessionId: string) => {
+        sidepanelStore.tapeInspectorOpenRequest = {
+          sessionId,
+          token: 1
+        }
+        sidepanelStore.activeTab = 'tape-inspector'
         sidepanelStore.open = true
       }),
       closePanel: vi.fn(() => {
@@ -86,14 +96,28 @@ describe('ChatSidePanel', () => {
       })
     }))
 
+    vi.doMock('@/components/tape-inspector/TapeInspectorPanel.vue', () => ({
+      default: defineComponent({
+        name: 'TapeInspectorPanel',
+        props: ['sessionId', 'openRequest'],
+        template:
+          '<div data-testid="tape-inspector-panel-stub" :data-session-id="sessionId" :data-request-token="openRequest?.token" />'
+      })
+    }))
+
     vi.doMock('@/stores/ui/sidepanel', () => ({
       useSidepanelStore: () => sidepanelStore
+    }))
+    vi.doMock('@/stores/uiSettingsStore', () => ({
+      useUiSettingsStore: () => ({
+        traceDebugEnabled: options?.traceDebugEnabled ?? true
+      })
     }))
 
     const ChatSidePanel = (await import('@/components/sidepanel/ChatSidePanel.vue')).default
     const wrapper = mount(ChatSidePanel, {
       props: {
-        sessionId: options?.sessionId ?? 'session-1',
+        sessionId: options?.sessionId === undefined ? 'session-1' : options.sessionId,
         workspacePath: 'C:/workspace'
       },
       global: {
@@ -250,5 +274,31 @@ describe('ChatSidePanel', () => {
     await wrapper.get('[data-testid="mcp-app-sidepanel-tab"]').trigger('click')
 
     expect(sidepanelStore.openMcpAppPreview).toHaveBeenCalledWith('conversation:message:block')
+  })
+
+  it('hosts the Inspector only behind the diagnostics gate', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      activeTab: 'tape-inspector',
+      traceDebugEnabled: true
+    })
+
+    expect(
+      wrapper.get('[data-testid="tape-inspector-panel-stub"]').attributes('data-session-id')
+    ).toBe('session-1')
+    await wrapper.get('[data-testid="tape-inspector-sidepanel-tab"]').trigger('click')
+    expect(sidepanelStore.openTapeInspector).toHaveBeenCalledWith('session-1')
+
+    const hidden = await setup({ activeTab: 'workspace', traceDebugEnabled: false })
+    expect(hidden.wrapper.find('[data-testid="tape-inspector-sidepanel-tab"]').exists()).toBe(false)
+  })
+
+  it('closes an active Inspector when there is no session to inspect', async () => {
+    const { sidepanelStore } = await setup({
+      activeTab: 'tape-inspector',
+      sessionId: null,
+      traceDebugEnabled: true
+    })
+
+    expect(sidepanelStore.closePanel).toHaveBeenCalledTimes(1)
   })
 })

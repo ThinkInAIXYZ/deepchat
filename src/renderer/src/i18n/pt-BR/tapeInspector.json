@@ -1,0 +1,81 @@
+{
+  "title": "Tape Inspector",
+  "actions": {
+    "apply": "Apply",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "refresh": "Refresh",
+    "loadOlder": "Load older",
+    "loadEvidence": "Load more evidence",
+    "openSession": "Open Tape Inspector",
+    "openMessage": "Open in Tape Inspector"
+  },
+  "columns": {
+    "name": "Name",
+    "kind": "Kind",
+    "status": "Status",
+    "start": "Start",
+    "duration": "Duration",
+    "waterfall": "Waterfall"
+  },
+  "search": {
+    "loadedLabel": "Search loaded records",
+    "loadedPlaceholder": "Search loaded records",
+    "loadedScope": "Text search only covers the loaded range"
+  },
+  "filters": { "title": "Filters", "allFamilies": "All families", "errorsOnly": "Errors only" },
+  "groups": { "run": "Run", "request": "Request", "attempt": "Attempt", "tool": "Tool operation" },
+  "evidence": {
+    "request": "Request evidence",
+    "legacy": "legacy / unattributed",
+    "unbound": "Unbound evidence ({count})"
+  },
+  "kinds": { "evidence": "evidence", "lane": "evidence lane", "group": "derived group" },
+  "states": {
+    "unknown": "unknown",
+    "empty": "No matching Tape facts or request evidence",
+    "loadedCounts": "{facts} facts · {evidence} evidence records"
+  },
+  "waterfall": {
+    "sequence": "Canonical Tape sequence position",
+    "point": "Point-in-time fact; duration is unknown"
+  },
+  "detail": {
+    "title": "Details",
+    "selectPrompt": "Select a row to inspect its available details",
+    "integrity": "Integrity",
+    "provenance": "Provenance",
+    "payload": "Permitted payload",
+    "truncated": "truncated",
+    "hashes": "Hashes and sizes",
+    "sources": {
+      "tape": "Tape fact",
+      "message_trace": "Request evidence",
+      "derived": "Derived view"
+    }
+  },
+  "fields": {
+    "entryId": "Entry ID",
+    "family": "Family",
+    "name": "Name",
+    "kind": "Kind",
+    "status": "Fact status",
+    "disclosure": "Disclosure",
+    "traceId": "Trace ID",
+    "messageId": "Message ID",
+    "requestSeq": "Request sequence",
+    "attempt": "Physical attempt",
+    "provider": "Provider",
+    "model": "Model",
+    "endpoint": "Endpoint",
+    "group": "Group",
+    "identity": "Identity",
+    "records": "Records"
+  },
+  "integrity": { "valid": "valid", "invalid": "invalid", "unverified": "unverified" },
+  "errors": {
+    "load_failed": "Unable to load Inspector records",
+    "detail_failed": "Unable to load record details",
+    "record_not_found": "The selected record is no longer available"
+  }
+}

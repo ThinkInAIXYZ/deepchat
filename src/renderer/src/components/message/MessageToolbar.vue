@@ -126,6 +126,15 @@
               @click="emit('trace')"
             />
             <DcButton
+              v-if="isAssistant && traceDebugEnabled"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:scan-search"
+              :tooltip="t('tapeInspector.actions.openMessage')"
+              class="text-muted-foreground hover:bg-transparent hover:text-primary"
+              @click="emit('tapeInspector')"
+            />
+            <DcButton
               v-if="isAssistant && allowMemory && !isReadOnly"
               variant="ghost"
               size="icon-sm"
@@ -290,6 +299,7 @@ const emit = defineEmits<{
   (e: 'fork'): void
   (e: 'copyImageFromTop'): void
   (e: 'trace'): void
+  (e: 'tapeInspector'): void
   (e: 'memory'): void
 }>()
 

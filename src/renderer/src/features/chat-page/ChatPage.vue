@@ -102,6 +102,7 @@
               @fork="onMessageFork"
               @continue="onMessageContinue"
               @trace="onMessageTrace"
+              @tape-inspector="onMessageTapeInspector"
               @edit-save="onMessageEditSave"
               @measure="onMessageMeasure"
             />
@@ -349,6 +350,7 @@ import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
 import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
 
@@ -502,6 +504,7 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
   'Spacebar'
 ])
 const traceMessageId = ref<string | null>(null)
+const sidepanelStore = useSidepanelStore()
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
@@ -1379,6 +1382,10 @@ async function onStop() {
 
 function onMessageTrace(messageId: string) {
   traceMessageId.value = messageId
+}
+
+function onMessageTapeInspector(messageId: string) {
+  sidepanelStore.openTapeInspector(props.sessionId, { messageId })
 }
 
 onMounted(() => {

@@ -17,6 +17,13 @@ export interface WorkspaceSessionState {
   sections: Record<WorkspaceNavSection, boolean>
 }
 
+export interface TapeInspectorOpenRequest {
+  token: number
+  sessionId: string
+  messageId?: string
+  requestSeq?: number
+}
+
 const createSessionState = (): WorkspaceSessionState => ({
   selectedArtifactContext: null,
   selectedFilePath: null,
@@ -50,6 +57,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   const open = ref(false)
   const activeTab = ref<SidePanelTab>('workspace')
   const mcpAppPreviewOwnerId = ref<string | null>(null)
+  const tapeInspectorOpenRequest = ref<TapeInspectorOpenRequest | null>(null)
   const width = useStorage('chat-sidepanel-width', 520)
   const sessionStates = reactive<Record<string, WorkspaceSessionState>>({})
 
@@ -123,6 +131,27 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   const openBrowser = () => {
     open.value = true
     activeTab.value = 'browser'
+  }
+
+  let nextTapeInspectorRequestToken = 0
+  const openTapeInspector = (
+    sessionId: string,
+    preselection?: { messageId: string; requestSeq?: number }
+  ) => {
+    const normalizedSessionId = sessionId.trim()
+    const messageId = preselection?.messageId.trim()
+    const requestSeq = preselection?.requestSeq
+    if (!normalizedSessionId || (preselection && !messageId)) return
+    tapeInspectorOpenRequest.value = {
+      token: ++nextTapeInspectorRequestToken,
+      sessionId: normalizedSessionId,
+      ...(messageId ? { messageId } : {}),
+      ...(typeof requestSeq === 'number' && Number.isInteger(requestSeq) && requestSeq > 0
+        ? { requestSeq }
+        : {})
+    }
+    open.value = true
+    activeTab.value = 'tape-inspector'
   }
 
   const openMcpAppPreview = (ownerId: string) => {
@@ -244,6 +273,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     open,
     activeTab,
     mcpAppPreviewOwnerId,
+    tapeInspectorOpenRequest,
     width: normalizedWidth,
     navCollapsed,
     navWidth,
@@ -256,6 +286,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     setWidth,
     openWorkspace,
     openBrowser,
+    openTapeInspector,
     openMcpAppPreview,
     closeMcpAppPreview,
     closePanel,

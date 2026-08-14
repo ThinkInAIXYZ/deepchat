@@ -1,0 +1,98 @@
+{
+  "title": "Tape 检查器",
+  "actions": {
+    "apply": "应用",
+    "expand": "展开",
+    "collapse": "折叠",
+    "refresh": "刷新",
+    "loadOlder": "加载更早记录",
+    "loadEvidence": "加载更多证据",
+    "openSession": "打开 Tape 检查器",
+    "openMessage": "在 Tape 检查器中打开"
+  },
+  "columns": {
+    "name": "名称",
+    "kind": "类型",
+    "status": "状态",
+    "start": "开始时间",
+    "duration": "时长",
+    "waterfall": "瀑布图"
+  },
+  "search": {
+    "loadedLabel": "搜索已加载记录",
+    "loadedPlaceholder": "搜索已加载记录",
+    "loadedScope": "文本搜索仅覆盖已加载范围"
+  },
+  "filters": {
+    "title": "筛选",
+    "allFamilies": "全部类别",
+    "errorsOnly": "仅显示错误"
+  },
+  "groups": {
+    "run": "运行",
+    "request": "请求",
+    "attempt": "尝试",
+    "tool": "工具操作"
+  },
+  "evidence": {
+    "request": "请求证据",
+    "legacy": "旧版 / 未归属",
+    "unbound": "未绑定证据（{count}）"
+  },
+  "kinds": {
+    "evidence": "证据",
+    "lane": "证据通道",
+    "group": "派生分组"
+  },
+  "states": {
+    "unknown": "未知",
+    "empty": "没有匹配的 Tape 事实或请求证据",
+    "loadedCounts": "{facts} 条事实 · {evidence} 条证据"
+  },
+  "waterfall": {
+    "sequence": "Tape 规范序列位置",
+    "point": "单时刻事实；时长未知"
+  },
+  "detail": {
+    "title": "详情",
+    "selectPrompt": "选择一行以查看其可用详情",
+    "integrity": "完整性",
+    "provenance": "来源",
+    "payload": "允许披露的载荷",
+    "truncated": "已截断",
+    "hashes": "哈希与大小",
+    "sources": {
+      "tape": "Tape 事实",
+      "message_trace": "请求证据",
+      "derived": "派生视图"
+    }
+  },
+  "fields": {
+    "entryId": "条目 ID",
+    "family": "类别",
+    "name": "名称",
+    "kind": "类型",
+    "status": "事实状态",
+    "disclosure": "披露级别",
+    "traceId": "Trace ID",
+    "messageId": "消息 ID",
+    "requestSeq": "请求序号",
+    "attempt": "物理尝试",
+    "provider": "供应商",
+    "model": "模型",
+    "endpoint": "端点",
+    "group": "分组",
+    "identity": "身份",
+    "records": "记录数"
+  },
+  "integrity": {
+    "valid": "有效",
+    "invalid": "无效",
+    "unverified": "未验证"
+  },
+  "errors": {
+    "load_failed": "无法加载检查器记录",
+    "detail_failed": "无法加载记录详情",
+    "record_not_found": "所选记录已不可用"
+  }
+}

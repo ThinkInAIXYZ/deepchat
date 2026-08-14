@@ -2,8 +2,9 @@
 
 ## Status
 
-Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes, and
-renderer projection store are complete; the Inspector panel and entry points are next.
+Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes,
+renderer projection store, historical panel, and gated entry points are complete; committed-head
+following is next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -58,7 +59,7 @@ view or omitting any physical Tape row.
 - [x] Add `sessions.getTapeInspectorRecordDetail` with incarnation validation.
 - [x] Implement exact schema allowlists, then redaction, then byte/collection truncation.
 - [x] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
-- [ ] Define the row-to-detail capability matrix in the renderer client.
+- [x] Define the row-to-detail capability matrix in the renderer client.
 
 Completion condition: bound and unbound evidence are discoverable without payloads, and every fact
 selection has a safe, explicit detail result.
@@ -91,15 +92,16 @@ from timestamps or adjacency.
 
 ## 6. P1 Renderer UI and Entry Points
 
-- [ ] Build the full-height Inspector panel with toolbar, sticky table header, virtualized rows,
+- [x] Build the full-height Inspector panel with toolbar, sticky table header, virtualized rows,
   waterfall, and detail pane.
-- [ ] Implement fixed-height fact/evidence/group rows and keyboard row navigation.
-- [ ] Preserve scroll position when older pages prepend and follow only from the tail.
-- [ ] Add the active-session header entry point behind `traceDebugEnabled`.
-- [ ] Add the message toolbar Inspector entry point with message/request preselection while retaining
+- [x] Implement fixed-height fact/evidence/group rows and keyboard row navigation.
+- [x] Preserve scroll position when older pages prepend and refresh newer facts from the canonical
+  tail cursor; automatic follow remains a P2 watcher responsibility.
+- [x] Add the active-session header entry point behind `traceDebugEnabled`.
+- [x] Add the message toolbar Inspector entry point with message/request preselection while retaining
   the existing Trace dialog action.
-- [ ] Add vue-i18n copy for every supported locale.
-- [ ] Provide explicit sparse-Tape and unbound-evidence states for ACP sessions.
+- [x] Add vue-i18n copy for every supported locale.
+- [x] Provide explicit sparse-Tape and unbound-evidence states for ACP sessions.
 
 Completion condition: historical sessions are useful without Live and large loaded windows remain
 virtualized.
@@ -114,7 +116,7 @@ virtualized.
   hashes.
 - [x] Add renderer model tests for equal timestamps, retries, nested identities, legacy evidence,
   delayed endpoint pairing, reset, prepend anchoring, and stale response rejection.
-- [ ] Add focused component tests for entry points, virtualization contract, keyboard selection, and
+- [x] Add focused component tests for entry points, virtualization contract, keyboard selection, and
   retained Trace dialog access.
 
 Completion condition: documented cross-module, security, pagination, and identity contracts have
@@ -185,10 +187,11 @@ with evidence before handoff.
 1. `docs(tape): specify trace inspector`
 2. `feat(tape): add inspector read model`
 3. `feat(session): expose inspector diagnostics`
-4. `feat(renderer): add tape inspector`
-5. `feat(tape): follow committed inspector facts`
-6. `feat(renderer): complete inspector tooling`
-7. `test(tape): cover inspector contracts`
+4. `feat(renderer): add inspector projection store`
+5. `feat(renderer): add inspector panel`
+6. `feat(tape): follow committed inspector facts`
+7. `feat(renderer): complete inspector tooling`
+8. `test(tape): cover inspector contracts`
 
 Commit boundaries may combine adjacent slices when a public contract would otherwise land without
 its only consumer. Commit messages describe the concrete capability or behavior, never the review

@@ -142,11 +142,29 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.emitted().trace).toBeTruthy()
   })
 
+  it('opens the Inspector independently of persisted request evidence', async () => {
+    traceDebugEnabled = true
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        showTrace: false
+      }
+    })
+
+    const inspectorIcon = wrapper.find('[data-icon="lucide:scan-search"]')
+    expect(inspectorIcon.exists()).toBe(true)
+
+    await inspectorIcon.trigger('click')
+    expect(wrapper.emitted().tapeInspector).toBeTruthy()
+    expect(wrapper.emitted().trace).toBeUndefined()
+  })
+
   it('hides trace button when trace debug is disabled', () => {
     traceDebugEnabled = false
     const wrapper = mountToolbar()
 
     expect(wrapper.find('[data-icon="lucide:bug"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:scan-search"]').exists()).toBe(false)
   })
 
   it('hides trace button when message does not have trace', () => {

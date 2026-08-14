@@ -152,6 +152,7 @@
             @next="handleAction('next')"
             @fork="handleAction('fork')"
             @trace="handleAction('trace')"
+            @tape-inspector="handleAction('tapeInspector')"
             @memory="handleMemoryDetails"
           />
         </div>
@@ -355,6 +356,7 @@ const emit = defineEmits<{
   ]
   variantChanged: [messageId: string]
   trace: [messageId: string]
+  tapeInspector: [messageId: string]
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
@@ -563,6 +565,7 @@ type HandleActionType =
   | 'copyImageFromTop'
   | 'fork'
   | 'trace'
+  | 'tapeInspector'
 
 const handleCollapseToggle = () => {
   emit('variantChanged', props.message.id)
@@ -728,6 +731,8 @@ const handleAction = (action: HandleActionType) => {
     }
   } else if (action === 'trace') {
     emit('trace', currentMessage.value.id)
+  } else if (action === 'tapeInspector') {
+    emit('tapeInspector', currentMessage.value.id)
   }
 }
 

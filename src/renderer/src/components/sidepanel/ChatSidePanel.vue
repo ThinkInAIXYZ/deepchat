@@ -72,6 +72,20 @@
           >
             {{ t('mcp.apps.title') }}
           </button>
+          <button
+            v-if="uiSettingsStore.traceDebugEnabled"
+            data-testid="tape-inspector-sidepanel-tab"
+            class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
+            :class="
+              sidepanelStore.activeTab === 'tape-inspector'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            "
+            type="button"
+            @click="sidepanelStore.openTapeInspector(props.sessionId)"
+          >
+            {{ t('tapeInspector.title') }}
+          </button>
         </div>
 
         <DcButton
@@ -106,6 +120,13 @@
           :is-fullscreen="isBrowserFullscreenActive"
           @toggle-fullscreen="toggleBrowserFullscreen"
         />
+        <TapeInspectorPanel
+          v-else-if="
+            sidepanelStore.activeTab === 'tape-inspector' && uiSettingsStore.traceDebugEnabled
+          "
+          :session-id="props.sessionId"
+          :open-request="sidepanelStore.tapeInspectorOpenRequest"
+        />
       </Transition>
       <div
         v-show="sidepanelStore.activeTab === 'mcp-app' && !panelContentLeaving"
@@ -124,8 +145,10 @@ import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
+import TapeInspectorPanel from '@/components/tape-inspector/TapeInspectorPanel.vue'
 import { WORKSPACE_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const props = defineProps<{
   sessionId: string | null
@@ -134,6 +157,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
+const uiSettingsStore = useUiSettingsStore()
 const browserClient = createBrowserClient()
 const PANEL_MOTION_MS = 220
 const FULLSCREEN_MOTION_MS = 180
@@ -361,6 +385,19 @@ watch(
       resetBrowserFullscreen()
     }
   }
+)
+
+watch(
+  () => [uiSettingsStore.traceDebugEnabled, props.sessionId, sidepanelStore.activeTab] as const,
+  ([enabled, sessionId, activeTab]) => {
+    if (activeTab !== 'tape-inspector') return
+    if (!sessionId) {
+      sidepanelStore.closePanel()
+      return
+    }
+    if (!enabled) sidepanelStore.openWorkspace(sessionId)
+  },
+  { immediate: true }
 )
 
 watch(
