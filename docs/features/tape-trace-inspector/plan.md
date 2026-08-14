@@ -56,6 +56,10 @@ view or omitting any physical Tape row.
 - [x] Add session-scoped trace metadata keyset pagination with optional message/request/attempt
   filters and no endpoint/headers/body fields.
 - [x] Keep its cursor independent from Tape entry cursors.
+- [x] Separate evidence history ordering from a row-append Live cursor so equal timestamps cannot
+  hide later random IDs.
+- [x] Preserve the append high-water mark across supported tail deletes and advance exhausted
+  filtered scans to the session head.
 - [x] Batch page-level evidence counts rather than issuing per-row lookups.
 - [x] Add `sessions.getTapeInspectorRecordDetail` with incarnation validation.
 - [x] Implement exact schema allowlists, then redaction, then byte/collection truncation.
@@ -132,6 +136,7 @@ durable regression coverage without mirroring private control flow.
 - [x] Emit payload-free pulses only when the pair changes.
 - [x] Release subscriptions on panel close, session change, renderer destruction, and app shutdown.
 - [x] Pull `newer` pages on pulse; implement pause/resume and follow-tail without changing execution.
+- [x] Poll bounded newer request-evidence metadata only while the Inspector is active and unpaused.
 - [x] Add cancellable bounded page filling for loaded-scope text search.
 
 Completion condition: committed tail facts are never starved, uncommitted rows are never observed,
@@ -140,6 +145,7 @@ and pause changes only automatic fetching/follow.
 ## 9. P2 Lifecycle Verification
 
 - [x] Cover watcher sharing, cleanup, reset, pause/resume catch-up, and no-change polling.
+- [x] Cover evidence-only append, cursor deduplication, pause, and teardown cleanup.
 - [x] Cover terminal facts arriving at the end of a burst.
 - [x] Cover session deletion and renderer destruction while a watcher is active.
 

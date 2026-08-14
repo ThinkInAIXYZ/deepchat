@@ -167,18 +167,24 @@ export type TapeInspectorTraceMetadataRow = Pick<
   | 'created_at'
 >
 
-export interface TapeInspectorTraceMetadataPageInput {
+interface TapeInspectorTraceMetadataPageBaseInput {
   sessionId: string
   limit: number
-  cursor?: { createdAt: number; traceId: string }
   messageId?: string
   requestSeq?: number
   physicalAttempt?: number | null
 }
 
+export type TapeInspectorTraceMetadataPageInput = TapeInspectorTraceMetadataPageBaseInput &
+  (
+    | { mode: 'older'; cursor?: { createdAt: number; traceId: string } }
+    | { mode: 'newer'; cursor?: { rowId: number } }
+  )
+
 export interface TapeInspectorTraceMetadataPage {
-  rows: TapeInspectorTraceMetadataRow[]
+  rows: Array<TapeInspectorTraceMetadataRow & { row_id: number }>
   hasMore: boolean
+  appendCursorRowId: number | null
 }
 
 export interface TapeTerminalMessageRow {

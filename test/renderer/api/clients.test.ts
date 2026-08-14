@@ -1301,6 +1301,7 @@ describe('renderer api clients', () => {
     })
     await sessionClient.listTapeInspectorEvidence({
       sessionId: 'session-1',
+      mode: 'newer',
       messageId: 'message-1',
       requestSeq: 2,
       physicalAttempt: null
@@ -1327,6 +1328,7 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.listTapeInspectorEvidence', {
       sessionId: 'session-1',
+      mode: 'newer',
       messageId: 'message-1',
       requestSeq: 2,
       physicalAttempt: null

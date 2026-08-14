@@ -185,18 +185,28 @@ export interface TapeInspectorEvidenceCursor {
   traceId: string
 }
 
-export interface ListTapeInspectorEvidenceInput {
+export interface TapeInspectorEvidenceAppendCursor {
+  rowId: number
+}
+
+interface ListTapeInspectorEvidenceBaseInput {
   sessionId: string
-  cursor?: TapeInspectorEvidenceCursor
   limit?: number
   messageId?: string
   requestSeq?: number
   physicalAttempt?: number | null
 }
 
+export type ListTapeInspectorEvidenceInput = ListTapeInspectorEvidenceBaseInput &
+  (
+    | { mode: 'older'; cursor?: TapeInspectorEvidenceCursor }
+    | { mode: 'newer'; cursor?: TapeInspectorEvidenceAppendCursor }
+  )
+
 export interface ListTapeInspectorEvidenceOutput {
   records: TapeInspectorEvidenceRecord[]
   nextCursor: TapeInspectorEvidenceCursor | null
+  newerCursor: TapeInspectorEvidenceAppendCursor | null
 }
 
 export interface TapeInspectorRecordDetail {

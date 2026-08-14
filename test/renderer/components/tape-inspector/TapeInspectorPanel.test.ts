@@ -40,6 +40,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   loadOlderPage: vi.fn(async () => false),
   loadNewerPage: vi.fn(async () => true),
   loadMoreEvidence: vi.fn(async () => false),
+  startEvidenceRefresh: vi.fn(),
   applyServerFilters: vi.fn(async () => true),
   applyServerSort: vi.fn(async () => true),
   setLoadedSearch: vi.fn(),
@@ -228,6 +229,7 @@ describe('TapeInspectorPanel', () => {
       tapeIncarnationId: 'incarnation-1',
       maxEntryId: 20
     })
+    expect(inspectorStore.startEvidenceRefresh).toHaveBeenCalledOnce()
     expect(wrapper.get('[data-testid="recycle-scroller"]').attributes('data-item-size')).toBe('36')
   })
 

@@ -68,6 +68,23 @@ describe('Tape Inspector route contracts', () => {
   })
 
   it('projects evidence metadata without request payload fields', () => {
+    expect(
+      sessionsListTapeInspectorEvidenceRoute.input.safeParse({ sessionId: 'session-1' }).success
+    ).toBe(false)
+    expect(
+      sessionsListTapeInspectorEvidenceRoute.input.safeParse({
+        sessionId: 'session-1',
+        mode: 'newer',
+        cursor: { createdAt: 100, traceId: 'trace-1' }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsListTapeInspectorEvidenceRoute.input.safeParse({
+        sessionId: 'session-1',
+        mode: 'newer',
+        cursor: { rowId: 10 }
+      }).success
+    ).toBe(true)
     const parsed = sessionsListTapeInspectorEvidenceRoute.output.parse({
       records: [
         {
@@ -85,7 +102,8 @@ describe('Tape Inspector route contracts', () => {
           bodyJson: '{"prompt":"secret"}'
         }
       ],
-      nextCursor: null
+      nextCursor: null,
+      newerCursor: { rowId: 10 }
     })
 
     expect(parsed.records[0]).toEqual({

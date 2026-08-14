@@ -7,6 +7,8 @@ const tableModule = sqliteModule
 
 const Database = sqliteModule?.default
 const DeepChatMessageTracesTable = tableModule?.DeepChatMessageTracesTable
+const TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION =
+  tableModule?.TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION
 const DatabaseCtor = Database!
 const DeepChatMessageTracesTableCtor = DeepChatMessageTracesTable!
 
@@ -142,7 +144,6 @@ describeIfSqlite('DeepChatMessageTracesTable', () => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run('legacy', 'a1', 's1', 'openai', 'gpt-4o', 1, '/responses', '{}', '{}', 0, 100)
 
-    expect(table.getLatestVersion()).toBe(45)
     expect(table.getMigrationSQL(45)).toContain(
       'ALTER TABLE deepchat_message_traces ADD COLUMN logical_round INTEGER'
     )
@@ -160,5 +161,23 @@ describeIfSqlite('DeepChatMessageTracesTable', () => {
         physical_attempt: null
       })
     ])
+  })
+
+  it('adds the session append index migration', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatMessageTracesTableCtor(db)
+    table.createTable()
+    db.exec('DROP INDEX idx_trace_session_append')
+
+    expect(table.getLatestVersion()).toBe(TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION)
+    db.exec(table.getMigrationSQL(TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION!)!)
+    expect(
+      db
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE type = 'index' AND name = 'idx_trace_session_append'`
+        )
+        .get()
+    ).toEqual({ name: 'idx_trace_session_append' })
   })
 })

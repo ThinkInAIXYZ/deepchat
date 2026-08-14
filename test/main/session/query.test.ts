@@ -97,7 +97,9 @@ function createHarness() {
   const traces = {
     listByMessageId: vi.fn().mockReturnValue([]),
     countByMessageId: vi.fn().mockReturnValue(0),
-    listInspectorMetadata: vi.fn().mockReturnValue({ rows: [], hasMore: false })
+    listInspectorMetadata: vi
+      .fn()
+      .mockReturnValue({ rows: [], hasMore: false, appendCursorRowId: null })
   }
   const titles = { summaryTitles: vi.fn().mockResolvedValue('Generated title') }
   const agentConfig = { getAssistantModel: vi.fn().mockResolvedValue(null) }
@@ -321,6 +323,7 @@ describe('SessionQuery', () => {
     harness.traces.listInspectorMetadata.mockReturnValue({
       rows: [
         {
+          row_id: 2,
           id: 'trace-2',
           message_id: 'm1',
           session_id: 's1',
@@ -333,7 +336,8 @@ describe('SessionQuery', () => {
           created_at: 456
         }
       ],
-      hasMore: true
+      hasMore: true,
+      appendCursorRowId: 2
     })
 
     await expect(
@@ -349,6 +353,7 @@ describe('SessionQuery', () => {
     await expect(
       harness.coordinator.listTapeInspectorEvidence({
         sessionId: 's1',
+        mode: 'newer',
         limit: 500,
         physicalAttempt: null
       })
@@ -367,15 +372,17 @@ describe('SessionQuery', () => {
           truncated: true
         }
       ],
-      nextCursor: { createdAt: 456, traceId: 'trace-2' }
+      nextCursor: null,
+      newerCursor: { rowId: 2 }
     })
     expect(harness.traces.listInspectorMetadata).toHaveBeenCalledWith({
       sessionId: 's1',
+      mode: 'newer',
       limit: 200,
       physicalAttempt: null
     })
     await expect(
-      harness.coordinator.listTapeInspectorEvidence({ sessionId: 'missing' })
+      harness.coordinator.listTapeInspectorEvidence({ sessionId: 'missing', mode: 'older' })
     ).rejects.toThrow('Session not found: missing')
   })
 
@@ -384,6 +391,7 @@ describe('SessionQuery', () => {
     harness.traces.listInspectorMetadata.mockReturnValue({
       rows: [
         {
+          row_id: 1,
           id: 'trace-1',
           message_id: 'm1',
           session_id: 's1',
@@ -399,7 +407,8 @@ describe('SessionQuery', () => {
           created_at: 456
         }
       ],
-      hasMore: true
+      hasMore: true,
+      appendCursorRowId: 1
     })
     harness.tape.exportTapeInspectorSupportFacts.mockReturnValue({
       status: 'ok',
@@ -458,6 +467,7 @@ describe('SessionQuery', () => {
     expect(JSON.stringify(exported)).not.toContain('prompt')
     expect(harness.traces.listInspectorMetadata).toHaveBeenCalledWith({
       sessionId: 's1',
+      mode: 'older',
       limit: 200
     })
     expect(harness.tape.exportTapeInspectorSupportFacts).toHaveBeenCalledWith({

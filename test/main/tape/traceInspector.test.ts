@@ -21,7 +21,10 @@ import {
   DeepChatExecutionJournalStore,
   DeepChatTapeEntriesTable
 } from '@/tape/infrastructure/sqlite/tapeEntryStore'
-import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
+import {
+  DeepChatMessageTracesTable,
+  TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION
+} from '@/session/data/tables/deepchatMessageTraces'
 import type { TapeInspectorFactRecord, TapeInspectorSort } from '@shared/types/tape-inspector'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -731,6 +734,8 @@ describe('Tape Trace Inspector storage contracts', () => {
     try {
       const traces = new DeepChatMessageTracesTable(db)
       traces.createTable()
+      db.exec('DROP INDEX idx_trace_session_append')
+      db.exec(traces.getMigrationSQL(TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION)!)
       traces.insert({
         id: 'trace-attempt-1',
         messageId: 'message-1',
@@ -762,20 +767,140 @@ describe('Tape Trace Inspector storage contracts', () => {
         createdAt: 100
       })
 
-      const page = traces.listInspectorMetadata({ sessionId: 'session-1', limit: 10 })
+      const page = traces.listInspectorMetadata({
+        sessionId: 'session-1',
+        mode: 'older',
+        limit: 10
+      })
       expect(page.rows).toHaveLength(2)
       expect(JSON.stringify(page.rows)).not.toContain('endpoint')
       expect(JSON.stringify(page.rows)).not.toContain('headers')
       expect(JSON.stringify(page.rows)).not.toContain('body')
-      const firstPage = traces.listInspectorMetadata({ sessionId: 'session-1', limit: 1 })
+      const firstPage = traces.listInspectorMetadata({
+        sessionId: 'session-1',
+        mode: 'older',
+        limit: 1
+      })
       expect(firstPage).toMatchObject({ rows: [{ id: 'trace-attempt-1' }], hasMore: true })
       expect(
         traces.listInspectorMetadata({
           sessionId: 'session-1',
+          mode: 'older',
           cursor: { createdAt: 200, traceId: 'trace-attempt-1' },
           limit: 1
         })
       ).toMatchObject({ rows: [{ id: 'trace-legacy' }], hasMore: false })
+
+      traces.insert({
+        id: 'trace-z',
+        messageId: 'message-1',
+        sessionId: 'session-1',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        requestSeq: 3,
+        endpoint: 'https://private.example',
+        headersJson: '{}',
+        bodyJson: '{}',
+        truncated: false,
+        createdAt: 300
+      })
+      traces.insert({
+        id: 'trace-a',
+        messageId: 'message-1',
+        sessionId: 'session-1',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        requestSeq: 3,
+        endpoint: 'https://private.example',
+        headersJson: '{}',
+        bodyJson: '{}',
+        truncated: false,
+        createdAt: 300
+      })
+      expect(
+        traces.listInspectorMetadata({
+          sessionId: 'session-1',
+          mode: 'newer',
+          cursor: { rowId: 2 },
+          limit: 1
+        })
+      ).toMatchObject({
+        rows: [{ id: 'trace-z' }],
+        hasMore: true,
+        appendCursorRowId: 3
+      })
+      expect(
+        traces.listInspectorMetadata({
+          sessionId: 'session-1',
+          mode: 'newer',
+          cursor: { rowId: 3 },
+          limit: 1
+        })
+      ).toMatchObject({
+        rows: [{ id: 'trace-a' }],
+        hasMore: false,
+        appendCursorRowId: 4
+      })
+      traces.insert({
+        id: 'trace-other-message',
+        messageId: 'message-2',
+        sessionId: 'session-1',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        requestSeq: 1,
+        endpoint: 'https://private.example',
+        headersJson: '{}',
+        bodyJson: '{}',
+        truncated: false,
+        createdAt: 400
+      })
+      expect(
+        traces.listInspectorMetadata({
+          sessionId: 'session-1',
+          mode: 'newer',
+          cursor: { rowId: 4 },
+          messageId: 'message-without-new-evidence',
+          limit: 1
+        })
+      ).toMatchObject({ rows: [], hasMore: false, appendCursorRowId: 5 })
+
+      traces.deleteByMessageId('message-2')
+      traces.insert({
+        id: 'trace-after-tail-delete',
+        messageId: 'message-1',
+        sessionId: 'session-1',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        requestSeq: 4,
+        endpoint: 'https://private.example',
+        headersJson: '{}',
+        bodyJson: '{}',
+        truncated: false,
+        createdAt: 500
+      })
+      expect(
+        traces.listInspectorMetadata({
+          sessionId: 'session-1',
+          mode: 'newer',
+          cursor: { rowId: 5 },
+          limit: 1
+        })
+      ).toMatchObject({
+        rows: [{ id: 'trace-after-tail-delete', row_id: 6 }],
+        hasMore: false,
+        appendCursorRowId: 6
+      })
+      const appendPlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT id
+           FROM deepchat_message_traces
+           WHERE session_id = ? AND rowid > ?
+           ORDER BY rowid ASC
+           LIMIT ?`
+        )
+        .all('session-1', 3, 100) as Array<{ detail: string }>
+      expect(appendPlan.map((step) => step.detail).join('\n')).toContain('idx_trace_session_append')
       expect(
         traces.countInspectorBindings('session-1', [
           { scope: 'request', messageId: 'message-1', requestSeq: 2 },

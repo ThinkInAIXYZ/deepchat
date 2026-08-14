@@ -4,6 +4,7 @@ import { createSessionClient } from '../../../api/SessionClient'
 import type {
   ListTapeInspectorPageOutput,
   TapeInspectorEntryCursor,
+  TapeInspectorEvidenceAppendCursor,
   TapeInspectorEvidenceCursor,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactFilters,
@@ -22,6 +23,7 @@ import {
 
 const PAGE_LIMIT = 100
 const EVIDENCE_PAGE_LIMIT = 100
+const EVIDENCE_REFRESH_INTERVAL_MS = 1_000
 const LIVE_RETRY_DELAY_MS = 1_000
 const SEARCH_FILL_DEBOUNCE_MS = 250
 const SEARCH_FILL_MAX_PAGES = 6
@@ -79,6 +81,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const olderCursor = ref<TapeInspectorEntryCursor | null>(null)
   const newerCursor = ref<TapeInspectorEntryCursor | null>(null)
   const evidenceCursor = ref<TapeInspectorEvidenceCursor | null>(null)
+  const evidenceNewerCursor = ref<TapeInspectorEvidenceAppendCursor | null>(null)
   const loadingInitial = ref(false)
   const loadingOlder = ref(false)
   const loadingNewer = ref(false)
@@ -91,6 +94,9 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const liveSyncing = ref(false)
   let liveRetryTimer: ReturnType<typeof setTimeout> | null = null
   let newerPageRequest: { generation: number; promise: Promise<boolean> } | null = null
+  let evidenceRefreshTimer: ReturnType<typeof setInterval> | null = null
+  let evidenceRefreshEnabled = false
+  let evidenceRefreshRequest: { generation: number; promise: Promise<boolean> } | null = null
   let searchFillGeneration = 0
   let searchFillTimer: ReturnType<typeof setTimeout> | null = null
   let searchFillActive = false
@@ -213,6 +219,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
 
   function cancelPendingRequests(): number {
     cancelLoadedSearchFill()
+    suspendEvidenceRefresh()
     requestGeneration += 1
     detailRequestGeneration += 1
     loadingInitial.value = false
@@ -239,6 +246,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     olderCursor.value = null
     newerCursor.value = null
     evidenceCursor.value = null
+    evidenceNewerCursor.value = null
     errorCode.value = null
     pendingLiveHead = null
   }
@@ -266,7 +274,10 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     }
   }
 
-  function upsertEvidence(incoming: readonly TapeInspectorEvidenceRecord[], replace = false): void {
+  function upsertEvidence(
+    incoming: readonly TapeInspectorEvidenceRecord[],
+    replace = false
+  ): boolean {
     const next = replace
       ? new Map<string, TapeInspectorEvidenceRecord>()
       : new Map(evidenceByTraceId.value)
@@ -284,6 +295,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         )
         .map((record) => record.traceId)
     }
+    return hasNewKey
   }
 
   function isCurrentRequest(generation: number, requestedSessionId: string): boolean {
@@ -362,6 +374,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         }),
         sessionClient.listTapeInspectorEvidence({
           sessionId: normalizedSessionId,
+          mode: 'older',
           limit: EVIDENCE_PAGE_LIMIT,
           ...(serverFilters.value.messageId
             ? {
@@ -381,8 +394,10 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       applyPage(page, 'tail')
       upsertEvidence(evidencePage.records, true)
       evidenceCursor.value = evidencePage.nextCursor
+      evidenceNewerCursor.value = evidencePage.newerCursor
       resolvePreselection()
       requestLoadedSearchFill()
+      if (evidenceRefreshEnabled) startEvidenceRefresh()
       return true
     } catch {
       if (isCurrentRequest(generation, normalizedSessionId)) errorCode.value = 'load_failed'
@@ -586,8 +601,17 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
 
   async function setLivePaused(paused: boolean): Promise<boolean> {
     livePaused.value = paused
-    if (paused) clearLiveRetryTimer()
-    return paused ? false : await drainLiveHead()
+    if (paused) {
+      clearLiveRetryTimer()
+      suspendEvidenceRefresh()
+      return false
+    }
+    startEvidenceRefresh()
+    const [factsChanged, evidenceChanged] = await Promise.all([
+      drainLiveHead(),
+      refreshNewerEvidence()
+    ])
+    return factsChanged || evidenceChanged
   }
 
   async function loadMoreEvidence(): Promise<boolean> {
@@ -600,6 +624,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     try {
       const page = await sessionClient.listTapeInspectorEvidence({
         sessionId: currentSessionId,
+        mode: 'older',
         cursor,
         limit: EVIDENCE_PAGE_LIMIT,
         ...(serverFilters.value.messageId
@@ -621,6 +646,66 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       return false
     } finally {
       if (isCurrentRequest(generation, currentSessionId)) loadingEvidence.value = false
+    }
+  }
+
+  function suspendEvidenceRefresh(): void {
+    if (evidenceRefreshTimer === null) return
+    clearInterval(evidenceRefreshTimer)
+    evidenceRefreshTimer = null
+  }
+
+  function startEvidenceRefresh(): void {
+    evidenceRefreshEnabled = true
+    if (evidenceRefreshTimer !== null || livePaused.value || sessionId.value === null) return
+    evidenceRefreshTimer = setInterval(() => {
+      void refreshNewerEvidence()
+    }, EVIDENCE_REFRESH_INTERVAL_MS)
+  }
+
+  function stopEvidenceRefresh(): void {
+    evidenceRefreshEnabled = false
+    suspendEvidenceRefresh()
+  }
+
+  async function refreshNewerEvidence(): Promise<boolean> {
+    const currentSessionId = sessionId.value
+    if (!currentSessionId || livePaused.value || loadingInitial.value) return false
+    const generation = requestGeneration
+    if (evidenceRefreshRequest?.generation === generation) {
+      return await evidenceRefreshRequest.promise
+    }
+    const cursor = evidenceNewerCursor.value
+    const promise = (async () => {
+      try {
+        const page = await sessionClient.listTapeInspectorEvidence({
+          sessionId: currentSessionId,
+          mode: 'newer',
+          limit: EVIDENCE_PAGE_LIMIT,
+          ...(cursor ? { cursor } : {}),
+          ...(serverFilters.value.messageId
+            ? {
+                messageId: serverFilters.value.messageId
+              }
+            : {}),
+          ...(serverFilters.value.requestSeq === undefined
+            ? {}
+            : { requestSeq: serverFilters.value.requestSeq })
+        })
+        if (livePaused.value || !isCurrentRequest(generation, currentSessionId)) return false
+        const changed = upsertEvidence(page.records)
+        evidenceNewerCursor.value = page.newerCursor
+        resolvePreselection()
+        return changed
+      } catch {
+        return false
+      }
+    })()
+    evidenceRefreshRequest = { generation, promise }
+    try {
+      return await promise
+    } finally {
+      if (evidenceRefreshRequest?.promise === promise) evidenceRefreshRequest = null
     }
   }
 
@@ -806,6 +891,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   }
 
   function clear(): void {
+    stopEvidenceRefresh()
     cancelPendingRequests()
     sessionId.value = null
     preselection.value = null
@@ -852,6 +938,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadNewerPage,
     handleLiveHeadPulse,
     setLivePaused,
+    startEvidenceRefresh,
     loadMoreEvidence,
     applyServerFilters,
     applyServerSort,

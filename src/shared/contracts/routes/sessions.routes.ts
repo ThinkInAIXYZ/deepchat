@@ -190,6 +190,9 @@ const TapeInspectorEvidenceCursorSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   traceId: TapeInspectorIdentitySchema
 })
+const TapeInspectorEvidenceAppendCursorSchema = z.object({
+  rowId: z.number().int().positive()
+})
 const TapeInspectorEvidenceRecordSchema = z.object({
   recordType: z.literal('evidence'),
   key: z.custom<`trace:${string}`>(
@@ -706,17 +709,29 @@ export const sessionsListTapeInspectorPageRoute = defineRouteContract({
   output: ListTapeInspectorPageOutputSchema
 }) satisfies RouteContract<'sessions.listTapeInspectorPage'>
 
-const ListTapeInspectorEvidenceInputSchema = z.object({
+const TapeInspectorEvidencePageBaseShape = {
   sessionId: EntityIdSchema,
-  cursor: TapeInspectorEvidenceCursorSchema.optional(),
   limit: z.number().int().positive().max(200).optional(),
   messageId: TapeInspectorIdentitySchema.optional(),
   requestSeq: z.number().int().positive().optional(),
   physicalAttempt: z.number().int().nonnegative().nullable().optional()
-}) satisfies z.ZodType<ListTapeInspectorEvidenceInput>
+}
+const ListTapeInspectorEvidenceInputSchema = z.discriminatedUnion('mode', [
+  z.object({
+    ...TapeInspectorEvidencePageBaseShape,
+    mode: z.literal('older'),
+    cursor: TapeInspectorEvidenceCursorSchema.optional()
+  }),
+  z.object({
+    ...TapeInspectorEvidencePageBaseShape,
+    mode: z.literal('newer'),
+    cursor: TapeInspectorEvidenceAppendCursorSchema.optional()
+  })
+]) satisfies z.ZodType<ListTapeInspectorEvidenceInput>
 const ListTapeInspectorEvidenceOutputSchema = z.object({
   records: z.array(TapeInspectorEvidenceRecordSchema).max(200),
-  nextCursor: TapeInspectorEvidenceCursorSchema.nullable()
+  nextCursor: TapeInspectorEvidenceCursorSchema.nullable(),
+  newerCursor: TapeInspectorEvidenceAppendCursorSchema.nullable()
 }) satisfies z.ZodType<ListTapeInspectorEvidenceOutput>
 
 export const sessionsListTapeInspectorEvidenceRoute = defineRouteContract({

@@ -8,6 +8,9 @@ const mainDatabaseModule = Database ? await import('@/data/mainDatabase').catch(
 const pendingInputsModule = Database
   ? await import('@/session/data/tables/deepchatPendingInputs').catch(() => null)
   : null
+const messageTracesModule = Database
+  ? await import('@/session/data/tables/deepchatMessageTraces').catch(() => null)
+  : null
 const liveDelegationsModule = Database
   ? await import('@/orchestration/data/tables/liveDelegations').catch(() => null)
   : null
@@ -18,7 +21,8 @@ const CONTRACT_DATABASE_SCHEMA_VERSION =
   liveDelegationsModule?.LIVE_DELEGATION_CONTRACT_DATABASE_SCHEMA_VERSION
 const CURRENT_DATABASE_SCHEMA_VERSION = Math.max(
   LATEST_DATABASE_SCHEMA_VERSION ?? 0,
-  pendingInputsModule?.PENDING_INPUT_RETRY_SCHEMA_VERSION ?? 0
+  pendingInputsModule?.PENDING_INPUT_RETRY_SCHEMA_VERSION ?? 0,
+  messageTracesModule?.TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION ?? 0
 )
 const DatabaseCtor = Database!
 const describeIfSqlite = nativeSqliteDescribeIf(

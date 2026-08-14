@@ -363,6 +363,17 @@ Session trace metadata uses an independent bounded page route and composite keys
 filter by `messageId`, `requestSeq`, and `physicalAttempt` for lazy group expansion. The unbound lane
 uses the session-wide form.
 
+`older` pages are ordered by `(createdAt, traceId)` descending for history expansion. `newer` pages
+use a read-side append cursor backed by the trace row ID and return append order ascending. The
+append cursor is not exposed on evidence records and is never an identity or cross-domain ordering
+key. This split prevents a random trace ID inserted in an existing timestamp bucket from falling
+behind a Live cursor. The trace store preserves the row-ID high-water mark across supported delete
+paths for the lifetime of the database connection, so SQLite cannot reuse a deleted tail row ID
+behind an active cursor. Cursors are not persisted across process restarts. A page returns at most
+200 metadata records. When a filtered `newer` scan is exhausted, its cursor advances to the
+session-wide row-ID head rather than repeatedly scanning non-matching rows. Null `physicalAttempt`
+remains null in both directions.
+
 Its cursor belongs only to `deepchat_message_traces`. It does not contain an `entryId`, does not
 advance Tape history, and never returns headers/body. Existing message-level trace diagnostics
 remain the payload authority for Request details.
@@ -484,6 +495,12 @@ The renderer then pulls `newer` pages from its last canonical cursor. A pulse ne
 Incarnation change resets the Inspector. Pause disables automatic pulls and follow-tail while
 leaving the watcher subscription and execution unchanged. Resume catches up from the durable
 cursor.
+
+Provider evidence is a separate append-ordered domain, so a Tape head pulse cannot announce an
+evidence-only write. While the Inspector is active and unpaused, the renderer therefore polls one
+bounded `newer` evidence page per interval from its independent append cursor. Trace IDs dedupe
+repeated rows. Session/filter reset discards the cursor and late responses; panel teardown stops the
+timer. This refresh never changes or advances the Tape cursor and never returns request payloads.
 
 The interval naturally coalesces bursts and always reads the current committed head. An
 after-commit notifier remains a future optimization only if measured latency requires it.
@@ -607,11 +624,13 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 15. Unknown event and anchor payloads fail closed.
 16. No table migration is allowed; measured index-only migrations are allowed.
 17. Non-canonical server sorting uses composite keysets and flat result presentation.
-18. Live uses a demand-driven committed-head watcher with no write-path changes.
+18. Tape Live uses a demand-driven committed-head watcher with no Tape write-path changes; evidence
+    inserts only reserve the table's internal row-ID append token.
 19. ACP's sparse Tape spine and unbound evidence are expected states.
 20. The Inspector has no write or permission-authority behavior.
 21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
 22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
+23. Live evidence refresh uses its own bounded newer cursor and active-panel lifecycle.
 
 ## Acceptance Criteria
 
@@ -623,7 +642,7 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.
 - Sequence is always drawable; actual spans use authoritative endpoints; unknown timing is explicit.
 - Live append is deterministic, payload-free, incarnation-safe, and does not steal selection.
-- Pause and resume affect automatic follow only.
+- Pause and resume affect automatic pulls and follow only.
 - Filters apply to their documented server or loaded scope, and the UI states that scope.
 - Advertised column sorts operate across paginated results.
 - Detail, copy, and export honor allowlist, redaction, truncation, integrity, and size contracts.

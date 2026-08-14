@@ -907,6 +907,7 @@ async function initialize(): Promise<void> {
       : null
   })
   if (!loaded) return
+  store.startEvidenceRefresh()
   syncFilterDrafts()
   await nextTick()
   scrollToSelected()

@@ -231,6 +231,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     this.requireSession(input.sessionId)
     const evidence = await this.listTapeInspectorEvidence({
       sessionId: input.sessionId,
+      mode: 'older',
       limit: TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT
     })
     const facts = await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
@@ -393,14 +394,25 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     input: ListTapeInspectorEvidenceInput
   ): Promise<ListTapeInspectorEvidenceOutput> {
     this.requireSession(input.sessionId)
-    const page = this.dependencies.traces.listInspectorMetadata({
+    const pageInput = {
       sessionId: input.sessionId,
       limit: normalizeInspectorEvidenceLimit(input.limit),
-      ...(input.cursor ? { cursor: input.cursor } : {}),
       ...(input.messageId === undefined ? {} : { messageId: input.messageId }),
       ...(input.requestSeq === undefined ? {} : { requestSeq: input.requestSeq }),
       ...(input.physicalAttempt === undefined ? {} : { physicalAttempt: input.physicalAttempt })
-    })
+    }
+    const page =
+      input.mode === 'older'
+        ? this.dependencies.traces.listInspectorMetadata({
+            ...pageInput,
+            mode: 'older',
+            ...(input.cursor ? { cursor: input.cursor } : {})
+          })
+        : this.dependencies.traces.listInspectorMetadata({
+            ...pageInput,
+            mode: 'newer',
+            ...(input.cursor ? { cursor: input.cursor } : {})
+          })
     const records = page.rows.map((row) => ({
       recordType: 'evidence' as const,
       key: `trace:${row.id}` as const,
@@ -418,7 +430,10 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     return {
       records,
       nextCursor:
-        page.hasMore && lastRow ? { createdAt: lastRow.created_at, traceId: lastRow.id } : null
+        input.mode === 'older' && page.hasMore && lastRow
+          ? { createdAt: lastRow.created_at, traceId: lastRow.id }
+          : null,
+      newerCursor: page.appendCursorRowId === null ? null : { rowId: page.appendCursorRowId }
     }
   }
 

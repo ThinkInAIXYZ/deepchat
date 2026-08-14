@@ -83,7 +83,7 @@ function evidencePage(
   records: TapeInspectorEvidenceRecord[] = [],
   overrides: Partial<ListTapeInspectorEvidenceOutput> = {}
 ): ListTapeInspectorEvidenceOutput {
-  return { records, nextCursor: null, ...overrides }
+  return { records, nextCursor: null, newerCursor: null, ...overrides }
 }
 
 describe('Tape Inspector store', () => {
@@ -132,6 +132,111 @@ describe('Tape Inspector store', () => {
     expect(store.selectedRow?.recordType === 'group' && store.selectedRow.group.kind).toBe(
       'request'
     )
+  })
+
+  it('polls bounded newer evidence while active and stops when paused or cleared', async () => {
+    vi.useFakeTimers()
+    const store = useTapeInspectorStore()
+    try {
+      client.listTapeInspectorPage.mockResolvedValueOnce(page([fact(20)]))
+      client.listTapeInspectorEvidence
+        .mockResolvedValueOnce(evidencePage())
+        .mockResolvedValueOnce(
+          evidencePage(
+            [evidence('trace-a', { createdAt: 100 }), evidence('trace-b', { createdAt: 100 })],
+            {
+              nextCursor: null,
+              newerCursor: { rowId: 2 }
+            }
+          )
+        )
+        .mockResolvedValueOnce(
+          evidencePage(
+            [evidence('trace-b', { createdAt: 100 }), evidence('trace-c', { createdAt: 200 })],
+            { newerCursor: { rowId: 3 } }
+          )
+        )
+      await store.initialize('session-1')
+      store.startEvidenceRefresh()
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(client.listTapeInspectorEvidence).toHaveBeenNthCalledWith(2, {
+        sessionId: 'session-1',
+        mode: 'newer',
+        limit: 100
+      })
+      expect(store.evidence.map((record) => record.traceId)).toEqual(['trace-a', 'trace-b'])
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(client.listTapeInspectorEvidence).toHaveBeenNthCalledWith(3, {
+        sessionId: 'session-1',
+        mode: 'newer',
+        cursor: { rowId: 2 },
+        limit: 100
+      })
+      expect(store.evidence.map((record) => record.traceId)).toEqual([
+        'trace-a',
+        'trace-b',
+        'trace-c'
+      ])
+
+      await store.setLivePaused(true)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(client.listTapeInspectorEvidence).toHaveBeenCalledTimes(3)
+
+      client.listTapeInspectorEvidence.mockResolvedValueOnce(
+        evidencePage([evidence('trace-d', { createdAt: 300 })], {
+          newerCursor: { rowId: 4 }
+        })
+      )
+      await expect(store.setLivePaused(false)).resolves.toBe(true)
+      expect(client.listTapeInspectorEvidence).toHaveBeenLastCalledWith({
+        sessionId: 'session-1',
+        mode: 'newer',
+        cursor: { rowId: 3 },
+        limit: 100
+      })
+      expect(store.evidence.map((record) => record.traceId)).toContain('trace-d')
+
+      store.clear()
+      client.listTapeInspectorEvidence.mockResolvedValueOnce(
+        evidencePage([evidence('trace-after-clear')])
+      )
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(client.listTapeInspectorEvidence).toHaveBeenCalledTimes(4)
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
+  })
+
+  it('discards an evidence refresh that finishes while Live is paused', async () => {
+    vi.useFakeTimers()
+    const store = useTapeInspectorStore()
+    try {
+      const pendingRefresh = deferred<ListTapeInspectorEvidenceOutput>()
+      client.listTapeInspectorPage.mockResolvedValueOnce(page([fact(20)]))
+      client.listTapeInspectorEvidence
+        .mockResolvedValueOnce(evidencePage())
+        .mockReturnValueOnce(pendingRefresh.promise)
+      await store.initialize('session-1')
+      store.startEvidenceRefresh()
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await store.setLivePaused(true)
+      pendingRefresh.resolve(
+        evidencePage([evidence('trace-after-pause')], { newerCursor: { rowId: 1 } })
+      )
+      await pendingRefresh.promise
+      await Promise.resolve()
+
+      expect(store.evidence).toEqual([])
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
   })
 
   it('prepends and appends pages with stable deduplication', async () => {
