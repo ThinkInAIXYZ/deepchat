@@ -55,7 +55,7 @@ const capabilities = {
   provenance: true,
   integrity: false,
   raw: false,
-  transcriptNavigation: false
+  messageDiagnostics: false
 }
 
 describe('TapeInspectorDetailPane', () => {
@@ -162,5 +162,41 @@ describe('TapeInspectorDetailPane', () => {
       wrapper.get('[data-testid="tape-inspector-copy-selected"]').attributes('data-icon')
     ).toBe('lucide:copy')
     consoleError.mockRestore()
+  })
+
+  it('shows timing and sanitized raw data and opens message diagnostics', async () => {
+    const wrapper = mount(TapeInspectorDetailPane, {
+      props: {
+        row: {
+          recordType: 'fact',
+          key: 'entry:1',
+          record: { ...firstDetail.detail.record, messageId: 'message-1' },
+          parentGroupKey: null,
+          depth: 0,
+          status: null,
+          durationMs: 25,
+          sequenceEntryId: 1,
+          sequenceStart: 0,
+          actualStartAt: 100,
+          actualEndAt: 125,
+          actualStart: 0,
+          actualWidth: 1
+        },
+        detail: firstDetail,
+        capabilities: { ...capabilities, raw: true, messageDiagnostics: true },
+        loading: false,
+        errorCode: null
+      }
+    })
+
+    expect(wrapper.text()).toContain('tapeInspector.detail.timing')
+    expect(wrapper.text()).toContain('"durationMs": 25')
+    expect(wrapper.text()).toContain('tapeInspector.detail.raw')
+    expect(wrapper.text()).toContain('"disclosure": "structured"')
+
+    await wrapper.get('[data-testid="tape-inspector-open-message-diagnostics"]').trigger('click')
+    expect(wrapper.emitted('openMessageDiagnostics')).toEqual([
+      [{ messageId: 'message-1', requestSeq: undefined }]
+    ])
   })
 })

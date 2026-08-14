@@ -64,7 +64,9 @@
     "selectPrompt": "選取一列以檢視其可用詳細資料",
     "integrity": "完整性",
     "provenance": "來源",
+    "timing": "時序",
     "payload": "允許揭露的承載資料",
+    "raw": "已去除敏感資料的原始記錄",
     "truncated": "已截斷",
     "hashes": "雜湊與大小",
     "sources": {

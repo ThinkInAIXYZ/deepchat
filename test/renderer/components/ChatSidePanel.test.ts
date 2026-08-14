@@ -100,8 +100,19 @@ describe('ChatSidePanel', () => {
       default: defineComponent({
         name: 'TapeInspectorPanel',
         props: ['sessionId', 'openRequest'],
+        emits: ['open-message-diagnostics'],
         template:
-          '<div data-testid="tape-inspector-panel-stub" :data-session-id="sessionId" :data-request-token="openRequest?.token" />'
+          '<div data-testid="tape-inspector-panel-stub" :data-session-id="sessionId" :data-request-token="openRequest?.token"><button data-testid="open-message-diagnostics" @click="$emit(\'open-message-diagnostics\', { messageId: \'message-1\', requestSeq: 2 })" /></div>'
+      })
+    }))
+
+    vi.doMock('@/components/trace/TraceDialog.vue', () => ({
+      default: defineComponent({
+        name: 'TraceDialog',
+        props: ['messageId', 'requestSeq'],
+        emits: ['close'],
+        template:
+          '<div data-testid="trace-dialog-stub" :data-message-id="messageId ?? undefined" :data-request-seq="requestSeq"><button data-testid="close-trace-dialog" @click="$emit(\'close\')" /></div>'
       })
     }))
 
@@ -290,6 +301,26 @@ describe('ChatSidePanel', () => {
 
     const hidden = await setup({ activeTab: 'workspace', traceDebugEnabled: false })
     expect(hidden.wrapper.find('[data-testid="tape-inspector-sidepanel-tab"]').exists()).toBe(false)
+  })
+
+  it('opens existing message diagnostics from the Inspector detail pane', async () => {
+    const { wrapper } = await setup({
+      activeTab: 'tape-inspector',
+      traceDebugEnabled: true
+    })
+
+    await wrapper.get('[data-testid="open-message-diagnostics"]').trigger('click')
+    expect(wrapper.get('[data-testid="trace-dialog-stub"]').attributes('data-message-id')).toBe(
+      'message-1'
+    )
+    expect(wrapper.get('[data-testid="trace-dialog-stub"]').attributes('data-request-seq')).toBe(
+      '2'
+    )
+
+    await wrapper.get('[data-testid="close-trace-dialog"]').trigger('click')
+    expect(
+      wrapper.get('[data-testid="trace-dialog-stub"]').attributes('data-message-id')
+    ).toBeUndefined()
   })
 
   it('does not keep the Inspector mounted while the sidepanel is closed', async () => {

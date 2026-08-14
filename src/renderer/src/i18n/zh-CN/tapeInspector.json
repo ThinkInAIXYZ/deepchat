@@ -64,7 +64,9 @@
     "selectPrompt": "选择一行以查看其可用详情",
     "integrity": "完整性",
     "provenance": "来源",
+    "timing": "时序",
     "payload": "允许披露的载荷",
+    "raw": "脱敏后的原始记录",
     "truncated": "已截断",
     "hashes": "哈希与大小",
     "sources": {

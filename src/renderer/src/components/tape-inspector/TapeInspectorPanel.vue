@@ -445,6 +445,7 @@
         :loading="store.loadingDetail"
         :error-code="detailErrorCode"
         @retry="store.loadSelectedDetail()"
+        @open-message-diagnostics="emit('openMessageDiagnostics', $event)"
       />
     </div>
   </div>
@@ -469,7 +470,7 @@ import type {
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'
 import { createSessionClient } from '../../../api/SessionClient'
-import { getTapeInspectorRowDomId } from './model'
+import { getTapeInspectorRowDomId, type TapeInspectorMessageDiagnosticsTarget } from './model'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
@@ -506,6 +507,10 @@ interface WaterfallTimeRange {
 const props = defineProps<{
   sessionId: string
   openRequest: TapeInspectorOpenRequest | null
+}>()
+
+const emit = defineEmits<{
+  openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
 }>()
 
 const ROW_HEIGHT = 36

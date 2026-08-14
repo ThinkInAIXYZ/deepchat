@@ -128,6 +128,7 @@
           "
           :session-id="props.sessionId"
           :open-request="sidepanelStore.tapeInspectorOpenRequest"
+          @open-message-diagnostics="inspectorDiagnosticsTarget = $event"
         />
       </Transition>
       <div
@@ -137,6 +138,11 @@
         class="min-h-0 flex-1"
       />
     </aside>
+    <TraceDialog
+      :message-id="inspectorDiagnosticsTarget?.messageId ?? null"
+      :request-seq="inspectorDiagnosticsTarget?.requestSeq"
+      @close="inspectorDiagnosticsTarget = null"
+    />
   </div>
 </template>
 
@@ -148,6 +154,8 @@ import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
 import TapeInspectorPanel from '@/components/tape-inspector/TapeInspectorPanel.vue'
+import type { TapeInspectorMessageDiagnosticsTarget } from '@/components/tape-inspector/model'
+import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { WORKSPACE_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -178,6 +186,7 @@ const isResizing = ref(false)
 const panelContentLeaving = ref(false)
 const isWorkspaceFullscreen = ref(false)
 const isBrowserFullscreen = ref(false)
+const inspectorDiagnosticsTarget = ref<TapeInspectorMessageDiagnosticsTarget | null>(null)
 const fullscreenMotionState = ref<'expanding' | 'collapsing' | null>(null)
 
 const isWorkspaceFullscreenActive = computed(() => {
@@ -408,6 +417,7 @@ watch(
     if (!sessionId || sessionId !== previousSessionId) {
       resetWorkspaceFullscreen()
       resetBrowserFullscreen()
+      inspectorDiagnosticsTarget.value = null
     }
   }
 )

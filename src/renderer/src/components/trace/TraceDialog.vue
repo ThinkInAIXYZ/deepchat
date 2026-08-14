@@ -439,6 +439,7 @@ const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = us
 
 const props = defineProps<{
   messageId: string | null
+  requestSeq?: number
   agentId?: string | null
 }>()
 
@@ -660,11 +661,11 @@ const tokenBudgetItems = computed(() => {
 })
 
 watch(
-  () => props.messageId,
-  async (newMessageId) => {
+  () => [props.messageId, props.requestSeq] as const,
+  async ([newMessageId, requestSeq]) => {
     if (newMessageId) {
       isOpen.value = true
-      await loadTraces(newMessageId)
+      await loadTraces(newMessageId, requestSeq)
     } else {
       isOpen.value = false
       resetState()
@@ -782,7 +783,7 @@ onBeforeUnmount(() => {
   editorInitialized.value = false
 })
 
-const loadTraces = async (messageId: string) => {
+const loadTraces = async (messageId: string, preferredRequestSeq?: number) => {
   requestId.value += 1
   const currentRequestId = requestId.value
 
@@ -805,10 +806,12 @@ const loadTraces = async (messageId: string) => {
     manifestList.value = Array.isArray(manifests) ? manifests : []
     nestedExecutionAudit.value = nestedExecutions ?? emptyNestedExecutionAudit()
     selectedRequestSeq.value =
-      traceList.value[0]?.requestSeq ??
-      manifestList.value[0]?.requestSeq ??
-      nestedExecutionAudit.value.operations.at(-1)?.requestSeq ??
-      null
+      preferredRequestSeq !== undefined
+        ? preferredRequestSeq
+        : (traceList.value[0]?.requestSeq ??
+          manifestList.value[0]?.requestSeq ??
+          nestedExecutionAudit.value.operations.at(-1)?.requestSeq ??
+          null)
     activeTab.value =
       traceList.value.length > 0 ? 'request' : manifestList.value.length > 0 ? 'view' : 'execution'
   } catch (err) {

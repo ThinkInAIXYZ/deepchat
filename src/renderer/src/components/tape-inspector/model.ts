@@ -87,7 +87,12 @@ export interface TapeInspectorDetailCapabilities {
   provenance: boolean
   integrity: boolean
   raw: boolean
-  transcriptNavigation: boolean
+  messageDiagnostics: boolean
+}
+
+export interface TapeInspectorMessageDiagnosticsTarget {
+  messageId: string
+  requestSeq?: number
 }
 
 const UNBOUND_EVIDENCE_LANE_KEY = 'lane:unbound-evidence'
@@ -633,7 +638,7 @@ export function getTapeInspectorDetailCapabilities(
       provenance: false,
       integrity: false,
       raw: true,
-      transcriptNavigation: false
+      messageDiagnostics: true
     }
   }
   if (row.recordType === 'fact') {
@@ -645,7 +650,7 @@ export function getTapeInspectorDetailCapabilities(
       provenance: true,
       integrity: row.record.integrity !== undefined,
       raw: false,
-      transcriptNavigation: row.record.family === 'message'
+      messageDiagnostics: Boolean(row.record.messageId)
     }
   }
   return {
@@ -656,7 +661,7 @@ export function getTapeInspectorDetailCapabilities(
     provenance: false,
     integrity: false,
     raw: false,
-    transcriptNavigation: false
+    messageDiagnostics: row.recordType === 'group' && Boolean(row.group.messageId)
   }
 }
 

@@ -7,6 +7,16 @@
           {{ t(`tapeInspector.detail.sources.${capabilities.source}`) }}
         </span>
         <DcButton
+          v-if="messageDiagnosticsTarget && capabilities?.messageDiagnostics"
+          data-testid="tape-inspector-open-message-diagnostics"
+          size="icon-sm"
+          variant="ghost"
+          icon="lucide:external-link"
+          :label="t('traceDialog.title')"
+          :tooltip="t('traceDialog.title')"
+          @click="emit('openMessageDiagnostics', messageDiagnosticsTarget)"
+        />
+        <DcButton
           v-if="detail"
           data-testid="tape-inspector-copy-selected"
           size="icon-sm"
@@ -55,6 +65,14 @@
         >
       </section>
 
+      <section v-if="capabilities?.timing && timingText" class="mt-4 border-t pt-3">
+        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.timing') }}</h3>
+        <pre
+          class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+          >{{ timingText }}</pre
+        >
+      </section>
+
       <section v-if="capabilities?.payload && payloadText" class="mt-4 border-t pt-3">
         <div class="mb-2 flex items-center justify-between gap-2">
           <h3 class="text-xs font-medium">{{ t('tapeInspector.detail.payload') }}</h3>
@@ -75,6 +93,14 @@
           >{{ hashesText }}</pre
         >
       </section>
+
+      <section v-if="capabilities?.raw && rawText" class="mt-4 border-t pt-3">
+        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.raw') }}</h3>
+        <pre
+          class="max-h-[360px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+          >{{ rawText }}</pre
+        >
+      </section>
     </div>
   </aside>
 </template>
@@ -87,7 +113,8 @@ import { DcButton } from '@dc-ui/components/button'
 import type {
   TapeInspectorDetailCapabilities,
   TapeInspectorDetailState,
-  TapeInspectorDisplayRow
+  TapeInspectorDisplayRow,
+  TapeInspectorMessageDiagnosticsTarget
 } from './model'
 import type { TapeInspectorErrorCode } from './store'
 
@@ -101,12 +128,27 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: []
+  openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
 }>()
 
 const { t } = useI18n()
 const copied = ref(false)
 let copiedTimer: number | null = null
 let copyGeneration = 0
+
+const messageDiagnosticsTarget = computed<TapeInspectorMessageDiagnosticsTarget | null>(() => {
+  const row = props.row
+  if (!row) return null
+  if (row.recordType === 'fact' || row.recordType === 'evidence') {
+    if (!row.record.messageId) return null
+    return { messageId: row.record.messageId, requestSeq: row.record.requestSeq }
+  }
+  if (row.recordType === 'group') {
+    if (!row.group.messageId) return null
+    return { messageId: row.group.messageId, requestSeq: row.group.requestSeq }
+  }
+  return null
+})
 
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2)
@@ -176,10 +218,40 @@ const payloadText = computed(() => {
 const isTruncated = computed(
   () => props.detail?.source === 'request' && props.detail.trace.truncated
 )
+const correlationValue = computed(() => {
+  const row = props.row
+  if (!row) return null
+  if (row.recordType === 'fact') {
+    const { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt } = row.record
+    return { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt }
+  }
+  if (row.recordType === 'evidence') {
+    const { traceId, messageId, requestSeq, physicalAttempt } = row.record
+    return { traceId, messageId, requestSeq, physicalAttempt }
+  }
+  if (row.recordType === 'group') {
+    const { runId, messageId, requestSeq, physicalAttempt, providerToolCallId, childOrdinal } =
+      row.group
+    return {
+      runId,
+      messageId,
+      requestSeq,
+      physicalAttempt,
+      providerToolCallId,
+      childOrdinal
+    }
+  }
+  return null
+})
 const provenanceText = computed(() => {
   if (props.detail?.source !== 'tape') return null
-  const provenance = props.detail.detail.provenance
-  return Object.keys(provenance).length === 0 ? null : json(provenance)
+  return json({ ...props.detail.detail.provenance, correlation: correlationValue.value })
+})
+const timingText = computed(() => {
+  const row = props.row
+  if (!row || row.recordType === 'evidence_lane') return null
+  const { sequenceEntryId, actualStartAt, actualEndAt, durationMs } = row
+  return json({ sequenceEntryId, actualStartAt, actualEndAt, durationMs })
 })
 const hashesText = computed(() => {
   if (props.detail?.source !== 'tape') return null
@@ -215,6 +287,8 @@ function copyValue(): unknown {
   if (detail.source === 'derived') return detail.group
   return { kind: 'unbound_evidence', count: detail.count }
 }
+
+const rawText = computed(() => (props.detail ? json(copyValue()) : null))
 
 async function copySelected(): Promise<void> {
   const generation = copyGeneration

@@ -51,7 +51,9 @@
     "selectPrompt": "Select a row to inspect its available details",
     "integrity": "Integrity",
     "provenance": "Provenance",
+    "timing": "Timing",
     "payload": "Permitted payload",
+    "raw": "Sanitized raw record",
     "truncated": "truncated",
     "hashes": "Hashes and sizes",
     "sources": {

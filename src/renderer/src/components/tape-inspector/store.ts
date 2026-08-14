@@ -841,7 +841,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         selectedCapabilities.value = {
           ...selectedCapabilities.value!,
           payload: result.detail.disclosure === 'structured',
-          raw: result.detail.disclosure === 'structured'
+          raw: true
         }
         detail = { source: 'tape', detail: result.detail }
       } else if (row.recordType === 'evidence') {

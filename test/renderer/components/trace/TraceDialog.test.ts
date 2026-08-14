@@ -464,6 +464,55 @@ describe('TraceDialog', () => {
     expect(wrapper.text()).toContain('https://api.example.com/first')
   })
 
+  it('opens the explicitly requested sequence instead of guessing the latest request', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.example.com/second',
+          headersJson: '{}',
+          bodyJson: '{}',
+          truncated: false,
+          createdAt: 2000
+        },
+        {
+          id: 't1',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 1,
+          endpoint: 'https://api.example.com/first',
+          headersJson: '{}',
+          bodyJson: '{}',
+          truncated: false,
+          createdAt: 1000
+        }
+      ],
+      manifests: []
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1', requestSeq: 1 })
+    await flushPromises()
+
+    expect(wrapper.getComponent({ name: 'Select' }).props('modelValue')).toBe(1)
+    expect(wrapper.text()).toContain('https://api.example.com/first')
+    expect(wrapper.text()).not.toContain('https://api.example.com/second')
+
+    await wrapper.setProps({ requestSeq: 3 })
+    await flushPromises()
+
+    expect(wrapper.getComponent({ name: 'Select' }).props('modelValue')).toBe(3)
+    expect(wrapper.text()).toContain('traceDialog.requestUnavailable')
+    expect(wrapper.text()).not.toContain('https://api.example.com/second')
+  })
+
   it('shows view manifest diagnostics when request traces are empty', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [],
