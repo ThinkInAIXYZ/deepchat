@@ -7,7 +7,8 @@ import {
   enterPhysicalAttempt,
   resetContextRecoverySequence,
   resolveSkillContextsForRequest,
-  type LoopRun
+  type LoopRun,
+  type LoopRunPromptUsageAnchor
 } from './loopRun'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import {
@@ -40,6 +41,12 @@ import {
   type ContextCheckpoint,
   type ContextRuntimeContributions
 } from '@/agent/deepchat/runtime/contextContributions'
+import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
+import {
+  buildEffectiveGenerationConfigHash,
+  buildProviderMessagesHash,
+  buildProviderVisibleToolDefinitionsHash
+} from '@/tape/domain/executionContract'
 import {
   classifyProviderFailure,
   emitProviderRetryLifecycleEvent,
@@ -115,6 +122,7 @@ export interface ProviderAttemptBudgetPort {
     messages: ChatMessage[]
     tools: MCPToolDefinition[]
     requestedMaxTokens: number
+    promptTokenEstimate?: number
   }): RequestContextPreflight
   fitStrictRetry(input: {
     messages: ChatMessage[]
@@ -522,6 +530,7 @@ async function* observeProviderAttempt(input: {
 export interface ProviderAttemptInput<TSelection> {
   run: LoopRun<unknown>
   requestMessages: ChatMessage[]
+  providerId: string
   modelId: string
   modelConfig: ModelConfig
   temperature: number
@@ -550,6 +559,93 @@ export interface ProviderAttemptInput<TSelection> {
   inspectContextOverflow?(value: unknown): ProviderContextOverflowFacts
   onContextOverflowFacts?(facts: ProviderContextOverflowFacts): void
   createAbortError(): Error
+}
+
+function buildPromptUsageEnvelope(input: {
+  providerId: string
+  modelId: string
+  modelConfig: ModelConfig
+  temperature: number
+  maxTokens: number
+  tools: MCPToolDefinition[]
+}): Pick<
+  LoopRunPromptUsageAnchor,
+  'providerId' | 'modelId' | 'generationConfigHash' | 'toolDefinitionsHash'
+> | null {
+  try {
+    return {
+      providerId: input.providerId,
+      modelId: input.modelId,
+      generationConfigHash: buildEffectiveGenerationConfigHash({
+        modelConfig: input.modelConfig,
+        temperature: input.temperature,
+        maxTokens: input.maxTokens
+      }),
+      toolDefinitionsHash: buildProviderVisibleToolDefinitionsHash(input.tools)
+    }
+  } catch {
+    return null
+  }
+}
+
+function projectPromptTokensFromUsageAnchor(input: {
+  anchor: LoopRunPromptUsageAnchor | null
+  providerId: string
+  modelId: string
+  modelConfig: ModelConfig
+  temperature: number
+  maxTokens: number
+  tools: MCPToolDefinition[]
+  messages: ChatMessage[]
+}): number | null {
+  const { anchor } = input
+  if (!anchor || input.messages.length < anchor.messageCount) return null
+  const envelope = buildPromptUsageEnvelope(input)
+  if (
+    !envelope ||
+    envelope.providerId !== anchor.providerId ||
+    envelope.modelId !== anchor.modelId ||
+    envelope.generationConfigHash !== anchor.generationConfigHash ||
+    envelope.toolDefinitionsHash !== anchor.toolDefinitionsHash
+  ) {
+    return null
+  }
+  try {
+    const anchoredPrefix = input.messages.slice(0, anchor.messageCount)
+    if (buildProviderMessagesHash(anchoredPrefix) !== anchor.messagesHash) return null
+    const projected =
+      anchor.promptTokens + estimateMessagesTokens(input.messages.slice(anchor.messageCount))
+    return Number.isSafeInteger(projected) && projected >= 0 ? projected : null
+  } catch {
+    return null
+  }
+}
+
+function updatePromptUsageAnchor(input: {
+  run: LoopRun<unknown>
+  usage: ProviderAttemptUsage | null
+  providerId: string
+  modelId: string
+  modelConfig: ModelConfig
+  temperature: number
+  maxTokens: number
+  tools: MCPToolDefinition[]
+  messages: ChatMessage[]
+}): void {
+  if (!input.usage || input.usage.inputTokens <= 0 || input.messages.length === 0) return
+  const envelope = buildPromptUsageEnvelope(input)
+  if (!envelope) return
+  try {
+    input.run.promptUsageAnchor = {
+      ...envelope,
+      messageCount: input.messages.length,
+      messagesHash: buildProviderMessagesHash(input.messages),
+      promptTokens: input.usage.inputTokens,
+      cacheReadTokens: input.usage.cacheReadTokens ?? null
+    }
+  } catch {
+    input.run.promptUsageAnchor = null
+  }
 }
 
 export class DeepChatContextCoordinator {
@@ -671,10 +767,21 @@ export class DeepChatContextCoordinator {
           )
         }
 
+        const promptTokenEstimate = projectPromptTokensFromUsageAnchor({
+          anchor: input.run.promptUsageAnchor,
+          providerId: input.providerId,
+          modelId: input.modelId,
+          modelConfig: input.modelConfig,
+          temperature: input.temperature,
+          maxTokens: requestedMaxTokens,
+          tools: input.tools,
+          messages: input.requestMessages
+        })
         let requestPreflight = input.budget.preflight({
           messages: input.requestMessages,
           tools: input.tools,
-          requestedMaxTokens
+          requestedMaxTokens,
+          ...(promptTokenEstimate === null ? {} : { promptTokenEstimate })
         })
         if (
           !options.strictProviderOverflowRetry &&
@@ -1133,6 +1240,17 @@ export class DeepChatContextCoordinator {
             aggregateUsage = aggregateProviderAttemptUsage(aggregateUsage, observation.usage)
 
             if (status === 'completed') {
+              updatePromptUsageAnchor({
+                run: input.run,
+                usage: observation.usage,
+                providerId: input.providerId,
+                modelId: input.modelId,
+                modelConfig: input.modelConfig,
+                temperature: input.temperature,
+                maxTokens: providerMaxTokens,
+                tools: input.tools,
+                messages: providerMessages
+              })
               resetContextRecoverySequence(input.run)
             }
 

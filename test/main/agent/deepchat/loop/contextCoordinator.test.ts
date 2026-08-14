@@ -10,6 +10,7 @@ import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ModelConfig } from '@shared/types/provider'
+import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun(messages: ChatMessage[] = [{ role: 'user', content: 'hello' }]) {
@@ -130,6 +131,7 @@ function createAttemptInput(options?: {
     input: {
       run,
       requestMessages: run.messages,
+      providerId: 'provider-1',
       modelId: 'model-1',
       modelConfig: { contextLength: 1_000 } as ModelConfig,
       temperature: 0.4,
@@ -821,6 +823,129 @@ describe('DeepChatContextCoordinator', () => {
         }
       })
     ])
+  })
+
+  it('anchors provider prompt usage and estimates only an exact-prefix suffix', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 800,
+              completion_tokens: 20,
+              total_tokens: 820,
+              cached_tokens: 700
+            }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ],
+        [{ type: 'stop', stop_reason: 'complete' }]
+      ]
+    })
+    const originalPreflight = fixture.input.budget.preflight
+    fixture.input.budget.preflight = vi.fn(originalPreflight)
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    const suffix: ChatMessage = { role: 'assistant', content: 'new provider-visible suffix' }
+    fixture.input.requestMessages.push(suffix)
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.input.budget.preflight).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        promptTokenEstimate: 800 + estimateMessagesTokens([suffix])
+      })
+    )
+    expect(fixture.run.promptUsageAnchor).toMatchObject({
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      promptTokens: 800,
+      cacheReadTokens: 700
+    })
+  })
+
+  it('does not anchor an ambiguous zero-token usage snapshot', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.run.promptUsageAnchor).toBeNull()
+  })
+
+  it.each([
+    [
+      'provider',
+      (fixture: ReturnType<typeof createAttemptInput>) => (fixture.input.providerId = 'p2')
+    ],
+    ['model', (fixture: ReturnType<typeof createAttemptInput>) => (fixture.input.modelId = 'm2')],
+    [
+      'model config',
+      (fixture: ReturnType<typeof createAttemptInput>) =>
+        (fixture.input.modelConfig = { contextLength: 2_000 } as ModelConfig)
+    ],
+    [
+      'temperature',
+      (fixture: ReturnType<typeof createAttemptInput>) => (fixture.input.temperature = 0.7)
+    ],
+    [
+      'max tokens',
+      (fixture: ReturnType<typeof createAttemptInput>) => (fixture.input.maxTokens = 120)
+    ],
+    [
+      'tool schema',
+      (fixture: ReturnType<typeof createAttemptInput>) =>
+        (fixture.input.tools = [
+          {
+            type: 'function',
+            function: {
+              name: 'inspect',
+              description: 'Inspect data',
+              parameters: { type: 'object', properties: {} }
+            },
+            server: { name: 'test', icons: '', description: '' }
+          }
+        ])
+    ],
+    [
+      'message prefix',
+      (fixture: ReturnType<typeof createAttemptInput>) =>
+        (fixture.input.requestMessages[0] = { role: 'user', content: 'changed prefix' })
+    ]
+  ])('invalidates a prompt usage anchor after %s drift', async (_label, mutate) => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: { prompt_tokens: 800, completion_tokens: 0, total_tokens: 800 }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ],
+        [{ type: 'stop', stop_reason: 'complete' }]
+      ]
+    })
+    const originalPreflight = fixture.input.budget.preflight
+    fixture.input.budget.preflight = vi.fn(originalPreflight)
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    mutate(fixture)
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.input.budget.preflight).toHaveBeenNthCalledWith(
+      2,
+      expect.not.objectContaining({ promptTokenEstimate: expect.any(Number) })
+    )
   })
 
   it('keeps an actual provider attempt fail-open when ViewManifest persistence throws', async () => {

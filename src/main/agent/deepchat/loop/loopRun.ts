@@ -57,6 +57,17 @@ export interface LoopRunProviderRecovery {
 
 export const MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN = 3
 
+export interface LoopRunPromptUsageAnchor {
+  readonly providerId: string
+  readonly modelId: string
+  readonly generationConfigHash: string
+  readonly toolDefinitionsHash: string
+  readonly messageCount: number
+  readonly messagesHash: string
+  readonly promptTokens: number
+  readonly cacheReadTokens: number | null
+}
+
 export interface LoopRunRequestContractBinding {
   readonly requestSeq: number
   readonly executionContract: DeepChatExecutionContract | null
@@ -82,6 +93,7 @@ export interface LoopRun<TStreamState> {
   readonly streamState: TStreamState
   resources: LoopRunResources
   providerRecovery: LoopRunProviderRecovery
+  promptUsageAnchor: LoopRunPromptUsageAnchor | null
   activeRequestContract: LoopRunRequestContractBinding | null
   activeRequestView: LoopRunRequestViewBinding | null
 }
@@ -142,6 +154,7 @@ export function createLoopRun<TStreamState>(
       strictProviderOverflowRetryUsed: false,
       contextRecoverySequencesUsed: 0
     },
+    promptUsageAnchor: null,
     activeRequestContract: null,
     activeRequestView: null
   }

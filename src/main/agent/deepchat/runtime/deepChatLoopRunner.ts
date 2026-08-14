@@ -886,6 +886,7 @@ export class DeepChatLoopRunner {
           yield* ports.contextCoordinator.streamProviderAttempts({
             run: loopRun,
             requestMessages,
+            providerId: state.providerId,
             modelId: requestModelId,
             modelConfig: requestModelConfig,
             temperature: requestTemperature,
@@ -900,7 +901,7 @@ export class DeepChatLoopRunner {
             viewContext,
             budget: {
               estimateToolReserveTokens,
-              preflight: ({ messages, tools, requestedMaxTokens }) => {
+              preflight: ({ messages, tools, requestedMaxTokens, promptTokenEstimate }) => {
                 const budget = getEffectiveContextBudget(requestedMaxTokens)
                 return preflightRequestContext({
                   messages,
@@ -908,7 +909,8 @@ export class DeepChatLoopRunner {
                   contextLength: budget.contextLength,
                   outputCapContextLength: budget.outputCapContextLength,
                   requestedMaxTokens,
-                  contextContributions: activeContextContributions
+                  contextContributions: activeContextContributions,
+                  promptTokenEstimate
                 })
               },
               fitStrictRetry: ({ messages, reserveTokens, requestedMaxTokens }) =>

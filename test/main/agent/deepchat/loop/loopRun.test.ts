@@ -99,6 +99,7 @@ describe('LoopRun', () => {
       strictProviderOverflowRetryUsed: false,
       contextRecoverySequencesUsed: 0
     })
+    expect(second.promptUsageAnchor).toBeNull()
     expect(second.initialRequestSeq).toBe(0)
     expect(second.logicalRound).toBe(0)
     expect(second.requestSeq).toBe(0)

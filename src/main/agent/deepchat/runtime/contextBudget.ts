@@ -259,23 +259,50 @@ export function preflightRequestContext(params: {
   requestedMaxTokens: number
   minimumProtectedTailCount?: number
   contextContributions?: ContextRuntimeContributions
+  promptTokenEstimate?: number
 }): RequestContextPreflightResult {
   const requestedMaxTokens = capAgentRequestMaxTokens(
     params.requestedMaxTokens,
     params.outputCapContextLength ?? params.contextLength
   )
   const toolReserveTokens = estimateToolReserveTokens(params.tools)
-  const fittedMessages = sanitizeToolContinuationMessages(
-    fitRequestMessagesToContextWindow({
-      messages: params.messages,
-      contextLength: params.contextLength,
-      reserveTokens: requestedMaxTokens + toolReserveTokens,
-      minimumProtectedTailCount: params.minimumProtectedTailCount,
-      contextContributions: params.contextContributions
-    })
-  )
-  const inputTokens = estimateMessagesTokens(fittedMessages)
   const usableContextLength = getUsableContextLength(params.contextLength)
+  const sanitizedCandidate = sanitizeToolContinuationMessages(params.messages)
+  const sanitizedCandidateMatchesInput =
+    sanitizedCandidate.length === params.messages.length &&
+    sanitizedCandidate.every((message, index) => message === params.messages[index])
+  const validCandidatePromptEstimate =
+    sanitizedCandidateMatchesInput &&
+    typeof params.promptTokenEstimate === 'number' &&
+    Number.isSafeInteger(params.promptTokenEstimate) &&
+    params.promptTokenEstimate >= 0
+      ? params.promptTokenEstimate
+      : null
+  const fittedMessages = validCandidatePromptEstimate !== null
+    ? sanitizedCandidate
+    : sanitizeToolContinuationMessages(
+        fitRequestMessagesToContextWindow({
+          messages: params.messages,
+          contextLength: params.contextLength,
+          reserveTokens: requestedMaxTokens + toolReserveTokens,
+          minimumProtectedTailCount: params.minimumProtectedTailCount,
+          contextContributions: params.contextContributions
+        })
+      )
+  const fittedMatchesCandidate =
+    fittedMessages.length === params.messages.length &&
+    fittedMessages.every((message, index) => message === params.messages[index])
+  const validPromptTokenEstimate =
+    fittedMatchesCandidate &&
+    typeof params.promptTokenEstimate === 'number' &&
+    Number.isSafeInteger(params.promptTokenEstimate) &&
+    params.promptTokenEstimate >= 0
+      ? params.promptTokenEstimate
+      : null
+  const inputTokens =
+    validPromptTokenEstimate === null
+      ? estimateMessagesTokens(fittedMessages)
+      : Math.max(0, validPromptTokenEstimate - toolReserveTokens)
   const hasFiniteContext =
     Number.isFinite(usableContextLength) &&
     Number.isFinite(params.contextLength) &&
