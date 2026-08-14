@@ -212,7 +212,8 @@ export function fitRequestMessagesToContextWindow(params: {
       params.messages,
       usableContextLength,
       params.reserveTokens,
-      params.contextContributions
+      params.contextContributions,
+      params.minimumProtectedTailCount ?? 0
     )
   }
 

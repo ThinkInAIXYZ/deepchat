@@ -2120,7 +2120,8 @@ export function fitCacheAwareMessagesToContextWindow(
   messages: ChatMessage[],
   contextLength: number,
   reserveTokens: number,
-  context: ContextRuntimeContributions
+  context: ContextRuntimeContributions,
+  minimumProtectedTailCount: number = 0
 ): ChatMessage[] {
   if (
     messages.length === 0 ||
@@ -2147,6 +2148,16 @@ export function fitCacheAwareMessagesToContextWindow(
 
   const turns = buildChatMessageTurns(messages.slice(offset))
   let activeTurn = turns.pop() ?? { messages: [], tokens: 0 }
+  let protectedPriorTurnCount = 0
+  let protectedMessageCount = activeTurn.messages.length
+  for (
+    let index = turns.length - 1;
+    index >= 0 && protectedMessageCount < Math.max(0, minimumProtectedTailCount);
+    index -= 1
+  ) {
+    protectedPriorTurnCount += 1
+    protectedMessageCount += turns[index].messages.length
+  }
   const activeLeadingContext = buildActiveTurnLeadingContext(context)
   if (
     activeLeadingContext &&
@@ -2181,7 +2192,7 @@ export function fitCacheAwareMessagesToContextWindow(
     }
   }
 
-  while (turns.length > 0 && totalTokens > availableInputTokens) {
+  while (turns.length > protectedPriorTurnCount && totalTokens > availableInputTokens) {
     totalTokens -= turns.shift()?.tokens ?? 0
   }
 

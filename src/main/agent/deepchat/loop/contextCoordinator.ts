@@ -1,10 +1,13 @@
-import type { LoopRun } from './loopRun'
 import {
+  MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN,
   advanceRequestSequence,
+  beginContextRecoverySequence,
   bindActiveRequestContract,
   bindActiveRequestView,
   enterPhysicalAttempt,
-  resolveSkillContextsForRequest
+  resetContextRecoverySequence,
+  resolveSkillContextsForRequest,
+  type LoopRun
 } from './loopRun'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import {
@@ -677,10 +680,12 @@ export class DeepChatContextCoordinator {
           !options.strictProviderOverflowRetry &&
           (requestPreflight.requiresContextPressureRecovery || !requestPreflight.fitsWithinContext)
         ) {
-          preflightContextRecoveryAttempted = true
           recoveredFromContextPressure = true
-          if (!input.run.providerRecovery.contextOverflowHandoffAttempted) {
-            input.run.providerRecovery.contextOverflowHandoffAttempted = true
+          if (
+            !input.run.providerRecovery.contextOverflowHandoffAttempted &&
+            beginContextRecoverySequence(input.run)
+          ) {
+            preflightContextRecoveryAttempted = true
             const recovered = await input.recovery.recover({
               requestMessages: this.withActiveTurnFrom(
                 input.requestMessages,
@@ -865,7 +870,9 @@ export class DeepChatContextCoordinator {
       providerMessages: ChatMessage[],
       providerMaxTokens: number
     ): Promise<void> => {
-      input.run.providerRecovery.contextOverflowHandoffAttempted = true
+      if (!beginContextRecoverySequence(input.run)) {
+        throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
+      }
       providerOverflowRecoveryAttempted = true
       const recovered = await input.recovery.recover({
         requestMessages: this.withActiveTurnFrom(input.requestMessages, providerMessages),
@@ -1061,6 +1068,12 @@ export class DeepChatContextCoordinator {
                   retryDecision = 'context_recovery_scheduled'
                   contextRecoveryAction = 'strict_retry'
                 }
+              } else if (
+                input.run.providerRecovery.contextRecoverySequencesUsed >=
+                MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN
+              ) {
+                retryDecision = 'context_recovery_exhausted'
+                contextRecoveryAction = 'fail'
               } else {
                 retryDecision = 'context_recovery_scheduled'
                 contextRecoveryAction = 'recover'
@@ -1118,6 +1131,10 @@ export class DeepChatContextCoordinator {
               })
             }
             aggregateUsage = aggregateProviderAttemptUsage(aggregateUsage, observation.usage)
+
+            if (status === 'completed') {
+              resetContextRecoverySequence(input.run)
+            }
 
             if (retryPlan) {
               transientRetriesUsed += 1

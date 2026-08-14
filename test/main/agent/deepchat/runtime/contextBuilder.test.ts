@@ -2772,6 +2772,40 @@ describe('cache-aware context assembly', () => {
     ).toThrow(/context window/)
   })
 
+  it('honors a cache-aware protected tail that extends before the active turn', () => {
+    const contextContributions = createCacheAwareContributions()
+    const latestTurn = [
+      { role: 'user' as const, content: 'latest user' },
+      { role: 'assistant' as const, content: 'latest assistant' }
+    ]
+    const protectedPriorTurn = [
+      { role: 'user' as const, content: 'protected user' },
+      { role: 'assistant' as const, content: 'protected assistant' }
+    ]
+    const messages = [
+      { role: 'system' as const, content: 'System' },
+      { role: 'user' as const, content: 'drop user' },
+      { role: 'assistant' as const, content: 'drop assistant' },
+      ...protectedPriorTurn,
+      ...latestTurn
+    ]
+    const protectedBudget = estimateMessagesTokens([
+      messages[0],
+      ...protectedPriorTurn,
+      ...latestTurn
+    ])
+
+    expect(
+      fitCacheAwareMessagesToContextWindow(
+        messages,
+        protectedBudget + 1,
+        0,
+        contextContributions,
+        4
+      )
+    ).toEqual([messages[0], ...protectedPriorTurn, ...latestTurn])
+  })
+
   it('restores attachment fallback text when pressure removes memory-only text', () => {
     const memory = 'M'.repeat(240)
     const contextContributions = createCacheAwareContributions({ memory })

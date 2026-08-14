@@ -96,7 +96,8 @@ describe('LoopRun', () => {
     expect(second.resources.activeSkillNames).toEqual(['second-skill'])
     expect(second.providerRecovery).toEqual({
       contextOverflowHandoffAttempted: false,
-      strictProviderOverflowRetryUsed: false
+      strictProviderOverflowRetryUsed: false,
+      contextRecoverySequencesUsed: 0
     })
     expect(second.initialRequestSeq).toBe(0)
     expect(second.logicalRound).toBe(0)

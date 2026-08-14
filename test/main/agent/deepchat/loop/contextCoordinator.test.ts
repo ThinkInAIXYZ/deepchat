@@ -1013,8 +1013,9 @@ describe('DeepChatContextCoordinator', () => {
     expect(fixture.run.logicalRound).toBe(1)
     expect(fixture.run.physicalAttempt).toBe(1)
     expect(fixture.run.providerRecovery).toEqual({
-      contextOverflowHandoffAttempted: true,
-      strictProviderOverflowRetryUsed: true
+      contextOverflowHandoffAttempted: false,
+      strictProviderOverflowRetryUsed: false,
+      contextRecoverySequencesUsed: 1
     })
     expect(fixture.manifests[1].tokenBudget).toMatchObject({
       requestedMaxTokens: 50,
@@ -1079,6 +1080,52 @@ describe('DeepChatContextCoordinator', () => {
       [optionalHistory, currentInput],
       [currentInput]
     ])
+  })
+
+  it('allows later recovery sequences after success and enforces the Run-level ceiling', async () => {
+    const overflow = [
+      { type: 'error', error_message: 'context overflow' }
+    ] satisfies LLMCoreStreamEvent[]
+    const success = [
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ] satisfies LLMCoreStreamEvent[]
+    const fixture = createAttemptInput({
+      providerEvents: [overflow, success, overflow, success, overflow, success, overflow]
+    })
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'assistant', content: 'oldest' },
+      { role: 'assistant', content: 'older' },
+      { role: 'assistant', content: 'old' },
+      { role: 'user', content: 'current input' }
+    )
+    fixture.input.recovery.recover = vi.fn(async ({ requestMessages }) => ({
+      messages: requestMessages.slice(1)
+    }))
+
+    const coordinator = new DeepChatContextCoordinator()
+    await expect(collect(coordinator.streamProviderAttempts(fixture.input))).resolves.toEqual(
+      success
+    )
+    await expect(collect(coordinator.streamProviderAttempts(fixture.input))).resolves.toEqual(
+      success
+    )
+    await expect(collect(coordinator.streamProviderAttempts(fixture.input))).resolves.toEqual(
+      success
+    )
+    await expect(collect(coordinator.streamProviderAttempts(fixture.input))).rejects.toThrow(
+      'provider still overflowed'
+    )
+
+    expect(fixture.input.recovery.recover).toHaveBeenCalledTimes(3)
+    expect(fixture.providerRequests).toHaveLength(7)
+    expect(fixture.run.providerRecovery).toEqual({
+      contextOverflowHandoffAttempted: false,
+      strictProviderOverflowRetryUsed: false,
+      contextRecoverySequencesUsed: 3
+    })
   })
 
   it('skips a protected-only context retry when only its output cap would change', async () => {
