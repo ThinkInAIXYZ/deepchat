@@ -1494,14 +1494,14 @@ function resolvePhysicalInputBudget(contextLength: number, extraReserveTokens: n
 
 function buildCacheAwareOverflowError(input: {
   contextLength: number
-  fixedTokens: number
+  protectedTokens: number
   reserveTokens: number
   extraReserveTokens: number
 }): Error {
   return new Error(
     [
-      'Request was not sent because it cannot fit within the model context window without dropping the base system prompt, conversation checkpoint, or active turn.',
-      `Budget: usable context ${Math.floor(input.contextLength)} tokens, fixed prompt ${input.fixedTokens} tokens, output reserve ${Math.max(0, input.reserveTokens)} tokens, extra reserve ${Math.max(0, input.extraReserveTokens)} tokens.`,
+      'Request was not sent because it cannot fit within the model context window without dropping the base system prompt, conversation checkpoint, active turn, or explicitly protected recent turns.',
+      `Budget: usable context ${Math.floor(input.contextLength)} tokens, protected prompt ${input.protectedTokens} tokens, output reserve ${Math.max(0, input.reserveTokens)} tokens, extra reserve ${Math.max(0, input.extraReserveTokens)} tokens.`,
       'Shorten the current input or attachments, reduce active tools or system instructions, lower max output tokens, or increase the model context length.'
     ].join(' ')
   )
@@ -1779,7 +1779,7 @@ export function buildCacheAwareContextWithMetadata(
   if (fixedTokens > physicalInputBudget) {
     throw buildCacheAwareOverflowError({
       contextLength,
-      fixedTokens,
+      protectedTokens: fixedTokens,
       reserveTokens,
       extraReserveTokens: options.extraReserveTokens ?? 0
     })
@@ -1916,7 +1916,7 @@ export function buildCacheAwareResumeContextWithMetadata(
   if (fixedTokens > physicalInputBudget) {
     throw buildCacheAwareOverflowError({
       contextLength,
-      fixedTokens,
+      protectedTokens: fixedTokens,
       reserveTokens,
       extraReserveTokens: options.extraReserveTokens ?? 0
     })
@@ -2196,9 +2196,12 @@ export function fitCacheAwareMessagesToContextWindow(
     totalTokens -= turns.shift()?.tokens ?? 0
   }
 
-  let fixedTokens = estimateMessagesTokens(leadingMessages) + activeTurn.tokens
+  let retainedTokens =
+    estimateMessagesTokens(leadingMessages) +
+    turns.reduce((sum, turn) => sum + turn.tokens, 0) +
+    activeTurn.tokens
   if (
-    fixedTokens > physicalInputBudget &&
+    retainedTokens > physicalInputBudget &&
     context.directivesIncluded &&
     context.directives.content
   ) {
@@ -2208,13 +2211,16 @@ export function fitCacheAwareMessagesToContextWindow(
         messages: activeMessages,
         tokens: estimateMessagesTokens(activeMessages)
       }
-      fixedTokens = estimateMessagesTokens(leadingMessages) + activeTurn.tokens
+      retainedTokens =
+        estimateMessagesTokens(leadingMessages) +
+        turns.reduce((sum, turn) => sum + turn.tokens, 0) +
+        activeTurn.tokens
     }
   }
-  if (fixedTokens > physicalInputBudget) {
+  if (retainedTokens > physicalInputBudget) {
     throw buildCacheAwareOverflowError({
       contextLength,
-      fixedTokens,
+      protectedTokens: retainedTokens,
       reserveTokens,
       extraReserveTokens: 0
     })

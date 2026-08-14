@@ -67,6 +67,10 @@ function normalizeCursorOrderSeq(value: unknown): number {
   return 1
 }
 
+function normalizeSummaryText(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null
+}
+
 function summaryStateFromTapeAnchor(
   row: DeepChatTapeEntryRow | undefined
 ): SessionSummaryState | null {
@@ -84,19 +88,15 @@ function summaryStateFromTapeAnchor(
 
   const state = resolveAnchorState(row)
   const generatedSummary =
-    typeof state?.summary === 'string'
-      ? state.summary
-      : typeof state?.summaryText === 'string'
-        ? state.summaryText
-        : null
-  const priorSummary = typeof state?.priorSummary === 'string' ? state.priorSummary : null
+    normalizeSummaryText(state?.summary) ?? normalizeSummaryText(state?.summaryText)
+  const priorSummary = normalizeSummaryText(state?.priorSummary)
   const cursorOrderSeq = normalizeCursorOrderSeq(
     state?.cursorOrderSeq ?? state?.summaryCursorOrderSeq
   )
 
-  if (!generatedSummary?.trim()) {
+  if (!generatedSummary) {
     return {
-      summaryText: priorSummary?.trim() ? priorSummary : null,
+      summaryText: priorSummary,
       summaryCursorOrderSeq: cursorOrderSeq,
       summaryUpdatedAt: null
     }

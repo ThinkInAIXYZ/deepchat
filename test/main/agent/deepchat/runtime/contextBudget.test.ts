@@ -82,6 +82,25 @@ describe('agent request context budget', () => {
     expect(result.fitsWithinContext).toBe(true)
   })
 
+  it('fits an anchored candidate before the final overflow decision', () => {
+    const messages = [
+      { role: 'user' as const, content: 'x'.repeat(5000) },
+      { role: 'assistant' as const, content: 'old answer' },
+      { role: 'user' as const, content: 'current input' }
+    ]
+    const result = preflightRequestContext({
+      messages,
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096,
+      promptTokenEstimate: 8000
+    })
+
+    expect(result.messages).toEqual([{ role: 'user', content: 'current input' }])
+    expect(result.inputTokens).toBe('current input'.length)
+    expect(result.fitsWithinContext).toBe(true)
+  })
+
   it('ignores an anchored estimate when protocol sanitization changes the candidate', () => {
     const result = preflightRequestContext({
       messages: [

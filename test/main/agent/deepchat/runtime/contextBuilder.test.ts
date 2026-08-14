@@ -2799,11 +2799,26 @@ describe('cache-aware context assembly', () => {
       fitCacheAwareMessagesToContextWindow(
         messages,
         protectedBudget + 1,
-        0,
+        20,
         contextContributions,
         4
       )
     ).toEqual([messages[0], ...protectedPriorTurn, ...latestTurn])
+  })
+
+  it('rejects a protected tail that exceeds the physical input window', () => {
+    const contextContributions = createCacheAwareContributions()
+    const messages = [
+      { role: 'system' as const, content: 'System' },
+      { role: 'user' as const, content: 'P'.repeat(240) },
+      { role: 'assistant' as const, content: 'protected assistant' },
+      { role: 'user' as const, content: 'latest user' },
+      { role: 'assistant' as const, content: 'latest assistant' }
+    ]
+
+    expect(() =>
+      fitCacheAwareMessagesToContextWindow(messages, 50, 0, contextContributions, 4)
+    ).toThrow(/context window/)
   })
 
   it('restores attachment fallback text when pressure removes memory-only text', () => {

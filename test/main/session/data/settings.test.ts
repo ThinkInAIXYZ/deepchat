@@ -207,6 +207,62 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     connection.close()
   })
 
+  it('normalizes summaries and prior summary hints read from reconstruction anchors', () => {
+    const { connection, database, store } = createStore()
+
+    store.create('s1', 'openai', 'gpt-4o', 'full_access')
+    store.create('s2', 'openai', 'gpt-4o', 'full_access')
+    store.create('s3', 'openai', 'gpt-4o', 'full_access')
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's1',
+      name: 'auto_handoff/context_overflow',
+      state: {
+        summary: '   ',
+        priorSummary: '  last valid summary  ',
+        cursorOrderSeq: 8,
+        reason: 'summary_unavailable'
+      },
+      createdAt: 120
+    })
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's2',
+      name: 'compaction/auto',
+      state: {
+        summary: '  generated summary  ',
+        cursorOrderSeq: 5
+      },
+      createdAt: 130
+    })
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's3',
+      name: 'compaction/auto',
+      state: {
+        summary: '   ',
+        summaryText: '  legacy summary  ',
+        cursorOrderSeq: 6
+      },
+      createdAt: 140
+    })
+
+    expect(store.getSummaryState('s1')).toEqual({
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 8,
+      summaryUpdatedAt: null
+    })
+    expect(store.getSummaryState('s2')).toEqual({
+      summaryText: 'generated summary',
+      summaryCursorOrderSeq: 5,
+      summaryUpdatedAt: 130
+    })
+    expect(store.getSummaryState('s3')).toEqual({
+      summaryText: 'legacy summary',
+      summaryCursorOrderSeq: 6,
+      summaryUpdatedAt: 140
+    })
+
+    connection.close()
+  })
+
   it('compares summary state against tape reconstruction anchors before writing compaction anchors', () => {
     const { connection, database, store } = createStore()
 

@@ -2541,7 +2541,10 @@ export class DeepChatLoopRunner {
           }
           currentSystemMessage = leadingMessage.content
         }
-        const rebuildContext = { ...params.contextContributions }
+        // The resume builder may trim its reconstructed active turn, but that turn is replaced
+        // below by the in-flight request. Keep those mutations provisional; the final fitter
+        // updates the canonical contributions from the exact View that recovery accepts.
+        const provisionalRebuildContext = { ...params.contextContributions }
         const rebuiltMessages = buildTapeResumeView({
           sessionId: params.sessionId,
           assistantMessageId: params.messageId,
@@ -2552,7 +2555,7 @@ export class DeepChatLoopRunner {
           supportsVision: params.supportsVision,
           historyRecords: compactedHistoryRecords,
           requestedPolicyId: params.requestedViewPolicyId,
-          contextContributions: rebuildContext,
+          contextContributions: provisionalRebuildContext,
           options: {
             summaryCursorOrderSeq: summary.summaryCursorOrderSeq,
             fallbackProtectedTurnCount: 1,

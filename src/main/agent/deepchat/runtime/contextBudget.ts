@@ -271,18 +271,32 @@ export function preflightRequestContext(params: {
   const sanitizedCandidateMatchesInput =
     sanitizedCandidate.length === params.messages.length &&
     sanitizedCandidate.every((message, index) => message === params.messages[index])
-  const validCandidatePromptEstimate =
-    sanitizedCandidateMatchesInput &&
+  const anchoredPromptEstimate =
     typeof params.promptTokenEstimate === 'number' &&
     Number.isSafeInteger(params.promptTokenEstimate) &&
     params.promptTokenEstimate >= 0
       ? params.promptTokenEstimate
       : null
-  const fittedMessages = validCandidatePromptEstimate !== null
+  const validCandidatePromptEstimate =
+    sanitizedCandidateMatchesInput ? anchoredPromptEstimate : null
+  const hasFiniteContext =
+    Number.isFinite(usableContextLength) &&
+    Number.isFinite(params.contextLength) &&
+    params.contextLength > 0 &&
+    usableContextLength > 0
+  const anchoredCandidateInputTokens =
+    validCandidatePromptEstimate === null
+      ? null
+      : Math.max(0, validCandidatePromptEstimate - toolReserveTokens)
+  const anchoredCandidateFits =
+    anchoredCandidateInputTokens !== null &&
+    (!hasFiniteContext ||
+      usableContextLength - anchoredCandidateInputTokens - toolReserveTokens >= 1)
+  const fittedMessages = anchoredCandidateFits
     ? sanitizedCandidate
     : sanitizeToolContinuationMessages(
         fitRequestMessagesToContextWindow({
-          messages: params.messages,
+          messages: sanitizedCandidate,
           contextLength: params.contextLength,
           reserveTokens: requestedMaxTokens + toolReserveTokens,
           minimumProtectedTailCount: params.minimumProtectedTailCount,
@@ -293,21 +307,11 @@ export function preflightRequestContext(params: {
     fittedMessages.length === params.messages.length &&
     fittedMessages.every((message, index) => message === params.messages[index])
   const validPromptTokenEstimate =
-    fittedMatchesCandidate &&
-    typeof params.promptTokenEstimate === 'number' &&
-    Number.isSafeInteger(params.promptTokenEstimate) &&
-    params.promptTokenEstimate >= 0
-      ? params.promptTokenEstimate
-      : null
+    fittedMatchesCandidate ? anchoredPromptEstimate : null
   const inputTokens =
     validPromptTokenEstimate === null
       ? estimateMessagesTokens(fittedMessages)
       : Math.max(0, validPromptTokenEstimate - toolReserveTokens)
-  const hasFiniteContext =
-    Number.isFinite(usableContextLength) &&
-    Number.isFinite(params.contextLength) &&
-    params.contextLength > 0 &&
-    usableContextLength > 0
   const remainingOutputTokens = hasFiniteContext
     ? Math.floor(usableContextLength - inputTokens - toolReserveTokens)
     : requestedMaxTokens
