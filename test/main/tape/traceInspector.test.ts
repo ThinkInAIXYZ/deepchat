@@ -6,6 +6,11 @@ import {
   TAPE_PROVIDER_ATTEMPT_EVENT_NAME
 } from '@/tape/domain/providerAttempt'
 import {
+  buildDispatchData,
+  buildExecutionJournalMeta,
+  buildExecutionOperationProvenanceKey
+} from '@/tape/domain/executionJournal'
+import {
   getTapeInspectorTraceBinding,
   projectTapeInspectorDetail,
   projectTapeInspectorFact
@@ -13,6 +18,7 @@ import {
 import { TapeTraceInspectorService } from '@/tape/application/traceInspectorService'
 import {
   buildTapeInspectorRowsQuery,
+  DeepChatExecutionJournalStore,
   DeepChatTapeEntriesTable
 } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
@@ -138,6 +144,69 @@ describe('Tape Trace Inspector projection', () => {
       physicalAttempt: 2
     })
   })
+
+  it('discloses only recognized anchor fields after exact schema validation', () => {
+    const summary = 'private summary text'
+    const validState = {
+      summary,
+      cursorOrderSeq: 9,
+      range: { fromOrderSeq: 1, toOrderSeq: 8 },
+      sourceMessageIds: ['message-1', 'message-2'],
+      summaryableTurnCount: 4,
+      retainedTurnCount: 2,
+      retainedTokenEstimate: 120,
+      retainedTokenTarget: 200,
+      previousSummaryUpdatedAt: null
+    }
+    const validCompaction = row(8, {
+      kind: 'anchor',
+      name: 'compaction/manual',
+      payload_json: JSON.stringify({ name: 'compaction/manual', state: validState })
+    })
+    const spoofedBootstrap = row(1, {
+      kind: 'anchor',
+      name: 'session/start',
+      source_type: 'session',
+      source_id: 'session-1',
+      source_seq: 0,
+      payload_json: JSON.stringify({
+        name: 'session/start',
+        state: { owner: 'human', secret: 'must-not-cross-ipc' }
+      })
+    })
+    const futureCompactionSchema = row(9, {
+      kind: 'anchor',
+      name: 'compaction/manual',
+      payload_json: JSON.stringify({
+        name: 'compaction/manual',
+        state: { ...validState, futureBody: 'must-not-cross-ipc' }
+      })
+    })
+
+    const detail = projectTapeInspectorDetail(validCompaction)
+
+    expect(detail).toMatchObject({
+      disclosure: 'structured',
+      data: {
+        name: 'compaction/manual',
+        state: {
+          cursorOrderSeq: 9,
+          sourceMessageCount: 2,
+          summaryableTurnCount: 4
+        }
+      }
+    })
+    expect(JSON.stringify(detail)).not.toContain(summary)
+    expect(projectTapeInspectorDetail(spoofedBootstrap)).toMatchObject({
+      disclosure: 'metadata_only'
+    })
+    expect(projectTapeInspectorDetail(futureCompactionSchema)).toMatchObject({
+      disclosure: 'metadata_only'
+    })
+    expect(JSON.stringify(projectTapeInspectorDetail(futureCompactionSchema))).not.toContain(
+      'must-not-cross-ipc'
+    )
+  })
 })
 
 const itIfSqlite = Database ? it : it.skip
@@ -260,6 +329,17 @@ describe('Tape Trace Inspector storage contracts', () => {
         JSON.stringify({ effectiveContent: 'opaque-context-body' }),
         206
       )
+      insert.run(
+        'session-1',
+        207,
+        'anchor',
+        'compaction/manual',
+        JSON.stringify({
+          name: 'compaction/manual',
+          state: { secret: 'opaque-anchor-body' }
+        }),
+        207
+      )
       const inspector = new TapeTraceInspectorService({
         getEntryStore: () => tape,
         getMessageTraceReader: () => traces
@@ -274,14 +354,14 @@ describe('Tape Trace Inspector storage contracts', () => {
 
       expect(exported).toMatchObject({
         status: 'ok',
-        snapshotMaxEntryId: 206,
+        snapshotMaxEntryId: 207,
         factsTruncated: true,
         detailDataTruncated: false
       })
       if (exported.status !== 'ok') throw new Error('Expected support facts')
       expect(exported.facts).toHaveLength(200)
-      expect(exported.facts[0]?.record.entryId).toBe(7)
-      expect(exported.facts.at(-1)?.record.entryId).toBe(206)
+      expect(exported.facts[0]?.record.entryId).toBe(8)
+      expect(exported.facts.at(-1)?.record.entryId).toBe(207)
       expect(exported.facts.find((detail) => detail.record.entryId === 205)).toMatchObject({
         disclosure: 'metadata_only'
       })
@@ -289,8 +369,13 @@ describe('Tape Trace Inspector storage contracts', () => {
         disclosure: 'metadata_only',
         record: { family: 'context' }
       })
+      expect(exported.facts.find((detail) => detail.record.entryId === 207)).toMatchObject({
+        disclosure: 'metadata_only',
+        record: { family: 'anchor' }
+      })
       expect(JSON.stringify(exported)).not.toContain('opaque-event-body')
       expect(JSON.stringify(exported)).not.toContain('opaque-context-body')
+      expect(JSON.stringify(exported)).not.toContain('opaque-anchor-body')
       expect(
         inspector.exportSupportFacts({
           sessionId: 'session-1',
@@ -299,7 +384,7 @@ describe('Tape Trace Inspector storage contracts', () => {
       ).toEqual({
         status: 'reset',
         tapeIncarnationId: head.tapeIncarnationId,
-        snapshotMaxEntryId: 206
+        snapshotMaxEntryId: 207
       })
     } finally {
       db.close()
@@ -309,25 +394,39 @@ describe('Tape Trace Inspector storage contracts', () => {
   itIfSqlite('caps structured detail data while retaining the newest facts', () => {
     const db = new DatabaseCtor(':memory:')
     try {
-      const tape = new DeepChatTapeEntriesTable(db)
+      const tape = new DeepChatExecutionJournalStore(db)
       const traces = new DeepChatMessageTracesTable(db)
       tape.createTable()
       traces.createTable()
       tape.ensureBootstrapAnchor('session-1')
-      const largeState = (prefix: string) =>
-        Object.fromEntries(
-          Array.from({ length: 10 }, (_, index) => [`${prefix}${index}`, 'x'.repeat(15_000)])
-        )
-      tape.appendAnchor({
-        sessionId: 'session-1',
-        name: 'session/start',
-        state: largeState('older')
-      })
-      tape.appendAnchor({
-        sessionId: 'session-1',
-        name: 'session/start',
-        state: largeState('newer')
-      })
+      const runId = '00000000-0000-4000-8000-000000000001'
+      for (let requestSeq = 1; requestSeq <= 200; requestSeq += 1) {
+        const operation = {
+          runId,
+          requestSeq,
+          providerToolCallId: `tool-${requestSeq}`
+        }
+        tape.appendExecutionJournalEvent({
+          sessionId: 'session-1',
+          name: 'execution/dispatch_committed',
+          source: { type: 'runtime_event', id: runId, seq: requestSeq },
+          provenanceKey: buildExecutionOperationProvenanceKey(operation, 'dispatch'),
+          data: buildDispatchData({
+            sessionId: 'session-1',
+            messageId: `message-${requestSeq}`,
+            operation,
+            toolName: 't'.repeat(512),
+            toolSource: 'mcp',
+            normalizedArguments: { requestSeq },
+            target: {
+              serverName: 's'.repeat(1_024),
+              originalName: 'o'.repeat(1_024),
+              ownerPluginId: 'p'.repeat(1_024)
+            }
+          }),
+          meta: buildExecutionJournalMeta()
+        })
+      }
       const inspector = new TapeTraceInspectorService({
         getEntryStore: () => tape,
         getMessageTraceReader: () => traces
@@ -342,10 +441,12 @@ describe('Tape Trace Inspector storage contracts', () => {
 
       expect(exported).toMatchObject({ status: 'ok', detailDataTruncated: true })
       if (exported.status !== 'ok') throw new Error('Expected support facts')
-      expect(exported.facts.map((detail) => detail.record.entryId)).toEqual([1, 2, 3])
-      expect(exported.facts[1]?.data).toBeUndefined()
-      expect(exported.facts[1]?.disclosure).toBe('structured')
-      expect(exported.facts[2]?.data).toBeDefined()
+      expect(exported.facts).toHaveLength(200)
+      expect(exported.facts[0]?.record.entryId).toBe(2)
+      expect(exported.facts.at(-1)?.record.entryId).toBe(201)
+      expect(exported.facts[0]?.data).toBeUndefined()
+      expect(exported.facts[0]?.disclosure).toBe('structured')
+      expect(exported.facts.at(-1)?.data).toBeDefined()
     } finally {
       db.close()
     }
@@ -425,7 +526,7 @@ describe('Tape Trace Inspector storage contracts', () => {
         nextCursor: {
           sort: 'name',
           direction: 'asc',
-          name: 'alpha',
+          nameHash: hashString(JSON.stringify('alpha')),
           entryId: 2,
           snapshotMaxEntryId: 5
         }
@@ -474,6 +575,90 @@ describe('Tape Trace Inspector storage contracts', () => {
           sort: { column: 'name', direction: 'asc' }
         })
       ).toThrow('sort direction')
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('continues name sorting by durable values when projected names are truncated', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const tape = new DeepChatTapeEntriesTable(db)
+      const traces = new DeepChatMessageTracesTable(db)
+      tape.createTable()
+      traces.createTable()
+      tape.ensureBootstrapAnchor('session-1')
+      const prefix = 'a'.repeat(2_048)
+      const insert = db.prepare(`
+        INSERT INTO deepchat_tape_entries (
+          session_id, entry_id, kind, name, payload_json, meta_json, created_at
+        ) VALUES (?, ?, 'event', ?, '{}', '{}', ?)
+      `)
+      insert.run('session-1', 2, `${prefix}0`, 2)
+      insert.run('session-1', 3, `${prefix}1`, 3)
+      insert.run('session-1', 4, `${prefix}0`, 4)
+      insert.run('session-1', 5, null, 5)
+      const inspector = new TapeTraceInspectorService({
+        getEntryStore: () => tape,
+        getMessageTraceReader: () => traces
+      })
+
+      const collect = (direction: 'asc' | 'desc'): number[] => {
+        let page = inspector.listPage({
+          sessionId: 'session-1',
+          mode: 'tail',
+          limit: 1,
+          sort: { column: 'name', direction }
+        })
+        if (page.status !== 'ok') throw new Error('Expected a sorted page')
+        const incarnation = page.tapeIncarnationId
+        const entryIds = page.records.map((record) => record.entryId)
+        while (page.nextCursor) {
+          expect(page.nextCursor).toMatchObject({
+            sort: 'name',
+            nameHash: expect.stringMatching(/^[0-9a-f]{64}$/u)
+          })
+          page = inspector.listPage({
+            sessionId: 'session-1',
+            expectedTapeIncarnationId: incarnation,
+            mode: 'older',
+            cursor: page.nextCursor,
+            limit: 1,
+            sort: { column: 'name', direction }
+          })
+          if (page.status !== 'ok') throw new Error('Expected a sorted continuation')
+          entryIds.push(...page.records.map((record) => record.entryId))
+        }
+        return entryIds
+      }
+
+      expect(collect('asc')).toEqual([5, 2, 4, 3, 1])
+      expect(collect('desc')).toEqual([1, 3, 4, 2, 5])
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('fails malformed canonical bootstrap anchors closed', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const tape = new DeepChatTapeEntriesTable(db)
+      const traces = new DeepChatMessageTracesTable(db)
+      tape.createTable()
+      traces.createTable()
+      tape.ensureBootstrapAnchor('session-1')
+      db.prepare(
+        "UPDATE deepchat_tape_entries SET meta_json = '{not-json' WHERE session_id = ? AND entry_id = 1"
+      ).run('session-1')
+      const inspector = new TapeTraceInspectorService({
+        getEntryStore: () => tape,
+        getMessageTraceReader: () => traces
+      })
+
+      expect(inspector.getHead('session-1')).toBeNull()
+      expect(() => inspector.listPage({ sessionId: 'session-1', mode: 'tail' })).toThrow(
+        'bootstrap is missing or invalid'
+      )
     } finally {
       db.close()
     }

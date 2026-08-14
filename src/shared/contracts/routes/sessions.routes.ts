@@ -104,7 +104,7 @@ const TapeInspectorEntryCursorSchema = z.discriminatedUnion('sort', [
   z.object({
     sort: z.literal('name'),
     direction: z.enum(['asc', 'desc']),
-    name: TapeInspectorListTextSchema.nullable(),
+    nameHash: ExecutionAuditHashSchema,
     entryId: z.number().int().positive(),
     snapshotMaxEntryId: z.number().int().positive()
   }),

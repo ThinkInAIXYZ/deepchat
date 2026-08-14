@@ -16,6 +16,16 @@ import type { ToolSurfaceTapeEventName } from '../domain/toolSurfaceFacts'
 import type { TapeSkillMaterializationPayload } from '../domain/skillMaterialization'
 import type { TapeInspectorEntryCursor, TapeInspectorSort } from '@shared/types/tape-inspector'
 
+type TapeInspectorEntryScanCursor =
+  | Exclude<TapeInspectorEntryCursor, { sort: 'name' }>
+  | {
+      sort: 'name'
+      direction: 'asc' | 'desc'
+      name: string | null
+      entryId: number
+      snapshotMaxEntryId: number
+    }
+
 export interface TapeMutationProjection {
   applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
   invalidateSession(sessionId: string): void
@@ -25,7 +35,7 @@ export interface TapeMutationProjection {
 export interface TapeInspectorEntryScanInput {
   sessionId: string
   mode: 'tail' | 'older' | 'newer'
-  cursor?: TapeInspectorEntryCursor
+  cursor?: TapeInspectorEntryScanCursor
   sort: TapeInspectorSort
   snapshotMaxEntryId: number
   limit: number

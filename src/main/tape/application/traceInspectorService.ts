@@ -15,7 +15,10 @@ import {
   TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
 } from '@shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
+import { hashString } from '../domain/replay'
 import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
+import type { TapeInspectorEntryScanInput } from '../ports/storage'
+import { readCanonicalTapeIncarnationId } from './common'
 import {
   getTapeInspectorTraceBinding,
   matchesTapeInspectorFilters,
@@ -57,7 +60,7 @@ function cursorForRow(
     return {
       sort: 'name',
       direction: sort.direction,
-      name: row.name,
+      nameHash: hashName(row.name),
       entryId: row.entry_id,
       snapshotMaxEntryId
     }
@@ -80,12 +83,57 @@ function cursorForRow(
   }
 }
 
+function hashName(name: string | null): string {
+  return hashString(JSON.stringify(name))
+}
+
+function storageCursorForRow(
+  row: DeepChatTapeEntryRow,
+  sort: TapeInspectorSort,
+  snapshotMaxEntryId: number
+): NonNullable<TapeInspectorEntryScanInput['cursor']> {
+  if (sort.column === 'name') {
+    return {
+      sort: 'name',
+      direction: sort.direction,
+      name: row.name,
+      entryId: row.entry_id,
+      snapshotMaxEntryId
+    }
+  }
+  if (sort.column === 'entryId') return { sort: 'entryId', entryId: row.entry_id }
+  if (sort.column === 'kind') {
+    return {
+      sort: 'kind',
+      direction: sort.direction,
+      kind: row.kind,
+      entryId: row.entry_id,
+      snapshotMaxEntryId
+    }
+  }
+  return {
+    sort: 'createdAt',
+    direction: sort.direction,
+    createdAt: row.created_at,
+    entryId: row.entry_id,
+    snapshotMaxEntryId
+  }
+}
+
 function cursorMatchesRow(cursor: TapeInspectorEntryCursor, row: DeepChatTapeEntryRow): boolean {
   if (cursor.entryId !== row.entry_id) return false
   if (cursor.sort === 'entryId') return true
-  if (cursor.sort === 'name') return cursor.name === row.name
+  if (cursor.sort === 'name') return cursor.nameHash === hashName(row.name)
   if (cursor.sort === 'kind') return cursor.kind === row.kind
   return cursor.createdAt === row.created_at
+}
+
+function canonicalTapeIncarnationId(
+  table: ReturnType<TraceInspectorProviders['getEntryStore']>,
+  sessionId: string
+): string | null {
+  const firstEntry = table.getFirstEntriesBySessions([sessionId])[0]
+  return firstEntry ? readCanonicalTapeIncarnationId(firstEntry) : null
 }
 
 function withoutDetailData(detail: TapeInspectorRecordDetail): TapeInspectorRecordDetail {
@@ -104,7 +152,7 @@ export class TapeTraceInspectorService {
   getHead(sessionId: string): TapeInspectorHead | null {
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
-      const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
+      const tapeIncarnationId = canonicalTapeIncarnationId(table, sessionId)
       if (!tapeIncarnationId) return null
       return {
         tapeIncarnationId,
@@ -133,7 +181,7 @@ export class TapeTraceInspectorService {
     }
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
-      const tapeIncarnationId = table.getBootstrapIncarnation(input.sessionId)
+      const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)
       if (!tapeIncarnationId) {
         throw new Error('Session Tape bootstrap is missing or invalid.')
       }
@@ -148,8 +196,9 @@ export class TapeTraceInspectorService {
         input.cursor && input.cursor.sort !== 'entryId'
           ? input.cursor.snapshotMaxEntryId
           : currentMaxEntryId
+      let cursorRow: DeepChatTapeEntryRow | undefined
       if (input.cursor) {
-        const cursorRow = table.getByEntryId(input.sessionId, input.cursor.entryId)
+        cursorRow = table.getByEntryId(input.sessionId, input.cursor.entryId)
         if (
           input.cursor.entryId > snapshotMaxEntryId ||
           snapshotMaxEntryId > currentMaxEntryId ||
@@ -163,6 +212,8 @@ export class TapeTraceInspectorService {
       const limit = normalizedLimit(input.limit)
       const records: TapeInspectorFactRecord[] = []
       let scanCursor = input.cursor
+        ? storageCursorForRow(cursorRow!, sort, snapshotMaxEntryId)
+        : undefined
       let lastScannedCursor: TapeInspectorEntryCursor | undefined
       let rowsRemaining = input.filters ? MAX_FILTER_SCAN_ROWS : limit
       let hasContinuation = false
@@ -198,7 +249,7 @@ export class TapeTraceInspectorService {
         }
 
         if (done || !page.hasMore) break
-        scanCursor = lastScannedCursor
+        scanCursor = storageCursorForRow(page.rows.at(-1)!, sort, snapshotMaxEntryId)
         hasContinuation = true
       }
 
@@ -223,7 +274,7 @@ export class TapeTraceInspectorService {
   }): GetTapeInspectorRecordDetailOutput {
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
-      const tapeIncarnationId = table.getBootstrapIncarnation(input.sessionId)
+      const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)
       if (!tapeIncarnationId) {
         throw new Error('Session Tape bootstrap is missing or invalid.')
       }
@@ -246,7 +297,7 @@ export class TapeTraceInspectorService {
   }): ExportTapeInspectorSupportFactsOutput {
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
-      const tapeIncarnationId = table.getBootstrapIncarnation(input.sessionId)
+      const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)
       if (!tapeIncarnationId) {
         throw new Error('Session Tape bootstrap is missing or invalid.')
       }

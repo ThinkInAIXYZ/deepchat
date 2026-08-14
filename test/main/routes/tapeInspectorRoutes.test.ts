@@ -50,7 +50,7 @@ describe('Tape Inspector route contracts', () => {
         cursor: {
           sort: 'name',
           direction: 'desc',
-          name: null,
+          nameHash: '0'.repeat(64),
           entryId: 10,
           snapshotMaxEntryId: 20
         }

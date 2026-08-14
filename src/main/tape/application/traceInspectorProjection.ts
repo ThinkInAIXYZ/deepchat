@@ -46,6 +46,24 @@ const RECOGNIZED_ANCHOR_NAMES = new Set<string>([
   'summary/reset',
   ...SUMMARY_ANCHOR_NAMES
 ])
+const CURRENT_COMPACTION_STATE_KEYS = [
+  'cursorOrderSeq',
+  'previousSummaryUpdatedAt',
+  'range',
+  'retainedTokenEstimate',
+  'retainedTokenTarget',
+  'retainedTurnCount',
+  'sourceMessageIds',
+  'summary',
+  'summaryableTurnCount'
+] as const
+const MIGRATED_COMPACTION_STATE_KEYS = [
+  'cursorOrderSeq',
+  'migratedFrom',
+  'range',
+  'sourceMessageIds',
+  'summary'
+] as const
 
 function boundedString(value: unknown, maxBytes = MAX_LIST_TEXT_BYTES): string | undefined {
   if (typeof value !== 'string' || !value) return undefined
@@ -404,6 +422,171 @@ function boundedJson(value: unknown, depth = 0): JsonValue {
   return null
 }
 
+function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const actual = Object.keys(value).sort()
+  const sortedExpected = [...expected].sort()
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  )
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function isNullableNonNegativeInteger(value: unknown): value is number | null {
+  return value === null || isNonNegativeInteger(value)
+}
+
+function projectAnchorRange(value: unknown): { fromOrderSeq: number; toOrderSeq: number } | null {
+  if (value === null) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const range = value as Record<string, unknown>
+  if (
+    !hasExactKeys(range, ['fromOrderSeq', 'toOrderSeq']) ||
+    !isNonNegativeInteger(range.fromOrderSeq) ||
+    !isNonNegativeInteger(range.toOrderSeq) ||
+    range.fromOrderSeq > range.toOrderSeq
+  ) {
+    return null
+  }
+  return { fromOrderSeq: range.fromOrderSeq, toOrderSeq: range.toOrderSeq }
+}
+
+function anchorState(row: DeepChatTapeEntryRow): Record<string, unknown> | null {
+  const payload = parseJsonObject(row.payload_json)
+  if (!hasExactKeys(payload, ['name', 'state']) || payload.name !== row.name) return null
+  return payload.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? (payload.state as Record<string, unknown>)
+    : null
+}
+
+function projectCurrentCompactionState(state: Record<string, unknown>): JsonValue | undefined {
+  const range = projectAnchorRange(state.range)
+  if (
+    !hasExactKeys(state, CURRENT_COMPACTION_STATE_KEYS) ||
+    typeof state.summary !== 'string' ||
+    !isNonNegativeInteger(state.cursorOrderSeq) ||
+    (state.range !== null && range === null) ||
+    !Array.isArray(state.sourceMessageIds) ||
+    state.sourceMessageIds.some((messageId) => typeof messageId !== 'string') ||
+    !isNonNegativeInteger(state.summaryableTurnCount) ||
+    !isNonNegativeInteger(state.retainedTurnCount) ||
+    !isNonNegativeInteger(state.retainedTokenEstimate) ||
+    !isNonNegativeInteger(state.retainedTokenTarget) ||
+    !isNullableNonNegativeInteger(state.previousSummaryUpdatedAt)
+  ) {
+    return undefined
+  }
+  return {
+    cursorOrderSeq: state.cursorOrderSeq,
+    range,
+    sourceMessageCount: state.sourceMessageIds.length,
+    summaryableTurnCount: state.summaryableTurnCount,
+    retainedTurnCount: state.retainedTurnCount,
+    retainedTokenEstimate: state.retainedTokenEstimate,
+    retainedTokenTarget: state.retainedTokenTarget,
+    previousSummaryUpdatedAt: state.previousSummaryUpdatedAt
+  }
+}
+
+function projectAnchorDetailData(row: DeepChatTapeEntryRow): JsonValue | undefined {
+  const state = anchorState(row)
+  if (!state) return undefined
+
+  if (row.name === 'session/start') {
+    if (
+      row.entry_id !== 1 ||
+      row.source_type !== 'session' ||
+      row.source_id !== row.session_id ||
+      row.source_seq !== 0 ||
+      !hasExactKeys(state, ['owner']) ||
+      state.owner !== 'human'
+    ) {
+      return undefined
+    }
+    return { name: row.name, state: { owner: state.owner } }
+  }
+
+  if (row.name === 'fork/start') {
+    const parentSessionId = boundedIdentity(state.parentSessionId)
+    const parentLastAnchorName =
+      state.parentLastAnchorName === null ? null : boundedString(state.parentLastAnchorName)
+    if (
+      row.source_type !== 'fork' ||
+      !boundedIdentity(row.source_id) ||
+      row.source_seq !== 0 ||
+      !hasExactKeys(state, [
+        'parentHeadEntryId',
+        'parentLastAnchorEntryId',
+        'parentLastAnchorName',
+        'parentSessionId'
+      ]) ||
+      !parentSessionId ||
+      !isNonNegativeInteger(state.parentHeadEntryId) ||
+      !isNullableNonNegativeInteger(state.parentLastAnchorEntryId) ||
+      (state.parentLastAnchorName !== null && !parentLastAnchorName)
+    ) {
+      return undefined
+    }
+    const safeParentLastAnchorName = parentLastAnchorName ?? null
+    return {
+      name: row.name,
+      state: {
+        parentSessionId,
+        parentHeadEntryId: state.parentHeadEntryId,
+        parentLastAnchorEntryId: state.parentLastAnchorEntryId,
+        parentLastAnchorName: safeParentLastAnchorName
+      }
+    }
+  }
+
+  if (row.name === 'summary/reset') {
+    if (
+      !hasExactKeys(state, ['cursorOrderSeq', 'reason']) ||
+      !isNonNegativeInteger(state.cursorOrderSeq) ||
+      state.reason !== 'summary_reset'
+    ) {
+      return undefined
+    }
+    return {
+      name: row.name,
+      state: { cursorOrderSeq: state.cursorOrderSeq, reason: state.reason }
+    }
+  }
+
+  if (row.name === 'compaction/migrated_summary') {
+    const range = projectAnchorRange(state.range)
+    if (
+      !hasExactKeys(state, MIGRATED_COMPACTION_STATE_KEYS) ||
+      typeof state.summary !== 'string' ||
+      !isNonNegativeInteger(state.cursorOrderSeq) ||
+      (state.range !== null && range === null) ||
+      !Array.isArray(state.sourceMessageIds) ||
+      state.sourceMessageIds.some((messageId) => typeof messageId !== 'string') ||
+      state.migratedFrom !== 'deepchat_sessions.summary_text'
+    ) {
+      return undefined
+    }
+    return {
+      name: row.name,
+      state: {
+        cursorOrderSeq: state.cursorOrderSeq,
+        range,
+        sourceMessageCount: state.sourceMessageIds.length,
+        migratedFrom: state.migratedFrom
+      }
+    }
+  }
+
+  if (SUMMARY_ANCHOR_NAMES.includes(row.name as (typeof SUMMARY_ANCHOR_NAMES)[number])) {
+    const projected = projectCurrentCompactionState(state)
+    return projected === undefined ? undefined : { name: row.name, state: projected }
+  }
+  return undefined
+}
+
 function allowedDetailData(row: DeepChatTapeEntryRow): JsonValue | undefined {
   if (row.name && EXECUTION_JOURNAL_EVENT_NAMES.includes(row.name as never)) {
     try {
@@ -417,11 +600,8 @@ function allowedDetailData(row: DeepChatTapeEntryRow): JsonValue | undefined {
     return attempt ? boundedJson(redactBody(attempt)) : undefined
   }
   if (row.kind === 'anchor' && RECOGNIZED_ANCHOR_NAMES.has(row.name ?? '')) {
-    const payload = parseJsonObject(row.payload_json)
-    const state = payload.state
-    if (state && typeof state === 'object' && !Array.isArray(state)) {
-      return boundedJson(redactBody({ name: row.name, state }))
-    }
+    const projected = projectAnchorDetailData(row)
+    return projected === undefined ? undefined : boundedJson(redactBody(projected))
   }
   return undefined
 }

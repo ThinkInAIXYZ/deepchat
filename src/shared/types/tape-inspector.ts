@@ -94,7 +94,7 @@ export type TapeInspectorEntryCursor =
   | {
       sort: 'name'
       direction: 'asc' | 'desc'
-      name: string | null
+      nameHash: string
       entryId: number
       snapshotMaxEntryId: number
     }
