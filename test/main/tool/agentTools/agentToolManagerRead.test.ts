@@ -540,6 +540,30 @@ describe('AgentToolManager read routing', () => {
     }
   })
 
+  it('returns an execution-stage permission request for exec', async () => {
+    const result = await manager.callTool(
+      'exec',
+      { command: 'git status --short', description: 'Inspect worktree status' },
+      'conv1'
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        rawData: expect.objectContaining({
+          isError: false,
+          requiresPermission: true,
+          permissionRequest: expect.objectContaining({
+            toolName: 'exec',
+            permissionType: 'command',
+            command: 'git status --short',
+            shellProfile: 'posix',
+            conversationId: 'conv1'
+          })
+        })
+      })
+    )
+  })
+
   it('uses the current Agent command preview limit when polling a process', async () => {
     providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
       commandOutputInlineChars: 7_000

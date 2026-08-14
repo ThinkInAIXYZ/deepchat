@@ -1437,123 +1437,123 @@ export class AgentToolManager {
       options.activeSkillNames
     )
 
-    if (toolName === 'exec') {
-      if (!this.bashHandler) {
-        throw new Error('Bash handler not initialized for exec tool')
-      }
-      const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
-      const bashHandler = new AgentBashHandler(
-        allowedDirectories,
-        this.settings,
-        this.commandPermissionHandler,
-        this.commandEnvironment
-      )
-      const execArgs = parsedArgs as {
-        command: string
-        stdin?: string
-        timeoutMs?: number
-        description?: string
-        cwd?: string
-        background?: boolean
-        yieldMs?: number
-      }
-      const isProgrammaticInvocation = options.programmaticToolParent !== undefined
-      if (isProgrammaticInvocation) {
-        if (!options.programmaticToolCapability) {
-          throw new Error('Programmatic exec requires an active Programmatic Tool capability.')
-        }
-        const invocationInput = execArgs.stdin ?? execArgs.command
-        if (
-          Buffer.byteLength(invocationInput, 'utf8') >
-          options.programmaticToolCapability.quotas.maxInputBytes
-        ) {
-          throw new Error(
-            'Programmatic exec input exceeds the active Programmatic Tool input quota.'
-          )
-        }
-        if (execArgs.timeoutMs !== undefined) {
-          throw new Error('Programmatic exec duration is owned by its active capability.')
-        }
-      } else if (execArgs.stdin !== undefined) {
-        if (!options.programmaticToolCapability) {
-          throw new Error('Owned exec stdin requires an active Programmatic Tool capability.')
-        }
-        throw new Error('Owned exec stdin requires an active Programmatic Tool parent operation.')
-      }
-      if (execArgs.cwd) {
-        const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
-          conversationId,
-          allowExternalAccess: true,
-          protectedDirectoryRules,
-          commandShellPathStyle: options.commandShell.pathStyle
-        })
-        skillScopeGuard.assertReadAllowedAbsolute(
-          skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
-        )
-      }
-      if (isProgrammaticInvocation) {
-        options.signal?.throwIfAborted()
-      }
-      const commandResult = await bashHandler.executeCommand(
-        {
-          command: execArgs.command,
-          timeout: execArgs.timeoutMs,
-          description: execArgs.description ?? 'Execute command',
-          cwd: execArgs.cwd,
-          background: execArgs.background,
-          yieldMs: execArgs.yieldMs
-        },
-        {
-          conversationId,
-          commandShell: options.commandShell,
-          oneShotCommandGrantId: options.oneShotCommandGrantId,
-          stdin: execArgs.stdin,
-          programmatic: isProgrammaticInvocation,
-          signal: isProgrammaticInvocation ? options.signal : undefined,
-          maxTimeoutMs: isProgrammaticInvocation
-            ? options.programmaticToolCapability?.quotas.maxDurationMs
-            : undefined,
-          allowExternalCwd: allowExternalFileAccess,
-          outputPreviewChars: outputLimits.commandOutputInlineChars,
-          beforeExecute: this.createAgentDispatchCommit(
-            toolName,
-            'agent-filesystem',
-            parsedArgs,
-            options
-          )
-        }
-      )
-      const content =
-        typeof commandResult.output === 'string'
-          ? commandResult.output
-          : JSON.stringify(commandResult.output)
-      return {
-        content,
-        rawData: {
-          content,
-          rtkApplied: commandResult.rtkApplied,
-          rtkMode: commandResult.rtkMode,
-          rtkFallbackReason: commandResult.rtkFallbackReason,
-          outputOffloadPath: commandResult.outputOffloadPath
-        }
-      }
-    }
-
-    if (!this.fileSystemHandler) {
-      throw new Error('FileSystem handler not initialized')
-    }
-
-    // Priority: explicit base_directory → conversation workdir → default
-    const explicitBaseDirectory = (parsedArgs as any).base_directory
-    const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
-      conversationId,
-      allowExternalAccess: allowExternalFileAccess,
-      protectedDirectoryRules,
-      commandShellPathStyle: options.commandShell.pathStyle
-    })
-
     try {
+      if (toolName === 'exec') {
+        if (!this.bashHandler) {
+          throw new Error('Bash handler not initialized for exec tool')
+        }
+        const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
+        const bashHandler = new AgentBashHandler(
+          allowedDirectories,
+          this.settings,
+          this.commandPermissionHandler,
+          this.commandEnvironment
+        )
+        const execArgs = parsedArgs as {
+          command: string
+          stdin?: string
+          timeoutMs?: number
+          description?: string
+          cwd?: string
+          background?: boolean
+          yieldMs?: number
+        }
+        const isProgrammaticInvocation = options.programmaticToolParent !== undefined
+        if (isProgrammaticInvocation) {
+          if (!options.programmaticToolCapability) {
+            throw new Error('Programmatic exec requires an active Programmatic Tool capability.')
+          }
+          const invocationInput = execArgs.stdin ?? execArgs.command
+          if (
+            Buffer.byteLength(invocationInput, 'utf8') >
+            options.programmaticToolCapability.quotas.maxInputBytes
+          ) {
+            throw new Error(
+              'Programmatic exec input exceeds the active Programmatic Tool input quota.'
+            )
+          }
+          if (execArgs.timeoutMs !== undefined) {
+            throw new Error('Programmatic exec duration is owned by its active capability.')
+          }
+        } else if (execArgs.stdin !== undefined) {
+          if (!options.programmaticToolCapability) {
+            throw new Error('Owned exec stdin requires an active Programmatic Tool capability.')
+          }
+          throw new Error('Owned exec stdin requires an active Programmatic Tool parent operation.')
+        }
+        if (execArgs.cwd) {
+          const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
+            conversationId,
+            allowExternalAccess: true,
+            protectedDirectoryRules,
+            commandShellPathStyle: options.commandShell.pathStyle
+          })
+          skillScopeGuard.assertReadAllowedAbsolute(
+            skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
+          )
+        }
+        if (isProgrammaticInvocation) {
+          options.signal?.throwIfAborted()
+        }
+        const commandResult = await bashHandler.executeCommand(
+          {
+            command: execArgs.command,
+            timeout: execArgs.timeoutMs,
+            description: execArgs.description ?? 'Execute command',
+            cwd: execArgs.cwd,
+            background: execArgs.background,
+            yieldMs: execArgs.yieldMs
+          },
+          {
+            conversationId,
+            commandShell: options.commandShell,
+            oneShotCommandGrantId: options.oneShotCommandGrantId,
+            stdin: execArgs.stdin,
+            programmatic: isProgrammaticInvocation,
+            signal: isProgrammaticInvocation ? options.signal : undefined,
+            maxTimeoutMs: isProgrammaticInvocation
+              ? options.programmaticToolCapability?.quotas.maxDurationMs
+              : undefined,
+            allowExternalCwd: allowExternalFileAccess,
+            outputPreviewChars: outputLimits.commandOutputInlineChars,
+            beforeExecute: this.createAgentDispatchCommit(
+              toolName,
+              'agent-filesystem',
+              parsedArgs,
+              options
+            )
+          }
+        )
+        const content =
+          typeof commandResult.output === 'string'
+            ? commandResult.output
+            : JSON.stringify(commandResult.output)
+        return {
+          content,
+          rawData: {
+            content,
+            rtkApplied: commandResult.rtkApplied,
+            rtkMode: commandResult.rtkMode,
+            rtkFallbackReason: commandResult.rtkFallbackReason,
+            outputOffloadPath: commandResult.outputOffloadPath
+          }
+        }
+      }
+
+      if (!this.fileSystemHandler) {
+        throw new Error('FileSystem handler not initialized')
+      }
+
+      // Priority: explicit base_directory → conversation workdir → default
+      const explicitBaseDirectory = (parsedArgs as any).base_directory
+      const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+        conversationId,
+        allowExternalAccess: allowExternalFileAccess,
+        protectedDirectoryRules,
+        commandShellPathStyle: options.commandShell.pathStyle
+      })
+
       switch (toolName) {
         case APPLY_PATCH_TOOL_NAME:
           await this.assertFileAccessPermission(
