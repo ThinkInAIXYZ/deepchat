@@ -996,21 +996,27 @@ describe('ChatPage', () => {
 
     await flushPromises()
 
-    // Once both surfaces are active they collapse into the slim dock bar.
+    // A plan arriving mid-question stays docked: the question keeps the panel
+    // (its chip folds into the panel header) and the plan lands on the bar.
     expect(agentPlanStore.setCollapsed).toHaveBeenCalledWith('s1', true)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     const bar = wrapper.get('[data-testid="agent-interaction-dock-bar"]')
     expect(bar.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(true)
-    expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(true)
+    expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(false)
 
-    // Expanding the plan renders a single scroll-constrained panel above the bar.
+    // Expanding the plan swaps the panel content and trades chips on the bar.
     await bar.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
     const planStub = wrapper.get('.agent-progress-float-stub')
     const panel = planStub.element.closest('[data-testid="agent-interaction-dock-panel"]')
     expect(panel?.classList.contains('interaction-dock-panel')).toBe(true)
-    expect(panel?.classList.contains('dc-overscroll-contain')).toBe(true)
+    expect(
+      panel?.querySelector('.interaction-dock-panel__body.dc-overscroll-contain')
+    ).not.toBeNull()
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(false)
 
-    // Expanding the question swaps the panel content instead of stacking both.
-    await bar.get('[data-testid="agent-interaction-dock-question-chip"]').trigger('click')
+    // Expanding the question swaps back instead of stacking both surfaces.
+    await wrapper.get('[data-testid="agent-interaction-dock-question-chip"]').trigger('click')
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
   })

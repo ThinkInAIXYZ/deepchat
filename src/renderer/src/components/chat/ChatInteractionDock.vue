@@ -4,91 +4,121 @@
       <div
         v-if="expandedPanel"
         id="agent-interaction-dock-panel"
-        class="interaction-dock-panel dc-overscroll-contain pointer-events-auto w-full max-w-2xl rounded-[20px] text-foreground"
+        class="interaction-dock-panel pointer-events-auto w-full max-w-2xl rounded-xl text-foreground"
         data-testid="agent-interaction-dock-panel"
       >
         <div class="interaction-dock-panel__backdrop" aria-hidden="true" />
-        <AgentProgressFloat
-          v-if="expandedPanel === 'plan'"
-          :snapshot="planSnapshot"
-          :collapsed="false"
-          :embedded="true"
-          @dismiss="emit('dismiss-plan')"
-          @toggle-collapse="setPlanExpanded(false)"
-        />
-        <ChatToolInteractionOverlay
-          v-else-if="interaction"
-          :embedded="true"
-          :interaction="interaction"
-          :processing="processing"
-          @respond="emit('respond', $event)"
-        />
+
+        <!-- Header mirrors the chip slot grid (chevron slot, icon slot, label) so
+             collapsing swaps the panel for a chip in the same columns. -->
+        <div class="flex items-center gap-1.5 px-2 pb-1 pt-2">
+          <button
+            type="button"
+            class="interaction-dock-chip min-w-0 flex-1"
+            aria-expanded="true"
+            aria-controls="agent-interaction-dock-panel"
+            data-testid="agent-interaction-dock-panel-header"
+            @click="collapseExpandedPanel"
+          >
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center">
+              <Icon
+                icon="lucide:chevron-right"
+                class="interaction-dock-chip__caret h-3.5 w-3.5 rotate-90"
+                aria-hidden="true"
+              />
+            </span>
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+              <Icon :icon="panelIcon" class="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span class="truncate text-xs font-medium">{{ panelTitle }}</span>
+            <span v-if="expandedPanel === 'plan'" class="interaction-dock-chip__badge">
+              {{ planBadgeText }}
+            </span>
+            <span
+              v-if="expandedPanel === 'plan' && planExplanation"
+              class="min-w-0 truncate text-xs text-muted-foreground"
+            >
+              {{ planExplanation }}
+            </span>
+          </button>
+          <button
+            v-if="expandedPanel === 'plan'"
+            type="button"
+            class="interaction-dock-panel__action inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            :aria-label="t('common.close')"
+            @click="emit('dismiss-plan')"
+          >
+            <Icon icon="lucide:x" class="h-3 w-3" />
+          </button>
+        </div>
+
+        <div class="interaction-dock-panel__body dc-overscroll-contain border-t border-border/60">
+          <AgentProgressFloat
+            v-if="expandedPanel === 'plan'"
+            :snapshot="planSnapshot"
+            :collapsed="false"
+            :embedded="true"
+          />
+          <ChatToolInteractionOverlay
+            v-else-if="interaction"
+            :embedded="true"
+            :interaction="interaction"
+            :processing="processing"
+            @respond="emit('respond', $event)"
+          />
+        </div>
       </div>
     </Transition>
 
     <div
+      v-if="hasDockChips"
       class="interaction-dock-bar pointer-events-auto flex h-10 w-full max-w-2xl shrink-0 items-center gap-1.5 rounded-full px-2"
       data-testid="agent-interaction-dock-bar"
     >
       <button
-        v-if="hasPlan"
+        v-if="planChipVisible"
         type="button"
         class="interaction-dock-chip"
-        :data-expanded="expandedPanel === 'plan'"
-        :aria-expanded="expandedPanel === 'plan'"
+        aria-expanded="false"
         aria-controls="agent-interaction-dock-panel"
         data-testid="agent-interaction-dock-plan-chip"
-        @click="onPlanChipClick"
+        @click="expandPlan"
       >
-        <Icon
-          icon="lucide:chevron-right"
-          class="interaction-dock-chip__caret h-3.5 w-3.5 shrink-0"
-          :class="expandedPanel === 'plan' ? 'rotate-90' : ''"
-          aria-hidden="true"
-        />
-        <Icon
-          icon="lucide:list-checks"
-          class="h-3.5 w-3.5 shrink-0 text-primary"
-          aria-hidden="true"
-        />
-        <span class="truncate text-xs font-medium">{{ t('chat.workspace.plan.section') }}</span>
-        <span class="interaction-dock-chip__badge">
-          {{
-            t('chat.workspace.plan.completedCount', {
-              completed: planCompletedCount,
-              total: planEntries.length
-            })
-          }}
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon
+            icon="lucide:chevron-right"
+            class="interaction-dock-chip__caret h-3.5 w-3.5"
+            aria-hidden="true"
+          />
         </span>
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+          <Icon icon="lucide:list-checks" class="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span class="truncate text-xs font-medium">{{ t('chat.workspace.plan.section') }}</span>
+        <span class="interaction-dock-chip__badge">{{ planBadgeText }}</span>
       </button>
 
       <button
-        v-if="interaction"
+        v-if="questionChipVisible"
         type="button"
         class="interaction-dock-chip"
-        :data-expanded="expandedPanel === 'question'"
-        :aria-expanded="expandedPanel === 'question'"
+        aria-expanded="false"
         aria-controls="agent-interaction-dock-panel"
         data-testid="agent-interaction-dock-question-chip"
-        @click="onQuestionChipClick"
+        @click="expandQuestion"
       >
-        <Icon
-          icon="lucide:chevron-right"
-          class="interaction-dock-chip__caret h-3.5 w-3.5 shrink-0"
-          :class="expandedPanel === 'question' ? 'rotate-90' : ''"
-          aria-hidden="true"
-        />
-        <Icon
-          :icon="questionChipIcon"
-          class="h-3.5 w-3.5 shrink-0 text-primary"
-          aria-hidden="true"
-        />
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon
+            icon="lucide:chevron-right"
+            class="interaction-dock-chip__caret h-3.5 w-3.5"
+            aria-hidden="true"
+          />
+        </span>
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+          <Icon :icon="questionChipIcon" class="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
         <span class="truncate text-xs font-medium">{{ questionChipText }}</span>
-        <span
-          v-if="expandedPanel !== 'question'"
-          class="interaction-dock-chip__pulse"
-          aria-hidden="true"
-        />
+        <span class="interaction-dock-chip__pulse" aria-hidden="true" />
       </button>
     </div>
   </div>
@@ -143,21 +173,28 @@ const expandedPanel = computed<'plan' | 'question' | null>(() => {
   return null
 })
 
+// An expanded surface leaves the bar: its chip would duplicate the panel
+// header directly above. With nothing docked the bar disappears entirely.
+const planChipVisible = computed(() => hasPlan.value && expandedPanel.value !== 'plan')
+const questionChipVisible = computed(
+  () => Boolean(props.interaction) && expandedPanel.value !== 'question'
+)
+const hasDockChips = computed(() => planChipVisible.value || questionChipVisible.value)
+
 const interactionKey = computed(() =>
   props.interaction
     ? `${props.interaction.sessionId}:${props.interaction.messageId}:${props.interaction.toolCallId}`
     : null
 )
 
-const collapseBoth = () => {
-  questionExpanded.value = false
+const collapsePlanIfExpanded = () => {
   if (hasPlan.value && !props.planCollapsed) {
     emit('set-plan-collapsed', true)
   }
 }
 
-// Defaults: a question alone opens immediately; when plan and question are
-// active together both start docked so the user picks which one to expand.
+// A pending question blocks the turn until the user responds, so it always
+// opens expanded by default; an expanded plan yields to it.
 watch(
   interactionKey,
   (key) => {
@@ -165,41 +202,36 @@ watch(
       questionExpanded.value = false
       return
     }
-    if (hasPlan.value) {
-      collapseBoth()
-    } else {
-      questionExpanded.value = true
-    }
+    questionExpanded.value = true
+    collapsePlanIfExpanded()
   },
   { immediate: true }
 )
 
+// A plan arriving while the question is open stays docked instead of
+// hijacking the panel (expandedPanel prefers the plan when both are open).
 watch(hasPlan, (now, before) => {
-  if (now && !before && interactionKey.value) {
-    collapseBoth()
+  if (now && !before && questionExpanded.value) {
+    collapsePlanIfExpanded()
   }
 })
 
-const setPlanExpanded = (expanded: boolean) => {
-  if (expanded) {
-    questionExpanded.value = false
-  }
-  emit('set-plan-collapsed', !expanded)
+const expandPlan = () => {
+  questionExpanded.value = false
+  emit('set-plan-collapsed', false)
 }
 
-const onPlanChipClick = () => {
-  setPlanExpanded(expandedPanel.value !== 'plan')
+const expandQuestion = () => {
+  questionExpanded.value = true
+  collapsePlanIfExpanded()
 }
 
-const onQuestionChipClick = () => {
-  if (expandedPanel.value === 'question') {
-    questionExpanded.value = false
+const collapseExpandedPanel = () => {
+  if (expandedPanel.value === 'plan') {
+    emit('set-plan-collapsed', true)
     return
   }
-  questionExpanded.value = true
-  if (hasPlan.value && !props.planCollapsed) {
-    emit('set-plan-collapsed', true)
-  }
+  questionExpanded.value = false
 }
 
 const planEntries = computed(() =>
@@ -209,6 +241,15 @@ const planEntries = computed(() =>
 const planCompletedCount = computed(
   () => planEntries.value.filter((entry) => entry.status === 'completed').length
 )
+
+const planBadgeText = computed(() =>
+  t('chat.workspace.plan.completedCount', {
+    completed: planCompletedCount.value,
+    total: planEntries.value.length
+  })
+)
+
+const planExplanation = computed(() => props.planSnapshot?.explanation ?? '')
 
 const isQuestion = computed(() => props.interaction?.actionType === 'question_request')
 
@@ -227,34 +268,44 @@ const questionChipText = computed(() => {
   }
   return t('components.messageBlockQuestionRequest.title')
 })
+
+const panelIcon = computed(() =>
+  expandedPanel.value === 'plan' ? 'lucide:list-checks' : questionChipIcon.value
+)
+
+const panelTitle = computed(() =>
+  expandedPanel.value === 'plan' ? t('chat.workspace.plan.section') : questionChipText.value
+)
 </script>
 
 <style scoped>
 .interaction-dock-bar {
   isolation: isolate;
-  border: 1px solid color-mix(in srgb, white 26%, hsl(var(--border)) 74%);
+  border: 1px solid color-mix(in srgb, white 16%, hsl(var(--border)) 84%);
   backdrop-filter: blur(var(--dc-blur-overlay));
   -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 80%, hsl(var(--background)) 20%) 0%,
-    color-mix(in srgb, white 62%, hsl(var(--background)) 38%) 100%
+    color-mix(in srgb, white 90%, hsl(var(--background)) 10%) 0%,
+    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 100%
   );
   box-shadow:
-    0 14px 30px -24px rgb(15 23 42 / 0.22),
-    inset 0 1px 0 rgb(255 255 255 / 0.42);
+    0 10px 24px -8px rgb(15 23 42 / 0.14),
+    0 3px 8px -3px rgb(15 23 42 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.45);
 }
 
 .dark .interaction-dock-bar {
-  border-color: color-mix(in srgb, white 9%, hsl(var(--border)) 91%);
+  border-color: color-mix(in srgb, white 12%, hsl(var(--border)) 88%);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
     color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
   );
   box-shadow:
-    0 18px 36px -28px rgb(0 0 0 / 0.5),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
+    0 12px 28px -10px rgb(0 0 0 / 0.55),
+    0 4px 10px -4px rgb(0 0 0 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .interaction-dock-chip {
@@ -282,10 +333,6 @@ const questionChipText = computed(() => {
 .interaction-dock-chip:focus-visible {
   outline: none;
   box-shadow: 0 0 0 1px color-mix(in srgb, hsl(var(--primary)) 32%, transparent);
-}
-
-.interaction-dock-chip[data-expanded='true'] {
-  background: color-mix(in srgb, hsl(var(--primary)) 10%, transparent);
 }
 
 .interaction-dock-chip__caret {
@@ -336,23 +383,30 @@ const questionChipText = computed(() => {
 
 .interaction-dock-panel {
   isolation: isolate;
+  position: relative;
   border: 1px solid transparent;
-  max-height: min(70vh, calc(100vh - 12rem));
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   backdrop-filter: blur(var(--dc-blur-overlay));
   -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
-    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+    color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+    color-mix(in srgb, white 84%, hsl(var(--background)) 16%) 100%
   );
   box-shadow:
-    0 20px 40px -30px rgb(15 23 42 / 0.2),
-    0 8px 18px -18px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
-    inset 0 -10px 20px -18px rgb(148 163 184 / 0.18);
+    0 24px 48px -12px rgb(15 23 42 / 0.16),
+    0 8px 20px -8px rgb(15 23 42 / 0.1),
+    0 2px 6px -2px rgb(15 23 42 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+/* Scrolling lives on the body so the header and the inset border/highlight
+   pseudo layers stay pinned while long content scrolls. */
+.interaction-dock-panel__body {
+  max-height: min(60vh, calc(100vh - 14rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .interaction-dock-panel::before {
@@ -371,8 +425,8 @@ const questionChipText = computed(() => {
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
-      color-mix(in srgb, white 64%, hsl(var(--muted)) 36%) 100%
+      color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+      color-mix(in srgb, white 72%, hsl(var(--muted)) 28%) 100%
     );
   opacity: 0.92;
 }
@@ -385,9 +439,8 @@ const questionChipText = computed(() => {
   border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 22%, hsl(var(--border)) 78%),
-    inset 0 1px 0 rgb(255 255 255 / 0.24);
-  opacity: 0.82;
+    inset 0 0 0 1px color-mix(in srgb, white 10%, hsl(var(--border)) 90%),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
 
 .interaction-dock-panel > :not(.interaction-dock-panel__backdrop) {
@@ -412,22 +465,36 @@ const questionChipText = computed(() => {
       transparent 42%
     );
   filter: saturate(1.06);
-  opacity: 0.92;
+  opacity: 0.7;
   pointer-events: none;
+}
+
+.interaction-dock-panel__action:hover {
+  background: color-mix(in srgb, white 54%, hsl(var(--accent)) 46%);
+  color: hsl(var(--foreground));
+}
+
+.dark .interaction-dock-panel__action:hover {
+  background: color-mix(in srgb, hsl(var(--background)) 70%, hsl(var(--accent)) 30%);
+}
+
+.interaction-dock-panel__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, hsl(var(--primary)) 32%, transparent);
 }
 
 .dark .interaction-dock-panel {
   border-color: transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
     color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
   );
   box-shadow:
-    0 24px 48px -34px rgb(0 0 0 / 0.48),
-    0 12px 24px -22px rgb(0 0 0 / 0.26),
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 -14px 24px -22px rgb(0 0 0 / 0.36);
+    0 24px 48px -12px rgb(0 0 0 / 0.6),
+    0 10px 24px -10px rgb(0 0 0 / 0.4),
+    0 2px 6px -2px rgb(0 0 0 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
 .dark .interaction-dock-panel::before {
@@ -443,14 +510,13 @@ const questionChipText = computed(() => {
       color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
       color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
     );
-  opacity: 0.88;
+  opacity: 0.94;
 }
 
 .dark .interaction-dock-panel::after {
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 8%, hsl(var(--border)) 92%),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  opacity: 0.74;
+    inset 0 0 0 1px color-mix(in srgb, white 14%, hsl(var(--border)) 86%),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .dark .interaction-dock-panel__backdrop {
@@ -463,7 +529,7 @@ const questionChipText = computed(() => {
     radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
     radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
   filter: saturate(1.08);
-  opacity: 0.84;
+  opacity: 0.6;
 }
 
 .interaction-dock-panel-enter-active,

@@ -1,101 +1,115 @@
 <template>
   <div
     :class="[
-      'relative w-full overflow-hidden p-4 text-foreground',
-      props.embedded ? '' : 'tool-interaction-overlay max-w-2xl rounded-xl'
+      'relative w-full overflow-hidden text-foreground',
+      props.embedded ? 'px-2 pb-3 pt-2' : 'tool-interaction-overlay max-w-2xl rounded-xl p-4'
     ]"
   >
     <div v-if="!props.embedded" class="tool-interaction-overlay__backdrop" aria-hidden="true" />
-    <div class="flex items-center gap-2 text-xs text-muted-foreground">
+    <div v-if="!props.embedded" class="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
       <Icon :icon="headerIcon" class="h-4 w-4" />
       <span>{{ headerText }}</span>
     </div>
 
-    <p class="mt-3 text-sm whitespace-pre-wrap break-words">
-      {{ bodyText }}
-    </p>
+    <!-- Embedded: indent into the dock icon column (44px) under the shared header. -->
+    <div :class="props.embedded ? 'pl-9 pr-2.5' : ''">
+      <p class="text-sm whitespace-pre-wrap break-words">
+        {{ bodyText }}
+      </p>
 
-    <div
-      v-if="isSkillDraft && skillDraftPreview"
-      class="mt-3 rounded-md border bg-background/60 p-3"
-    >
-      <div class="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {{ t('chat.skillDraft.previewTitle') }}
+      <div
+        v-if="isSkillDraft && skillDraftPreview"
+        class="mt-3 rounded-md border bg-background/60 p-3"
+      >
+        <div class="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {{ t('chat.skillDraft.previewTitle') }}
+        </div>
+        <pre
+          class="dc-overscroll-contain mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-5"
+          >{{ skillDraftPreview }}</pre
+        >
       </div>
-      <pre
-        class="dc-overscroll-contain mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-5"
-        >{{ skillDraftPreview }}</pre
-      >
-    </div>
 
-    <div v-if="isPermission" class="mt-3 space-y-2">
-      <div class="rounded-md border bg-muted/50 px-3 py-2">
-        <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Tool</div>
-        <div class="text-xs font-medium break-all">{{ interaction.toolName || '-' }}</div>
+      <div v-if="isPermission" class="mt-3 space-y-2">
+        <div class="rounded-md border bg-muted/50 px-3 py-2">
+          <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Tool</div>
+          <div class="text-xs font-medium break-all">{{ interaction.toolName || '-' }}</div>
+        </div>
+        <div v-if="formattedToolArgs" class="rounded-md border bg-background/50 px-3 py-2">
+          <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Arguments</div>
+          <pre class="mt-1 text-xs leading-5 whitespace-pre-wrap break-words">{{
+            formattedToolArgs
+          }}</pre>
+        </div>
       </div>
-      <div v-if="formattedToolArgs" class="rounded-md border bg-background/50 px-3 py-2">
-        <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Arguments</div>
-        <pre class="mt-1 text-xs leading-5 whitespace-pre-wrap break-words">{{
-          formattedToolArgs
-        }}</pre>
+
+      <div v-if="isQuestion" class="mt-4">
+        <DcCheckboxGroup
+          v-if="isMultiple"
+          v-model="multiSelected"
+          :options="choiceOptions"
+          :disabled="processing"
+        />
+        <DcRadioGroup
+          v-else
+          :model-value="singleSelected"
+          :options="choiceOptions"
+          :disabled="processing"
+          @update:model-value="onSingleSelect"
+        />
+
+        <div v-if="isMultiple || allowOther" class="mt-3 flex items-center gap-2">
+          <DcButton
+            v-if="isMultiple"
+            :disabled="processing || multiSelected.length === 0"
+            size="sm"
+            class="h-8 px-4 text-xs"
+            @click="onMultiConfirm"
+          >
+            {{ t('common.confirm') }}
+          </DcButton>
+          <DcButton
+            v-if="allowOther"
+            :disabled="processing"
+            variant="outline"
+            size="sm"
+            class="h-8 px-3 text-xs"
+            @click="onQuestionOther"
+          >
+            Other
+          </DcButton>
+        </div>
       </div>
-    </div>
 
-    <div v-if="isQuestion" class="mt-4 flex flex-wrap gap-2">
-      <DcButton
-        v-for="option in questionOptions"
-        :key="option.label"
-        :disabled="processing"
-        variant="outline"
-        size="sm"
-        class="h-auto min-h-8 px-3 py-1.5 text-left"
-        @click="onQuestionOption(option)"
-      >
-        <span class="flex flex-col items-start gap-0.5">
-          <span class="text-xs font-medium">{{ option.label }}</span>
-          <span v-if="option.description" class="text-[11px] text-muted-foreground">
-            {{ option.description }}
-          </span>
-        </span>
-      </DcButton>
-      <DcButton
-        v-if="allowOther"
-        :disabled="processing"
-        variant="outline"
-        size="sm"
-        class="h-8 px-3 text-xs"
-        @click="onQuestionOther"
-      >
-        Other
-      </DcButton>
-    </div>
-
-    <div v-else class="mt-4 flex gap-2">
-      <DcButton
-        :disabled="processing"
-        variant="outline"
-        size="sm"
-        class="h-8 flex-1 text-xs"
-        @click="onPermission(false)"
-      >
-        {{ t('components.messageBlockPermissionRequest.deny') }}
-      </DcButton>
-      <DcButton
-        :disabled="processing"
-        size="sm"
-        class="h-8 flex-1 text-xs"
-        @click="onPermission(true)"
-      >
-        {{ t('components.messageBlockPermissionRequest.allow') }}
-      </DcButton>
+      <div v-else class="mt-4 flex gap-2">
+        <DcButton
+          :disabled="processing"
+          variant="outline"
+          size="sm"
+          class="h-8 flex-1 text-xs"
+          @click="onPermission(false)"
+        >
+          {{ t('components.messageBlockPermissionRequest.deny') }}
+        </DcButton>
+        <DcButton
+          :disabled="processing"
+          size="sm"
+          class="h-8 flex-1 text-xs"
+          @click="onPermission(true)"
+        >
+          {{ t('components.messageBlockPermissionRequest.allow') }}
+        </DcButton>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
+import { DcCheckboxGroup, DcRadioGroup } from '@dc-ui/components/choice-group'
+import type { DcChoiceOption } from '@dc-ui/components/choice-group'
 import { Icon } from '@iconify/vue'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
@@ -204,6 +218,46 @@ const questionOptions = computed(() =>
 
 const allowOther = computed(() => props.interaction.block.extra?.questionCustom !== false)
 
+const isMultiple = computed(() => props.interaction.block.extra?.questionMultiple === true)
+
+// Choice values are rawLabels (pre-translation) so i18n cannot split options.
+const choiceOptions = computed<DcChoiceOption[]>(() =>
+  questionOptions.value.map((option) => ({
+    value: option.rawLabel,
+    label: option.label,
+    description: option.description
+  }))
+)
+
+const singleSelected = ref<string | null>(null)
+const multiSelected = ref<string[]>([])
+
+watch(
+  () => props.interaction.toolCallId,
+  () => {
+    singleSelected.value = null
+    multiSelected.value = []
+  }
+)
+
+const onSingleSelect = (value: string) => {
+  singleSelected.value = value
+  const option = questionOptions.value.find((entry) => entry.rawLabel === value)
+  if (!option) return
+  emit('respond', {
+    kind: 'question_option',
+    optionLabel: isSkillDraft.value ? option.rawLabel : option.label
+  })
+}
+
+const onMultiConfirm = () => {
+  const labels = questionOptions.value
+    .filter((option) => multiSelected.value.includes(option.rawLabel))
+    .map((option) => option.label)
+  if (labels.length === 0) return
+  emit('respond', { kind: 'question_option', optionLabel: labels.join(', ') })
+}
+
 const parsedPermissionRequest = computed(() => {
   const raw = props.interaction.block.extra?.permissionRequest
   if (typeof raw !== 'string' || !raw.trim()) {
@@ -256,13 +310,6 @@ const onPermission = (granted: boolean) => {
   emit('respond', { kind: 'permission', granted })
 }
 
-const onQuestionOption = (option: QuestionOptionView) => {
-  emit('respond', {
-    kind: 'question_option',
-    optionLabel: isSkillDraft.value ? option.rawLabel : option.label
-  })
-}
-
 const onQuestionOther = () => {
   emit('respond', { kind: 'question_other' })
 }
@@ -276,14 +323,14 @@ const onQuestionOther = () => {
   -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
-    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+    color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+    color-mix(in srgb, white 84%, hsl(var(--background)) 16%) 100%
   );
   box-shadow:
-    0 20px 40px -30px rgb(15 23 42 / 0.2),
-    0 8px 18px -18px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
-    inset 0 -10px 20px -18px rgb(148 163 184 / 0.18);
+    0 24px 48px -12px rgb(15 23 42 / 0.16),
+    0 8px 20px -8px rgb(15 23 42 / 0.1),
+    0 2px 6px -2px rgb(15 23 42 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
 }
 
 .tool-interaction-overlay::before {
@@ -302,8 +349,8 @@ const onQuestionOther = () => {
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
-      color-mix(in srgb, white 64%, hsl(var(--muted)) 36%) 100%
+      color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+      color-mix(in srgb, white 72%, hsl(var(--muted)) 28%) 100%
     );
   opacity: 0.92;
 }
@@ -316,9 +363,8 @@ const onQuestionOther = () => {
   border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 22%, hsl(var(--border)) 78%),
-    inset 0 1px 0 rgb(255 255 255 / 0.24);
-  opacity: 0.82;
+    inset 0 0 0 1px color-mix(in srgb, white 10%, hsl(var(--border)) 90%),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
 
 .tool-interaction-overlay > :not(.tool-interaction-overlay__backdrop) {
@@ -343,7 +389,7 @@ const onQuestionOther = () => {
       transparent 42%
     );
   filter: saturate(1.06);
-  opacity: 0.92;
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -351,14 +397,14 @@ const onQuestionOther = () => {
   border-color: transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
     color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
   );
   box-shadow:
-    0 24px 48px -34px rgb(0 0 0 / 0.48),
-    0 12px 24px -22px rgb(0 0 0 / 0.26),
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 -14px 24px -22px rgb(0 0 0 / 0.36);
+    0 24px 48px -12px rgb(0 0 0 / 0.6),
+    0 10px 24px -10px rgb(0 0 0 / 0.4),
+    0 2px 6px -2px rgb(0 0 0 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
 .dark .tool-interaction-overlay::before {
@@ -374,14 +420,13 @@ const onQuestionOther = () => {
       color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
       color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
     );
-  opacity: 0.88;
+  opacity: 0.94;
 }
 
 .dark .tool-interaction-overlay::after {
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 8%, hsl(var(--border)) 92%),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  opacity: 0.74;
+    inset 0 0 0 1px color-mix(in srgb, white 14%, hsl(var(--border)) 86%),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .dark .tool-interaction-overlay__backdrop {
@@ -394,6 +439,6 @@ const onQuestionOther = () => {
     radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
     radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
   filter: saturate(1.08);
-  opacity: 0.84;
+  opacity: 0.6;
 }
 </style>
