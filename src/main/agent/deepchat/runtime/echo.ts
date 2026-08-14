@@ -8,7 +8,7 @@ const DB_FLUSH_INTERVAL = 600
 export interface EchoHandle {
   schedule(): void
   rescheduleRenderer(): void
-  flush(): void
+  flush(): boolean
   stop(): void
 }
 
@@ -27,11 +27,13 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
     })
   }
 
-  function flushToDb(): void {
+  function flushToDb(): boolean {
     try {
       io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+      return true
     } catch (err) {
       console.error('Failed to flush stream content to DB:', err)
+      return false
     }
   }
 
@@ -64,10 +66,11 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
       rendererThrottle.reschedule()
       dbThrottle()
     },
-    flush(): void {
+    flush(): boolean {
       flushToRenderer()
-      flushToDb()
-      state.dirty = false
+      const persisted = flushToDb()
+      if (persisted) state.dirty = false
+      return persisted
     },
     stop(): void {
       rendererThrottle.cancel()

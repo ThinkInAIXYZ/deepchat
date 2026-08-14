@@ -10,6 +10,8 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
+import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
+import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -75,6 +77,7 @@ describe('AgentToolManager read routing', () => {
     resolveConversationWorkdir = vi.fn().mockResolvedValue(workspaceDir)
     resolveConversationSessionInfo = vi.fn().mockResolvedValue({
       agentId: 'deepchat',
+      agentType: 'deepchat',
       providerId: 'openai',
       modelId: 'gpt-4'
     })
@@ -178,7 +181,8 @@ describe('AgentToolManager read routing', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: workspaceDir,
-      conversationId: 'conv1'
+      conversationId: 'conv1',
+      skillsEnabled: true
     })
     const filesystemContracts = Object.fromEntries(
       definitions
@@ -190,11 +194,50 @@ describe('AgentToolManager read routing', () => {
       read: { effect: 'read', mode: 'parallel' },
       write: { effect: 'write', mode: 'sequential' },
       edit: { effect: 'write', mode: 'sequential' },
-      glob: { effect: 'read', mode: 'sequential' },
-      grep: { effect: 'read', mode: 'sequential' },
+      glob: { effect: 'read', mode: 'parallel' },
+      grep: { effect: 'read', mode: 'parallel' },
       exec: { effect: 'write', mode: 'sequential' },
       process: { effect: 'write', mode: 'sequential' }
     })
+    const exec = definitions.find((definition) => definition.function.name === 'exec')
+    expect(exec?.function.parameters.properties.stdin).toBeUndefined()
+  })
+
+  it('selects parallel for the production read tool definitions', async () => {
+    const definitions = [
+      ...(await manager.getAllToolDefinitions({
+        chatMode: 'agent',
+        supportsVision: false,
+        agentWorkspacePath: workspaceDir,
+        conversationId: 'conv1',
+        skillsEnabled: true
+      })),
+      ...getYoBrowserToolDefinitions()
+    ]
+    const names = [
+      'glob',
+      'grep',
+      'skill_list',
+      'tape_search',
+      'tape_context',
+      'get_browser_status'
+    ]
+    const selectedDefinitions = definitions.filter((definition) =>
+      names.includes(definition.function.name)
+    )
+
+    expect(
+      Object.fromEntries(
+        selectedDefinitions.map(({ function: { name }, execution }) => [name, execution])
+      )
+    ).toEqual(Object.fromEntries(names.map((name) => [name, { effect: 'read', mode: 'parallel' }])))
+    expect(
+      selectToolBatchExecutionMode({
+        permissionMode: 'full_access',
+        toolCalls: names.map((name) => ({ name })),
+        toolDefinitions: selectedDefinitions
+      })
+    ).toBe('parallel')
   })
 
   it('commits process mutations after local validation and before the utility target', async () => {
@@ -343,19 +386,155 @@ describe('AgentToolManager read routing', () => {
         rtkApplied: false,
         rtkMode: 'bypass'
       })
+    const controller = new AbortController()
 
     try {
       const result = (await manager.callTool(
         'exec',
-        { command: 'printf ok', description: 'Print text' },
-        'conv1'
+        {
+          command: 'deepchat tool call',
+          stdin: 'owned input',
+          description: 'Call programmatic tool'
+        },
+        'conv1',
+        {
+          programmaticToolCapability: {
+            quotas: { maxInputBytes: 32, maxDurationMs: 45_000 }
+          } as never,
+          programmaticToolParent: { takeArmedToken: vi.fn() } as never,
+          signal: controller.signal
+        }
       )) as { content: string }
 
       expect(executeCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ command: 'printf ok' }),
-        expect.objectContaining({ conversationId: 'conv1', outputPreviewChars: 7_000 })
+        expect.objectContaining({ command: 'deepchat tool call', timeout: undefined }),
+        expect.objectContaining({
+          conversationId: 'conv1',
+          stdin: 'owned input',
+          programmatic: true,
+          signal: controller.signal,
+          maxTimeoutMs: 45_000,
+          outputPreviewChars: 7_000
+        })
       )
       expect(result.content).toContain('ok')
+    } finally {
+      executeCommand.mockRestore()
+    }
+  })
+
+  it('routes scalar Programmatic discovery without owned stdin', async () => {
+    const executeCommand = vi
+      .spyOn(AgentBashHandler.prototype, 'executeCommand')
+      .mockResolvedValue({
+        output: '{"tools":[]}\nExit Code: 0',
+        rtkApplied: false,
+        rtkMode: 'bypass'
+      })
+
+    try {
+      await manager.callTool(
+        'exec',
+        {
+          command: 'deepchat tool search --query calendar --limit 4',
+          description: 'Search programmatic tools'
+        },
+        'conv1',
+        {
+          programmaticToolCapability: {
+            quotas: { maxInputBytes: 1024, maxDurationMs: 45_000 }
+          } as never,
+          programmaticToolParent: { takeArmedToken: vi.fn() } as never
+        }
+      )
+
+      expect(executeCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'deepchat tool search --query calendar --limit 4'
+        }),
+        expect.objectContaining({
+          conversationId: 'conv1',
+          stdin: undefined,
+          programmatic: true,
+          maxTimeoutMs: 45_000
+        })
+      )
+    } finally {
+      executeCommand.mockRestore()
+    }
+  })
+
+  it('rejects owned exec stdin outside a Programmatic Tool capability', async () => {
+    const executeCommand = vi.spyOn(AgentBashHandler.prototype, 'executeCommand')
+
+    try {
+      await expect(
+        manager.callTool(
+          'exec',
+          {
+            command: 'deepchat tool call',
+            stdin: '{}',
+            description: 'Call programmatic tool'
+          },
+          'conv1'
+        )
+      ).rejects.toThrow(/requires an active Programmatic Tool capability/)
+      expect(executeCommand).not.toHaveBeenCalled()
+    } finally {
+      executeCommand.mockRestore()
+    }
+  })
+
+  it('applies the active Programmatic Tool input quota in UTF-8 bytes', async () => {
+    const executeCommand = vi.spyOn(AgentBashHandler.prototype, 'executeCommand')
+
+    try {
+      await expect(
+        manager.callTool(
+          'exec',
+          {
+            command: 'deepchat tool call',
+            stdin: '😀',
+            description: 'Call programmatic tool'
+          },
+          'conv1',
+          {
+            programmaticToolCapability: {
+              quotas: { maxInputBytes: 3, maxDurationMs: 45_000 }
+            } as never,
+            programmaticToolParent: { takeArmedToken: vi.fn() } as never
+          }
+        )
+      ).rejects.toThrow(/exceeds the active Programmatic Tool input quota/)
+      expect(executeCommand).not.toHaveBeenCalled()
+    } finally {
+      executeCommand.mockRestore()
+    }
+  })
+
+  it('rejects model-owned timeouts for a capability-timed Programmatic exec', async () => {
+    const executeCommand = vi.spyOn(AgentBashHandler.prototype, 'executeCommand')
+
+    try {
+      await expect(
+        manager.callTool(
+          'exec',
+          {
+            command: 'deepchat tool call',
+            stdin: '{}',
+            timeoutMs: 1_000,
+            description: 'Call programmatic tool'
+          },
+          'conv1',
+          {
+            programmaticToolCapability: {
+              quotas: { maxInputBytes: 32, maxDurationMs: 45_000 }
+            } as never,
+            programmaticToolParent: { takeArmedToken: vi.fn() } as never
+          }
+        )
+      ).rejects.toThrow(/duration is owned by its active capability/)
+      expect(executeCommand).not.toHaveBeenCalled()
     } finally {
       executeCommand.mockRestore()
     }

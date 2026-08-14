@@ -48,6 +48,12 @@ import {
   skillsListPublicRoute,
   skillsSetPublicStatusRoute,
   skillsUninstallPublicRoute,
+  toolBatchRoute,
+  toolCallRoute,
+  toolDescribeRoute,
+  toolSearchRoute,
+  PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES,
+  PROGRAMMATIC_TOOL_RPC_TIMEOUT_MS,
   videosGenerateRoute,
   eventsSubscribeRoute,
   runsCancelRoute,
@@ -57,8 +63,11 @@ import {
 import { SKILL_ARCHIVE_MAX_INPUT_BYTES } from '@shared/types/skill'
 import {
   LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS,
+  LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
+  LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION,
   type LocalControlEffect,
   type LocalControlPrincipal,
+  type LocalControlRouteSurfaceVersion,
   type LocalControlScope
 } from '@shared/contracts/localControl'
 import { sanitizePublicText, stripC0AndC1Controls } from './publicText'
@@ -92,6 +101,8 @@ export type CliSurfaceEntry = Readonly<{
     caller: Readonly<{ principal: LocalControlPrincipal }>
   ) => JsonValue
   agentInputAllowed?: (input: unknown) => boolean
+  /** Exact V3 operation grants are the sole authority for these Agent-only entries. */
+  programmaticOnly?: true
   limits: CliRouteLimits
 }>
 
@@ -969,6 +980,54 @@ const CLI_SURFACE_V2_ENTRIES = [
   diagnosticEntry(cliDoctorRoute)
 ] as const
 
+const PROGRAMMATIC_TOOL_LIMITS = Object.freeze({
+  maxBodyBytes: PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES,
+  timeoutMs: PROGRAMMATIC_TOOL_RPC_TIMEOUT_MS
+})
+
+const CLI_SURFACE_V3_PROGRAMMATIC_ENTRIES = [
+  {
+    contract: toolSearchRoute,
+    effect: 'read',
+    callers: ['agent'],
+    scopes: [],
+    transport: 'rpc',
+    approval: 'never',
+    programmaticOnly: true,
+    limits: PROGRAMMATIC_TOOL_LIMITS
+  },
+  {
+    contract: toolDescribeRoute,
+    effect: 'read',
+    callers: ['agent'],
+    scopes: [],
+    transport: 'rpc',
+    approval: 'never',
+    programmaticOnly: true,
+    limits: PROGRAMMATIC_TOOL_LIMITS
+  },
+  {
+    contract: toolCallRoute,
+    effect: 'compute',
+    callers: ['agent'],
+    scopes: [],
+    transport: 'rpc',
+    approval: 'never',
+    programmaticOnly: true,
+    limits: PROGRAMMATIC_TOOL_LIMITS
+  },
+  {
+    contract: toolBatchRoute,
+    effect: 'compute',
+    callers: ['agent'],
+    scopes: [],
+    transport: 'rpc',
+    approval: 'never',
+    programmaticOnly: true,
+    limits: PROGRAMMATIC_TOOL_LIMITS
+  }
+] as const satisfies readonly CliSurfaceEntry[]
+
 function createSurfaceRegistry(
   entries: readonly CliSurfaceEntry[]
 ): ReadonlyMap<string, CliSurfaceEntry> {
@@ -979,6 +1038,17 @@ function createSurfaceRegistry(
     }
     if (entry.agentPolicy && !entry.callers.includes('agent')) {
       throw new Error(`Invalid Agent policy surface: ${entry.contract.name}`)
+    }
+    if (
+      entry.programmaticOnly &&
+      (entry.callers.length !== 1 ||
+        entry.callers[0] !== 'agent' ||
+        entry.scopes.length !== 0 ||
+        entry.transport !== 'rpc' ||
+        entry.approval !== 'never' ||
+        entry.agentPolicy !== undefined)
+    ) {
+      throw new Error(`Invalid Programmatic Tool surface: ${entry.contract.name}`)
     }
     const effects = listCliSurfaceEffects(entry)
     if (entry.agentPolicy === 'allow' && effects.some((effect) => effect !== 'local-maintenance')) {
@@ -1003,13 +1073,30 @@ function createSurfaceRegistry(
 }
 
 export const CLI_SURFACE_V2 = createSurfaceRegistry(CLI_SURFACE_V2_ENTRIES)
+export const CLI_SURFACE_V3 = createSurfaceRegistry([
+  ...CLI_SURFACE_V2_ENTRIES,
+  ...CLI_SURFACE_V3_PROGRAMMATIC_ENTRIES
+])
 
-export function getCliSurfaceEntry(method: string): CliSurfaceEntry | undefined {
-  return CLI_SURFACE_V2.get(method)
+export function getCliSurfaceRegistry(
+  surfaceVersion: LocalControlRouteSurfaceVersion
+): ReadonlyMap<string, CliSurfaceEntry> {
+  if (surfaceVersion === LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION) return CLI_SURFACE_V2
+  if (surfaceVersion === LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION) return CLI_SURFACE_V3
+  throw new Error(`Unsupported CLI route surface version: ${String(surfaceVersion)}`)
 }
 
-export function listCliSurfaceCapabilities(): CliCapability[] {
-  return Array.from(CLI_SURFACE_V2.values(), (entry) => ({
+export function getCliSurfaceEntry(
+  method: string,
+  surfaceVersion: LocalControlRouteSurfaceVersion = LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
+): CliSurfaceEntry | undefined {
+  return getCliSurfaceRegistry(surfaceVersion).get(method)
+}
+
+export function listCliSurfaceCapabilities(
+  surfaceVersion: LocalControlRouteSurfaceVersion = LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
+): CliCapability[] {
+  return Array.from(getCliSurfaceRegistry(surfaceVersion).values(), (entry) => ({
     method: entry.contract.name,
     possibleEffects: [...listCliSurfaceEffects(entry)],
     callers: [...entry.callers],

@@ -13,7 +13,6 @@ export const settingsRouteComponents = {
   'settings-notifications-hooks': () => import('./components/NotificationsHooksSettings.vue'),
   'settings-scheduled-tasks': () => import('./components/CronJobsSettings.vue'),
   'settings-plugins': () => import('./components/PluginsSettings.vue'),
-  'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
   'settings-prompt': () => import('./components/PromptSetting.vue'),
   'settings-memory': () => import('./components/MemorySettings.vue'),
   'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),

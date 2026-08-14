@@ -3,6 +3,8 @@ import type {
   ToolCatalogPort,
   ToolCatalogRequest,
   ToolExecutionPort,
+  ToolExecutionOptions,
+  ToolExecutionPreCheckOptions,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import type { ProviderExecutionPort } from '@shared/types/provider'
@@ -18,6 +20,17 @@ export interface ToolCatalogCacheEntry<TProfile extends string = string> {
   profile: TProfile
   fingerprint: string
   tools: MCPToolDefinition[]
+}
+
+type MainProcessToolExecutionService = Pick<ToolServicePort, 'preCheckToolPermission'> & {
+  assertToolSurfaceAuthority?(
+    request: Parameters<ToolServicePort['callTool']>[0],
+    options: ToolExecutionPreCheckOptions
+  ): void
+  callTool(
+    request: Parameters<ToolServicePort['callTool']>[0],
+    options?: ToolExecutionOptions
+  ): ReturnType<ToolServicePort['callTool']>
 }
 
 export function createToolCatalogPort<TProfile extends string>(input: {
@@ -61,8 +74,17 @@ export function createToolCatalogPort<TProfile extends string>(input: {
   }
 }
 
-export function createToolExecutionPort(toolService: ToolServicePort): ToolExecutionPort {
+export function createToolExecutionPort(
+  toolService: MainProcessToolExecutionService
+): ToolExecutionPort {
   return {
+    assertAuthority: (call, options) => {
+      if (!options.toolSurfaceSnapshot) return
+      if (!toolService.assertToolSurfaceAuthority) {
+        throw new Error('Tool Surface runtime authority gate is unavailable.')
+      }
+      toolService.assertToolSurfaceAuthority(call, options)
+    },
     preCheck: (call, options) => toolService.preCheckToolPermission(call, options),
     execute: (call, options) => toolService.callTool(call, options)
   }

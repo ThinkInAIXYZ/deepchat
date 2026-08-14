@@ -45,7 +45,8 @@ function createHarness(state: unknown = IDLE_STATE) {
       ),
       transitionCurrentStatus: vi.fn(record('runLifecycle.transitionCurrentStatus')),
       transitionStatus: vi.fn(record('runLifecycle.transitionStatus'))
-    }
+    },
+    toolSurfaceDiagnostics: { cancelPending: vi.fn(record('toolSurfaceDiagnostics.cancelPending')) }
   } as unknown as TranscriptMutationCoordinatorDependencies
 
   return { coordinator: new TranscriptMutationCoordinator(deps), deps, order, runtime }
@@ -58,6 +59,7 @@ describe('TranscriptMutationCoordinator', () => {
     await coordinator.prepareClearMessages(SESSION_ID)
 
     expect(order).toEqual([
+      'toolSurfaceDiagnostics.cancelPending',
       'runLifecycle.cancel',
       'runLifecycle.clearFirstTurnReady',
       'memory.resetExtractionCursor',

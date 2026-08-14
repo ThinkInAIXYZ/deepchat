@@ -1,20 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, isProxy } from 'vue'
+import { defineComponent, inject, isProxy, provide } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-
-vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
-  notifyRenderer: vi.fn()
-}))
 
 const mocks = vi.hoisted(() => ({
-  listAgentImportSources: vi.fn(),
-  previewAgentImport: vi.fn(),
-  executeAgentImport: vi.fn()
+  skillClient: {
+    listAgentImportSources: vi.fn(),
+    previewAgentImport: vi.fn(),
+    executeAgentImport: vi.fn()
+  }
 }))
 
 vi.mock('@api/SkillClient', () => ({
-  createSkillClient: () => mocks
+  createSkillClient: () => mocks.skillClient
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -43,38 +40,58 @@ const DialogStub = defineComponent({
 })
 
 const ButtonStub = defineComponent({
-  name: 'Button',
+  name: 'DcButton',
   inheritAttrs: false,
   props: { disabled: Boolean },
   template: '<button v-bind="$attrs" :disabled="disabled"><slot /></button>'
 })
 
+const CheckboxStub = defineComponent({
+  name: 'Checkbox',
+  props: { modelValue: [Boolean, String], disabled: Boolean },
+  emits: ['update:modelValue'],
+  template:
+    '<button type="button" role="checkbox" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)" />'
+})
+
+const radioGroupKey = 'test-radio-group-update'
+const RadioGroupStub = defineComponent({
+  name: 'RadioGroup',
+  props: { modelValue: String },
+  emits: ['update:modelValue'],
+  setup(_props, { emit }) {
+    provide(radioGroupKey, (value: string) => emit('update:modelValue', value))
+  },
+  template: '<div><slot /></div>'
+})
+
 const RadioGroupItemStub = defineComponent({
   name: 'RadioGroupItem',
-  props: {
-    value: { type: String, required: true },
-    disabled: Boolean
+  props: { value: { type: String, required: true }, disabled: Boolean },
+  setup() {
+    return { select: inject<(value: string) => void>(radioGroupKey) }
   },
-  template: '<input type="radio" :value="value" :disabled="disabled" />'
+  template: '<button type="button" :disabled="disabled" @click="select?.(value)" />'
 })
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve
+    reject = nextReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const mountDialog = async () => {
   const Dialog = (
-    await import('../../../src/renderer/settings/components/skills/ImportSkillsFromAgentDialog.vue')
+    await import('../../../src/renderer/src/pages/plugins/skills/ImportSkillsFromAgentDialog.vue')
   ).default
   return mount(Dialog, {
     props: {
       open: true,
-      targetAgentId: 'target-agent',
-      targetAgentName: 'Target Agent'
+      agents: [{ id: 'target-a', name: 'Target Agent' }]
     },
     global: {
       stubs: {
@@ -84,15 +101,10 @@ const mountDialog = async () => {
         DialogFooter: passthrough('DialogFooter'),
         DialogHeader: passthrough('DialogHeader'),
         DialogTitle: passthrough('DialogTitle'),
-        Empty: passthrough('Empty'),
-        EmptyDescription: passthrough('EmptyDescription'),
-        EmptyHeader: passthrough('EmptyHeader'),
-        EmptyMedia: passthrough('EmptyMedia'),
-        EmptyTitle: passthrough('EmptyTitle'),
-        Badge: passthrough('Badge'),
+        DcBadge: passthrough('DcBadge'),
         DcButton: ButtonStub,
-        Checkbox: passthrough('Checkbox'),
-        RadioGroup: passthrough('RadioGroup'),
+        Checkbox: CheckboxStub,
+        RadioGroup: RadioGroupStub,
         RadioGroupItem: RadioGroupItemStub,
         Spinner: passthrough('Spinner'),
         Icon: true
@@ -105,190 +117,93 @@ describe('ImportSkillsFromAgentDialog', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
-    mocks.listAgentImportSources.mockResolvedValue([
-      {
-        id: 'internal:source-a',
-        source: { kind: 'internal', agentId: 'source-a' },
-        name: 'Source A',
-        available: true,
-        skillCount: 1
-      },
-      {
-        id: 'internal:source-b',
-        source: { kind: 'internal', agentId: 'source-b' },
-        name: 'Source B',
-        available: true,
-        skillCount: 1
-      }
-    ])
-    mocks.previewAgentImport.mockResolvedValue({
-      targetAgentId: 'target-agent',
-      source: { kind: 'internal', agentId: 'source-a' },
-      items: [
-        {
-          name: 'skill-a',
-          description: 'Skill A',
-          status: 'ready'
-        }
-      ]
-    })
-  })
-
-  it('preserves array result counts and locks source and close actions while executing', async () => {
-    const execution = deferred<{
-      success: boolean
-      imported: string[]
-      skipped: string[]
-      failed: Array<{ skillName: string; reason: string }>
-    }>()
-    mocks.executeAgentImport.mockReturnValue(execution.promise)
-    const wrapper = await mountDialog()
-    await flushPromises()
-
-    expect(mocks.previewAgentImport).toHaveBeenCalledTimes(1)
-    expect(isProxy(mocks.previewAgentImport.mock.calls[0]?.[0].source)).toBe(false)
-    await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
-    await flushPromises()
-
-    expect(mocks.executeAgentImport).toHaveBeenCalledWith({
-      targetAgentId: 'target-agent',
-      source: { kind: 'internal', agentId: 'source-a' },
-      items: [{ skillName: 'skill-a', strategy: 'skip' }]
-    })
-    expect(isProxy(mocks.executeAgentImport.mock.calls[0]?.[0].source)).toBe(false)
-
-    await wrapper.get('[data-testid="agent-import-source-internal:source-b"]').trigger('click')
-    await wrapper.get('[data-testid="dialog-dismiss"]').trigger('click')
-
-    expect(mocks.previewAgentImport).toHaveBeenCalledTimes(1)
-    expect(wrapper.emitted('update:open')).toBeUndefined()
-
-    execution.resolve({
-      success: true,
-      imported: ['skill-a'],
-      skipped: ['skill-b'],
-      failed: []
-    })
-    await flushPromises()
-
-    expect(wrapper.text()).toContain(
-      'settings.skills.agentImport.resultSummary:{"imported":1,"skipped":1,"failed":0}'
-    )
-  })
-
-  it('drops stale sources and previews after the target Agent changes', async () => {
-    const staleSources = deferred<
-      Array<{
-        id: string
-        source: { kind: 'internal'; agentId: string }
-        name: string
-        available: boolean
-        skillCount: number
-      }>
-    >()
-    mocks.listAgentImportSources.mockImplementation((targetAgentId: string) => {
-      if (targetAgentId === 'target-agent') return staleSources.promise
-      return Promise.resolve([
-        {
-          id: 'internal:source-b',
-          source: { kind: 'internal' as const, agentId: 'source-b' },
-          name: 'Source B',
-          available: true,
-          skillCount: 1
-        }
-      ])
-    })
-    mocks.previewAgentImport.mockImplementation(({ targetAgentId }: { targetAgentId: string }) =>
-      Promise.resolve({
-        targetAgentId,
-        source: { kind: 'internal', agentId: 'source-b' },
-        items: [{ name: 'skill-b', description: 'Skill B', status: 'ready' }]
-      })
-    )
-    const wrapper = await mountDialog()
-    await Promise.resolve()
-
-    await wrapper.setProps({ targetAgentId: 'target-agent-b', targetAgentName: 'Target B' })
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="agent-import-source-internal:source-b"]').exists()).toBe(
-      true
-    )
-    expect(wrapper.find('[data-testid="agent-import-skill-skill-b"]').exists()).toBe(true)
-
-    staleSources.resolve([
-      {
-        id: 'internal:source-a',
-        source: { kind: 'internal', agentId: 'source-a' },
-        name: 'Source A',
-        available: true,
-        skillCount: 1
-      }
-    ])
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="agent-import-source-internal:source-a"]').exists()).toBe(
-      false
-    )
-    expect(mocks.previewAgentImport).toHaveBeenCalledWith({
-      targetAgentId: 'target-agent-b',
-      source: { kind: 'internal', agentId: 'source-b' }
-    })
-  })
-
-  it('executes the selected per-conflict strategy for an external Agent source', async () => {
-    mocks.listAgentImportSources.mockResolvedValue([
+    mocks.skillClient.listAgentImportSources.mockResolvedValue([
       {
         id: 'external:codex',
         source: { kind: 'external', toolId: 'codex' },
         name: 'Codex',
         available: true,
-        skillCount: 1
+        skillCount: 3
       }
     ])
-    mocks.previewAgentImport.mockResolvedValue({
-      targetAgentId: 'target-agent',
+    mocks.skillClient.previewAgentImport.mockResolvedValue({
       source: { kind: 'external', toolId: 'codex' },
       items: [
+        { name: 'ready-skill', description: 'Ready', status: 'ready' },
+        { name: 'same-skill', description: 'Same', status: 'same' },
         {
-          name: 'skill-a',
-          description: 'Skill A',
+          name: 'conflict-skill',
+          description: 'Conflict',
           status: 'conflict',
-          suggestedTargetName: 'skill-a-copy'
+          suggestedTargetName: 'conflict-skill-copy',
+          affectedAgentIds: ['target-a']
         }
       ]
     })
-    mocks.executeAgentImport.mockResolvedValue({
+  })
+
+  it('imports external snapshots globally with explicit conflict impact', async () => {
+    mocks.skillClient.executeAgentImport.mockResolvedValue({
       success: true,
-      imported: ['skill-a'],
+      imported: ['ready-skill', 'conflict-skill'],
+      reused: ['same-skill'],
       skipped: [],
       failed: []
     })
     const wrapper = await mountDialog()
     await flushPromises()
 
-    await wrapper.get('[data-testid="agent-import-strategy-skill-a-overwrite"]').trigger('click')
+    expect(mocks.skillClient.listAgentImportSources).toHaveBeenCalledWith()
+    expect(mocks.skillClient.previewAgentImport).toHaveBeenLastCalledWith({
+      source: { kind: 'external', toolId: 'codex' }
+    })
+    expect(isProxy(mocks.skillClient.previewAgentImport.mock.calls[0]?.[0].source)).toBe(false)
+    expect(
+      wrapper
+        .get('[data-testid="agent-import-skill-ready-skill"] [role="checkbox"]')
+        .attributes('aria-label')
+    ).toBe('ready-skill')
+    expect(wrapper.text()).toContain(
+      'settings.skills.agentImport.overwriteImpact:{"agents":"Target Agent"}'
+    )
+
+    await wrapper
+      .get('[data-testid="agent-import-strategy-conflict-skill-overwrite"] button')
+      .trigger('click')
     await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
     await flushPromises()
 
-    expect(mocks.executeAgentImport).toHaveBeenCalledWith({
-      targetAgentId: 'target-agent',
+    expect(mocks.skillClient.executeAgentImport).toHaveBeenCalledWith({
       source: { kind: 'external', toolId: 'codex' },
-      items: [{ skillName: 'skill-a', strategy: 'overwrite' }]
+      items: [
+        { skillName: 'ready-skill', strategy: 'skip', acknowledgedAgentIds: undefined },
+        { skillName: 'same-skill', strategy: 'skip', acknowledgedAgentIds: undefined },
+        {
+          skillName: 'conflict-skill',
+          strategy: 'overwrite',
+          acknowledgedAgentIds: ['target-a']
+        }
+      ]
     })
+    expect(wrapper.emitted('imported')).toHaveLength(1)
+    expect(wrapper.text()).toContain(
+      'settings.skills.agentImport.resultSummaryV3:{"imported":2,"reused":1,"skipped":0,"failed":0}'
+    )
   })
 
-  it('keeps execution diagnostics out of the failure feedback', async () => {
-    mocks.executeAgentImport.mockRejectedValue(new Error('secret filesystem path'))
+  it('blocks dismissal during execution and hides internal diagnostics on failure', async () => {
+    const execution = deferred<never>()
+    mocks.skillClient.executeAgentImport.mockReturnValue(execution.promise)
     const wrapper = await mountDialog()
     await flushPromises()
 
     await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
+    await wrapper.get('[data-testid="dialog-dismiss"]').trigger('click')
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+
+    execution.reject(new Error('secret filesystem path'))
     await flushPromises()
 
-    // 失败反馈走按钮 ⚠ + 内联错误，不再弹 toast
-    expect(notifyRenderer).not.toHaveBeenCalled()
-    expect((wrapper.vm as any).executeStatus).toBe('error')
     expect(wrapper.text()).toContain('common.error.requestFailed')
     expect(wrapper.text()).not.toContain('secret filesystem path')
   })

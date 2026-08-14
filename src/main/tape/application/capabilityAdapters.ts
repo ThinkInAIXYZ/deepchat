@@ -59,11 +59,19 @@ export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepCh
     listViewManifestsByMessage: (
       ...args: Parameters<DeepChatLoopTapePort['listViewManifestsByMessage']>
     ) => source.listViewManifestsByMessage(...args),
+    listViewManifestsByMessageRequest: (
+      ...args: Parameters<DeepChatLoopTapePort['listViewManifestsByMessageRequest']>
+    ) => source.listViewManifestsByMessageRequest(...args),
+    getViewManifestByExecutionBinding: (
+      input: Parameters<DeepChatLoopTapePort['getViewManifestByExecutionBinding']>[0]
+    ) => source.getViewManifestByExecutionBinding(input),
     assertSkillRequestAuthority: (
       input: Parameters<DeepChatLoopTapePort['assertSkillRequestAuthority']>[0]
     ) => source.assertSkillRequestAuthority(input),
     appendViewManifest: (manifest: Parameters<DeepChatLoopTapePort['appendViewManifest']>[0]) =>
       source.appendViewManifest(manifest),
+    commitToolSurfaceView: (input: Parameters<DeepChatLoopTapePort['commitToolSurfaceView']>[0]) =>
+      source.commitToolSurfaceView(input),
     appendToolFact: (input: Parameters<DeepChatLoopTapePort['appendToolFact']>[0]) =>
       source.appendToolFact(input),
     getTapeIncarnationId: (sessionId: string) => source.getTapeIncarnationId(sessionId),

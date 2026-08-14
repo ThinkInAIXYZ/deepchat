@@ -1,9 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { app } from 'electron'
-import logger from '@shared/logger'
-import type { Agent } from '@shared/types/agent-interface'
 import type {
   AgentSkillImportPreview,
   AgentSkillImportPreviewItem,
@@ -22,39 +20,25 @@ import type { CanonicalSkill, SkillSyncServicePort } from '@shared/types/skillSy
 import { formatConverter } from './sync/formatConverter'
 import { isFilenameSafe } from './sync/security'
 
-const IMPORTABLE_AGENT_TYPE = 'deepchat'
 const IMPORTABLE_SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
 
-export interface AgentSkillImportAgentPort {
-  listAgents(): Promise<Agent[]>
-  getAgent(agentId: string): Promise<Agent | null>
-}
-
 export interface AgentSkillImportServiceDependencies {
-  agents: AgentSkillImportAgentPort
-  skills: Pick<
-    SkillServicePort,
-    | 'getSkillsDir'
-    | 'getUnifiedSkillCatalog'
-    | 'installImportedSkillForAgent'
-    | 'refreshAgentCatalog'
-  >
+  skills: Pick<SkillServicePort, 'getAllSkills' | 'installImportedSkill'>
   external: Pick<SkillSyncServicePort, 'scanExternalTools' | 'previewImport'>
 }
 
 type ResolvedImportItem = {
   preview: AgentSkillImportPreviewItem
-  sourcePath?: string
   canonicalSkill?: CanonicalSkill
 }
 
 type NormalizedImportSelection = {
   skillName: string
   strategy: AgentSkillImportSelection['strategy']
+  acknowledgedAgentIds: string[]
 }
 
-const sourceId = (source: AgentSkillImportSource): string =>
-  source.kind === 'internal' ? `internal:${source.agentId}` : `external:${source.toolId}`
+const sourceId = (source: AgentSkillImportSource): string => `external:${source.toolId}`
 
 const normalizeNames = (names?: readonly string[]): string[] | undefined => {
   if (!names) return undefined
@@ -66,124 +50,101 @@ const normalizeNames = (names?: readonly string[]): string[] | undefined => {
 export class AgentSkillImportService {
   constructor(private readonly dependencies: AgentSkillImportServiceDependencies) {}
 
-  async listSources(targetAgentId: string): Promise<AgentSkillImportSourceInfo[]> {
-    await this.requireDeepChatAgent(targetAgentId)
-    const [agents, externalResults] = await Promise.all([
-      this.dependencies.agents.listAgents(),
-      this.dependencies.external.scanExternalTools()
-    ])
-
-    const internalSources = await Promise.all(
-      agents
-        .filter((agent) => agent.type === IMPORTABLE_AGENT_TYPE && agent.id !== targetAgentId)
-        .map(async (agent): Promise<AgentSkillImportSourceInfo> => {
-          const skills = await this.dependencies.skills.getUnifiedSkillCatalog(agent.id)
-          return {
-            id: sourceId({ kind: 'internal', agentId: agent.id }),
-            source: { kind: 'internal', agentId: agent.id },
-            name: agent.name,
-            available: true,
-            skillCount: skills.filter((skill) => !skill.ownerPluginId).length
-          }
+  async listSources(): Promise<AgentSkillImportSourceInfo[]> {
+    const externalResults = await this.dependencies.external.scanExternalTools()
+    return externalResults
+      .map(
+        (result): AgentSkillImportSourceInfo => ({
+          id: sourceId({ kind: 'external', toolId: result.toolId }),
+          source: { kind: 'external', toolId: result.toolId },
+          name: result.toolName,
+          available: result.available,
+          skillCount: result.skills.length
         })
-    )
-    const externalSources = externalResults.map(
-      (result): AgentSkillImportSourceInfo => ({
-        id: sourceId({ kind: 'external', toolId: result.toolId }),
-        source: { kind: 'external', toolId: result.toolId },
-        name: result.toolName,
-        available: result.available,
-        skillCount: result.skills.length
-      })
-    )
-
-    return [...internalSources, ...externalSources].sort((left, right) => {
-      if (left.source.kind !== right.source.kind) {
-        return left.source.kind === 'internal' ? -1 : 1
-      }
-      return left.name.localeCompare(right.name)
-    })
+      )
+      .sort((left, right) => left.name.localeCompare(right.name))
   }
 
   async preview(input: {
-    targetAgentId: string
     source: AgentSkillImportSource
     skillNames?: string[]
   }): Promise<AgentSkillImportPreview> {
-    await this.requireDeepChatAgent(input.targetAgentId)
-    const items = await this.resolveImportItems(input)
+    const items = await this.resolveExternalItems(input.source.toolId, input.skillNames)
     return {
-      targetAgentId: input.targetAgentId,
       source: input.source,
       items: items.map((item) => item.preview)
     }
   }
 
   async execute(input: {
-    targetAgentId: string
     source: AgentSkillImportSource
     items: AgentSkillImportSelection[]
   }): Promise<AgentSkillImportResult> {
-    await this.requireDeepChatAgent(input.targetAgentId)
-    const selections = this.normalizeSelections(input.items)
-    const requestedNames = selections
-      .map((item) => item.skillName)
-      .sort((left, right) => left.localeCompare(right))
-    const strategies = new Map(selections.map((item) => [item.skillName, item.strategy]))
-    const resolvedItems = await this.resolveImportItems({
-      targetAgentId: input.targetAgentId,
-      source: input.source,
-      skillNames: requestedNames
-    })
+    const selections = this.normalizeSelections(input.items).sort((left, right) =>
+      left.skillName.localeCompare(right.skillName)
+    )
+    const requestedNames = selections.map((item) => item.skillName)
+    const resolvedItems = await this.resolveExternalItems(input.source.toolId, requestedNames)
     const resolvedByName = new Map(resolvedItems.map((item) => [item.preview.name, item]))
     const result: AgentSkillImportResult = {
       success: true,
       imported: [],
+      reused: [],
       skipped: [],
       failed: []
     }
 
-    for (const skillName of requestedNames) {
+    for (const selection of selections) {
+      const skillName = selection.skillName
       const resolved = resolvedByName.get(skillName)
-      const strategy = strategies.get(skillName) ?? 'skip'
       if (!resolved || resolved.preview.status === 'unavailable') {
         result.failed.push({
           skillName,
-          reason: resolved?.preview.warning ?? 'Skill is no longer available from the source Agent.'
+          reason:
+            resolved?.preview.warning ?? 'Skill is no longer available from the external Agent.'
         })
         continue
       }
-      if (resolved.preview.status === 'conflict' && strategy === 'skip') {
+      if (resolved.preview.status === 'conflict' && selection.strategy === 'skip') {
         result.skipped.push(skillName)
+        continue
+      }
+      if (
+        resolved.preview.status === 'conflict' &&
+        selection.strategy === 'overwrite' &&
+        !this.sameNames(resolved.preview.affectedAgentIds ?? [], selection.acknowledgedAgentIds)
+      ) {
+        result.failed.push({
+          skillName,
+          reason: 'Enabled Agent impact changed; preview the import again.'
+        })
         continue
       }
 
       let temporaryDirectory: string | null = null
       try {
-        const sourcePath = resolved.sourcePath ?? (await this.materializeCanonicalSkill(resolved))
-        if (!resolved.sourcePath) temporaryDirectory = sourcePath
-        if (resolved.sourcePath && (await fs.promises.lstat(sourcePath)).isSymbolicLink()) {
-          throw new Error('Symbolic-link Skill roots cannot be imported as snapshots.')
+        if (resolved.preview.status === 'same') {
+          result.reused.push(skillName)
+          continue
         }
 
+        temporaryDirectory = await this.materializeCanonicalSkill(resolved)
         const options: SkillInstallOptions = {
-          overwrite: resolved.preview.status === 'conflict' && strategy === 'overwrite',
+          overwrite: resolved.preview.status === 'conflict' && selection.strategy === 'overwrite',
+          acknowledgedAgentIds:
+            resolved.preview.status === 'conflict' && selection.strategy === 'overwrite'
+              ? selection.acknowledgedAgentIds
+              : undefined,
           targetName:
-            resolved.preview.status === 'conflict' && strategy === 'rename'
+            resolved.preview.status === 'conflict' && selection.strategy === 'rename'
               ? resolved.preview.suggestedTargetName
               : resolved.preview.name
         }
-        const installed = await this.dependencies.skills.installImportedSkillForAgent(
-          input.targetAgentId,
-          sourcePath,
-          input.source.kind === 'internal'
-            ? {
-                importedFrom: `agent:${input.source.agentId}/${skillName}`,
-                sourceAgentId: input.source.agentId
-              }
-            : { importedFrom: `external:${input.source.toolId}/${skillName}` },
-          options,
-          'deferred'
+        const installed = await this.dependencies.skills.installImportedSkill(
+          [],
+          temporaryDirectory,
+          { importedFrom: `external:${input.source.toolId}/${skillName}` },
+          options
         )
         if (!installed.success || !installed.skillName) {
           throw new Error(installed.error || 'Skill installation failed.')
@@ -203,168 +164,112 @@ export class AgentSkillImportService {
       }
     }
 
-    if (result.imported.length > 0) {
-      try {
-        await this.dependencies.skills.refreshAgentCatalog(input.targetAgentId)
-      } catch (error) {
-        logger.warn('[AgentSkillImportService] Failed to refresh imported Skill catalog.', {
-          targetAgentId: input.targetAgentId,
-          importedCount: result.imported.length,
-          error
-        })
-      }
-    }
     result.success = result.failed.length === 0
     return result
   }
 
-  private async resolveImportItems(input: {
-    targetAgentId: string
-    source: AgentSkillImportSource
-    skillNames?: string[]
-  }): Promise<ResolvedImportItem[]> {
-    if (input.source.kind === 'internal') {
-      return await this.resolveInternalItems(
-        input.targetAgentId,
-        input.source.agentId,
-        input.skillNames
-      )
-    }
-    return await this.resolveExternalItems(
-      input.targetAgentId,
-      input.source.toolId,
-      input.skillNames
-    )
-  }
-
-  private async resolveInternalItems(
-    targetAgentId: string,
-    sourceAgentId: string,
-    requestedNames?: string[]
-  ): Promise<ResolvedImportItem[]> {
-    if (sourceAgentId === targetAgentId) {
-      throw new Error('Source and target Agents must be different.')
-    }
-    await this.requireDeepChatAgent(sourceAgentId)
-    const [sourceCatalog, targetCatalog, sourceRoot] = await Promise.all([
-      this.dependencies.skills.getUnifiedSkillCatalog(sourceAgentId),
-      this.dependencies.skills.getUnifiedSkillCatalog(targetAgentId),
-      this.dependencies.skills.getSkillsDir(sourceAgentId)
-    ])
-    const selected = this.selectInternalSkills(sourceCatalog, requestedNames)
-    return this.buildResolvedItems(
-      await Promise.all(
-        selected.map(async (skill) => {
-          const sourcePath = skill.skillRoot
-          const validSourcePath = await this.isSafeInternalSourcePath(sourcePath, sourceRoot)
-          return {
-            name: skill.name,
-            description: skill.description,
-            sourcePath: validSourcePath ? sourcePath : undefined,
-            unavailable: Boolean(skill.ownerPluginId) || !validSourcePath,
-            warning: skill.ownerPluginId
-              ? 'Plugin-owned Skills cannot be copied outside their Plugin lifecycle.'
-              : validSourcePath
-                ? undefined
-                : 'Skill source is outside the owning Agent Skill root.'
-          }
-        })
-      ),
-      targetCatalog
-    )
-  }
-
   private async resolveExternalItems(
-    targetAgentId: string,
     toolId: string,
     requestedNames?: string[]
   ): Promise<ResolvedImportItem[]> {
     const scans = await this.dependencies.external.scanExternalTools()
     const source = scans.find((result) => result.toolId === toolId)
-    if (!source?.available) {
-      throw new Error(`External Agent is unavailable: ${toolId}`)
-    }
+    if (!source?.available) throw new Error(`External Agent is unavailable: ${toolId}`)
+
     const names = normalizeNames(requestedNames) ?? source.skills.map((skill) => skill.name)
-    const [previews, targetCatalog] = await Promise.all([
+    const [previews, allSkills] = await Promise.all([
       this.dependencies.external.previewImport(toolId, names),
-      this.dependencies.skills.getUnifiedSkillCatalog(targetAgentId)
+      this.dependencies.skills.getAllSkills()
     ])
     const previewByName = new Map(previews.map((preview) => [preview.skill.name, preview]))
     const sourceByName = new Map(source.skills.map((skill) => [skill.name, skill]))
-    const sourceItems = names.map((name) => {
+    const skillByName = new Map(allSkills.map((skill) => [skill.name, skill]))
+    const occupiedNames = new Set([...skillByName.keys(), ...names])
+    const resolved: ResolvedImportItem[] = []
+
+    for (const name of names) {
       const preview = previewByName.get(name)
       const sourceInfo = sourceByName.get(name)
       const parseWarning = preview?.warnings.find((warning) => warning.startsWith('Parse error:'))
-      return {
-        name,
-        description: preview?.skill.description ?? sourceInfo?.description ?? '',
-        canonicalSkill: preview?.skill,
-        unavailable: !sourceInfo || !preview || Boolean(parseWarning),
-        warning: !sourceInfo ? 'Skill is no longer present in the external Agent.' : parseWarning
-      }
-    })
-    return this.buildResolvedItems(sourceItems, targetCatalog)
-  }
-
-  private buildResolvedItems(
-    sourceItems: Array<{
-      name: string
-      description: string
-      sourcePath?: string
-      canonicalSkill?: CanonicalSkill
-      unavailable: boolean
-      warning?: string
-    }>,
-    targetCatalog: UnifiedSkillItem[]
-  ): ResolvedImportItem[] {
-    const occupiedNames = new Set(targetCatalog.map((skill) => skill.name))
-    return sourceItems
-      .map((item): ResolvedImportItem => {
-        const conflict = occupiedNames.has(item.name)
-        const suggestedTargetName = conflict
-          ? this.nextAvailableName(item.name, occupiedNames)
-          : undefined
-        if (suggestedTargetName) occupiedNames.add(suggestedTargetName)
-        return {
-          preview: {
-            name: item.name,
-            description: item.description,
-            status: item.unavailable ? 'unavailable' : conflict ? 'conflict' : 'ready',
-            suggestedTargetName,
-            warning: item.warning
-          },
-          sourcePath: item.sourcePath,
-          canonicalSkill: item.canonicalSkill
-        }
+      const existing = skillByName.get(name)
+      const unavailable = !sourceInfo || !preview || Boolean(parseWarning)
+      const same =
+        !unavailable && existing && preview
+          ? await this.isCanonicalSkillSame(existing, preview.skill)
+          : false
+      const conflict = Boolean(existing && !same)
+      const suggestedTargetName = conflict ? this.nextAvailableName(name, occupiedNames) : undefined
+      if (suggestedTargetName) occupiedNames.add(suggestedTargetName)
+      resolved.push({
+        preview: {
+          name,
+          description: preview?.skill.description ?? sourceInfo?.description ?? '',
+          status: unavailable ? 'unavailable' : same ? 'same' : conflict ? 'conflict' : 'ready',
+          suggestedTargetName,
+          affectedAgentIds: conflict ? existing?.assignedAgentIds : undefined,
+          warning: !sourceInfo ? 'Skill is no longer present in the external Agent.' : parseWarning
+        },
+        canonicalSkill: preview?.skill
       })
-      .sort((left, right) => left.preview.name.localeCompare(right.preview.name))
+    }
+    return resolved.sort((left, right) => left.preview.name.localeCompare(right.preview.name))
   }
 
-  private selectInternalSkills(
-    catalog: UnifiedSkillItem[],
-    requestedNames?: string[]
-  ): UnifiedSkillItem[] {
-    const names = normalizeNames(requestedNames)
-    if (!names) return catalog
-    const byName = new Map(catalog.map((skill) => [skill.name, skill]))
-    return names
-      .map((name) => byName.get(name))
-      .filter((skill): skill is UnifiedSkillItem => Boolean(skill))
-  }
-
-  private async isSafeInternalSourcePath(sourcePath: string, sourceRoot: string): Promise<boolean> {
+  private async isCanonicalSkillSame(
+    existing: UnifiedSkillItem,
+    canonicalSkill: CanonicalSkill
+  ): Promise<boolean> {
+    const temporaryDirectory = await this.materializeCanonicalSkill({
+      preview: {
+        name: canonicalSkill.name,
+        description: canonicalSkill.description,
+        status: 'ready'
+      },
+      canonicalSkill
+    })
     try {
-      const [sourceStats, resolvedSource, resolvedRoot] = await Promise.all([
-        fs.promises.lstat(sourcePath),
-        fs.promises.realpath(sourcePath),
-        fs.promises.realpath(sourceRoot)
+      const [existingHash, importedHash] = await Promise.all([
+        this.createDirectoryHash(existing.skillRoot),
+        this.createDirectoryHash(temporaryDirectory)
       ])
-      if (sourceStats.isSymbolicLink() || !sourceStats.isDirectory()) return false
-      const relative = path.relative(resolvedRoot, resolvedSource)
-      return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
+      return existingHash === importedHash
     } catch {
       return false
+    } finally {
+      await fs.promises
+        .rm(temporaryDirectory, { recursive: true, force: true })
+        .catch(() => undefined)
     }
+  }
+
+  private async createDirectoryHash(root: string): Promise<string> {
+    const directoryHash = createHash('sha256')
+
+    const visit = async (current: string): Promise<void> => {
+      const entries = await fs.promises.readdir(current, { withFileTypes: true })
+      entries.sort((left, right) => left.name.localeCompare(right.name))
+
+      for (const entry of entries) {
+        if (entry.isSymbolicLink() || entry.name === '.deepchat-meta') continue
+        const fullPath = path.join(current, entry.name)
+        if (entry.isDirectory()) {
+          await visit(fullPath)
+          continue
+        }
+        if (!entry.isFile()) continue
+
+        const fileHash = createHash('sha256')
+        for await (const chunk of fs.createReadStream(fullPath)) {
+          fileHash.update(chunk)
+        }
+        directoryHash.update(path.relative(root, fullPath))
+        directoryHash.update('\0')
+        directoryHash.update(fileHash.digest())
+      }
+    }
+
+    await visit(root)
+    return directoryHash.digest('hex')
   }
 
   private nextAvailableName(baseName: string, occupiedNames: ReadonlySet<string>): string {
@@ -396,15 +301,17 @@ export class AgentSkillImportService {
         throw new Error(`Duplicate Skill selection in import request: ${skillName}`)
       }
       seen.add(skillName)
-      selections.push({ skillName, strategy: item.strategy })
+      selections.push({
+        skillName,
+        strategy: item.strategy,
+        acknowledgedAgentIds: Array.from(new Set(item.acknowledgedAgentIds ?? [])).sort()
+      })
     }
     return selections
   }
 
   private async materializeCanonicalSkill(item: ResolvedImportItem): Promise<string> {
-    if (!item.canonicalSkill) {
-      throw new Error('External Skill could not be converted.')
-    }
+    if (!item.canonicalSkill) throw new Error('External Skill could not be converted.')
     const root = await fs.promises.mkdtemp(
       path.join(app.getPath('temp'), `deepchat-agent-skill-import-${randomUUID()}-`)
     )
@@ -461,11 +368,12 @@ export class AgentSkillImportService {
     }
   }
 
-  private async requireDeepChatAgent(agentId: string): Promise<Agent> {
-    const agent = await this.dependencies.agents.getAgent(agentId)
-    if (!agent || agent.type !== IMPORTABLE_AGENT_TYPE) {
-      throw new Error(`DeepChat Agent not found: ${agentId}`)
-    }
-    return agent
+  private sameNames(left: string[], right: string[]): boolean {
+    const normalizedLeft = Array.from(new Set(left)).sort()
+    const normalizedRight = Array.from(new Set(right)).sort()
+    return (
+      normalizedLeft.length === normalizedRight.length &&
+      normalizedLeft.every((value, index) => value === normalizedRight[index])
+    )
   }
 }

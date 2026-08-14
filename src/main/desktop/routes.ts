@@ -1,4 +1,6 @@
 import { app, BrowserWindow } from 'electron'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 import type {
   IShortcutPresenter,
   ITabPresenter,
@@ -55,6 +57,7 @@ import {
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
+  windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute,
   type SettingsActivityInput
@@ -335,6 +338,20 @@ export function createDesktopRoutes(deps: {
         const input = windowRequeuePendingSettingsProviderInstallRoute.input.parse(rawInput)
         windowPresenter.setPendingSettingsProviderInstall(input.preview)
         return windowRequeuePendingSettingsProviderInstallRoute.output.parse({ queued: true })
+      }
+    ],
+    [
+      windowResumeGuidedOnboardingRoute.name,
+      async (rawInput) => {
+        windowResumeGuidedOnboardingRoute.input.parse(rawInput)
+        const focused = windowPresenter.focusMainWindow()
+        const requested = focused
+          ? await windowPresenter.sendToMainWindow(
+              DEEPCHAT_EVENT_CHANNEL,
+              createDeepchatEventEnvelope('appRuntime.guidedOnboardingResumeRequested', {})
+            )
+          : false
+        return windowResumeGuidedOnboardingRoute.output.parse({ requested, focused })
       }
     ],
     [

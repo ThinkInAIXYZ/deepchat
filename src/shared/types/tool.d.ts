@@ -59,7 +59,13 @@ export interface ToolCallOptions {
   registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
   commandShell?: ResolvedCommandShell
   oneShotCommandGrantId?: string
+  permissionLease?: ToolPermissionLeaseCapability
 }
+
+export type ToolPermissionLeaseCapability = Readonly<{
+  kind: 'file' | 'settings'
+  leaseId: string
+}>
 
 export interface ToolPermissionPreCheckResult {
   needsPermission: true
@@ -89,6 +95,12 @@ export interface ToolPermissionPreCheckResult {
   [key: string]: unknown
 }
 
+export interface ToolDefinitionUniverseSnapshot {
+  readonly definitions: readonly MCPToolDefinition[]
+  readonly complete: boolean
+  readonly unavailableSourceCount: number
+}
+
 /**
  * Interface for the merged Tool catalog and execution service.
  */
@@ -98,6 +110,14 @@ export interface ToolServicePort {
    * @param context Context for tool definition retrieval
    */
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
+
+  /**
+   * Resolve the owned definition universe without publishing runtime dispatch mappings.
+   */
+  getToolDefinitionUniverse(
+    context: ToolDefinitionContext,
+    options?: { readonly signal?: AbortSignal }
+  ): Promise<ToolDefinitionUniverseSnapshot>
 
   /**
    * Get only Agent tools that users may enable or disable.
@@ -129,6 +149,7 @@ export interface ToolServicePort {
     options?: {
       permissionMode?: PermissionMode
       signal?: AbortSignal
+      activeSkillNames?: string[]
       commandShell?: ResolvedCommandShell
     }
   ): Promise<ToolPermissionPreCheckResult | null>

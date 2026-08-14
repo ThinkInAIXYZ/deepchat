@@ -26,6 +26,7 @@ const windowClientListenerImpls = vi.hoisted(() => ({
 const windowClientMock = vi.hoisted(() => ({
   closeSettings: vi.fn().mockResolvedValue(true),
   focusMainWindow: vi.fn().mockResolvedValue(true),
+  resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true }),
   notifySettingsReady: vi.fn().mockImplementation(async () => {
     window.electron?.ipcRenderer?.send('settings:ready')
     return true
@@ -89,6 +90,9 @@ afterEach(() => {
   vi.restoreAllMocks()
   windowClientMock.closeSettings.mockReset().mockResolvedValue(true)
   windowClientMock.focusMainWindow.mockReset().mockResolvedValue(true)
+  windowClientMock.resumeGuidedOnboarding
+    .mockReset()
+    .mockResolvedValue({ requested: true, focused: true })
   windowClientMock.notifySettingsReady.mockClear()
   windowClientMock.consumePendingSettingsProviderInstall.mockReset().mockResolvedValue(null)
   windowClientMock.requeuePendingSettingsProviderInstall.mockReset().mockResolvedValue(true)

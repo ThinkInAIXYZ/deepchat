@@ -32538,6 +32538,41 @@
           "type": "chat"
         },
         {
+          "id": "TEE/muse-glimmer-30b",
+          "name": "Muse Glimmer 30B TEE",
+          "display_name": "Muse Glimmer 30B TEE",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2026-01-04",
+          "release_date": "2026-08-10",
+          "last_updated": "2026-08-10",
+          "type": "chat"
+        },
+        {
           "id": "TEE/qwen3.6-35b-a3b",
           "name": "Qwen3.6 35B A3B TEE",
           "display_name": "Qwen3.6 35B A3B TEE",
@@ -37859,6 +37894,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "open_weights": true,
           "knowledge": "2026-01-04",
@@ -40020,6 +40060,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -62661,6 +62706,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -117903,6 +117953,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "open_weights": false,
           "knowledge": "2026-02-01",
@@ -138774,7 +138829,7 @@
             "output": 262144
           },
           "temperature": true,
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
@@ -140710,6 +140765,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": false,
           "open_weights": false,
           "release_date": "2026-08-12",
@@ -140762,8 +140822,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 131072,
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -141985,7 +142045,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 16384
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -143368,6 +143428,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "open_weights": true,
           "knowledge": "2026-01-04",
@@ -143474,34 +143539,6 @@
           "open_weights": false,
           "release_date": "2023-07-02",
           "last_updated": "2023-07-02",
-          "type": "chat"
-        },
-        {
-          "id": "inclusionai/ling-3.0-tiny:free",
-          "name": "inclusionAI: Ling 3.0 Tiny (free)",
-          "display_name": "inclusionAI: Ling 3.0 Tiny (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2026-08-06",
-          "last_updated": "2026-08-06",
           "type": "chat"
         },
         {
@@ -144333,8 +144370,8 @@
         },
         {
           "id": "deepseek/deepseek-v4-pro:discounted",
-          "name": "DeepSeek: DeepSeek V4 Pro (lowest price)",
-          "display_name": "DeepSeek: DeepSeek V4 Pro (lowest price)",
+          "name": "DeepSeek: DeepSeek V4 Pro 0813 (lowest price)",
+          "display_name": "DeepSeek: DeepSeek V4 Pro 0813 (lowest price)",
           "modalities": {
             "input": [
               "text"
@@ -144758,8 +144795,8 @@
         },
         {
           "id": "deepseek/deepseek-v4-flash:discounted",
-          "name": "DeepSeek: DeepSeek V4 Flash (lowest price)",
-          "display_name": "DeepSeek: DeepSeek V4 Flash (lowest price)",
+          "name": "DeepSeek: DeepSeek V4 Flash 0731 (lowest price)",
+          "display_name": "DeepSeek: DeepSeek V4 Flash 0731 (lowest price)",
           "modalities": {
             "input": [
               "text"
@@ -145131,6 +145168,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -146765,7 +146807,7 @@
             ]
           },
           "limit": {
-            "context": 1048576,
+            "context": 262144,
             "output": 131072
           },
           "temperature": true,
@@ -146798,7 +146840,7 @@
             ]
           },
           "limit": {
-            "context": 204800,
+            "context": 202752,
             "output": 131072
           },
           "temperature": true,
@@ -150423,8 +150465,8 @@
             ]
           },
           "limit": {
-            "context": 16384,
-            "output": 2048
+            "context": 32768,
+            "output": 4096
           },
           "temperature": true,
           "tool_call": false,
@@ -153117,6 +153159,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": false,
           "open_weights": false,
@@ -164683,6 +164730,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "open_weights": true,
           "knowledge": "2026-01-04",
@@ -165400,6 +165452,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": false,
           "open_weights": false,
@@ -225848,6 +225905,26 @@
       "display_name": "PPInfra",
       "models": [
         {
+          "id": "deepseek/deepseek-v4-pro-0813",
+          "name": "DeepSeek V4 Pro 0813",
+          "display_name": "DeepSeek V4 Pro 0813",
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "deepseek/deepseek-v4-flash-0731",
           "name": "Deepseek V4 Flash 0731",
           "display_name": "Deepseek V4 Flash 0731",
@@ -232057,7 +232134,12 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": false
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -232156,7 +232238,12 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": false
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -234193,6 +234280,32 @@
           "type": "chat"
         },
         {
+          "id": "grok-4.6",
+          "name": "grok-4.6",
+          "display_name": "grok-4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 500000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "doubao-seedance-2-5-260628",
           "name": "doubao-seedance-2-5-260628",
           "display_name": "doubao-seedance-2-5-260628",
@@ -234443,6 +234556,32 @@
           "type": "imageGeneration"
         },
         {
+          "id": "qwen3.8-2.4t-a95b",
+          "name": "qwen3.8-2.4t-a95b",
+          "display_name": "qwen3.8-2.4t-a95b",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 262000,
+            "output": 262000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "grok-4.5",
           "name": "grok-4.5",
           "display_name": "grok-4.5",
@@ -234453,8 +234592,8 @@
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 1000000
+            "context": 500000,
+            "output": 500000
           },
           "tool_call": true,
           "reasoning": {
@@ -234511,6 +234650,56 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "muse-glimmer-30b",
+          "name": "muse-glimmer-30b",
+          "display_name": "muse-glimmer-30b",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 131000,
+            "output": 131000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nemotron-lightning-3.5-30b-a3b",
+          "name": "nemotron-lightning-3.5-30b-a3b",
+          "display_name": "nemotron-lightning-3.5-30b-a3b",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262000,
+            "output": 262000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -234603,6 +234792,32 @@
           "type": "imageGeneration"
         },
         {
+          "id": "claude-opus-5",
+          "name": "claude-opus-5",
+          "display_name": "claude-opus-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-3.6-flash",
           "name": "gemini-3.6-flash",
           "display_name": "gemini-3.6-flash",
@@ -234670,9 +234885,9 @@
           "type": "chat"
         },
         {
-          "id": "claude-opus-5",
-          "name": "claude-opus-5",
-          "display_name": "claude-opus-5",
+          "id": "qwen3.8-max-preview",
+          "name": "qwen3.8-max-preview",
+          "display_name": "qwen3.8-max-preview",
           "modalities": {
             "input": [
               "text",
@@ -234680,8 +234895,8 @@
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 1000000
+            "context": 983616,
+            "output": 983616
           },
           "tool_call": true,
           "reasoning": {
@@ -234801,18 +235016,20 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.8-max-preview",
-          "name": "qwen3.8-max-preview",
-          "display_name": "qwen3.8-max-preview",
+          "id": "muse-spark-1.1",
+          "name": "muse-spark-1.1",
+          "display_name": "muse-spark-1.1",
           "modalities": {
             "input": [
               "text",
-              "image"
+              "image",
+              "audio",
+              "video"
             ]
           },
           "limit": {
-            "context": 983616,
-            "output": 983616
+            "context": 1000000,
+            "output": 1000000
           },
           "tool_call": true,
           "reasoning": {
@@ -234825,6 +235042,42 @@
             }
           },
           "type": "chat"
+        },
+        {
+          "id": "qwen-audio-3.0-tts-flash",
+          "name": "qwen-audio-3.0-tts-flash",
+          "display_name": "qwen-audio-3.0-tts-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "qwen-audio-3.0-tts-plus",
+          "name": "qwen-audio-3.0-tts-plus",
+          "display_name": "qwen-audio-3.0-tts-plus",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
         },
         {
           "id": "gemini-3.1-flash-lite-image",
@@ -234976,90 +235229,6 @@
           "type": "chat"
         },
         {
-          "id": "muse-spark-1.1",
-          "name": "muse-spark-1.1",
-          "display_name": "muse-spark-1.1",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen-audio-3.0-tts-flash",
-          "name": "qwen-audio-3.0-tts-flash",
-          "display_name": "qwen-audio-3.0-tts-flash",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "qwen-audio-3.0-tts-plus",
-          "name": "qwen-audio-3.0-tts-plus",
-          "display_name": "qwen-audio-3.0-tts-plus",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "jina-reranker-v3.5",
-          "name": "jina-reranker-v3.5",
-          "display_name": "jina-reranker-v3.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 131000,
-            "output": 131000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
-        },
-        {
           "id": "claude-fable-5",
           "name": "claude-fable-5",
           "display_name": "claude-fable-5",
@@ -235107,6 +235276,51 @@
           "type": "chat"
         },
         {
+          "id": "jina-reranker-v3.5",
+          "name": "jina-reranker-v3.5",
+          "display_name": "jina-reranker-v3.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 131000,
+            "output": 131000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "rerank"
+        },
+        {
+          "id": "hy3",
+          "name": "hy3",
+          "display_name": "hy3",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-opus-4-8",
           "name": "claude-opus-4-8",
           "display_name": "claude-opus-4-8",
@@ -235149,31 +235363,6 @@
                 "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
                 "task_budget is separate from thinking control and should not be treated as a thinking budget."
               ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "hy3",
-          "name": "hy3",
-          "display_name": "hy3",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
             }
           },
           "type": "chat"
@@ -235800,27 +235989,22 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.7-flash",
-          "name": "qwen3.7-flash",
-          "display_name": "qwen3.7-flash",
+          "id": "step-3.7-flash",
+          "name": "step-3.7-flash",
+          "display_name": "step-3.7-flash",
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ]
           },
           "limit": {
-            "context": 991000,
-            "output": 991000
+            "context": 256000,
+            "output": 256000
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "type": "chat"
         },
@@ -235850,22 +236034,27 @@
           "type": "chat"
         },
         {
-          "id": "step-3.7-flash",
-          "name": "step-3.7-flash",
-          "display_name": "step-3.7-flash",
+          "id": "qwen3.7-flash",
+          "name": "qwen3.7-flash",
+          "display_name": "qwen3.7-flash",
           "modalities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ]
           },
           "limit": {
-            "context": 256000,
-            "output": 256000
+            "context": 991000,
+            "output": 991000
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -236666,37 +236855,6 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.6-max-preview",
-          "name": "qwen3.6-max-preview",
-          "display_name": "qwen3.6-max-preview",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 240000,
-            "output": 240000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "xiaomi-mimo-v2.5-pro",
           "name": "xiaomi-mimo-v2.5-pro",
           "display_name": "xiaomi-mimo-v2.5-pro",
@@ -236734,6 +236892,37 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-max-preview",
+          "name": "qwen3.6-max-preview",
+          "display_name": "qwen3.6-max-preview",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 240000,
+            "output": 240000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -238067,75 +238256,9 @@
           "type": "imageGeneration"
         },
         {
-          "id": "qwen3.5-122b-a10b",
-          "name": "qwen3.5-122b-a10b",
-          "display_name": "qwen3.5-122b-a10b",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 991000,
-            "output": 991000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen3.5-27b",
-          "name": "qwen3.5-27b",
-          "display_name": "qwen3.5-27b",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 991000,
-            "output": 991000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen3.5-35b-a3b",
-          "name": "qwen3.5-35b-a3b",
-          "display_name": "qwen3.5-35b-a3b",
+          "id": "qwen3.5-flash",
+          "name": "qwen3.5-flash",
+          "display_name": "qwen3.5-flash",
           "modalities": {
             "input": [
               "text",
@@ -238199,9 +238322,75 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.5-flash",
-          "name": "qwen3.5-flash",
-          "display_name": "qwen3.5-flash",
+          "id": "qwen3.5-35b-a3b",
+          "name": "qwen3.5-35b-a3b",
+          "display_name": "qwen3.5-35b-a3b",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 991000,
+            "output": 991000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-27b",
+          "name": "qwen3.5-27b",
+          "display_name": "qwen3.5-27b",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 991000,
+            "output": 991000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-122b-a10b",
+          "name": "qwen3.5-122b-a10b",
+          "display_name": "qwen3.5-122b-a10b",
           "modalities": {
             "input": [
               "text",
@@ -238529,28 +238718,6 @@
           "type": "chat"
         },
         {
-          "id": "xiaomi-mimo-v2.5-pro-free",
-          "name": "xiaomi-mimo-v2.5-pro-free",
-          "display_name": "xiaomi-mimo-v2.5-pro-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "xiaomi-mimo-v2-omni-free",
           "name": "xiaomi-mimo-v2-omni-free",
           "display_name": "xiaomi-mimo-v2-omni-free",
@@ -238573,9 +238740,9 @@
           "type": "chat"
         },
         {
-          "id": "xiaomi-mimo-v2-pro-free",
-          "name": "xiaomi-mimo-v2-pro-free",
-          "display_name": "xiaomi-mimo-v2-pro-free",
+          "id": "xiaomi-mimo-v2.5-free",
+          "name": "xiaomi-mimo-v2.5-free",
+          "display_name": "xiaomi-mimo-v2.5-free",
           "modalities": {
             "input": [
               "text",
@@ -238595,9 +238762,31 @@
           "type": "chat"
         },
         {
-          "id": "xiaomi-mimo-v2.5-free",
-          "name": "xiaomi-mimo-v2.5-free",
-          "display_name": "xiaomi-mimo-v2.5-free",
+          "id": "xiaomi-mimo-v2.5-pro-free",
+          "name": "xiaomi-mimo-v2.5-pro-free",
+          "display_name": "xiaomi-mimo-v2.5-pro-free",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "xiaomi-mimo-v2-pro-free",
+          "name": "xiaomi-mimo-v2-pro-free",
+          "display_name": "xiaomi-mimo-v2-pro-free",
           "modalities": {
             "input": [
               "text",
@@ -244516,26 +244705,6 @@
           "type": "embedding"
         },
         {
-          "id": "qwen3-reranker-0.6b",
-          "name": "qwen3-reranker-0.6b",
-          "display_name": "qwen3-reranker-0.6b",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 16000,
-            "output": 16000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
-        },
-        {
           "id": "doubao-seedream-4-0",
           "name": "doubao-seedream-4-0",
           "display_name": "doubao-seedream-4-0",
@@ -244673,6 +244842,26 @@
             "supported": false
           },
           "type": "chat"
+        },
+        {
+          "id": "qwen3-reranker-0.6b",
+          "name": "qwen3-reranker-0.6b",
+          "display_name": "qwen3-reranker-0.6b",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 16000,
+            "output": 16000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "rerank"
         },
         {
           "id": "qwen3-reranker-4b",
@@ -246339,9 +246528,9 @@
           "type": "chat"
         },
         {
-          "id": "tencent/Hunyuan-A13B-Instruct",
-          "name": "tencent/Hunyuan-A13B-Instruct",
-          "display_name": "tencent/Hunyuan-A13B-Instruct",
+          "id": "unsloth/gemma-3-27b-it",
+          "name": "unsloth/gemma-3-27b-it",
+          "display_name": "unsloth/gemma-3-27b-it",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -246353,9 +246542,9 @@
           "type": "chat"
         },
         {
-          "id": "unsloth/gemma-3-27b-it",
-          "name": "unsloth/gemma-3-27b-it",
-          "display_name": "unsloth/gemma-3-27b-it",
+          "id": "tencent/Hunyuan-A13B-Instruct",
+          "name": "tencent/Hunyuan-A13B-Instruct",
+          "display_name": "tencent/Hunyuan-A13B-Instruct",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -246853,6 +247042,25 @@
           "type": "chat"
         },
         {
+          "id": "text-embedding-v4",
+          "name": "text-embedding-v4",
+          "display_name": "text-embedding-v4",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "embedding"
+        },
+        {
           "id": "sonar",
           "name": "sonar",
           "display_name": "sonar",
@@ -246879,25 +247087,6 @@
             "supported": false
           },
           "type": "chat"
-        },
-        {
-          "id": "text-embedding-v4",
-          "name": "text-embedding-v4",
-          "display_name": "text-embedding-v4",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "embedding"
         },
         {
           "id": "qwen-plus-2025-07-28",
@@ -250030,58 +250219,6 @@
           "type": "chat"
         },
         {
-          "id": "text-embedding-3-small",
-          "name": "text-embedding-3-small",
-          "display_name": "text-embedding-3-small",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "text-embedding-3-large",
-          "name": "text-embedding-3-large",
-          "display_name": "text-embedding-3-large",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "text-moderation-latest",
-          "name": "text-moderation-latest",
-          "display_name": "text-moderation-latest",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "text-davinci-edit-001",
           "name": "text-davinci-edit-001",
           "display_name": "text-davinci-edit-001",
@@ -250094,25 +250231,6 @@
             "supported": false
           },
           "type": "chat"
-        },
-        {
-          "id": "text-embedding-v1",
-          "name": "text-embedding-v1",
-          "display_name": "text-embedding-v1",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "embedding"
         },
         {
           "id": "text-davinci-003",
@@ -250157,6 +250275,25 @@
           "type": "chat"
         },
         {
+          "id": "text-embedding-v1",
+          "name": "text-embedding-v1",
+          "display_name": "text-embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "embedding"
+        },
+        {
           "id": "text-babbage-001",
           "name": "text-babbage-001",
           "display_name": "text-babbage-001",
@@ -250185,9 +250322,14 @@
           "type": "chat"
         },
         {
-          "id": "text-moderation-007",
-          "name": "text-moderation-007",
-          "display_name": "text-moderation-007",
+          "id": "text-embedding-3-small",
+          "name": "text-embedding-3-small",
+          "display_name": "text-embedding-3-small",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
           "limit": {
             "context": 8192,
             "output": 8192
@@ -250196,7 +250338,26 @@
           "reasoning": {
             "supported": false
           },
-          "type": "chat"
+          "type": "embedding"
+        },
+        {
+          "id": "text-embedding-ada-002",
+          "name": "text-embedding-ada-002",
+          "display_name": "text-embedding-ada-002",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "embedding"
         },
         {
           "id": "tts-1-hd-1106",
@@ -250216,6 +250377,39 @@
             "supported": false
           },
           "type": "tts"
+        },
+        {
+          "id": "tts-1-hd",
+          "name": "tts-1-hd",
+          "display_name": "tts-1-hd",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "tts"
+        },
+        {
+          "id": "step-2-16k",
+          "name": "step-2-16k",
+          "display_name": "step-2-16k",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
         },
         {
           "id": "whisper-1",
@@ -250275,25 +250469,6 @@
           "type": "chat"
         },
         {
-          "id": "tts-1-hd",
-          "name": "tts-1-hd",
-          "display_name": "tts-1-hd",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "tts"
-        },
-        {
           "id": "tts-1-1106",
           "name": "tts-1-1106",
           "display_name": "tts-1-1106",
@@ -250311,20 +250486,6 @@
             "supported": false
           },
           "type": "tts"
-        },
-        {
-          "id": "step-2-16k",
-          "name": "step-2-16k",
-          "display_name": "step-2-16k",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
         },
         {
           "id": "tts-1",
@@ -250363,6 +250524,34 @@
           "id": "text-moderation-stable",
           "name": "text-moderation-stable",
           "display_name": "text-moderation-stable",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-latest",
+          "name": "text-moderation-latest",
+          "display_name": "text-moderation-latest",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-007",
+          "name": "text-moderation-007",
+          "display_name": "text-moderation-007",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -250458,9 +250647,9 @@
           "type": "chat"
         },
         {
-          "id": "text-embedding-ada-002",
-          "name": "text-embedding-ada-002",
-          "display_name": "text-embedding-ada-002",
+          "id": "text-embedding-3-large",
+          "name": "text-embedding-3-large",
+          "display_name": "text-embedding-3-large",
           "modalities": {
             "input": [
               "text"
@@ -252468,8 +252657,8 @@
             ]
           },
           "limit": {
-            "context": 16384,
-            "output": 2048
+            "context": 32768,
+            "output": 4096
           },
           "tool_call": false,
           "reasoning": {
@@ -256070,30 +256259,6 @@
           "type": "chat"
         },
         {
-          "id": "inclusionai/ling-3.0-tiny:free",
-          "name": "inclusionAI: Ling 3.0 Tiny (free)",
-          "display_name": "inclusionAI: Ling 3.0 Tiny (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "type": "chat"
-        },
-        {
           "id": "inclusionai/ring-2.6-1t",
           "name": "inclusionAI: Ring-2.6-1T",
           "display_name": "inclusionAI: Ring-2.6-1T",
@@ -256458,6 +256623,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -256708,8 +256878,8 @@
             ]
           },
           "limit": {
-            "context": 196608,
-            "output": 196608
+            "context": 65536,
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -257908,7 +258078,7 @@
             "context": 262144,
             "output": 262144
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
@@ -262128,7 +262298,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 16384
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -262149,8 +262319,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 131072,
+            "output": 32768
           },
           "tool_call": true,
           "reasoning": {
@@ -262501,7 +262671,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 65536
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -262945,14 +263115,19 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 52429
+            "context": 1000000,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -263706,6 +263881,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "type": "chat"
         },
@@ -264088,8 +264268,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 262144,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -264207,6 +264387,34 @@
                 "Manual budget_tokens requests return 400 on Claude Fable 5 and Claude Mythos 5.",
                 "thinking.display defaults to omitted; set display to summarized to receive readable thinking summaries."
               ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro-0813",
+          "name": "DeepSeek V4 Pro 0813",
+          "display_name": "DeepSeek V4 Pro 0813",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
             }
           },
           "type": "chat"
@@ -268768,6 +268976,64 @@
               "continuation": [
                 "thinking_blocks"
               ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-4.6",
+          "name": "grok-4.6",
+          "display_name": "grok-4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 500000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "xai/grok-4.6",
+          "name": "xai/grok-4.6",
+          "display_name": "xai/grok-4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 500000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
             }
           },
           "type": "chat"
@@ -274910,6 +275176,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "attachment": true,
           "open_weights": false,

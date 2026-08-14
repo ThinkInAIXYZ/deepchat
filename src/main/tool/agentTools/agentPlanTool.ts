@@ -34,6 +34,7 @@ export const updatePlanToolArgsSchema = z
 export interface AgentPlanToolCallOptions {
   toolCallId?: string
   onProgress?: (update: AgentToolProgressUpdate) => void
+  beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
 }
 
 const formatValidationError = (error: z.ZodError): string => {
@@ -91,6 +92,7 @@ export class AgentPlanTool {
     if (!toolCallId) {
       throw new Error('update_plan requires a tool call ID')
     }
+    options?.beforeMutation?.({ ...normalizedArgs })
 
     const previous = this.states.get(sessionId)
     const revision = (previous?.revision ?? 0) + 1

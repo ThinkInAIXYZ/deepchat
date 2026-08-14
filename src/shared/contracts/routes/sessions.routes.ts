@@ -11,6 +11,10 @@ import type {
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
+  DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT,
+  type DeepChatNestedExecutionAudit
+} from '@shared/types/execution-journal-audit'
+import {
   AttachmentFallbackPolicySchema,
   AttachmentPreparationSummarySchema,
   SessionListItemSchema,
@@ -32,12 +36,51 @@ import {
 } from '../common'
 import type { RouteContract } from '../common'
 import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
+import { PROGRAMMATIC_TOOL_BATCH_MAX_STEPS } from './tools.routes'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
 const AgentTapeContextResultSchema = z.custom<AgentTapeContextResult>()
 const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
 const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
+const ExecutionAuditIdentitySchema = z.string().min(1).max(1_024)
+const ExecutionAuditHashSchema = z.string().regex(/^[0-9a-f]{64}$/u)
+const DeepChatNestedExecutionAuditSchema = z.object({
+  schemaVersion: z.literal(1),
+  state: z.enum(['available', 'corrupt', 'unavailable']),
+  operations: z
+    .array(
+      z.object({
+        runId: ExecutionAuditIdentitySchema,
+        requestSeq: z.number().int().positive(),
+        providerToolCallId: ExecutionAuditIdentitySchema,
+        childOrdinal: z
+          .number()
+          .int()
+          .nonnegative()
+          .max(PROGRAMMATIC_TOOL_BATCH_MAX_STEPS - 1),
+        toolName: z.string().min(1).max(512),
+        toolSource: z.enum(['agent', 'mcp']),
+        target: z.object({
+          serverName: z.string().min(1).max(1_024),
+          originalName: z.string().min(1).max(1_024).optional(),
+          ownerPluginId: z.string().min(1).max(1_024).optional()
+        }),
+        argumentsHash: ExecutionAuditHashSchema,
+        definitionHash: ExecutionAuditHashSchema,
+        capabilityHash: ExecutionAuditHashSchema,
+        status: z.enum(['success', 'error', 'indeterminate']),
+        dispatchEntryId: z.number().int().positive(),
+        dispatchCreatedAt: z.number().int().nonnegative(),
+        outcomeEntryId: z.number().int().positive().nullable(),
+        outcomeCreatedAt: z.number().int().nonnegative().nullable(),
+        responseHash: ExecutionAuditHashSchema.nullable(),
+        isError: z.boolean().nullable()
+      })
+    )
+    .max(DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT),
+  truncated: z.boolean()
+}) satisfies z.ZodType<DeepChatNestedExecutionAudit>
 export interface HistorySearchOptions {
   limit?: number
 }
@@ -435,7 +478,8 @@ export const sessionsListMessageTracesRoute = defineRouteContract({
   }),
   output: z.object({
     traces: z.array(MessageTraceRecordSchema),
-    manifests: z.array(DeepChatTapeViewManifestRecordSchema)
+    manifests: z.array(DeepChatTapeViewManifestRecordSchema),
+    nestedExecutions: DeepChatNestedExecutionAuditSchema
   })
 }) satisfies RouteContract<'sessions.listMessageTraces'>
 

@@ -16,6 +16,7 @@ const serverManagerMocks = vi.hoisted(() => ({
 
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+  snapshotCachedToolDefinitions: vi.fn(() => ({ state: 'uninitialized' as const })),
   getRunningClients: vi.fn().mockResolvedValue([]),
   invalidateRegistry: vi.fn(),
   callTool: vi.fn()
@@ -46,6 +47,7 @@ vi.mock('../../../src/main/mcp/serverManager', () => ({
 vi.mock('../../../src/main/mcp/toolManager', () => ({
   ToolManager: vi.fn().mockImplementation(() => ({
     getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+    snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
     getRunningClients: toolManagerMocks.getRunningClients,
     invalidateRegistry: toolManagerMocks.invalidateRegistry,
     callTool: toolManagerMocks.callTool
@@ -65,6 +67,7 @@ const installToolManagerMock = () => {
     () =>
       ({
         getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+        snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
         getRunningClients: toolManagerMocks.getRunningClients,
         invalidateRegistry: toolManagerMocks.invalidateRegistry,
         callTool: toolManagerMocks.callTool
@@ -121,6 +124,7 @@ describe('McpService', () => {
     serverManagerMocks.updateNpmRegistryInBackground.mockResolvedValue(undefined)
     serverManagerMocks.refreshNpmRegistry.mockResolvedValue('https://registry.npmjs.org/')
     toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
+    toolManagerMocks.snapshotCachedToolDefinitions.mockReturnValue({ state: 'uninitialized' })
     toolManagerMocks.callTool.mockReset()
   })
 
@@ -266,6 +270,110 @@ describe('McpService', () => {
 
     expect(toolManagerMocks.invalidateRegistry).toHaveBeenCalledOnce()
     expect(onRegistryChanged).toHaveBeenCalledOnce()
+  })
+
+  it('takes the cached tool snapshot after the async global policy read', async () => {
+    let resolveEnabled!: (enabled: boolean) => void
+    const enabled = new Promise<boolean>((resolve) => {
+      resolveEnabled = resolve
+    })
+    const providerSettings = createProviderSettings(true)
+    providerSettings.getMcpEnabled.mockReturnValueOnce(enabled)
+    let currentSnapshot:
+      | { state: 'uninitialized' }
+      | { state: 'ready'; complete: boolean; failedSourceCount: number; tools: never[] } = {
+      state: 'ready',
+      complete: true,
+      failedSourceCount: 0,
+      tools: []
+    }
+    toolManagerMocks.snapshotCachedToolDefinitions.mockImplementation(() => currentSnapshot)
+    const presenter = createMcpService(providerSettings)
+
+    const pendingSnapshot = presenter.snapshotCachedToolDefinitions({
+      enabledServerIds: ['selected-server']
+    })
+    expect(toolManagerMocks.snapshotCachedToolDefinitions).not.toHaveBeenCalled()
+
+    currentSnapshot = { state: 'uninitialized' }
+    resolveEnabled(true)
+
+    await expect(pendingSnapshot).resolves.toEqual({ state: 'uninitialized' })
+    expect(toolManagerMocks.snapshotCachedToolDefinitions).toHaveBeenCalledWith({
+      enabledTools: undefined,
+      enabledServerIds: ['selected-server'],
+      agentId: undefined,
+      conversationId: undefined,
+      includeRegularServers: true,
+      expectedServerNames: []
+    })
+  })
+
+  it('reports only globally enabled regular servers selected by the Agent as expected', async () => {
+    const providerSettings = createProviderSettings(
+      true,
+      false,
+      {
+        selected: { enabled: true },
+        unselected: { enabled: true },
+        disabled: { enabled: false }
+      },
+      ['selected', 'unselected']
+    )
+    const presenter = createMcpService(providerSettings)
+
+    await presenter.snapshotCachedToolDefinitions({
+      enabledServerIds: ['selected', 'disabled']
+    })
+
+    expect(toolManagerMocks.snapshotCachedToolDefinitions).toHaveBeenCalledWith({
+      enabledTools: undefined,
+      enabledServerIds: ['selected', 'disabled'],
+      agentId: undefined,
+      conversationId: undefined,
+      includeRegularServers: true,
+      expectedServerNames: ['selected']
+    })
+  })
+
+  it('does not treat plugin-owned server configurations as regular expected sources', async () => {
+    const providerSettings = createProviderSettings(
+      true,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, ownerPluginId: 'com.deepchat.plugins.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = createMcpService(providerSettings)
+
+    await presenter.snapshotCachedToolDefinitions()
+
+    expect(toolManagerMocks.snapshotCachedToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedServerNames: ['regular'] })
+    )
+  })
+
+  it('does not read or expect regular servers while MCP is globally disabled', async () => {
+    const providerSettings = createProviderSettings(false)
+    providerSettings.getEnabledMcpServers.mockRejectedValue(
+      new Error('disabled regular server settings should not be read')
+    )
+    const presenter = createMcpService(providerSettings)
+
+    await expect(presenter.snapshotCachedToolDefinitions()).resolves.toEqual({
+      state: 'uninitialized'
+    })
+    expect(providerSettings.getEnabledMcpServers).not.toHaveBeenCalled()
+    expect(toolManagerMocks.snapshotCachedToolDefinitions).toHaveBeenCalledWith({
+      enabledTools: undefined,
+      enabledServerIds: undefined,
+      agentId: undefined,
+      conversationId: undefined,
+      includeRegularServers: false,
+      expectedServerNames: []
+    })
   })
 
   it('delegates supervised startup waiting to ServerManager', async () => {

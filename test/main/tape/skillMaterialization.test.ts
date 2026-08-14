@@ -175,6 +175,7 @@ function createSkillViewFactStore() {
         kind: 'event',
         payload: { name: input.name, data: input.data }
       }),
+    listNestedOperationEventsForParent: () => [],
     getByEntryIds: (sessionId: string, entryIds: readonly number[]) => {
       const selected = new Set(entryIds)
       return rows.filter((row) => row.session_id === sessionId && selected.has(row.entry_id))

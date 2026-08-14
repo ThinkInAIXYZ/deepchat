@@ -350,6 +350,18 @@ export class PluginRuntimeSupervisor {
     })
   }
 
+  getAvailableToolServerNames(): string[] {
+    if (this.shuttingDown) {
+      return []
+    }
+    return Array.from(this.entries.values()).flatMap((entry) => {
+      const { registration } = entry
+      return entry.ready && !entry.retiring && registration.surfaces.includes('tools')
+        ? [registration.serverName]
+        : []
+    })
+  }
+
   commitPluginRegistration(pluginId: string): void {
     let changed = false
     for (const entry of this.entries.values()) {

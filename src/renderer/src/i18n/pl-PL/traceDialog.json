@@ -1,5 +1,5 @@
 {
-  "title": "Poproś o podgląd",
+  "title": "Diagnostyka wiadomości",
   "provider": "Dostawca",
   "model": "Modelka",
   "endpoint": "Punkt końcowy API",
@@ -18,14 +18,29 @@
     "request": "Żądanie",
     "view": "Widok",
     "entries": "Wpisy",
-    "budget": "Budżet"
+    "budget": "Budżet",
+    "execution": "Audyt wykonania"
   },
   "empty": "Brak diagnostyki",
-  "emptyDesc": "Dla tej wiadomości nie ma śladu żądania ani manifestu widoku",
+  "emptyDesc": "Dla tej wiadomości nie ma śladu żądania, manifestu widoku Tape ani audytu zagnieżdżonych wykonań",
   "requestUnavailable": "Brak śladu żądania",
   "requestUnavailableDesc": "Ta wiadomość nie ma zapisanego śladu żądania dostawcy",
   "manifestUnavailable": "Brak manifestu widoku",
   "manifestUnavailableDesc": "Ta wiadomość nie ma zapisanego manifestu widoku Tape",
+  "execution": {
+    "empty": "Brak zagnieżdżonych wykonań",
+    "emptyDesc": "Dla tego żądania nie zarejestrowano żadnej programowej operacji narzędzia",
+    "corrupt": "Audyt wykonania jest uszkodzony",
+    "corruptDesc": "Zagnieżdżone fakty Journal są sprzeczne lub nie można ich zweryfikować",
+    "unavailable": "Audyt wykonania jest niedostępny",
+    "unavailableDesc": "Nie można odczytać zagnieżdżonych faktów Journal",
+    "truncated": "Wyświetlanych jest tylko pierwszych 256 zagnieżdżonych operacji",
+    "status": {
+      "success": "Sukces",
+      "error": "Błąd",
+      "indeterminate": "Nieokreślony"
+    }
+  },
   "viewId": "ID widoku",
   "policy": "Zasada",
   "policyVersion": "Wersja zasady",

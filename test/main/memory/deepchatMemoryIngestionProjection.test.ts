@@ -1,6 +1,7 @@
 import { describe, expect, vi } from 'vitest'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
+import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
 import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
@@ -441,6 +442,41 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
       db.close()
     }
   })
+
+  itIfSqlite(
+    'keeps Tool Surface provenance out of memory ingestion while advancing Tape head',
+    () => {
+      const { db, projection, tape } = createTables()
+      try {
+        appendMessage(tape, {
+          id: 'm1',
+          orderSeq: 1,
+          status: 'sent',
+          content: 'remember this'
+        })
+        for (const [index, name] of TOOL_SURFACE_TAPE_EVENT_NAMES.entries()) {
+          tape.appendToolSurfaceEvent({
+            sessionId: 's1',
+            name,
+            source: { type: 'runtime_event', id: 'm1', seq: index + 1 },
+            provenanceKey: `tool-surface-test:${index}`,
+            data: { marker: `private-tool-surface-${index}` },
+            idempotent: true
+          })
+        }
+
+        expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(true)
+        expect(projection.listRange('s1', 0, 10)).toMatchObject([
+          {
+            message_id: 'm1',
+            content: 'remember this'
+          }
+        ])
+      } finally {
+        db.close()
+      }
+    }
+  )
 
   itIfSqlite(
     'keeps retired workflow result notices out of memory ingestion while advancing Tape head',

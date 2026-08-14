@@ -1,12 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { onBeforeRouteLeave } from 'vue-router'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import type {
-  InstalledSkillAgent,
-  InstalledSkillAgentDetail,
-  NewDiscovery
-} from '@shared/types/skillSync'
 
 vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
   notifyRenderer: vi.fn()
@@ -66,404 +62,16 @@ const switchStub = defineComponent({
     '<button data-testid="switch" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
 })
 
-const discovery: NewDiscovery = {
-  toolId: 'codex',
-  toolName: 'Codex',
-  newSkills: [
-    {
-      name: 'write-tests',
-      description: 'Write tests',
-      path: '/tools/write-tests.md',
-      format: 'markdown',
-      lastModified: new Date('2024-01-01T00:00:00.000Z')
-    }
-  ]
-}
+const dropdownActionStub = defineComponent({
+  name: 'DcDropdownActionItem',
+  props: { label: String },
+  emits: ['select'],
+  template: '<button type="button" @click="$emit(\'select\')">{{ label }}</button>'
+})
 
 describe('skill sync settings components', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  async function setupPromptDialog() {
-    vi.resetModules()
-
-    let discoveriesListener: ((discoveries: NewDiscovery[]) => void) | null = null
-    const unsubscribe = vi.fn()
-    const skillSyncClient = {
-      onDiscoveriesChanged: vi.fn((listener) => {
-        discoveriesListener = listener
-        return unsubscribe
-      }),
-      getNewDiscoveries: vi.fn().mockResolvedValue([discovery]),
-      acknowledgeDiscoveries: vi.fn().mockResolvedValue(true)
-    }
-
-    vi.doMock('@api/SkillSyncClient', () => ({
-      createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string) => key
-      })
-    }))
-
-    const SyncPromptDialog = (
-      await import('../../../src/renderer/settings/components/skills/SyncPromptDialog.vue')
-    ).default
-
-    const wrapper = mount(SyncPromptDialog, {
-      global: {
-        stubs: {
-          Icon: true,
-          Dialog: passthrough('Dialog'),
-          DialogContent: passthrough('DialogContent'),
-          DialogDescription: passthrough('DialogDescription'),
-          DialogFooter: passthrough('DialogFooter'),
-          DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle'),
-          DcButton: buttonStub,
-          Checkbox: true
-        }
-      }
-    })
-    await flushPromises()
-
-    return {
-      wrapper,
-      skillSyncClient,
-      discoveriesListener: () => discoveriesListener,
-      unsubscribe
-    }
-  }
-
-  it('opens the sync prompt from typed discovery events and unsubscribes', async () => {
-    const { wrapper, skillSyncClient, discoveriesListener, unsubscribe } = await setupPromptDialog()
-    const listener = discoveriesListener()
-
-    expect(skillSyncClient.onDiscoveriesChanged).toHaveBeenCalledTimes(1)
-    listener?.([discovery])
-
-    expect((wrapper.vm as any).isOpen).toBe(true)
-    expect(Array.from((wrapper.vm as any).selectedTools)).toEqual(['codex'])
-    wrapper.unmount()
-    expect(unsubscribe).toHaveBeenCalledTimes(1)
-  })
-
-  it('checks current discoveries through SkillSyncClient', async () => {
-    const { wrapper, skillSyncClient } = await setupPromptDialog()
-
-    await (wrapper.vm as any).checkAndShow()
-    await flushPromises()
-
-    expect(skillSyncClient.getNewDiscoveries).toHaveBeenCalledTimes(1)
-    expect((wrapper.vm as any).isOpen).toBe(true)
-  })
-
-  it('renders read-only agent skill rows through SkillSyncClient', async () => {
-    vi.resetModules()
-
-    const agent: InstalledSkillAgent = {
-      id: 'codex',
-      name: 'Codex',
-      skillsDir: '/tools',
-      isCustom: false,
-      supportsLinkManagement: true,
-      skillsCount: 1,
-      linkedCount: 1,
-      agentOwnedCount: 0,
-      conflictCount: 0,
-      brokenLinkCount: 0,
-      status: 'ready'
-    }
-    const detail: InstalledSkillAgentDetail = {
-      ...agent,
-      skills: [
-        {
-          name: 'write-tests',
-          description: 'Write tests',
-          path: '/tools/write-tests',
-          owner: 'deepchat',
-          status: 'linked',
-          link: {
-            isSymlink: true,
-            targetPath: '/deepchat/skills/write-tests',
-            targetExists: true,
-            targetInsideDeepChat: true
-          },
-          deepchat: { exists: true, path: '/deepchat/skills/write-tests' }
-        }
-      ]
-    }
-    const skillSyncClient = {
-      scanAgents: vi.fn().mockResolvedValue([agent]),
-      getAgentDetail: vi.fn().mockResolvedValue(detail)
-    }
-    const loadSkills = vi.fn().mockResolvedValue(undefined)
-    vi.doMock('@api/SkillSyncClient', () => ({
-      createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/stores/skillsStore', () => ({
-      useSkillsStore: () => ({ loadSkills })
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string, params?: Record<string, unknown>) =>
-          params?.count === undefined ? key : `${key}:${params.count}`
-      })
-    }))
-
-    const SkillAgentsTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillAgentsTab.vue')
-    ).default
-
-    const wrapper = mount(SkillAgentsTab, {
-      global: {
-        stubs: {
-          Icon: true,
-          Badge: passthrough('Badge'),
-          DcButton: buttonStub,
-          Table: passthrough('Table'),
-          TableBody: passthrough('TableBody'),
-          TableCell: passthrough('TableCell'),
-          TableHead: passthrough('TableHead'),
-          TableHeader: passthrough('TableHeader'),
-          TableRow: passthrough('TableRow'),
-          Dialog: passthrough('Dialog'),
-          DialogContent: passthrough('DialogContent'),
-          DialogDescription: passthrough('DialogDescription'),
-          DialogFooter: passthrough('DialogFooter'),
-          DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle'),
-          Label: passthrough('Label'),
-          RadioGroup: passthrough('RadioGroup'),
-          RadioGroupItem: true
-        }
-      }
-    })
-    await flushPromises()
-
-    expect(skillSyncClient.scanAgents).toHaveBeenCalledTimes(1)
-    expect(skillSyncClient.getAgentDetail).toHaveBeenCalledWith('codex')
-    expect(wrapper.text()).toContain('write-tests')
-    expect(wrapper.text()).toContain('settings.skills.agents.status.linked')
-  })
-
-  it('keeps the selected agent detail when an earlier response arrives late', async () => {
-    vi.resetModules()
-
-    const agentA: InstalledSkillAgent = {
-      id: 'agent-a',
-      name: 'Agent A',
-      skillsDir: '/agents/a/skills',
-      isCustom: true,
-      supportsLinkManagement: true,
-      skillsCount: 1,
-      linkedCount: 0,
-      agentOwnedCount: 1,
-      conflictCount: 0,
-      brokenLinkCount: 0,
-      status: 'ready'
-    }
-    const agentB: InstalledSkillAgent = {
-      ...agentA,
-      id: 'agent-b',
-      name: 'Agent B',
-      skillsDir: '/agents/b/skills'
-    }
-    const detailA: InstalledSkillAgentDetail = {
-      ...agentA,
-      skills: [
-        {
-          name: 'agent-a-only',
-          description: 'Agent A skill',
-          path: '/agents/a/skills/agent-a-only',
-          owner: 'agent',
-          status: 'agent-owned',
-          deepchat: { exists: false }
-        }
-      ]
-    }
-    const detailB: InstalledSkillAgentDetail = {
-      ...agentB,
-      skills: [
-        {
-          name: 'agent-b-only',
-          description: 'Agent B skill',
-          path: '/agents/b/skills/agent-b-only',
-          owner: 'agent',
-          status: 'agent-owned',
-          deepchat: { exists: false }
-        }
-      ]
-    }
-    let resolveAgentA!: (detail: InstalledSkillAgentDetail) => void
-    const agentADetail = new Promise<InstalledSkillAgentDetail>((resolve) => {
-      resolveAgentA = resolve
-    })
-    const skillSyncClient = {
-      scanAgents: vi.fn().mockResolvedValue([agentA, agentB]),
-      getAgentDetail: vi.fn((agentId: string) =>
-        agentId === agentA.id ? agentADetail : Promise.resolve(detailB)
-      )
-    }
-    vi.doMock('@api/SkillSyncClient', () => ({
-      createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/stores/skillsStore', () => ({
-      useSkillsStore: () => ({ loadSkills: vi.fn() })
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string, params?: Record<string, unknown>) =>
-          params?.count === undefined ? key : `${key}:${params.count}`
-      })
-    }))
-
-    const SkillAgentsTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillAgentsTab.vue')
-    ).default
-    const wrapper = mount(SkillAgentsTab, {
-      global: {
-        stubs: {
-          Icon: true,
-          Badge: passthrough('Badge'),
-          DcButton: buttonStub,
-          AgentSkillTable: defineComponent({
-            props: { agent: { type: Object, required: true } },
-            template: '<div data-testid="agent-detail">{{ agent.skills[0].name }}</div>'
-          }),
-          SkillDetailDialog: true
-        }
-      }
-    })
-    await flushPromises()
-
-    const agentBButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes(agentB.name))
-    expect(agentBButton).toBeTruthy()
-    await agentBButton?.trigger('click')
-    await flushPromises()
-
-    expect(skillSyncClient.getAgentDetail).toHaveBeenCalledWith(agentA.id)
-    expect(skillSyncClient.getAgentDetail).toHaveBeenCalledWith(agentB.id)
-    expect(wrapper.get('[data-testid="agent-detail"]').text()).toBe('agent-b-only')
-
-    resolveAgentA(detailA)
-    await flushPromises()
-
-    expect(wrapper.get('[data-testid="agent-detail"]').text()).toBe('agent-b-only')
-  })
-
-  it('does not expose new adoption actions from legacy agent rows', async () => {
-    vi.resetModules()
-
-    const agent: InstalledSkillAgent = {
-      id: 'codex',
-      name: 'Codex',
-      skillsDir: '/tools',
-      isCustom: false,
-      supportsLinkManagement: true,
-      skillsCount: 1,
-      linkedCount: 0,
-      agentOwnedCount: 1,
-      conflictCount: 0,
-      brokenLinkCount: 0,
-      status: 'ready'
-    }
-    const beforeDetail: InstalledSkillAgentDetail = {
-      ...agent,
-      skills: [
-        {
-          name: 'agent-only',
-          description: 'Agent only',
-          path: '/tools/agent-only',
-          owner: 'agent',
-          status: 'agent-owned',
-          action: 'adopt',
-          deepchat: { exists: false }
-        }
-      ]
-    }
-    const afterAgent: InstalledSkillAgent = {
-      ...agent,
-      linkedCount: 1,
-      agentOwnedCount: 0
-    }
-    const afterDetail: InstalledSkillAgentDetail = {
-      ...afterAgent,
-      skills: [
-        {
-          name: 'agent-only',
-          description: 'Agent only',
-          path: '/tools/agent-only',
-          owner: 'deepchat',
-          status: 'linked',
-          link: {
-            isSymlink: true,
-            targetPath: '/deepchat/skills/agent-only',
-            targetExists: true,
-            targetInsideDeepChat: true
-          },
-          deepchat: { exists: true, path: '/deepchat/skills/agent-only' }
-        }
-      ]
-    }
-    const skillSyncClient = {
-      scanAgents: vi.fn().mockResolvedValueOnce([agent]).mockResolvedValueOnce([afterAgent]),
-      getAgentDetail: vi.fn().mockResolvedValueOnce(beforeDetail).mockResolvedValueOnce(afterDetail)
-    }
-    const loadSkills = vi.fn().mockResolvedValue(undefined)
-    vi.doMock('@api/SkillSyncClient', () => ({
-      createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/stores/skillsStore', () => ({
-      useSkillsStore: () => ({ loadSkills })
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string, params?: Record<string, unknown>) =>
-          params?.count === undefined ? key : `${key}:${params.count}`
-      })
-    }))
-
-    const SkillAgentsTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillAgentsTab.vue')
-    ).default
-
-    const wrapper = mount(SkillAgentsTab, {
-      global: {
-        stubs: {
-          Icon: true,
-          Badge: passthrough('Badge'),
-          DcButton: buttonStub,
-          Table: passthrough('Table'),
-          TableBody: passthrough('TableBody'),
-          TableCell: passthrough('TableCell'),
-          TableHead: passthrough('TableHead'),
-          TableHeader: passthrough('TableHeader'),
-          TableRow: passthrough('TableRow'),
-          Dialog: passthrough('Dialog'),
-          DialogContent: passthrough('DialogContent'),
-          DialogDescription: passthrough('DialogDescription'),
-          DialogFooter: passthrough('DialogFooter'),
-          DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle'),
-          Label: passthrough('Label'),
-          RadioGroup: passthrough('RadioGroup'),
-          RadioGroupItem: true
-        }
-      }
-    })
-    await flushPromises()
-
-    const adoptButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.agents.actions.adopt'))
-    expect(adoptButton).toBeUndefined()
-    expect(skillSyncClient.scanAgents).toHaveBeenCalledOnce()
-    expect(loadSkills).not.toHaveBeenCalled()
   })
 
   it('renders skill detail markdown without frontmatter', async () => {
@@ -483,7 +91,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillDetailDialog = (
-      await import('../../../src/renderer/settings/components/skills/SkillDetailDialog.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillDetailDialog.vue')
     ).default
 
     const wrapper = mount(SkillDetailDialog, {
@@ -516,7 +124,11 @@ describe('skill sync settings components', () => {
           DialogDescription: passthrough('DialogDescription'),
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle')
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          DcDropdownActionItem: dropdownActionStub
         }
       }
     })
@@ -542,7 +154,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillDetailDialog = (
-      await import('../../../src/renderer/settings/components/skills/SkillDetailDialog.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillDetailDialog.vue')
     ).default
 
     const wrapper = mount(SkillDetailDialog, {
@@ -577,12 +189,15 @@ describe('skill sync settings components', () => {
           DialogDescription: passthrough('DialogDescription'),
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle')
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          DcDropdownActionItem: dropdownActionStub
         }
       }
     })
 
-    expect(wrapper.get('[data-testid="skill-detail-status-toggle"]').classes()).toContain('pr-8')
     const actionButtons = wrapper
       .get('[data-testid="skill-detail-actions"]')
       .findAll('button')
@@ -608,6 +223,16 @@ describe('skill sync settings components', () => {
 
     const toolsInput = wrapper.findAll('input')[1]
     await toolsInput.setValue('Read, Bash')
+
+    const routeGuard = vi.mocked(onBeforeRouteLeave).mock.calls.at(-1)?.[0] as () => unknown
+    const leaveResult = routeGuard()
+    expect(leaveResult).toBeInstanceOf(Promise)
+    await flushPromises()
+    const stayButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.leaveGuard.stay'))
+    await stayButton?.trigger('click')
+    await expect(leaveResult).resolves.toBe(false)
 
     const saveButton = wrapper
       .findAll('button')
@@ -636,10 +261,19 @@ describe('skill sync settings components', () => {
       .findAll('button')
       .find((button) => button.text().includes('settings.leaveGuard.discard'))
     await discardButton?.trigger('click')
+    expect((wrapper.vm as any).discardConfirmOpen).toBe(false)
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+
+    await editButton?.trigger('click')
+    await wrapper.findAll('textarea')[0].setValue('Discard before route change')
+    const confirmedLeave = routeGuard()
+    await flushPromises()
+    await discardButton?.trigger('click')
+    await expect(confirmedLeave).resolves.toBe(true)
+    expect((wrapper.vm as any).discardConfirmOpen).toBe(false)
   })
 
-  it('opens detail from the skill card body without bubbling the status toggle', async () => {
+  it('opens a Skill preview from the whole card', async () => {
     vi.resetModules()
 
     vi.doMock('vue-i18n', () => ({
@@ -649,9 +283,8 @@ describe('skill sync settings components', () => {
       })
     }))
 
-    const SkillCard = (
-      await import('../../../src/renderer/settings/components/skills/SkillCard.vue')
-    ).default
+    const SkillCard = (await import('../../../src/renderer/src/pages/plugins/skills/SkillCard.vue'))
+      .default
 
     const wrapper = mount(SkillCard, {
       props: {
@@ -662,50 +295,28 @@ describe('skill sync settings components', () => {
           skillRoot: '/skills/write-tests',
           canonicalPath: '/skills/write-tests/SKILL.md',
           sourceType: 'created',
+          agentId: 'deepchat',
+          assigned: true,
+          assignedAgentIds: ['deepchat'],
+          disabled: false,
           deepchatDisabled: false,
           agentLinks: {},
           mutable: true
         }
       },
       global: {
-        stubs: {
-          Icon: true,
-          Badge: passthrough('Badge'),
-          Switch: switchStub
-        }
+        stubs: {}
       }
     })
 
-    await wrapper.trigger('click')
+    await wrapper.get('[data-testid="plugin-skill-write-tests"]').trigger('click')
     expect(wrapper.emitted('view')).toHaveLength(1)
-
-    await wrapper.get('[data-testid=\"switch\"]').trigger('click')
-    expect(wrapper.emitted('toggle-disabled')?.[0]).toEqual([true])
-    expect(wrapper.emitted('view')).toHaveLength(1)
+    expect(wrapper.text()).toBe('write-testsWrite tests')
   })
 
-  it('scans and installs a root SKILL.md Git repository from the Git dialog', async () => {
+  it('manages enabled Agents inside the Skill preview', async () => {
     vi.resetModules()
 
-    const skillClient = {
-      scanGitSkillRepo: vi.fn().mockResolvedValue({
-        repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
-        repoFormat: 'single-skill',
-        skills: [
-          {
-            name: 'guizang-ppt-skill',
-            description: 'Create PPT files',
-            relativePath: 'SKILL.md',
-            conflict: false,
-            valid: true
-          }
-        ]
-      }),
-      installFromGit: vi.fn().mockResolvedValue([{ success: true, skillName: 'guizang-ppt-skill' }])
-    }
-    vi.doMock('@api/SkillClient', () => ({
-      createSkillClient: () => skillClient
-    }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string, params?: Record<string, unknown>) =>
@@ -713,143 +324,60 @@ describe('skill sync settings components', () => {
       })
     }))
 
-    const InstallFromGitDialog = (
-      await import('../../../src/renderer/settings/components/skills/InstallFromGitDialog.vue')
-    ).default
-
-    const wrapper = mount(InstallFromGitDialog, {
-      props: { open: true },
-      global: {
-        stubs: {
-          Icon: true,
-          Badge: passthrough('Badge'),
-          DcButton: buttonStub,
-          Checkbox: checkboxStub,
-          Dialog: passthrough('Dialog'),
-          DialogContent: passthrough('DialogContent'),
-          DialogDescription: passthrough('DialogDescription'),
-          DialogFooter: passthrough('DialogFooter'),
-          DialogHeader: passthrough('DialogHeader'),
-          DialogTitle: passthrough('DialogTitle'),
-          Input: inputStub,
-          RadioGroup: passthrough('RadioGroup'),
-          RadioGroupItem: true
-        }
-      }
-    })
-
-    const scanButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.git.scan'))
-    await scanButton?.trigger('click')
-    await flushPromises()
-
-    expect(skillClient.scanGitSkillRepo).toHaveBeenCalledWith(
-      'https://github.com/op7418/guizang-ppt-skill'
-    )
-    expect(wrapper.text()).toContain('guizang-ppt-skill')
-
-    const installButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.git.install'))
-    await installButton?.trigger('click')
-    await flushPromises()
-
-    expect(skillClient.installFromGit).toHaveBeenCalledWith({
-      repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
-      skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
-    })
-    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
-    // 成功反馈走按钮 ✅，不再弹 toast
-    expect(notifyRenderer).not.toHaveBeenCalled()
-  })
-
-  it('keeps a partially failed Git install open and reports the failure inline', async () => {
-    vi.resetModules()
-
-    const skillClient = {
-      scanGitSkillRepo: vi.fn().mockResolvedValue({
-        repoUrl: 'https://example.com/skills.git',
-        repoFormat: 'multi-skill',
-        skills: [
-          {
-            name: 'installed-skill',
-            description: 'Installed',
-            relativePath: 'installed/SKILL.md',
-            conflict: true,
-            valid: true
-          },
-          {
-            name: 'failed-skill',
-            description: 'Failed',
-            relativePath: 'failed/SKILL.md',
-            conflict: false,
-            valid: true
-          }
-        ]
-      }),
-      installFromGit: vi.fn().mockResolvedValue([
-        {
-          success: true,
-          sourceSkillName: 'installed-skill',
-          skillName: 'installed-skill-1'
-        },
-        {
-          success: false,
-          skillName: 'failed-skill',
-          error: '/private/source/failed-skill could not be copied'
-        }
-      ])
-    }
-    vi.doMock('@api/SkillClient', () => ({
-      createSkillClient: () => skillClient
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string, params?: Record<string, unknown>) =>
-          params ? `${key}:${JSON.stringify(params)}` : key
+    vi.doMock('@/components/markdown/MarkdownRenderer.vue', () => ({
+      default: defineComponent({
+        name: 'MarkdownRenderer',
+        props: { content: String },
+        template: '<article>{{ content }}</article>'
       })
     }))
 
-    const InstallFromGitDialog = (
-      await import('../../../src/renderer/settings/components/skills/InstallFromGitDialog.vue')
+    const SkillDetailDialog = (
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillDetailDialog.vue')
     ).default
-    const wrapper = mount(InstallFromGitDialog, {
-      props: { open: true },
+    const wrapper = mount(SkillDetailDialog, {
+      props: {
+        open: true,
+        name: 'write-tests',
+        description: 'Write tests',
+        markdown: '# Write tests',
+        agents: [
+          { id: 'writer', name: 'Writer' },
+          { id: 'reviewer', name: 'Reviewer' }
+        ],
+        enabledAgentIds: ['writer'],
+        enabledAgentNames: ['Writer']
+      },
       global: {
         stubs: {
           Icon: true,
-          Badge: passthrough('Badge'),
           DcButton: buttonStub,
-          Checkbox: checkboxStub,
+          Input: inputStub,
+          Label: passthrough('Label'),
+          Switch: switchStub,
+          Textarea: textareaStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
           DialogDescription: passthrough('DialogDescription'),
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
           DialogTitle: passthrough('DialogTitle'),
-          Input: inputStub,
-          RadioGroup: passthrough('RadioGroup'),
-          RadioGroupItem: true
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          DcDropdownActionItem: dropdownActionStub
         }
       }
     })
 
-    const findButton = (key: string) =>
-      wrapper.findAll('button').find((button) => button.text().includes(key))
-    await findButton('settings.skills.git.scan')?.trigger('click')
-    await flushPromises()
-    await findButton('settings.skills.git.install')?.trigger('click')
-    await flushPromises()
+    expect(wrapper.get('[data-testid="skill-detail-enabled-agent-writer"]').text()).toContain(
+      'Writer'
+    )
+    await wrapper.get('[data-testid="skill-detail-enabled-agent-writer"] button').trigger('click')
+    expect(wrapper.emitted('disable-agent')).toEqual([['writer']])
 
-    expect(wrapper.emitted('update:open')).toBeUndefined()
-    expect(Array.from((wrapper.vm as any).selectedNames)).toEqual(['failed-skill'])
-    // 部分失败走按钮 ⚠ + 内联错误，不再弹 toast
-    expect(notifyRenderer).not.toHaveBeenCalled()
-    expect((wrapper.vm as any).installStatus).toBe('error')
-    expect(wrapper.text()).toContain('settings.skills.git.successMessage')
-    expect(wrapper.text()).not.toContain('/private/source')
+    await wrapper.findComponent({ name: 'DcDropdownActionItem' }).trigger('click')
+    expect(wrapper.emitted('enable-agent')).toEqual([['reviewer']])
   })
 
   it('exports selected sync directory skills and refreshes imports on tab switch', async () => {
@@ -938,7 +466,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillImportExportTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillImportExportTab.vue')
     ).default
 
     const wrapper = mount(SkillImportExportTab, {
@@ -1141,7 +669,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillImportExportTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillImportExportTab.vue')
     ).default
 
     const wrapper = mount(SkillImportExportTab, {
@@ -1169,6 +697,12 @@ describe('skill sync settings components', () => {
       }
     })
     await flushPromises()
+
+    const routeGuard = vi.mocked(onBeforeRouteLeave).mock.calls.at(-1)?.[0] as () => unknown
+    expect(routeGuard()).toBe(true)
+    ;(wrapper.vm as any).operationPending = true
+    expect(routeGuard()).toBe(false)
+    ;(wrapper.vm as any).operationPending = false
 
     const firstChoose = (wrapper.vm as any).chooseDirectory()
     const secondChoose = (wrapper.vm as any).chooseDirectory()
@@ -1218,7 +752,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillImportExportTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillImportExportTab.vue')
     ).default
 
     const wrapper = mount(SkillImportExportTab, {
@@ -1323,7 +857,7 @@ describe('skill sync settings components', () => {
     }))
 
     const SkillImportExportTab = (
-      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+      await import('../../../src/renderer/src/pages/plugins/skills/SkillImportExportTab.vue')
     ).default
 
     const wrapper = mount(SkillImportExportTab, {

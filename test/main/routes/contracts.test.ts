@@ -294,6 +294,7 @@ describe('main kernel contracts', () => {
         'sessions.updateDisabledAgentTools',
         'sessions.updateGenerationSettings',
         'sessions.updateQueuedInput',
+        'skills.delete',
         'skills.getActive',
         'skills.getSyncConfig',
         'skills.executeSyncDirectoryExport',
@@ -301,6 +302,7 @@ describe('main kernel contracts', () => {
         'skills.installFromGit',
         'skills.installFromFolder',
         'skills.installFromUrl',
+        'skills.listAll',
         'skills.listCatalog',
         'skills.listMetadata',
         'skills.openFolder',
@@ -309,19 +311,15 @@ describe('main kernel contracts', () => {
         'skills.readFile',
         'skills.scanGitRepo',
         'skills.setActive',
+        'skills.setAssignments',
         'skills.setDisabled',
         'skills.setSyncDirectory',
         'shortcut.destroy',
         'shortcut.register',
         'shortcut.unregister',
         'skillSync.acknowledgeDiscoveries',
-        'skillSync.getAgentDetail',
-        'skillSync.getAgentSkillDetail',
         'skillSync.getNewDiscoveries',
         'skillSync.getRegisteredTools',
-        'skillSync.removeAgentSkillLink',
-        'skillSync.repairAgentSkillLink',
-        'skillSync.scanAgents',
         'skillSync.scanExternalTools',
         'sync.getBackupStatus',
         'sync.import',
@@ -340,6 +338,7 @@ describe('main kernel contracts', () => {
         'window.focusMain',
         'window.notifySettingsReady',
         'window.requeuePendingSettingsProviderInstall',
+        'window.resumeGuidedOnboarding',
         'window.startGuidedOnboarding',
         'workspace.watch'
       ])
@@ -700,7 +699,8 @@ describe('main kernel contracts', () => {
       agentId: 'deepchat',
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
+      strategy: 'rename',
+      assignToAgent: true
     })
 
     expect(() =>
@@ -724,20 +724,17 @@ describe('main kernel contracts', () => {
   it('validates Agent Skill import selections', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
-        source: { kind: 'internal', agentId: 'deepchat' },
+        source: { kind: 'external', toolId: 'codex' },
         items: [{ skillName: 'write-tests', strategy: 'rename' }]
       })
     ).toEqual({
-      targetAgentId: 'writer',
-      source: { kind: 'internal', agentId: 'deepchat' },
+      source: { kind: 'external', toolId: 'codex' },
       items: [{ skillName: 'write-tests', strategy: 'rename' }]
     })
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
-        source: { kind: 'internal', agentId: 'deepchat' },
+        source: { kind: 'external', toolId: 'codex' },
         items: [
           { skillName: 'write-tests', strategy: 'skip' },
           { skillName: ' write-tests ', strategy: 'overwrite' }
@@ -747,7 +744,6 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
-        targetAgentId: 'writer',
         source: { kind: 'external', toolId: 'codex' },
         items: [{ skillName: '../outside', strategy: 'overwrite' }]
       })
@@ -1861,18 +1857,24 @@ describe('main kernel contracts', () => {
       format: 'markdown',
       lastModified: new Date('2024-01-01T00:00:00.000Z')
     }
-    expect(Object.keys(DEEPCHAT_ROUTE_CATALOG)).not.toEqual(
-      expect.arrayContaining([
-        'skillSync.previewAdoptAgentSkill',
-        'skillSync.executeAdoptAgentSkill',
-        'skillSync.previewLinkDeepChatSkills',
-        'skillSync.executeLinkDeepChatSkills',
-        'skillSync.previewImport',
-        'skillSync.executeImport',
-        'skillSync.previewExport',
-        'skillSync.executeExport'
-      ])
-    )
+    const removedSkillSyncRoutes = [
+      'skillSync.previewAdoptAgentSkill',
+      'skillSync.executeAdoptAgentSkill',
+      'skillSync.previewLinkDeepChatSkills',
+      'skillSync.executeLinkDeepChatSkills',
+      'skillSync.previewImport',
+      'skillSync.executeImport',
+      'skillSync.previewExport',
+      'skillSync.executeExport',
+      'skillSync.scanAgents',
+      'skillSync.getAgentDetail',
+      'skillSync.getAgentSkillDetail',
+      'skillSync.repairAgentSkillLink',
+      'skillSync.removeAgentSkillLink'
+    ]
+    for (const routeName of removedSkillSyncRoutes) {
+      expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty(routeName)
+    }
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skillSync.scanExternalTools'].output.parse({
@@ -1897,16 +1899,6 @@ describe('main kernel contracts', () => {
         }
       ]
     })
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.getAgentSkillDetail'].input.parse({
-        agentId: 'codex',
-        skillName: 'write-tests'
-      })
-    ).toEqual({
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
   })
 
   it('registers typed event catalog entries through phase4', () => {
@@ -1919,6 +1911,7 @@ describe('main kernel contracts', () => {
         'acpTerminal.externalDependenciesRequired',
         'acpTerminal.output',
         'acpTerminal.started',
+        'appRuntime.guidedOnboardingResumeRequested',
         'appRuntime.guidedOnboardingStartRequested',
         'appRuntime.mcpInstallRequested',
         'appRuntime.shortcutRequested',
@@ -1988,12 +1981,6 @@ describe('main kernel contracts', () => {
         'skills.catalog.changed',
         'skills.session.changed',
         'skillSync.discoveries.changed',
-        'skillSync.export.completed',
-        'skillSync.export.progress',
-        'skillSync.export.started',
-        'skillSync.import.completed',
-        'skillSync.import.progress',
-        'skillSync.import.started',
         'skillSync.scan.completed',
         'skillSync.scan.started',
         'sync.backup.completed',

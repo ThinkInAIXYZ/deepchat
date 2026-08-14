@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
 describe('plugins router', () => {
+  it('owns the only Skills management route', async () => {
+    vi.resetModules()
+    vi.doMock('vue-router', async () => vi.importActual<typeof import('vue-router')>('vue-router'))
+    const router = (await import('../../../src/renderer/src/router')).default
+
+    expect(router.resolve({ name: 'plugins-skills' }).path).toBe('/plugins/skills')
+  })
+
   it('resolves built-in OCR before the dynamic plugin detail route', async () => {
     vi.resetModules()
     vi.doMock('vue-router', async () => vi.importActual<typeof import('vue-router')>('vue-router'))

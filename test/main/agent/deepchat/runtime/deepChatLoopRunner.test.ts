@@ -20,7 +20,7 @@ describe('DeepChatLoopRunner', () => {
     } as never)
 
     expect(() =>
-      runner.appendTapeViewManifest({
+      runner.commitTapeProviderView({
         sessionId: 'session-1',
         messageId: 'message-1',
         requestSeq: 1,
@@ -45,7 +45,9 @@ describe('DeepChatLoopRunner', () => {
         runId: 'run-1',
         tapeIncarnationId: 'tape-1',
         skillContexts: [],
-        requireDurableManifest: true
+        requireDurableManifest: true,
+        toolSurfaceSnapshot: null,
+        programmaticToolCapability: null
       })
     ).toThrow('requires Skill contexts')
     expect(appendViewManifest).not.toHaveBeenCalled()

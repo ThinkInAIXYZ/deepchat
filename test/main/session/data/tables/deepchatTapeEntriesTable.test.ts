@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import {
+  TAPE_TOOL_SURFACE_EVENT_NAME,
+  TOOL_SURFACE_TAPE_EVENT_NAMES
+} from '@/tape/domain/toolSurfaceFacts'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule ? await import('@/session/data/tables/deepchatTapeEntries') : null
@@ -87,6 +91,75 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
 
     expect(table.getBySession('s1').map((entry) => entry.entry_id)).toEqual([1, 2])
     expect(table.getBySession('s2').map((entry) => entry.entry_id)).toEqual([1])
+
+    db.close()
+  })
+
+  it('reserves Tool Surface provenance names for the dedicated writer', () => {
+    const { db, table } = createTable()
+
+    for (const name of TOOL_SURFACE_TAPE_EVENT_NAMES) {
+      expect(() =>
+        table.appendEvent({
+          sessionId: 's1',
+          name,
+          data: { marker: 'generic-writer' }
+        })
+      ).toThrow('reserved for its provenance writer')
+    }
+    expect(() =>
+      table.append({
+        sessionId: 's1',
+        kind: 'event',
+        name: TAPE_TOOL_SURFACE_EVENT_NAME,
+        payload: { marker: 'generic-append' }
+      })
+    ).toThrow('reserved for its provenance writer')
+
+    const compatible = table.appendEvent({
+      sessionId: 's1',
+      name: 'view/tool_catalog/future',
+      data: { marker: 'compatible-near-prefix' }
+    })
+    expect(compatible.name).toBe('view/tool_catalog/future')
+
+    const rows = TOOL_SURFACE_TAPE_EVENT_NAMES.map((name, index) => {
+      const row = table.appendToolSurfaceEvent({
+        sessionId: 's1',
+        name,
+        source: { type: 'runtime_event', id: `fact-${index}`, seq: index },
+        provenanceKey: `tool-surface:${index}`,
+        data: { marker: `dedicated-writer-${index}` },
+        idempotent: true
+      })
+      expect(row).toMatchObject({
+        kind: 'event',
+        name,
+        source_type: 'runtime_event',
+        source_id: `fact-${index}`
+      })
+      return row
+    })
+    const headEntryId = rows.at(-1)!.entry_id
+    expect(
+      table.searchEffectiveSourcesAtHeads(
+        [{ sessionId: 's1', maxEntryId: headEntryId }],
+        'compatible-near-prefix'
+      )
+    ).toEqual([compatible])
+    expect(
+      table.searchEffectiveSourcesAtHeads(
+        [{ sessionId: 's1', maxEntryId: headEntryId }],
+        'dedicated-writer'
+      )
+    ).toEqual([])
+    expect(
+      table.getEffectiveContextRowsAtHead(
+        { sessionId: 's1', maxEntryId: headEntryId },
+        rows.map((row) => row.entry_id),
+        { before: 0, after: 0, limit: 10 }
+      )
+    ).toEqual([])
 
     db.close()
   })

@@ -13,6 +13,11 @@ import {
   createRecord,
   createTapeService
 } from './tapeTestHarness'
+import {
+  TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
+  buildTapeToolResultPayloadHash
+} from '@/tape/domain/toolSurfaceFacts'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 describe('SessionTape reconciliation and facts', () => {
   it('uses the explicit replacement revision kind instead of the reason text', () => {
@@ -260,6 +265,7 @@ describe('SessionTape reconciliation and facts', () => {
     const second = await service.appendToolFact(input)
 
     expect(second).toEqual(first)
+    expect(first.toolResult).toBeNull()
     expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
     expect(JSON.parse(entries.find((entry) => entry.kind === 'tool_call').meta_json)).toEqual({
       source: 'live',
@@ -267,6 +273,131 @@ describe('SessionTape reconciliation and facts', () => {
       status: 'success',
       reason: 'tool_loop'
     })
+  })
+
+  it('returns physical result provenance only for a canonical Tape incarnation', async () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    const input = {
+      sessionId: toAppSessionId('s1'),
+      messageId: 'a1',
+      orderSeq: 2,
+      blockIndex: 0,
+      block: {
+        type: 'tool_call' as const,
+        status: 'success' as const,
+        timestamp: 120,
+        tool_call: {
+          id: 'tc1',
+          name: TOOL_SEARCH_AGENT_TOOL_NAME,
+          params: '{}',
+          response: '{"results":[]}'
+        }
+      },
+      provenance: { source: 'tool_result' as const, sourceId: 'a1:tc1', sequence: 0 }
+    }
+
+    const receipt = await service.appendToolFact(input)
+    const row = entries.find((entry) => entry.entry_id === receipt.entryId)!
+
+    expect(receipt.toolResult).toEqual({
+      sessionId: 's1',
+      tapeIncarnationId: '00000000-0000-4000-8000-000000000001',
+      entryId: row.entry_id,
+      payloadHashVersion: TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
+      payloadHash: buildTapeToolResultPayloadHash(JSON.parse(row.payload_json))
+    })
+
+    const failedInput = {
+      ...input,
+      block: {
+        ...input.block,
+        status: 'error' as const,
+        tool_call: { ...input.block.tool_call, id: 'tc-failed' }
+      },
+      provenance: { source: 'tool_result' as const, sourceId: 'a1:tc-failed', sequence: 1 }
+    }
+    const failedReceipt = await service.appendToolFact(failedInput)
+    const idempotentSuccessReceipt = await service.appendToolFact({
+      ...failedInput,
+      block: { ...failedInput.block, status: 'success' }
+    })
+    expect(failedReceipt.toolResult).toBeNull()
+    expect(idempotentSuccessReceipt.toolResult).toBeNull()
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.kind === 'tool_result' && entry.source_id === failedInput.provenance.sourceId
+      )
+    ).toHaveLength(1)
+
+    const ordinaryResult = await service.appendToolFact({
+      ...input,
+      block: {
+        ...input.block,
+        tool_call: { ...input.block.tool_call, id: 'tc2', name: 'ordinary_tool' }
+      },
+      provenance: { source: 'tool_result', sourceId: 'a1:tc2', sequence: 1 }
+    })
+    expect(ordinaryResult.toolResult).toBeNull()
+
+    const legacy = createTapeTableMock()
+    legacy.table.appendAnchor({
+      sessionId: 'legacy',
+      name: 'session/start',
+      source: { type: 'session', id: 'legacy', seq: 0 },
+      state: { owner: 'human' },
+      meta: {},
+      idempotent: true
+    })
+    const legacyService = createTapeService(legacy.table)
+    const legacyReceipt = await legacyService.appendToolFact({
+      ...input,
+      sessionId: toAppSessionId('legacy')
+    })
+    expect(legacyReceipt.toolResult).toBeNull()
+    expect(legacy.entries.some((entry) => entry.kind === 'tool_result')).toBe(true)
+
+    const noncanonical = createTapeTableMock()
+    noncanonical.table.appendAnchor({
+      sessionId: 'noncanonical',
+      name: 'legacy/start',
+      source: { type: 'session', id: 'noncanonical', seq: 0 },
+      state: { owner: 'human' },
+      meta: { tapeIncarnationId: '00000000-0000-4000-8000-000000000099' },
+      idempotent: true
+    })
+    const noncanonicalReceipt = await createTapeService(noncanonical.table).appendToolFact({
+      ...input,
+      sessionId: toAppSessionId('noncanonical')
+    })
+    expect(noncanonicalReceipt.toolResult).toBeNull()
+
+    const malformed = createTapeTableMock()
+    const append = malformed.table.append.getMockImplementation()!
+    malformed.table.append.mockImplementation((appendInput: any) => {
+      const appended = append(appendInput)
+      if (appended.kind === 'tool_result') appended.payload_json = '[]'
+      return appended
+    })
+    const malformedReceipt = await createTapeService(malformed.table).appendToolFact({
+      ...input,
+      sessionId: toAppSessionId('malformed')
+    })
+    expect(malformedReceipt.toolResult).toBeNull()
+
+    const malformedMeta = createTapeTableMock()
+    const appendWithMalformedMeta = malformedMeta.table.append.getMockImplementation()!
+    malformedMeta.table.append.mockImplementation((appendInput: any) => {
+      const appended = appendWithMalformedMeta(appendInput)
+      if (appended.kind === 'tool_result') appended.meta_json = '[]'
+      return appended
+    })
+    const malformedMetaReceipt = await createTapeService(malformedMeta.table).appendToolFact({
+      ...input,
+      sessionId: toAppSessionId('malformed-meta')
+    })
+    expect(malformedMetaReceipt.toolResult).toBeNull()
   })
 
   it('keeps legacy context builder output stable after tape backfill projection', () => {

@@ -391,8 +391,6 @@ export class CliSkillService {
         targetType: 'skill',
         targetId: `${agentId}:${name}`,
         targetLabel: name,
-        routeName: 'settings-skills',
-        routeParams: { agentId },
         summaryKey: 'settings.controlCenter.activity.settingUpdated',
         summaryParams: { key: name }
       })

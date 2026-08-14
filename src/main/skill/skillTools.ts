@@ -11,12 +11,16 @@ import type { RuntimeSkillViewResult } from './index'
 
 type SkillToolsServicePort = Pick<
   SkillServicePort,
-  'getActiveSkills' | 'getMetadataList' | 'manageDraftSkill' | 'resolveSessionAgentId'
+  | 'getActiveSkills'
+  | 'getAllSkills'
+  | 'getMetadataList'
+  | 'manageDraftSkill'
+  | 'resolveSessionAgentId'
 > & {
   viewSkillForAgent(
     agentId: string,
     name: string,
-    options?: { filePath?: string; conversationId?: string }
+    options?: { filePath?: string; conversationId?: string; activeSkillNames?: readonly string[] }
   ): Promise<RuntimeSkillViewResult>
 }
 
@@ -35,7 +39,18 @@ export class SkillTools {
       return buildSkillListResult([], [], [], input)
     }
     const agentId = resolvedAgentId
-    const allSkills = await this.skillService.getMetadataList(agentId)
+    const assignedSkills = await this.skillService.getMetadataList(agentId)
+    const allSkills = [...assignedSkills]
+    if (activeSkillNames !== undefined) {
+      const listedNames = new Set(allSkills.map((skill) => skill.name))
+      const activeNames = new Set(activeSkillNames)
+      for (const skill of await this.skillService.getAllSkills()) {
+        if (activeNames.has(skill.name) && !listedNames.has(skill.name)) {
+          allSkills.push(skill)
+          listedNames.add(skill.name)
+        }
+      }
+    }
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const sessionActiveSkills = conversationId
       ? (await this.skillService.getActiveSkills(conversationId)).filter((skillName) =>
@@ -50,7 +65,8 @@ export class SkillTools {
 
   async handleSkillView(
     conversationId: string | undefined,
-    input: { name: string; file_path?: string }
+    input: { name: string; file_path?: string },
+    activeSkillNames?: readonly string[]
   ): Promise<RuntimeSkillViewResult> {
     const requestedSkillName = input.name.trim()
     const agentId = conversationId
@@ -66,7 +82,8 @@ export class SkillTools {
 
     return await this.skillService.viewSkillForAgent(agentId, requestedSkillName, {
       filePath: input.file_path,
-      conversationId
+      conversationId,
+      activeSkillNames
     })
   }
 

@@ -412,6 +412,7 @@ describe('renderer api clients', () => {
             case 'skillSync.acknowledgeDiscoveries':
               return { acknowledged: true }
             case 'skills.listCatalog':
+            case 'skills.listAll':
               return {
                 skills: [
                   {
@@ -426,6 +427,16 @@ describe('renderer api clients', () => {
                     mutable: true
                   }
                 ]
+              }
+            case 'skills.setAssignments':
+              return { skillNames: payload?.skillNames ?? [] }
+            case 'skills.delete':
+              return {
+                result: {
+                  success: true,
+                  skillName: payload?.name,
+                  affectedAgentIds: payload?.acknowledgedAgentIds
+                }
               }
             case 'skills.setDisabled':
               return { saved: true }
@@ -505,9 +516,9 @@ describe('renderer api clients', () => {
               return {
                 sources: [
                   {
-                    id: 'internal:source-agent',
-                    source: { kind: 'internal', agentId: 'source-agent' },
-                    name: 'Source Agent',
+                    id: 'external:codex',
+                    source: { kind: 'external', toolId: 'codex' },
+                    name: 'Codex',
                     available: true,
                     skillCount: 1
                   }
@@ -516,7 +527,6 @@ describe('renderer api clients', () => {
             case 'skills.previewAgentImport':
               return {
                 preview: {
-                  targetAgentId: payload?.targetAgentId,
                   source: payload?.source,
                   items: [
                     {
@@ -532,6 +542,7 @@ describe('renderer api clients', () => {
                 result: {
                   success: true,
                   imported: ['write-tests'],
+                  reused: [],
                   skipped: [],
                   failed: []
                 }
@@ -557,71 +568,6 @@ describe('renderer api clients', () => {
                     }
                   }
                 ]
-              }
-            case 'skillSync.scanAgents':
-              return {
-                agents: [
-                  {
-                    id: 'codex',
-                    name: 'Codex',
-                    skillsDir: '/tools',
-                    isCustom: false,
-                    supportsLinkManagement: true,
-                    skillsCount: 1,
-                    linkedCount: 0,
-                    agentOwnedCount: 1,
-                    conflictCount: 0,
-                    brokenLinkCount: 0,
-                    status: 'ready'
-                  }
-                ]
-              }
-            case 'skillSync.getAgentDetail':
-              return {
-                agent: {
-                  id: payload?.agentId ?? 'codex',
-                  name: 'Codex',
-                  skillsDir: '/tools',
-                  isCustom: false,
-                  supportsLinkManagement: true,
-                  skillsCount: 1,
-                  linkedCount: 0,
-                  agentOwnedCount: 1,
-                  conflictCount: 0,
-                  brokenLinkCount: 0,
-                  status: 'ready',
-                  skills: [
-                    {
-                      name: 'write-tests',
-                      description: 'Write tests',
-                      path: '/tools/write-tests',
-                      owner: 'agent',
-                      status: 'agent-owned',
-                      action: 'adopt',
-                      deepchat: { exists: false }
-                    }
-                  ]
-                }
-              }
-            case 'skillSync.getAgentSkillDetail':
-              return {
-                detail: {
-                  name: payload?.skillName ?? 'write-tests',
-                  description: 'Write tests',
-                  sourcePath: '/tools/write-tests/SKILL.md',
-                  markdown: '# Write tests',
-                  mutable: true
-                }
-              }
-            case 'skillSync.repairAgentSkillLink':
-            case 'skillSync.removeAgentSkillLink':
-              return {
-                result: {
-                  success: true,
-                  skillName: payload?.skillName,
-                  agentPath: '/tools/write-tests',
-                  targetPath: '/deepchat/skills/write-tests'
-                }
               }
             case 'nowledgeMem.getConfig':
             case 'nowledgeMem.updateConfig':
@@ -936,6 +882,8 @@ describe('renderer api clients', () => {
               }
             case 'window.requeuePendingSettingsProviderInstall':
               return { queued: true }
+            case 'window.resumeGuidedOnboarding':
+              return { requested: true, focused: true }
             case 'window.startGuidedOnboarding':
               return { started: true, focused: true }
             case 'device.selectFiles':
@@ -1256,6 +1204,7 @@ describe('renderer api clients', () => {
     client.onStartDeeplink(listener)
     client.onMcpInstallRequested(listener)
     client.onGuidedOnboardingStartRequested(listener)
+    client.onGuidedOnboardingResumeRequested(listener)
     client.onWindowFocused(listener)
     client.onWindowBlurred(listener)
     client.onShortcutRequested(listener)
@@ -1268,10 +1217,15 @@ describe('renderer api clients', () => {
       'appRuntime.guidedOnboardingStartRequested',
       expect.any(Function)
     )
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'appRuntime.windowFocused', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowBlurred', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.shortcutRequested', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(7, 'appRuntime.systemNotificationClicked', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      4,
+      'appRuntime.guidedOnboardingResumeRequested',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowFocused', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.windowBlurred', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'appRuntime.shortcutRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'appRuntime.systemNotificationClicked', listener)
   })
 
   it('routes shortcut runtime commands through the shared registry names', async () => {
@@ -2359,6 +2313,7 @@ describe('renderer api clients', () => {
       throw new Error('Expected pending provider install preview')
     }
     await windowClient.requeuePendingSettingsProviderInstall(preview)
+    await windowClient.resumeGuidedOnboarding()
     await windowClient.startGuidedOnboarding()
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'window.closeSettings', {})
@@ -2376,7 +2331,8 @@ describe('renderer api clients', () => {
         preview
       }
     )
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'window.startGuidedOnboarding', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'window.resumeGuidedOnboarding', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'window.startGuidedOnboarding', {})
   })
 
   it('routes provider runtime utility calls through the shared registry names', async () => {
@@ -2485,41 +2441,14 @@ describe('renderer api clients', () => {
     await skillSyncClient.getNewDiscoveries()
     await skillSyncClient.acknowledgeDiscoveries()
     await skillSyncClient.getRegisteredTools()
-    await skillSyncClient.scanAgents()
-    await skillSyncClient.getAgentDetail('codex')
-    await skillSyncClient.getAgentSkillDetail('codex', 'write-tests')
-    await skillSyncClient.repairAgentSkillLink({ agentId: 'codex', skillName: 'write-tests' })
-    await skillSyncClient.removeAgentSkillLink({ agentId: 'codex', skillName: 'write-tests' })
     skillSyncClient.onDiscoveriesChanged(vi.fn())
     skillSyncClient.onScanStarted(vi.fn())
     skillSyncClient.onScanCompleted(vi.fn())
-    skillSyncClient.onImportStarted(vi.fn())
-    skillSyncClient.onImportProgress(vi.fn())
-    skillSyncClient.onImportCompleted(vi.fn())
-    skillSyncClient.onExportStarted(vi.fn())
-    skillSyncClient.onExportProgress(vi.fn())
-    skillSyncClient.onExportCompleted(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skillSync.scanExternalTools', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skillSync.getNewDiscoveries', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skillSync.acknowledgeDiscoveries', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'skillSync.getRegisteredTools', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'skillSync.scanAgents', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'skillSync.getAgentDetail', {
-      agentId: 'codex'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'skillSync.getAgentSkillDetail', {
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'skillSync.repairAgentSkillLink', {
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'skillSync.removeAgentSkillLink', {
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
     expect(bridge.on).toHaveBeenNthCalledWith(
       1,
       'skillSync.discoveries.changed',
@@ -2527,12 +2456,6 @@ describe('renderer api clients', () => {
     )
     expect(bridge.on).toHaveBeenNthCalledWith(2, 'skillSync.scan.started', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(3, 'skillSync.scan.completed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'skillSync.import.started', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(5, 'skillSync.import.progress', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(6, 'skillSync.import.completed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(7, 'skillSync.export.started', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(8, 'skillSync.export.progress', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(9, 'skillSync.export.completed', expect.any(Function))
   })
 
   it('routes GitHub Copilot OAuth calls through the shared registry names', async () => {
@@ -2621,6 +2544,38 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('maps renderer assignment changes to the compatible status route', async () => {
+    const bridge = createBridge()
+    const skillClient = createSkillClient(bridge)
+
+    await skillClient.setSkillAssigned('write-tests', false, 'writer')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('skills.setDisabled', {
+      name: 'write-tests',
+      disabled: true,
+      agentId: 'writer'
+    })
+  })
+
+  it('routes shared Skill catalog management through typed route names', async () => {
+    const bridge = createBridge()
+    const skillClient = createSkillClient(bridge)
+
+    await skillClient.getAllSkills()
+    await skillClient.setSkillAssignments('writer', ['write-tests'])
+    await skillClient.deleteSkill('write-tests', ['writer'])
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAll', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setAssignments', {
+      agentId: 'writer',
+      skillNames: ['write-tests']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.delete', {
+      name: 'write-tests',
+      acknowledgedAgentIds: ['writer']
+    })
+  })
+
   it('routes skill management catalog calls through shared registry names', async () => {
     const bridge = createBridge()
     const skillClient = createSkillClient(bridge)
@@ -2665,7 +2620,8 @@ describe('renderer api clients', () => {
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
       strategy: 'rename',
-      agentId: 'deepchat'
+      agentId: 'deepchat',
+      assignToAgent: false
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'skills.getSyncConfig', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'skills.setSyncDirectory', {
@@ -2687,40 +2643,33 @@ describe('renderer api clients', () => {
   it('routes typed Agent Skill import calls and preserves array results', async () => {
     const bridge = createBridge()
     const skillClient = createSkillClient(bridge)
-    const source = { kind: 'internal' as const, agentId: 'source-agent' }
+    const source = { kind: 'external' as const, toolId: 'codex' }
 
-    const sources = await skillClient.listAgentImportSources('target-agent')
+    const sources = await skillClient.listAgentImportSources()
     const preview = await skillClient.previewAgentImport({
-      targetAgentId: 'target-agent',
       source
     })
     const result = await skillClient.executeAgentImport({
-      targetAgentId: 'target-agent',
       source,
       items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
     })
 
-    expect(sources).toEqual([
-      expect.objectContaining({ id: 'internal:source-agent', skillCount: 1 })
-    ])
+    expect(sources).toEqual([expect.objectContaining({ id: 'external:codex', skillCount: 1 })])
     expect(preview.items).toEqual([
       expect.objectContaining({ name: 'write-tests', status: 'ready' })
     ])
     expect(result).toEqual({
       success: true,
       imported: ['write-tests'],
+      reused: [],
       skipped: [],
       failed: []
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAgentImportSources', {
-      targetAgentId: 'target-agent'
-    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAgentImportSources', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.previewAgentImport', {
-      targetAgentId: 'target-agent',
       source
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.executeAgentImport', {
-      targetAgentId: 'target-agent',
       source,
       items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
     })

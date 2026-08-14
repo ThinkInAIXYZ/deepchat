@@ -11,14 +11,25 @@ import {
   itIfSqlite
 } from '../session/data/tapeTestHarness'
 import {
+  EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
   EXECUTION_JOURNAL_EVENT_NAMES,
+  CommittedToolOutcomeProjectionError,
   ExecutionJournalCorruptionError,
+  buildExecutionOperationKey,
   buildExecutionJournalMeta,
   buildExecutionOperationProvenanceKey,
+  buildExecutionRunProvenanceKey,
+  buildNestedDispatchData,
+  buildNestedExecutionJournalMeta,
+  buildNestedExecutionOperationProvenanceKey,
+  buildRunTerminalData,
   buildToolOutcomeData,
   classifyExecutionJournalRows,
+  parseExecutionJournalFact,
+  type NestedExecutionOperationIdentity,
   type ExecutionOperationIdentity
 } from '@/tape/domain/executionJournal'
+import { MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN } from '@/tape/domain/toolSurfaceFacts'
 import {
   ExecutionJournalService,
   type ExecutionJournalCommitFailpoint
@@ -37,6 +48,14 @@ const RUN_IDS = {
 
 function operation(runId: string, providerToolCallId = 'call_0'): ExecutionOperationIdentity {
   return { runId, requestSeq: 1, providerToolCallId }
+}
+
+function nestedOperation(
+  runId: string,
+  childOrdinal: number,
+  providerToolCallId = 'call_0'
+): NestedExecutionOperationIdentity {
+  return { kind: 'nested', runId, requestSeq: 1, providerToolCallId, childOrdinal }
 }
 
 function classifyAllJournalRows(entries: ReturnType<typeof createTapeTableMock>['entries']) {
@@ -76,7 +95,490 @@ function commitDispatch(
   })
 }
 
+function commitNestedDispatch(
+  table: ReturnType<typeof createTapeTableMock>['table'],
+  runId: string,
+  childOrdinal: number,
+  normalizedArguments: Record<string, unknown> = { query: 'hello' }
+) {
+  return new ExecutionJournalService(() => table).commitNestedDispatch({
+    sessionId: 'session-1',
+    messageId: 'assistant-1',
+    operation: nestedOperation(runId, childOrdinal),
+    toolName: 'search',
+    toolSource: 'mcp',
+    normalizedArguments,
+    target: { serverName: 'search-server', originalName: 'search' },
+    definitionHash: '1'.repeat(64),
+    capabilityHash: '2'.repeat(64),
+    createdAt: 115
+  })
+}
+
 describe('Execution Journal domain and strict persistence', () => {
+  it('preserves provider projection errors and identifies nested child projections', () => {
+    const providerError = new CommittedToolOutcomeProjectionError(operation(RUN_IDS.completed), {
+      cause: new Error('provider projection failed')
+    })
+    expect(providerError.message).toBe(
+      'Tool outcome was committed for operation {"providerToolCallId":"call_0","requestSeq":1,"runId":"22222222-2222-4222-8222-222222222222"}, but its projection failed.'
+    )
+    expect(providerError).toMatchObject({
+      name: 'CommittedToolOutcomeProjectionError',
+      code: 'projection_failed',
+      cause: expect.objectContaining({ message: 'provider projection failed' })
+    })
+
+    const nestedError = new CommittedToolOutcomeProjectionError(
+      nestedOperation(RUN_IDS.completed, 3),
+      { cause: new Error('nested projection failed') }
+    )
+    expect(nestedError.message).toContain('"kind":"nested"')
+    expect(nestedError.message).toContain('"childOrdinal":3')
+    expect(nestedError).toMatchObject({
+      name: 'CommittedToolOutcomeProjectionError',
+      code: 'projection_failed',
+      cause: expect.objectContaining({ message: 'nested projection failed' })
+    })
+  })
+
+  it('preserves the historical provider operation hash and provenance recipe', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    const providerOperation = operation(RUN_IDS.completed)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+
+    expect(buildExecutionOperationKey(providerOperation)).toBe(
+      'd1cab8bbe6ac156d881c16de78004630a6ea27330bc13a5df5267ca6db2045d9'
+    )
+    expect(buildExecutionOperationProvenanceKey(providerOperation, 'dispatch')).toBe(
+      'execution:v1:operation:d1cab8bbe6ac156d881c16de78004630a6ea27330bc13a5df5267ca6db2045d9:dispatch'
+    )
+    expect(
+      buildNestedExecutionOperationProvenanceKey(nestedOperation(RUN_IDS.completed, 0), 'dispatch')
+    ).toBe(
+      'execution:v2:parent:d1cab8bbe6ac156d881c16de78004630a6ea27330bc13a5df5267ca6db2045d9:operation:8884a0b78e1d9d67dda1eebeb044a7cbf7b48465656532eace06c4e6c1ce40fd:dispatch'
+    )
+    const dispatch = entries.find((entry) => entry.name === 'execution/dispatch_committed')!
+    expect(dispatch.payload_json).toBe(
+      '{"name":"execution/dispatch_committed","data":{"protocolVersion":1,"operation":{"runId":"22222222-2222-4222-8222-222222222222","requestSeq":1,"providerToolCallId":"call_0"},"messageId":"assistant-1","toolName":"write","toolSource":"agent","argumentsHash":"04f797c908085c44ced0a5a66a713836879515ba437b2ec21abdbe5eb2cb5dae","target":{"serverName":"agent-filesystem","originalName":"write"}}}'
+    )
+    expect(dispatch.meta_json).toBe('{"factFamily":"execution_journal","protocolVersion":1}')
+    expect('commitNestedDispatch' in service).toBe(false)
+  })
+
+  it('persists sibling nested operations under distinct v2 identities without raw payloads', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+
+    expect(commitNestedDispatch(table, RUN_IDS.completed, 0)).toMatchObject({ created: true })
+    expect(commitNestedDispatch(table, RUN_IDS.completed, 1)).toMatchObject({ created: true })
+
+    const nestedRows = entries.filter((entry) => {
+      if (entry.name !== 'execution/dispatch_committed') return false
+      return (
+        JSON.parse(entry.meta_json).protocolVersion === EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+      )
+    })
+    expect(nestedRows).toHaveLength(2)
+    expect(new Set(nestedRows.map((entry) => entry.provenance_key))).toHaveLength(2)
+    expect(nestedRows.every((entry) => entry.provenance_key.startsWith('execution:v2:'))).toBe(true)
+    expect(nestedRows.every((entry) => !entry.payload_json.includes('hello'))).toBe(true)
+    expect(nestedRows.map(parseExecutionJournalFact)).toEqual([
+      expect.objectContaining({
+        protocolVersion: 2,
+        operation: expect.objectContaining({ kind: 'nested', childOrdinal: 0 }),
+        definitionHash: '1'.repeat(64),
+        capabilityHash: '2'.repeat(64)
+      }),
+      expect.objectContaining({
+        protocolVersion: 2,
+        operation: expect.objectContaining({ kind: 'nested', childOrdinal: 1 })
+      })
+    ])
+  })
+
+  it('treats a reused nested identity with different canonical payload as corruption', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+    expect(commitNestedDispatch(table, RUN_IDS.completed, 0)).toMatchObject({ created: true })
+    expect(commitNestedDispatch(table, RUN_IDS.completed, 0)).toMatchObject({ created: false })
+
+    expect(() => commitNestedDispatch(table, RUN_IDS.completed, 0, { query: 'different' })).toThrow(
+      ExecutionJournalCorruptionError
+    )
+  })
+
+  it('uses a new provider operation identity for an explicit model retry', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    const nestedService = new ExecutionJournalService(() => table)
+    commitStarted(service, RUN_IDS.completed)
+
+    for (const providerToolCallId of ['call_0', 'call_1']) {
+      service.commitDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.completed, providerToolCallId),
+        toolName: 'exec',
+        toolSource: 'agent',
+        normalizedArguments: { command: 'deepchat tool call' },
+        target: { serverName: 'agent-filesystem', originalName: 'exec' }
+      })
+      nestedService.commitNestedDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: nestedOperation(RUN_IDS.completed, 0, providerToolCallId),
+        toolName: 'search',
+        toolSource: 'mcp',
+        normalizedArguments: { query: 'hello' },
+        target: { serverName: 'search-server', originalName: 'search' },
+        definitionHash: '1'.repeat(64),
+        capabilityHash: '2'.repeat(64)
+      })
+      nestedService.commitNestedToolOutcome({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: nestedOperation(RUN_IDS.completed, 0, providerToolCallId),
+        responseText: 'child result',
+        isError: false
+      })
+      service.commitToolOutcome({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.completed, providerToolCallId),
+        responseText: 'outer result',
+        isError: false
+      })
+    }
+
+    const nestedDispatches = entries.filter(
+      (entry) =>
+        entry.name === 'execution/dispatch_committed' &&
+        JSON.parse(entry.meta_json).protocolVersion === EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+    )
+    expect(nestedDispatches).toHaveLength(2)
+    expect(new Set(nestedDispatches.map((entry) => entry.provenance_key))).toHaveLength(2)
+    expect(nestedDispatches.map(parseExecutionJournalFact)).toEqual([
+      expect.objectContaining({
+        operation: expect.objectContaining({ providerToolCallId: 'call_0', childOrdinal: 0 })
+      }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ providerToolCallId: 'call_1', childOrdinal: 0 })
+      })
+    ])
+  })
+
+  it('bounds nested child ordinals and rejects v2 fields in the v1 identity parser', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+
+    for (const childOrdinal of [-1, MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN, Number.MAX_SAFE_INTEGER]) {
+      expect(() => commitNestedDispatch(table, RUN_IDS.completed, childOrdinal)).toThrow(
+        /childOrdinal/
+      )
+    }
+    expect(() =>
+      service.commitDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: nestedOperation(RUN_IDS.completed, 0),
+        toolName: 'search',
+        toolSource: 'mcp',
+        normalizedArguments: {},
+        target: { serverName: 'search-server' }
+      })
+    ).toThrow(/operation has unsupported or missing fields/)
+  })
+
+  it('enforces parent T1 and nested settlement before parent T2 and Run terminal', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+
+    expect(() => commitNestedDispatch(table, RUN_IDS.completed, 0)).toThrow(
+      /prerequisite execution\/dispatch_committed is missing/
+    )
+
+    commitDispatch(service, RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    expect(() =>
+      service.commitToolOutcome({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.completed),
+        responseText: 'outer done',
+        isError: false
+      })
+    ).toThrow(/unsettled nested operation/)
+    expect(() =>
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    ).toThrow(/unsettled nested causality/)
+
+    new ExecutionJournalService(() => table).commitNestedToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'child done',
+      isError: false
+    })
+    expect(() =>
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    ).toThrow(/unsettled nested causality/)
+
+    service.commitToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed),
+      responseText: 'outer done',
+      isError: false
+    })
+    expect(
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    ).toMatchObject({ created: true })
+  })
+
+  it('rejects new nested facts after the parent outcome while preserving idempotent receipts', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    const nestedService = new ExecutionJournalService(() => table)
+    const nestedOutcome = {
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'child done',
+      isError: false
+    }
+    nestedService.commitNestedToolOutcome(nestedOutcome)
+    service.commitToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed),
+      responseText: 'outer done',
+      isError: false
+    })
+
+    expect(commitNestedDispatch(table, RUN_IDS.completed, 0)).toMatchObject({ created: false })
+    expect(nestedService.commitNestedToolOutcome(nestedOutcome)).toMatchObject({ created: false })
+    expect(() => commitNestedDispatch(table, RUN_IDS.completed, 1)).toThrow(/parent outcome/)
+    expect(() =>
+      nestedService.commitNestedToolOutcome({ ...nestedOutcome, responseText: 'conflicting child' })
+    ).toThrow(ExecutionJournalCorruptionError)
+  })
+
+  it('fails parent settlement closed when nested source identity fields are corrupt', () => {
+    for (const corrupt of [
+      (row: Record<string, unknown>) => (row.source_type = 'invalid'),
+      (row: Record<string, unknown>) => (row.source_id = RUN_IDS.corruption),
+      (row: Record<string, unknown>) => (row.source_seq = 999)
+    ]) {
+      const { table, entries } = createTapeTableMock()
+      const service = createTapeService(table)
+      commitStarted(service, RUN_IDS.completed)
+      commitDispatch(service, RUN_IDS.completed)
+      commitNestedDispatch(table, RUN_IDS.completed, 0)
+      const nestedRow = entries.find(
+        (entry) =>
+          entry.name === 'execution/dispatch_committed' &&
+          JSON.parse(entry.meta_json).protocolVersion === 2
+      )!
+      corrupt(nestedRow)
+
+      expect(() =>
+        service.commitToolOutcome({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          operation: operation(RUN_IDS.completed),
+          responseText: 'outer done',
+          isError: false
+        })
+      ).toThrow(ExecutionJournalCorruptionError)
+      expect(() =>
+        service.commitRunTerminal({
+          sessionId: 'session-1',
+          runId: RUN_IDS.completed,
+          messageId: 'assistant-1',
+          outcome: 'error',
+          stopReason: 'journal_failure'
+        })
+      ).toThrow(ExecutionJournalCorruptionError)
+    }
+  })
+
+  it('finds a nested fact by parent provenance when row and payload Run IDs are corrupt', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    const nestedRow = entries.find(
+      (entry) =>
+        entry.name === 'execution/dispatch_committed' &&
+        JSON.parse(entry.meta_json).protocolVersion === 2
+    )!
+    nestedRow.source_id = RUN_IDS.corruption
+    const payload = JSON.parse(nestedRow.payload_json)
+    payload.data.operation.runId = RUN_IDS.corruption
+    nestedRow.payload_json = JSON.stringify(payload)
+
+    expect(() =>
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'error',
+        stopReason: 'journal_failure'
+      })
+    ).toThrow(ExecutionJournalCorruptionError)
+    const reports = service.classifyRecoveryCandidates()
+    expect(reports).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          runId: RUN_IDS.completed,
+          classification: 'corruption'
+        })
+      ])
+    )
+    expect(reports.some((report) => report.runId === RUN_IDS.corruption)).toBe(false)
+  })
+
+  it('finds a nested fact by source identity when provenance and payload parent IDs are corrupt', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    const nestedRow = entries.find(
+      (entry) =>
+        entry.name === 'execution/dispatch_committed' &&
+        JSON.parse(entry.meta_json).protocolVersion === 2
+    )!
+    nestedRow.provenance_key = 'corrupt-provenance'
+    const payload = JSON.parse(nestedRow.payload_json)
+    payload.data.operation.providerToolCallId = 'corrupt-parent'
+    nestedRow.payload_json = JSON.stringify(payload)
+
+    expect(() =>
+      service.commitToolOutcome({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.completed),
+        responseText: 'outer done',
+        isError: false
+      })
+    ).toThrow(ExecutionJournalCorruptionError)
+  })
+
+  it('rejects outer T2 when persisted child T2 precedes child T1', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    new ExecutionJournalService(() => table).commitNestedToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'child done',
+      isError: false
+    })
+    const nestedRows = entries.filter(
+      (entry) =>
+        JSON.parse(entry.meta_json).protocolVersion === 2 &&
+        (entry.name === 'execution/dispatch_committed' || entry.name === 'execution/tool_outcome')
+    )
+    const dispatch = nestedRows.find((entry) => entry.name === 'execution/dispatch_committed')!
+    const outcome = nestedRows.find((entry) => entry.name === 'execution/tool_outcome')!
+    outcome.entry_id = dispatch.entry_id - 1
+
+    expect(() =>
+      service.commitToolOutcome({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.completed),
+        responseText: 'outer done',
+        isError: false
+      })
+    ).toThrow(/reordered nested causality/)
+  })
+
+  it('classifies nested T1 without T2 as an indeterminate real operation', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.indeterminate)
+    commitDispatch(service, RUN_IDS.indeterminate)
+    commitNestedDispatch(table, RUN_IDS.indeterminate, 0)
+
+    expect(classifyAllJournalRows(entries)).toContainEqual(
+      expect.objectContaining({
+        runId: RUN_IDS.indeterminate,
+        classification: 'indeterminate',
+        dispatchCount: 2,
+        outcomeCount: 0,
+        reasons: []
+      })
+    )
+  })
+
+  it('classifies a terminal persisted over an unsettled nested child as corruption', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.corruption)
+    commitDispatch(service, RUN_IDS.corruption)
+    commitNestedDispatch(table, RUN_IDS.corruption, 0)
+    const terminalData = buildRunTerminalData({
+      sessionId: 'session-1',
+      runId: RUN_IDS.corruption,
+      messageId: 'assistant-1',
+      outcome: 'error',
+      stopReason: 'injected_terminal'
+    })
+    table.appendExecutionJournalEvent({
+      sessionId: 'session-1',
+      name: 'execution/run_terminal',
+      source: { type: 'runtime_event', id: RUN_IDS.corruption, seq: 0 },
+      provenanceKey: buildExecutionRunProvenanceKey(RUN_IDS.corruption, 'terminal'),
+      data: terminalData,
+      meta: buildExecutionJournalMeta()
+    })
+
+    expect(classifyAllJournalRows(entries)).toContainEqual(
+      expect.objectContaining({
+        runId: RUN_IDS.corruption,
+        classification: 'corruption',
+        reasons: expect.arrayContaining(['terminal_with_unsettled_nested'])
+      })
+    )
+  })
+
   it('treats an identical fact as idempotent and rejects a conflicting payload', () => {
     const { table, entries } = createTapeTableMock()
     const service = createTapeService(table)
@@ -188,6 +690,98 @@ describe('Execution Journal domain and strict persistence', () => {
       })
     ).toThrow(ExecutionJournalCorruptionError)
     expect(entries.filter((entry) => entry.name === 'execution/tool_outcome')).toHaveLength(1)
+  })
+
+  it('uses only the nested parent lookup for an ordinary provider outcome', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed)
+    commitDispatch(service, RUN_IDS.completed)
+
+    service.commitToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed),
+      responseText: 'done',
+      isError: false
+    })
+
+    expect(table.listNestedOperationEventsForParent).toHaveBeenCalledOnce()
+    expect(table.listNestedOperationEventsForRun).not.toHaveBeenCalled()
+  })
+
+  it('projects bounded nested audit without raw arguments or response text', () => {
+    const { table } = createTapeTableMock()
+    const service = new ExecutionJournalService(() => table)
+    commitStarted(createTapeService(table), RUN_IDS.completed)
+    commitDispatch(createTapeService(table), RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0, { query: 'private query' })
+    service.commitNestedToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'private response',
+      isError: false,
+      createdAt: 120
+    })
+    commitNestedDispatch(table, RUN_IDS.completed, 1, { query: 'uncertain query' })
+
+    const audit = service.listNestedExecutionAuditForMessage('session-1', 'assistant-1')
+
+    expect(audit).toEqual({
+      schemaVersion: 1,
+      state: 'available',
+      truncated: false,
+      operations: [
+        expect.objectContaining({
+          childOrdinal: 0,
+          toolName: 'search',
+          status: 'success',
+          responseHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+          isError: false
+        }),
+        expect.objectContaining({
+          childOrdinal: 1,
+          toolName: 'search',
+          status: 'indeterminate',
+          outcomeEntryId: null,
+          responseHash: null,
+          isError: null
+        })
+      ]
+    })
+    expect(JSON.stringify(audit)).not.toContain('private query')
+    expect(JSON.stringify(audit)).not.toContain('private response')
+    expect(table.listNestedOperationEventsForMessage).toHaveBeenCalledWith(
+      'session-1',
+      'assistant-1',
+      257
+    )
+  })
+
+  it('fails nested audit closed for an outcome without its dispatch', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new ExecutionJournalService(() => table)
+    commitStarted(createTapeService(table), RUN_IDS.completed)
+    commitDispatch(createTapeService(table), RUN_IDS.completed)
+    commitNestedDispatch(table, RUN_IDS.completed, 0)
+    service.commitNestedToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'done',
+      isError: false
+    })
+    const dispatchIndex = entries.findIndex((entry) => {
+      if (entry.name !== 'execution/dispatch_committed') return false
+      const data = JSON.parse(entry.payload_json).data
+      return data.protocolVersion === 2
+    })
+    entries.splice(dispatchIndex, 1)
+
+    expect(() => service.listNestedExecutionAuditForMessage('session-1', 'assistant-1')).toThrow(
+      ExecutionJournalCorruptionError
+    )
   })
 
   it('propagates persistence failures and rolls back the journal fact', () => {
@@ -649,6 +1243,183 @@ describe('Execution Journal domain and strict persistence', () => {
   })
 })
 
+itIfSqlite('finds an exact deferred dispatch even after its Run terminal commits', () => {
+  const db = new DatabaseCtor(':memory:')
+  try {
+    const table = new DeepChatExecutionJournalStore(db)
+    table.createTable()
+    const service = new ExecutionJournalService(() => table)
+    service.commitRunStarted({
+      sessionId: 'session-1',
+      runId: RUN_IDS.completed,
+      messageId: 'assistant-1',
+      runKind: 'deferred_tool'
+    })
+    service.commitDispatch({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed, 'deferred-call-1'),
+      toolName: 'write',
+      toolSource: 'agent',
+      normalizedArguments: { path: '/tmp/file' },
+      target: { serverName: 'agent-filesystem', originalName: 'write' }
+    })
+    service.commitToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed, 'deferred-call-1'),
+      responseText: 'done',
+      isError: false
+    })
+    service.commitRunTerminal({
+      sessionId: 'session-1',
+      runId: RUN_IDS.completed,
+      messageId: 'assistant-1',
+      outcome: 'completed',
+      stopReason: 'complete'
+    })
+
+    expect(
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'assistant-1',
+        'deferred-call-1'
+      )
+    ).toBe(true)
+    expect(
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'assistant-1',
+        'never-dispatched'
+      )
+    ).toBe(false)
+    expect(
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'another-message',
+        'deferred-call-1'
+      )
+    ).toBe(false)
+  } finally {
+    db.close()
+  }
+})
+
+itIfSqlite('does not treat a nested child as a spent deferred provider operation', () => {
+  const db = new DatabaseCtor(':memory:')
+  try {
+    const table = new DeepChatExecutionJournalStore(db)
+    table.createTable()
+    table.ensureBootstrapAnchor('session-1')
+    const child = nestedOperation(RUN_IDS.indeterminate, 0, 'deferred-call-1')
+    const data = buildNestedDispatchData({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: child,
+      toolName: 'search',
+      toolSource: 'mcp',
+      normalizedArguments: { query: 'hello' },
+      target: { serverName: 'search-server', originalName: 'search' },
+      definitionHash: '1'.repeat(64),
+      capabilityHash: '2'.repeat(64)
+    })
+    table.appendExecutionJournalEvent({
+      sessionId: 'session-1',
+      name: 'execution/dispatch_committed',
+      source: { type: 'runtime_event', id: child.runId, seq: child.requestSeq },
+      provenanceKey: buildNestedExecutionOperationProvenanceKey(child, 'dispatch'),
+      data,
+      meta: buildNestedExecutionJournalMeta()
+    })
+    const service = new ExecutionJournalService(() => table)
+
+    expect(
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'assistant-1',
+        'deferred-call-1'
+      )
+    ).toBe(false)
+  } finally {
+    db.close()
+  }
+})
+
+itIfSqlite('fails deferred recovery closed for a malformed dispatch fact', () => {
+  const db = new DatabaseCtor(':memory:')
+  try {
+    const table = new DeepChatExecutionJournalStore(db)
+    table.createTable()
+    const service = new ExecutionJournalService(() => table)
+    service.commitRunStarted({
+      sessionId: 'session-1',
+      runId: RUN_IDS.indeterminate,
+      messageId: 'assistant-1',
+      runKind: 'deferred_tool'
+    })
+    service.commitDispatch({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.indeterminate, 'deferred-call-1'),
+      toolName: 'write',
+      toolSource: 'agent',
+      normalizedArguments: { path: '/tmp/file' },
+      target: { serverName: 'agent-filesystem', originalName: 'write' }
+    })
+    db.prepare(
+      `UPDATE deepchat_tape_entries
+       SET payload_json = '{'
+       WHERE session_id = ? AND name = 'execution/dispatch_committed'`
+    ).run('session-1')
+
+    expect(() =>
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'assistant-1',
+        'deferred-call-1'
+      )
+    ).toThrow()
+  } finally {
+    db.close()
+  }
+})
+
+itIfSqlite('conservatively fences the same provider tool-call ID across deferred Runs', () => {
+  const db = new DatabaseCtor(':memory:')
+  try {
+    const table = new DeepChatExecutionJournalStore(db)
+    table.createTable()
+    const service = new ExecutionJournalService(() => table)
+    for (const runId of [RUN_IDS.completed, RUN_IDS.indeterminate]) {
+      service.commitRunStarted({
+        sessionId: 'session-1',
+        runId,
+        messageId: 'assistant-1',
+        runKind: 'deferred_tool'
+      })
+      service.commitDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(runId, 'deferred-call-1'),
+        toolName: 'write',
+        toolSource: 'agent',
+        normalizedArguments: { path: '/tmp/file' },
+        target: { serverName: 'agent-filesystem', originalName: 'write' }
+      })
+    }
+
+    expect(
+      service.hasAnyCommittedDispatchForMessageToolCall(
+        'session-1',
+        'assistant-1',
+        'deferred-call-1'
+      )
+    ).toBe(true)
+  } finally {
+    db.close()
+  }
+})
+
 itIfSqlite('loads only unterminated Runs through the dedicated SQLite index', () => {
   const db = new DatabaseCtor(':memory:')
   try {
@@ -713,8 +1484,201 @@ itIfSqlite('loads only unterminated Runs through the dedicated SQLite index', ()
     expect(planDetails).toMatch(
       /SEARCH journal USING (?:COVERING )?INDEX idx_deepchat_tape_entries_(?:execution_run|session_source)/
     )
+    expect(planDetails).toMatch(
+      /SEARCH nested USING INDEX idx_deepchat_tape_entries_execution_operation_payload/
+    )
   } finally {
     db.close()
+  }
+})
+
+itIfSqlite('loads complete nested audit pairs through the message index', () => {
+  const db = new DatabaseCtor(':memory:')
+  try {
+    const table = new DeepChatExecutionJournalStore(db)
+    table.createTable()
+    const service = new ExecutionJournalService(() => table)
+    service.commitRunStarted({
+      sessionId: 'session-1',
+      runId: RUN_IDS.completed,
+      messageId: 'assistant-1',
+      runKind: 'loop'
+    })
+    service.commitDispatch({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: operation(RUN_IDS.completed),
+      toolName: 'exec',
+      toolSource: 'agent',
+      normalizedArguments: { command: 'deepchat tool call' },
+      target: { serverName: 'agent-cli', originalName: 'exec' }
+    })
+    service.commitNestedDispatch({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      toolName: 'search',
+      toolSource: 'mcp',
+      normalizedArguments: { query: 'hello' },
+      target: { serverName: 'search-server', originalName: 'search' },
+      definitionHash: '1'.repeat(64),
+      capabilityHash: '2'.repeat(64)
+    })
+    service.commitNestedToolOutcome({
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      operation: nestedOperation(RUN_IDS.completed, 0),
+      responseText: 'done',
+      isError: false
+    })
+
+    expect(table.listNestedOperationEventsForMessage('session-1', 'assistant-1', 1)).toHaveLength(2)
+    expect(
+      service.listMessageIdsWithNestedExecutionAudit('session-1', [
+        'assistant-1',
+        'assistant-missing'
+      ])
+    ).toEqual(['assistant-1'])
+    expect(service.listNestedExecutionAuditForMessage('session-1', 'assistant-1')).toMatchObject({
+      state: 'available',
+      operations: [{ childOrdinal: 0, status: 'success' }]
+    })
+    const indexes = db.prepare("PRAGMA index_list('deepchat_tape_entries')").all() as Array<{
+      name: string
+    }>
+    expect(indexes.map((index) => index.name)).toContain(
+      'idx_deepchat_tape_entries_execution_message_payload'
+    )
+
+    db.prepare(
+      `UPDATE deepchat_tape_entries
+       SET payload_json = json_set(payload_json, '$.data.messageId', 'assistant-other')
+       WHERE provenance_key LIKE 'execution:v2:%:outcome'`
+    ).run()
+    expect(() => service.listNestedExecutionAuditForMessage('session-1', 'assistant-1')).toThrow(
+      ExecutionJournalCorruptionError
+    )
+    db.prepare(
+      `UPDATE deepchat_tape_entries
+       SET payload_json = json_set(payload_json, '$.data.messageId', 'assistant-1')
+       WHERE provenance_key LIKE 'execution:v2:%:outcome'`
+    ).run()
+    db.prepare(
+      `UPDATE deepchat_tape_entries
+       SET payload_json = json_set(payload_json, '$.data.protocolVersion', 1)
+       WHERE provenance_key LIKE 'execution:v2:%:dispatch'`
+    ).run()
+    expect(() => service.listNestedExecutionAuditForMessage('session-1', 'assistant-1')).toThrow(
+      ExecutionJournalCorruptionError
+    )
+  } finally {
+    db.close()
+  }
+})
+
+itIfSqlite('keeps malformed nested facts visible to startup recovery', () => {
+  const corruptions: Array<(row: Record<string, unknown>) => void> = [
+    (row) => (row.source_type = 'invalid'),
+    (row) => (row.source_id = RUN_IDS.corruption),
+    (row) => (row.source_seq = 999),
+    (row) => {
+      const payload = JSON.parse(row.payload_json as string)
+      payload.data.operation.runId = RUN_IDS.corruption
+      row.payload_json = JSON.stringify(payload)
+    },
+    (row) => {
+      row.source_id = RUN_IDS.corruption
+      const payload = JSON.parse(row.payload_json as string)
+      payload.data.operation.runId = RUN_IDS.corruption
+      row.payload_json = JSON.stringify(payload)
+    },
+    (row) => {
+      row.provenance_key = 'corrupt-provenance'
+      const payload = JSON.parse(row.payload_json as string)
+      payload.data.operation.providerToolCallId = 'corrupt-parent'
+      row.payload_json = JSON.stringify(payload)
+    }
+  ]
+
+  for (const corrupt of corruptions) {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatExecutionJournalStore(db)
+      table.createTable()
+      const service = new ExecutionJournalService(() => table)
+      service.commitRunStarted({
+        sessionId: 'session-1',
+        runId: RUN_IDS.indeterminate,
+        messageId: 'assistant-1',
+        runKind: 'loop'
+      })
+      service.commitDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: operation(RUN_IDS.indeterminate),
+        toolName: 'write',
+        toolSource: 'agent',
+        normalizedArguments: {},
+        target: { serverName: 'agent-filesystem' }
+      })
+      new ExecutionJournalService(() => table).commitNestedDispatch({
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+        operation: nestedOperation(RUN_IDS.indeterminate, 0),
+        toolName: 'search',
+        toolSource: 'mcp',
+        normalizedArguments: { query: 'hello' },
+        target: { serverName: 'search-server', originalName: 'search' },
+        definitionHash: '1'.repeat(64),
+        capabilityHash: '2'.repeat(64)
+      })
+      const row = db
+        .prepare(
+          `SELECT * FROM deepchat_tape_entries
+           WHERE session_id = ?
+             AND name = 'execution/dispatch_committed'
+             AND json_extract(meta_json, '$.protocolVersion') = 2`
+        )
+        .get('session-1') as Record<string, unknown>
+      corrupt(row)
+      db.prepare(
+        `UPDATE deepchat_tape_entries
+         SET source_type = ?, source_id = ?, source_seq = ?, provenance_key = ?, payload_json = ?
+         WHERE session_id = ? AND entry_id = ?`
+      ).run(
+        row.source_type,
+        row.source_id,
+        row.source_seq,
+        row.provenance_key,
+        row.payload_json,
+        row.session_id,
+        row.entry_id
+      )
+
+      expect(
+        table
+          .listNestedOperationEventsForParent(
+            'session-1',
+            RUN_IDS.indeterminate,
+            1,
+            'call_0',
+            buildExecutionOperationKey(operation(RUN_IDS.indeterminate))
+          )
+          .map((candidate) => candidate.entry_id)
+      ).toContain(row.entry_id)
+      const reports = service.classifyRecoveryCandidates()
+      expect(reports).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            runId: RUN_IDS.indeterminate,
+            classification: 'corruption'
+          })
+        ])
+      )
+      expect(reports.some((report) => report.runId === RUN_IDS.corruption)).toBe(false)
+    } finally {
+      db.close()
+    }
   }
 })
 

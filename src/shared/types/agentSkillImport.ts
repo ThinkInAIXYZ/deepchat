@@ -1,12 +1,7 @@
-export type AgentSkillImportSource =
-  | {
-      kind: 'internal'
-      agentId: string
-    }
-  | {
-      kind: 'external'
-      toolId: string
-    }
+export interface AgentSkillImportSource {
+  kind: 'external'
+  toolId: string
+}
 
 export interface AgentSkillImportSourceInfo {
   id: string
@@ -16,18 +11,18 @@ export interface AgentSkillImportSourceInfo {
   skillCount: number
 }
 
-export type AgentSkillImportPreviewStatus = 'ready' | 'conflict' | 'unavailable'
+export type AgentSkillImportPreviewStatus = 'ready' | 'same' | 'conflict' | 'unavailable'
 
 export interface AgentSkillImportPreviewItem {
   name: string
   description: string
   status: AgentSkillImportPreviewStatus
   suggestedTargetName?: string
+  affectedAgentIds?: string[]
   warning?: string
 }
 
 export interface AgentSkillImportPreview {
-  targetAgentId: string
   source: AgentSkillImportSource
   items: AgentSkillImportPreviewItem[]
 }
@@ -37,6 +32,7 @@ export type AgentSkillImportConflictStrategy = 'skip' | 'rename' | 'overwrite'
 export interface AgentSkillImportSelection {
   skillName: string
   strategy: AgentSkillImportConflictStrategy
+  acknowledgedAgentIds?: string[]
 }
 
 export interface AgentSkillImportFailure {
@@ -47,6 +43,7 @@ export interface AgentSkillImportFailure {
 export interface AgentSkillImportResult {
   success: boolean
   imported: string[]
+  reused: string[]
   skipped: string[]
   failed: AgentSkillImportFailure[]
 }

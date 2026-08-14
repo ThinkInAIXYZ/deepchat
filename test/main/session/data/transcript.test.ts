@@ -8,7 +8,8 @@ import type { UserMessageContent } from '@shared/types/agent-interface'
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 vi.mock('@shared/logger', () => ({
   default: {
-    error: vi.fn()
+    error: vi.fn(),
+    warn: vi.fn()
   }
 }))
 
@@ -27,6 +28,7 @@ function createMockSqlitePresenter() {
       getBySession: vi.fn().mockReturnValue([]),
       getPendingAssistantBySession: vi.fn().mockReturnValue([]),
       hasBySession: vi.fn().mockReturnValue(false),
+      listPageBySession: vi.fn().mockReturnValue([]),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
@@ -366,6 +368,52 @@ describe('SessionTranscript', () => {
 
       const document = sqlitePresenter.deepchatSearchDocumentsTable.upsert.mock.calls[0][0]
       expect(document.content).toContain('embedded searchable quarterly total 84')
+    })
+  })
+
+  describe('listMessagesPage', () => {
+    it('adds bounded nested execution availability through the Journal audit capability', () => {
+      sqlitePresenter.deepchatMessagesTable.listPageBySession.mockReturnValue([
+        createMessageRow({ role: 'assistant', content: '[]' })
+      ])
+      const executionAudit = {
+        listMessageIdsWithNestedExecutionAudit: vi.fn().mockReturnValue(['m1'])
+      }
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        executionAudit
+      )
+
+      expect(store.listMessagesPage('s1', { limit: 10 }).messages).toEqual([
+        expect.objectContaining({ id: 'm1', hasNestedExecutionAudit: true })
+      ])
+      expect(executionAudit.listMessageIdsWithNestedExecutionAudit).toHaveBeenCalledWith('s1', [
+        'm1'
+      ])
+    })
+
+    it('keeps message pagination available when the optional audit projection fails', () => {
+      sqlitePresenter.deepchatMessagesTable.listPageBySession.mockReturnValue([createMessageRow()])
+      const executionAudit = {
+        listMessageIdsWithNestedExecutionAudit: vi.fn(() => {
+          throw new Error('audit unavailable')
+        })
+      }
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        executionAudit
+      )
+
+      expect(store.listMessagesPage('s1', { limit: 10 }).messages).toEqual([
+        expect.objectContaining({ id: 'm1', hasNestedExecutionAudit: false })
+      ])
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to project nested execution audit availability',
+        { sessionId: 's1' },
+        expect.any(Error)
+      )
     })
   })
 

@@ -288,7 +288,9 @@ recovery until they execute through a journal-aware harness boundary.
 - Exactly-once execution without target-side idempotency support.
 - Automatic retry or automatic reconciliation of indeterminate calls.
 - A separate operations table or mutable journal state machine.
-- Invocation-attempt identities inside one provider tool call.
+- Per-operation invocation-attempt identities or automatic retry under the same provider or nested
+  operation identity. Journal v2 adds independently journaled nested children; `childOrdinal`
+  identifies one child operation, not an attempt.
 - Multi-writer continuation fencing or cross-process Run ownership.
 - A TaskRun envelope, graph scheduler, or replacement of the current harness.
 - Atomic delivery or automatic redelivery of sibling results after a parallel tool batch fails. That
@@ -298,7 +300,64 @@ recovery until they execute through a journal-aware harness boundary.
   provider attempt journaling.
 - GitHub issue creation, pull request creation, branch push, or release work.
 
-## Open Questions
+## Resolved Questions
 
 None. Any future automatic reconciliation policy requires a separate design because it changes the
 current fail-closed recovery contract.
+
+## Approved Execution Journal v2 Extension
+
+Journal v2 adds nested Programmatic operations without rewriting v1. Existing provider operation
+identity retains its v1 meaning. Readers discriminate:
+
+```text
+provider operation: (runId, requestSeq, providerToolCallId)
+nested operation:   (runId, requestSeq, providerToolCallId, childOrdinal)
+```
+
+`childOrdinal` is an independent child operation, not an attempt. It is bounded, allocated in
+canonical batch plan-array order before any child approval/T1, never reused, and never assigned by
+the caller, materialized data, or completion order. The controller reserves the complete contiguous
+ordinal-to-step/template mapping process-live before execution. Canonical nested payload includes
+real target, `definitionHash`, `argumentsHash`, and
+`capabilityHash`; same identity with different payload is corruption. Provider and nested operations
+still have no attempt identity or same-identity automatic retry. Historical v1 rows are not migrated.
+
+Provider Context records only the outer exec call/result. Nested operations are real Journal/UI and
+approval facts parented to that outer provider operation, never fabricated provider-native Context
+facts. Mandatory causality is outer T1, child preflight/approval, child T1, physical call, child T2,
+nested finalized projection, canonical outer result, outer T2, then transcript/model/UI. Child T1
+requires parent T1; child creation is forbidden after outer T2; every child T1 requires T2 before
+outer T2; all operations are forbidden after `run_terminal`. For a Run containing a Programmatic
+outer operation, terminal commit additionally requires outer T2 and a matching T2 for every outer or
+nested T1. Unmatched T1 forbids outer T2 and `run_terminal`, leaving the Run unterminated and parked
+for startup recovery. Duplicate T1 prevents physical repeat.
+
+A process-live parent-operation controller and settlement receipt enforce this across the CLI
+boundary; stdout is not authority. Nested Journal persistence failure or corruption is Run-fatal,
+not a CLI stderr/exit result. Every child independently rechecks frozen Programmatic membership,
+definition drift, TaskContract typed meet, effect/workdir/depth ceilings, current authority,
+permission/approval, quotas, and abort before T1.
+
+The per-View capability exists before any provider tool-call ID. Runtime derives a separate
+invocation grant when the outer exec operation is known. A token prepared for process environment
+injection remains unarmed until a newly created parent T1 receipt activates the grant; parent T1
+failure revokes it and prevents spawn. Programmatic CLI execution cannot yield, detach, or complete
+outer T2 while its local-control request or a started child remains unsettled. The settlement receipt
+binds the canonical outer-result hash rather than trusting shell stdout.
+
+Known success/error receives T2. Pre-T1 denial/cancel creates no child fact; pending approval stays
+before T1. Post-T1 cancellation receives T2 only for a known outcome, otherwise remains
+indeterminate. T1-only is parked. A crash does not recover the batch controller. All children having
+T2 while outer T2 is absent remains incomplete and is not automatically projected. Explicit model
+retry creates a new provider operation and identities. Exception name `AbortError` alone remains
+insufficient cancellation evidence.
+
+A deterministic refusal before child T1 may yield a known outer error without a child fact. A child
+Journal write failure/corruption is Run-fatal; it may settle the outer operation only if the Journal
+remains trusted and can durably record that exact outer outcome. No fallback terminal may hide an
+unmatched Programmatic T1.
+
+Journal v2 persists canonical hashes, status, and bounded provenance only. Raw arguments, response
+or error text, MCP envelopes, binary data, and temporary paths are excluded, matching the detailed
+v1 payload-minimization contract.

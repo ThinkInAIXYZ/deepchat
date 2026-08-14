@@ -2,6 +2,8 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow, DeepChatTapeSearchInput } from './entry'
 import { EXECUTION_JOURNAL_EVENT_NAMES } from './executionJournal'
 import { CONTRACT_TAPE_EVENT_NAMES, isContractTapeReservedName } from './contractFacts'
+import { TOOL_SURFACE_TAPE_EVENT_NAMES } from './toolSurfaceFacts'
+import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
 import {
   parseNestedTapeJsonObject,
   parseTapeJsonObject,
@@ -16,7 +18,6 @@ import {
   toTapeProviderAttemptCacheMetrics,
   type TapeProviderAttemptCacheMetrics
 } from './providerAttempt'
-import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
 
 export interface EffectiveMessageEntry {
   entryId: number
@@ -45,6 +46,7 @@ export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES = [
   'message/compaction_indicator',
   'migration/backfill',
   TAPE_VIEW_MANIFEST_EVENT_NAME,
+  ...TOOL_SURFACE_TAPE_EVENT_NAMES,
   ...CONTRACT_TAPE_EVENT_NAMES,
   ...EXECUTION_JOURNAL_EVENT_NAMES
 ] as const

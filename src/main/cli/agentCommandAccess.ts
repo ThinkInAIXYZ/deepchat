@@ -10,7 +10,11 @@ import {
   type LocalControlScope
 } from '@shared/contracts/localControl'
 import type { CommandPermissionService } from '@/tool/permission/commandPermissionService'
-import type { AgentCliTokenAuthority } from './agentTokenAuthority'
+import {
+  parseAgentCliProgrammaticExecInvocation,
+  type AgentCliTokenAuthority,
+  type ArmedAgentCliProgrammaticToken
+} from './agentTokenAuthority'
 import { getCliSurfaceEntry } from './surface'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 
@@ -97,6 +101,43 @@ export function resolveBundledCliDirectory(
 
 export class AgentCliCommandAccess {
   constructor(private readonly options: AgentCliCommandAccessOptions) {}
+
+  createProgrammaticEnvironment(
+    armed: ArmedAgentCliProgrammaticToken,
+    conversationId: string,
+    command: string,
+    stdin: string | undefined,
+    commandShell: ResolvedCommandShell
+  ): AgentCommandEnvironment {
+    const normalizedConversationId = conversationId.trim()
+    let invocation: ReturnType<typeof parseAgentCliProgrammaticExecInvocation>
+    try {
+      invocation = parseAgentCliProgrammaticExecInvocation({ command, stdin })
+    } catch {
+      throw new Error('Armed Programmatic CLI environment does not match its exact invocation')
+    }
+    if (
+      !normalizedConversationId ||
+      armed.conversationId !== normalizedConversationId ||
+      armed.programmaticOperation.operation.sessionId !== normalizedConversationId ||
+      invocation.route !== armed.programmaticOperation.route ||
+      invocation.canonicalInvocationHash !== armed.programmaticOperation.canonicalInvocationHash ||
+      this.options.commandPermission.extractBaseCommand(command) !== 'deepchat' ||
+      this.options.commandPermission.hasShellControlSyntax(command, commandShell.dialect) ||
+      referencesAgentToken(command, commandShell)
+    ) {
+      throw new Error('Armed Programmatic CLI environment does not match its exact invocation')
+    }
+    const cliDirectory = this.options.resolveCliDirectory()
+    if (!cliDirectory) {
+      throw new Error('Bundled DeepChat CLI is unavailable for the Programmatic invocation')
+    }
+    return {
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
+      prependPath: [cliDirectory],
+      preserveCommand: true
+    }
+  }
 
   createEnvironment(
     conversationId: string,

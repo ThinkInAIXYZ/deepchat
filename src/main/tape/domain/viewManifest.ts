@@ -50,6 +50,19 @@ export function isCompactionRecord(record: ChatMessageRecord): boolean {
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
 export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'cache-aware-v1' as const
 
+export function getTapeViewManifestExecutionContract(
+  manifest: DeepChatTapeViewManifest
+): DeepChatExecutionContract | undefined {
+  if (
+    manifest.schemaVersion === 5 ||
+    manifest.schemaVersion === 6 ||
+    manifest.schemaVersion === 7
+  ) {
+    return manifest.executionContract
+  }
+  return undefined
+}
+
 export type TapeViewManifestLookupMaps = {
   entryIdByMessageId?: Map<string, number>
   toolCallEntryIdByToolId?: Map<string, number>

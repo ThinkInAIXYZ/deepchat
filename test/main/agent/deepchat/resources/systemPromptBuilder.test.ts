@@ -4,14 +4,48 @@ import fs from 'fs'
 
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import {
+  appendCliProgrammaticToolAdapterSection,
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills
 } from '@/agent/deepchat/resources/systemPromptBuilder'
+import {
+  assemblePromptSections,
+  createPromptAssemblySection
+} from '@/agent/deepchat/resources/promptAssembly'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 describe('DeepChat system prompt builder', () => {
+  it('appends one fixed CLI Programmatic adapter section', () => {
+    const baseAssembly = assemblePromptSections([
+      createPromptAssemblySection({
+        kind: 'configured_prompt',
+        sourceRef: 'test:configured-prompt',
+        content: 'BASE PROMPT'
+      })
+    ])
+
+    const first = appendCliProgrammaticToolAdapterSection(baseAssembly)
+    const second = appendCliProgrammaticToolAdapterSection(first)
+
+    expect(second).toBe(first)
+    expect(first.sections).toHaveLength(2)
+    expect(first.sections[1]).toMatchObject({
+      kind: 'tooling',
+      sourceRef: 'runtime:cli-programmatic-tool-adapter',
+      inclusion: 'included'
+    })
+    expect(first.prompt).toContain('## Programmatic Tool Access')
+    expect(first.prompt).toContain('Discovery does not authorize a target.')
+    expect(first.prompt).toContain('rechecks current authority and policy before execution')
+    expect(first.prompt).toContain('Pass call and batch JSON through the `exec` stdin field')
+    expect(first.prompt).toContain('--target <name>')
+    expect(first.prompt).toContain('Describe targets may use exact double quotes')
+    expect(first.prompt).toContain('never use single quotes or escapes')
+    expect(first.prompt).toContain('Omit the `timeoutMs`, `background`, and `yieldMs` exec fields')
+  })
+
   it('rejects an invalid command shell before optional prompt contributors can mask it', async () => {
     const assertCurrent = vi.fn()
 
@@ -50,6 +84,7 @@ describe('DeepChat system prompt builder', () => {
       },
       skillService: {
         getMetadataList: vi.fn().mockResolvedValue([]),
+        getAllSkills: vi.fn().mockResolvedValue([]),
         getActiveSkills: vi.fn().mockResolvedValue([]),
         loadSkillContent: vi.fn(),
         resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat')
@@ -229,6 +264,10 @@ describe('DeepChat system prompt builder', () => {
             { name: 'skill-a', description: 'Skill A' },
             { name: 'skill-b', description: 'Skill B' }
           ]),
+          getAllSkills: vi.fn().mockResolvedValue([
+            { name: 'skill-a', description: 'Skill A' },
+            { name: 'skill-b', description: 'Skill B' }
+          ]),
           getActiveSkills: vi.fn().mockResolvedValue(['skill-a', 'skill-b']),
           loadSkillContent
         },
@@ -379,6 +418,7 @@ describe('DeepChat system prompt builder', () => {
           skillService: {
             resolveSessionAgentId: vi.fn().mockResolvedValue('writer'),
             getMetadataList: vi.fn().mockRejectedValue(new Error('catalog unavailable')),
+            getAllSkills: vi.fn().mockRejectedValue(new Error('catalog unavailable')),
             getActiveSkills: vi.fn().mockResolvedValue([]),
             loadSkillContent
           },
@@ -514,6 +554,7 @@ describe('DeepChat system prompt builder', () => {
       },
       skillService: {
         getMetadataList: vi.fn().mockResolvedValue([]),
+        getAllSkills: vi.fn().mockResolvedValue([]),
         getActiveSkills: vi.fn().mockResolvedValue([]),
         loadSkillContent: vi.fn(),
         resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat')
@@ -584,6 +625,10 @@ describe('DeepChat system prompt builder', () => {
               { name: 'skill-a', description: 'Skill A' },
               { name: 'skill-b', description: 'Skill B' }
             ]),
+            getAllSkills: vi.fn().mockResolvedValue([
+              { name: 'skill-a', description: 'Skill A' },
+              { name: 'skill-b', description: 'Skill B' }
+            ]),
             getActiveSkills: vi.fn().mockResolvedValue([]),
             loadSkillContent: vi.fn()
           },
@@ -646,6 +691,7 @@ describe('DeepChat system prompt builder', () => {
         skillService: {
           resolveSessionAgentId: vi.fn().mockResolvedValue(null),
           getMetadataList: vi.fn().mockResolvedValue([]),
+          getAllSkills: vi.fn().mockResolvedValue([]),
           getActiveSkills: vi.fn().mockResolvedValue([]),
           loadSkillContent: vi.fn()
         },

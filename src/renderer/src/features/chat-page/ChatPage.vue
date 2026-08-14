@@ -1042,7 +1042,11 @@ watch(
 
 const traceMessageIds = computed(() =>
   messageStore.messages
-    .filter((msg) => msg.role === 'assistant' && (msg.traceCount ?? 0) > 0)
+    .filter(
+      (msg) =>
+        msg.role === 'assistant' &&
+        ((msg.traceCount ?? 0) > 0 || msg.hasNestedExecutionAudit === true)
+    )
     .map((msg) => msg.id)
 )
 

@@ -18,12 +18,9 @@ import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
+import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
-import type {
-  TapeEntryRef,
-  TapeMessageReplacementOptions,
-  TapeToolFactInput
-} from '../domain/facts'
+import type { TapeMessageReplacementOptions, TapeToolFactInput } from '../domain/facts'
 import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
 import type {
   TapeSkillMaterializationInput,
@@ -56,6 +53,9 @@ import type {
   TapeMessageFactWriter,
   TapeProviderAttemptReader,
   TapeProviderAttemptWriter,
+  TapeToolSurfaceViewReader,
+  TapeToolSurfaceViewWriter,
+  ExecutionJournalAuditReader,
   TapeRunViewManifestReader,
   TapeRuntimeSkillViewContextReader,
   TapeSkillViewResultFactWriter,
@@ -67,9 +67,12 @@ import type {
   ExecutionJournalWriter,
   TapeNonContextEntryReader,
   TapeReconciliationPort,
+  TapeToolFactAppendReceipt,
   TapeToolFactWriter,
   TapeTranscriptReader,
   TapeMemoryViewManifestInspection,
+  CommitTapeToolSurfaceViewInput,
+  TapeToolSurfaceViewCommitReceipt,
   TapeViewManifestReader,
   TapeViewManifestWriter
 } from '../ports/capabilities'
@@ -101,6 +104,7 @@ import { TapeRecallService } from './recallService'
 import { TapeReconcilerService } from './reconcilerService'
 import { TapeViewReplayService } from './viewReplayService'
 import { ExecutionJournalService } from './executionJournalService'
+import { ToolSurfaceProvenanceService } from './toolSurfaceProvenanceService'
 import { TapeSkillMaterializationService } from './skillMaterializationService'
 
 export type {
@@ -129,11 +133,14 @@ export class SessionTape
     TapeSkillRequestAuthorityReader,
     TapeRunViewManifestReader,
     TapeViewManifestWriter,
+    TapeToolSurfaceViewReader,
+    TapeToolSurfaceViewWriter,
     TapeAnchorReader,
     TapeAnchorWriter,
     TapeInspectionReader,
     TapeLifecycleAdmin,
     ExecutionJournalWriter,
+    ExecutionJournalAuditReader,
     ExecutionJournalRecoveryReader,
     TapeIncarnationReader,
     TapeSkillViewResultFactWriter,
@@ -149,6 +156,7 @@ export class SessionTape
   private readonly providerAttempts: TapeProviderAttemptService
   private readonly executionJournal: ExecutionJournalService
   private readonly viewReplay: TapeViewReplayService
+  private readonly toolSurfaceProvenance: ToolSurfaceProvenanceService
   private readonly forks: TapeForkService
   private readonly skillMaterializations: TapeSkillMaterializationService
 
@@ -163,6 +171,7 @@ export class SessionTape
     this.reconciler = new TapeReconcilerService(this.providers, this.facts)
     this.recall = new TapeRecallService(this.providers, this.lineage)
     this.viewReplay = new TapeViewReplayService(this.providers)
+    this.toolSurfaceProvenance = new ToolSurfaceProvenanceService(this.providers, this.viewReplay)
     this.forks = new TapeForkService(this.providers)
     this.skillMaterializations = new TapeSkillMaterializationService(this.providers)
   }
@@ -189,7 +198,7 @@ export class SessionTape
     return this.facts.appendMessageRetraction(record, reason)
   }
 
-  appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
+  appendToolFact(input: TapeToolFactInput): Promise<TapeToolFactAppendReceipt> {
     return this.facts.appendToolFact(input)
   }
 
@@ -245,6 +254,32 @@ export class SessionTape
     return this.executionJournal.classifyRecoveryCandidates()
   }
 
+  listNestedExecutionAuditForMessage(
+    sessionId: string,
+    messageId: string
+  ): DeepChatNestedExecutionAudit {
+    return this.executionJournal.listNestedExecutionAuditForMessage(sessionId, messageId)
+  }
+
+  listMessageIdsWithNestedExecutionAudit(
+    sessionId: string,
+    messageIds: readonly string[]
+  ): readonly string[] {
+    return this.executionJournal.listMessageIdsWithNestedExecutionAudit(sessionId, messageIds)
+  }
+
+  hasAnyCommittedDispatchForMessageToolCall(
+    sessionId: string,
+    messageId: string,
+    providerToolCallId: string
+  ): boolean {
+    return this.executionJournal.hasAnyCommittedDispatchForMessageToolCall(
+      sessionId,
+      messageId,
+      providerToolCallId
+    )
+  }
+
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
     return this.facts.getMessageRecords(sessionId)
   }
@@ -284,11 +319,42 @@ export class SessionTape
     return this.viewReplay.appendViewManifest(manifest)
   }
 
+  commitToolSurfaceView(input: CommitTapeToolSurfaceViewInput): TapeToolSurfaceViewCommitReceipt {
+    return this.toolSurfaceProvenance.commitToolSurfaceView(input)
+  }
+
+  listToolSurfaceFactsByMessageRequest(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): ReturnType<TapeToolSurfaceViewReader['listToolSurfaceFactsByMessageRequest']> {
+    return this.toolSurfaceProvenance.listToolSurfaceFactsByMessageRequest(
+      sessionId,
+      messageId,
+      requestSeq
+    )
+  }
+
+  listToolSurfaceFactsByMessage(
+    sessionId: string,
+    messageId: string
+  ): ReturnType<TapeToolSurfaceViewReader['listToolSurfaceFactsByMessage']> {
+    return this.toolSurfaceProvenance.listToolSurfaceFactsByMessage(sessionId, messageId)
+  }
+
   listViewManifestsByMessage(
     sessionId: string,
     messageId: string
   ): DeepChatTapeViewManifestRecord[] {
     return this.viewReplay.listViewManifestsByMessage(sessionId, messageId)
+  }
+
+  listViewManifestsByMessageRequest(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): DeepChatTapeViewManifestRecord[] {
+    return this.viewReplay.listViewManifestsByMessageRequest(sessionId, messageId, requestSeq)
   }
 
   getViewManifestByExecutionBinding(input: {

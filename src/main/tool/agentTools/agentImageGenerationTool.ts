@@ -86,12 +86,15 @@ export class AgentImageGenerationTool {
     }
   ) {}
 
-  async canUse(conversationId?: string): Promise<boolean> {
+  async canUse(
+    conversationId?: string,
+    options: { strict?: boolean; reportDiagnostics?: boolean } = {}
+  ): Promise<boolean> {
     if (!conversationId) {
       return true
     }
 
-    return Boolean(await this.resolveImageGenerationModel(conversationId))
+    return Boolean(await this.resolveImageGenerationModel(conversationId, options))
   }
 
   getToolDefinition(): MCPToolDefinition {
@@ -196,7 +199,8 @@ export class AgentImageGenerationTool {
   }
 
   private async resolveImageGenerationModel(
-    conversationId?: string
+    conversationId?: string,
+    options: { strict?: boolean; reportDiagnostics?: boolean } = {}
   ): Promise<ImageGenerationModelSelection | null> {
     if (!conversationId) {
       return null
@@ -215,26 +219,35 @@ export class AgentImageGenerationTool {
         return null
       }
 
-      if (!this.isSupportedImageGenerationModel(providerId, modelId)) {
-        logger.warn('[AgentImageGenerationTool] Configured model is not an image model', {
-          providerId,
-          modelId,
-          conversationId
-        })
+      if (!this.isSupportedImageGenerationModel(providerId, modelId, options)) {
+        if (options.reportDiagnostics !== false) {
+          logger.warn('[AgentImageGenerationTool] Configured model is not an image model', {
+            providerId,
+            modelId,
+            conversationId
+          })
+        }
         return null
       }
 
       return { providerId, modelId }
     } catch (error) {
-      logger.warn('[AgentImageGenerationTool] Failed to resolve image generation model', {
-        conversationId,
-        error
-      })
+      if (options.strict) throw error
+      if (options.reportDiagnostics !== false) {
+        logger.warn('[AgentImageGenerationTool] Failed to resolve image generation model', {
+          conversationId,
+          error
+        })
+      }
       return null
     }
   }
 
-  private isSupportedImageGenerationModel(providerId: string, modelId: string): boolean {
+  private isSupportedImageGenerationModel(
+    providerId: string,
+    modelId: string,
+    options: { strict?: boolean; reportDiagnostics?: boolean } = {}
+  ): boolean {
     try {
       const modelConfig = this.options.providerSettings.getModelConfig(modelId, providerId)
       return (
@@ -243,11 +256,14 @@ export class AgentImageGenerationTool {
         modelConfig.endpointType === 'image-generation'
       )
     } catch (error) {
-      logger.warn('[AgentImageGenerationTool] Failed to inspect image generation model config', {
-        providerId,
-        modelId,
-        error
-      })
+      if (options.strict) throw error
+      if (options.reportDiagnostics !== false) {
+        logger.warn('[AgentImageGenerationTool] Failed to inspect image generation model config', {
+          providerId,
+          modelId,
+          error
+        })
+      }
       return false
     }
   }

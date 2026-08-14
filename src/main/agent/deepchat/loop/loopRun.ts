@@ -11,6 +11,16 @@ import type {
 } from '@shared/types/tape-view-manifest'
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 import {
+  assertIssuedToolSurfaceSnapshot,
+  revokeToolSurfaceExecutionEligibility,
+  type ToolSurfaceActivationEvidence,
+  type ToolSurfaceSnapshot
+} from '@/agent/deepchat/runtime/toolSurface'
+import {
+  assertProgrammaticToolCapabilityViewPrepared,
+  type ProgrammaticToolCapabilityV1
+} from '@/agent/deepchat/runtime/programmaticToolSurface'
+import {
   hashSkillEffectiveContent,
   type TapeSkillIdentity
 } from '@/tape/domain/skillMaterialization'
@@ -25,6 +35,8 @@ import {
   bindProviderProjectionIdentity,
   getProviderProjectionIdentities
 } from './providerProjectionIdentity'
+
+export type LoopRunToolSurfaceMode = 'legacy' | 'full' | 'native-activation' | 'cli-programmatic'
 
 export interface RuntimeSkillContextBinding {
   readonly toolCallId: string
@@ -47,6 +59,7 @@ export interface LoopRunResources {
   tapeIncarnationId?: string
   materializedSkillContexts: MaterializedSkillContextBinding[]
   runtimeSkillContexts: RuntimeSkillContextBinding[]
+  readonly toolSurfaceMode: LoopRunToolSurfaceMode
 }
 
 export interface LoopRunProviderRecovery {
@@ -79,6 +92,15 @@ export interface LoopRunRequestViewBinding {
   readonly tapeIncarnationId?: string
 }
 
+export interface LoopRunRequestToolSurfaceBinding {
+  readonly requestSeq: number
+  readonly snapshot: ToolSurfaceSnapshot
+  readonly programmaticCapability?: ProgrammaticToolCapabilityV1
+  readonly releaseActivationCandidates: (
+    candidates: readonly ToolSurfaceActivationEvidence[]
+  ) => void
+}
+
 export interface LoopRun<TStreamState> {
   readonly runId: string
   readonly sessionId: AppSessionId
@@ -96,6 +118,7 @@ export interface LoopRun<TStreamState> {
   promptUsageAnchor: LoopRunPromptUsageAnchor | null
   activeRequestContract: LoopRunRequestContractBinding | null
   activeRequestView: LoopRunRequestViewBinding | null
+  activeRequestToolSurface: LoopRunRequestToolSurfaceBinding | null
 }
 
 export interface CreateLoopRunInput<TStreamState> {
@@ -110,6 +133,7 @@ export interface CreateLoopRunInput<TStreamState> {
     activeSkillNames: readonly string[]
     promptAssembly?: DeepChatPromptAssembly
     commandShell: ResolvedCommandShell
+    toolSurfaceMode?: LoopRunToolSurfaceMode
   }
   initialRequestSeq?: number
   initialLogicalRound?: number
@@ -129,6 +153,21 @@ export function createLoopRun<TStreamState>(
     ...parsedCommandShell,
     args: Object.freeze([...parsedCommandShell.args])
   }) as ResolvedCommandShell
+  const resources: LoopRunResources = {
+    toolDefinitions: [...input.resources.toolDefinitions],
+    activeSkillNames: [...input.resources.activeSkillNames],
+    ...(input.resources.promptAssembly ? { promptAssembly: input.resources.promptAssembly } : {}),
+    commandShell,
+    materializedSkillContexts: [],
+    runtimeSkillContexts: [],
+    toolSurfaceMode: input.resources.toolSurfaceMode ?? 'legacy'
+  }
+  Object.defineProperty(resources, 'toolSurfaceMode', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: resources.toolSurfaceMode
+  })
   return {
     runId: input.runId,
     sessionId: input.sessionId,
@@ -141,14 +180,7 @@ export function createLoopRun<TStreamState>(
     physicalAttempt: 0,
     messages: [...input.messages],
     streamState: input.streamState,
-    resources: {
-      toolDefinitions: [...input.resources.toolDefinitions],
-      activeSkillNames: [...input.resources.activeSkillNames],
-      ...(input.resources.promptAssembly ? { promptAssembly: input.resources.promptAssembly } : {}),
-      commandShell,
-      materializedSkillContexts: [],
-      runtimeSkillContexts: []
-    },
+    resources,
     providerRecovery: {
       contextOverflowHandoffAttempted: false,
       strictProviderOverflowRetryUsed: false,
@@ -156,7 +188,8 @@ export function createLoopRun<TStreamState>(
     },
     promptUsageAnchor: null,
     activeRequestContract: null,
-    activeRequestView: null
+    activeRequestView: null,
+    activeRequestToolSurface: null
   }
 }
 
@@ -477,11 +510,19 @@ export function advanceRequestSequence(run: LoopRun<unknown>): number {
   if (!Number.isSafeInteger(nextRequestSeq) || nextRequestSeq <= 0) {
     throw new Error('Provider request sequence is exhausted.')
   }
+  revokeActiveRequestToolSurface(run)
   run.requestSeq = nextRequestSeq
   run.physicalAttempt = 0
   run.activeRequestContract = null
   run.activeRequestView = null
   return nextRequestSeq
+}
+
+export function revokeActiveRequestToolSurface(run: LoopRun<unknown>): void {
+  const binding = run.activeRequestToolSurface
+  if (!binding) return
+  revokeToolSurfaceExecutionEligibility(binding.snapshot)
+  run.activeRequestToolSurface = null
 }
 
 export function bindActiveRequestContract(
@@ -529,6 +570,45 @@ export function bindActiveRequestView(
   })
   run.activeRequestView = normalized
   return normalized
+}
+
+export function bindActiveRequestToolSurface(
+  run: LoopRun<unknown>,
+  requestSeq: number,
+  snapshot: ToolSurfaceSnapshot,
+  releaseActivationCandidates: (candidates: readonly ToolSurfaceActivationEvidence[]) => void,
+  programmaticCapability: ProgrammaticToolCapabilityV1 | null = null
+): LoopRunRequestToolSurfaceBinding {
+  if (requestSeq !== run.requestSeq) {
+    throw new Error('Tool Surface request sequence does not match the active request.')
+  }
+  assertIssuedToolSurfaceSnapshot(snapshot)
+  if (
+    snapshot.request.sessionId !== run.sessionId ||
+    snapshot.request.messageId !== run.messageId ||
+    snapshot.request.runId !== run.runId ||
+    snapshot.request.requestSeq !== requestSeq
+  ) {
+    throw new Error('Tool Surface identity does not match the active Loop Run.')
+  }
+  if (typeof releaseActivationCandidates !== 'function') {
+    throw new Error('Tool Surface activation release capability is unavailable.')
+  }
+  if (snapshot.adapterMode === 'cli-programmatic') {
+    if (programmaticCapability !== null) {
+      assertProgrammaticToolCapabilityViewPrepared(programmaticCapability, snapshot)
+    }
+  } else if (programmaticCapability !== null) {
+    throw new Error('A non-programmatic Tool Surface cannot bind a Programmatic capability.')
+  }
+  const binding = Object.freeze({
+    requestSeq,
+    snapshot,
+    ...(programmaticCapability ? { programmaticCapability } : {}),
+    releaseActivationCandidates
+  })
+  run.activeRequestToolSurface = binding
+  return binding
 }
 
 export function enterPhysicalAttempt(run: LoopRun<unknown>): number {

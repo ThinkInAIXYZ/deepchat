@@ -78,7 +78,6 @@ function createMockDb(rows: DeepChatMessageRow[]) {
           }
         }
       }
-
       return {
         all: vi.fn(),
         get: vi.fn()
@@ -126,6 +125,7 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatMessagesTable(db)
     table.createTable()
+    new DeepChatMessageTracesTable(db).createTable()
     return { db, table }
   }
 

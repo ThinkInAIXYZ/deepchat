@@ -6,6 +6,7 @@ import {
   type MCPServerConfig,
   type MCPToolCall,
   type MCPToolDefinition,
+  type McpToolDefinitionsSnapshot,
   type MCPToolResponse,
   type McpExpectedToolTarget,
   type Resource,
@@ -36,6 +37,8 @@ import type {
 import { createPersistedMcpToolResult, getToolVisibility } from './resultProjection'
 import { resolveCachedImageDataUrl as resolveCachedImageDataUrlFromDisk } from '@/platform/imageCache'
 import { findJsonValueDifference, type JsonValueDifference } from './schemaValidation'
+import { types as nodeTypes } from 'node:util'
+import { McpPreDispatchError, type McpPreDispatchErrorCode } from './errors'
 
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -43,11 +46,28 @@ const isAbortError = (error: unknown): boolean =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+const deepFreeze = <T>(value: T, seen = new Set<object>()): T => {
+  if (!value || typeof value !== 'object' || seen.has(value)) return value
+  seen.add(value)
+  for (const key of Reflect.ownKeys(value)) {
+    deepFreeze(Reflect.get(value, key), seen)
+  }
+  return Object.freeze(value)
+}
+
 const PLUGIN_RUNTIME_DIAGNOSTIC_TIMEOUT_MS = 30_000
 const TOOL_CATALOG_VALIDATION_TIMEOUT_MS = 30_000
 const MAX_SCHEMA_DIFFERENCE_PATH_LENGTH = 512
 const MAX_CACHED_IMAGE_ARGUMENT_REFERENCES = 8
 const MAX_MCP_EXECUTION_ARGUMENT_BYTES = 32 * 1024 * 1024
+const MAX_CACHED_TOOL_SNAPSHOT_DEFINITIONS = 1_024
+const MAX_CACHED_TOOL_SNAPSHOT_DEFINITION_BYTES = 256 * 1_024
+const MAX_CACHED_TOOL_SNAPSHOT_TOTAL_BYTES = 4 * 1_024 * 1_024
+const MAX_CACHED_TOOL_SNAPSHOT_DEFINITION_NODES = 100_000
+const MAX_CACHED_TOOL_SNAPSHOT_TOTAL_NODES = 500_000
+const MAX_CACHED_TOOL_SNAPSHOT_DEPTH = 64
+const MAX_CACHED_TOOL_SNAPSHOT_SOURCES = 1_024
+const MAX_CACHED_TOOL_SNAPSHOT_SOURCE_NAME_BYTES = 1_024
 const CACHED_IMAGE_REFERENCE_PATTERN = /^imgcache:\/\/\S+$/i
 const CACHED_IMAGE_PREFIX_LENGTH = 'imgcache://'.length
 
@@ -72,6 +92,8 @@ type McpToolAccessContext = {
   enabledServerIds?: string[]
   agentId?: string
   conversationId?: string
+  includeRegularServers?: boolean
+  expectedServerNames?: string[]
 }
 
 export type ComputerUsePreviewCall = {
@@ -111,6 +133,7 @@ type PluginMcpOwnershipPort = {
   isServerAvailable(serverName: string): boolean
   getOwnerPluginId(serverName: string): string | undefined
   getAvailableToolCatalogs(): PluginOwnedToolCatalogRegistration[]
+  getAvailableToolServerNames(): string[]
   ensureRunning(serverName: string, reason: PluginRuntimeStartReason): Promise<void>
 }
 
@@ -119,6 +142,7 @@ const NO_PLUGIN_OWNERSHIP: PluginMcpOwnershipPort = {
   isServerAvailable: () => false,
   getOwnerPluginId: () => undefined,
   getAvailableToolCatalogs: () => [],
+  getAvailableToolServerNames: () => [],
   ensureRunning: async (serverName) => {
     throw new Error(`Plugin runtime server "${serverName}" is not registered`)
   }
@@ -139,6 +163,7 @@ type ToolTarget = {
   client?: McpClient
   catalogBacked: boolean
   catalogTool?: Tool
+  definition: MCPToolDefinition
 }
 
 type CatalogValidationState = {
@@ -163,7 +188,137 @@ const normalizeToolAccessContext = (
     enabledTools: normalizeStringList(input?.enabledTools),
     enabledServerIds: normalizeStringList(input?.enabledServerIds),
     agentId: input?.agentId?.trim() || undefined,
-    conversationId: input?.conversationId?.trim() || undefined
+    conversationId: input?.conversationId?.trim() || undefined,
+    includeRegularServers: input?.includeRegularServers,
+    expectedServerNames: normalizeStringList(input?.expectedServerNames)
+  }
+}
+
+function assertBoundedCachedToolSnapshot(definitions: readonly MCPToolDefinition[]): void {
+  if (definitions.length > MAX_CACHED_TOOL_SNAPSHOT_DEFINITIONS) {
+    throw new Error('Cached Tool definition snapshot exceeds its definition limit.')
+  }
+
+  let totalBytes = 0
+  let totalNodes = 0
+  for (const definition of definitions) {
+    const ancestors = new Set<object>()
+    const stack: Array<
+      | { readonly kind: 'enter'; readonly value: unknown; readonly depth: number }
+      | { readonly kind: 'exit'; readonly value: object }
+    > = [{ kind: 'enter', value: definition, depth: 0 }]
+    let definitionBytes = 0
+    let definitionNodes = 0
+    const addBytes = (bytes: number): void => {
+      definitionBytes += bytes
+      totalBytes += bytes
+      if (
+        definitionBytes > MAX_CACHED_TOOL_SNAPSHOT_DEFINITION_BYTES ||
+        totalBytes > MAX_CACHED_TOOL_SNAPSHOT_TOTAL_BYTES
+      ) {
+        throw new Error('Cached Tool definition snapshot exceeds its byte limit.')
+      }
+    }
+
+    while (stack.length > 0) {
+      const item = stack.pop()
+      if (!item) break
+      if (item.kind === 'exit') {
+        ancestors.delete(item.value)
+        continue
+      }
+      definitionNodes += 1
+      totalNodes += 1
+      if (
+        definitionNodes > MAX_CACHED_TOOL_SNAPSHOT_DEFINITION_NODES ||
+        totalNodes > MAX_CACHED_TOOL_SNAPSHOT_TOTAL_NODES ||
+        item.depth > MAX_CACHED_TOOL_SNAPSHOT_DEPTH
+      ) {
+        throw new Error('Cached Tool definition snapshot exceeds its structural limit.')
+      }
+
+      if (item.value === null) {
+        addBytes(4)
+        continue
+      }
+      if (typeof item.value === 'boolean') {
+        addBytes(item.value ? 4 : 5)
+        continue
+      }
+      if (typeof item.value === 'number') {
+        if (!Number.isFinite(item.value)) {
+          throw new Error('Cached Tool definition snapshot contains a non-JSON value.')
+        }
+        addBytes(Buffer.byteLength(JSON.stringify(item.value), 'utf8'))
+        continue
+      }
+      if (typeof item.value === 'string') {
+        if (Buffer.byteLength(item.value, 'utf8') > MAX_CACHED_TOOL_SNAPSHOT_DEFINITION_BYTES) {
+          throw new Error('Cached Tool definition snapshot exceeds its byte limit.')
+        }
+        addBytes(Buffer.byteLength(JSON.stringify(item.value), 'utf8'))
+        continue
+      }
+      if (!item.value || typeof item.value !== 'object') {
+        throw new Error('Cached Tool definition snapshot contains a non-JSON value.')
+      }
+      if (ancestors.has(item.value) || nodeTypes.isProxy(item.value)) {
+        throw new Error('Cached Tool definition snapshot contains an unsafe object graph.')
+      }
+      if (Object.getOwnPropertySymbols(item.value).length > 0) {
+        throw new Error('Cached Tool definition snapshot contains a symbol property.')
+      }
+
+      ancestors.add(item.value)
+      stack.push({ kind: 'exit', value: item.value })
+      if (Array.isArray(item.value)) {
+        const keys = Object.getOwnPropertyNames(item.value).filter((key) => key !== 'length')
+        if (keys.length !== item.value.length) {
+          throw new Error('Cached Tool definition snapshot contains an invalid array.')
+        }
+        addBytes(2 + Math.max(0, item.value.length - 1))
+        for (let index = item.value.length - 1; index >= 0; index -= 1) {
+          const descriptor = Object.getOwnPropertyDescriptor(item.value, String(index))
+          if (!descriptor?.enumerable || !('value' in descriptor)) {
+            throw new Error('Cached Tool definition snapshot contains an unsafe property.')
+          }
+          stack.push({ kind: 'enter', value: descriptor.value, depth: item.depth + 1 })
+        }
+        continue
+      }
+
+      const prototype = Object.getPrototypeOf(item.value)
+      if (prototype !== Object.prototype && prototype !== null) {
+        throw new Error('Cached Tool definition snapshot contains a non-JSON object.')
+      }
+      const keys = Object.getOwnPropertyNames(item.value)
+      let includedProperties = 0
+      for (let index = keys.length - 1; index >= 0; index -= 1) {
+        const key = keys[index]
+        const descriptor = Object.getOwnPropertyDescriptor(item.value, key)
+        if (!descriptor?.enumerable || !('value' in descriptor)) {
+          throw new Error('Cached Tool definition snapshot contains an unsafe property.')
+        }
+        if (descriptor.value === undefined) continue
+        addBytes(
+          Buffer.byteLength(JSON.stringify(key), 'utf8') + 1 + (includedProperties > 0 ? 1 : 0)
+        )
+        includedProperties += 1
+        stack.push({ kind: 'enter', value: descriptor.value, depth: item.depth + 1 })
+      }
+      addBytes(2)
+    }
+  }
+}
+
+function assertBoundedCachedToolSnapshotSources(serverNames: readonly string[]): void {
+  if (serverNames.length > MAX_CACHED_TOOL_SNAPSHOT_SOURCES) {
+    throw new Error('Cached Tool definition snapshot exceeds its source limit.')
+  }
+  for (const serverName of serverNames) {
+    if (Buffer.byteLength(serverName, 'utf8') > MAX_CACHED_TOOL_SNAPSHOT_SOURCE_NAME_BYTES) {
+      throw new Error('Cached Tool definition snapshot exceeds its source-name limit.')
+    }
   }
 }
 
@@ -172,6 +327,8 @@ export class ToolManager {
   private readonly mcpSettings: McpSettings
   private serverManager: ServerManager
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
+  private cachedToolDefinitionFailedServerNames: ReadonlySet<string> | null = null
+  private cachedToolDefinitionSuccessfulServerNames: ReadonlySet<string> | null = null
   private toolNameToTargetMap: Map<string, ToolTarget> | null = null
   private catalogValidationPromises = new WeakMap<McpClient, Promise<CatalogValidationState>>()
   private toolDefinitionsCacheGeneration = 0
@@ -198,8 +355,61 @@ export class ToolManager {
     this.activeToolDefinitionsRefresh?.settle()
     this.activeToolDefinitionsRefresh = null
     this.cachedToolDefinitions = null
+    this.cachedToolDefinitionFailedServerNames = null
+    this.cachedToolDefinitionSuccessfulServerNames = null
     this.toolNameToTargetMap = null
     this.catalogValidationPromises = new WeakMap()
+  }
+
+  public snapshotCachedToolDefinitions(
+    access?: string[] | McpToolAccessContext
+  ): McpToolDefinitionsSnapshot {
+    if (
+      this.cachedToolDefinitions === null ||
+      this.cachedToolDefinitionFailedServerNames === null ||
+      this.cachedToolDefinitionSuccessfulServerNames === null ||
+      this.toolNameToTargetMap === null
+    ) {
+      return Object.freeze({ state: 'uninitialized' })
+    }
+    const context = normalizeToolAccessContext(access)
+    const selectedDefinitions = this.filterToolDefinitionsByContext(
+      this.cachedToolDefinitions,
+      context
+    )
+    assertBoundedCachedToolSnapshot(selectedDefinitions)
+    const tools = selectedDefinitions.map((definition) => deepFreeze(structuredClone(definition)))
+    const hasExplicitExpectedServerNames = context.expectedServerNames !== undefined
+    const expectedServerNames = Array.from(
+      new Set([
+        ...(context.expectedServerNames ?? []),
+        ...this.pluginOwnership.getAvailableToolServerNames()
+      ])
+    )
+    assertBoundedCachedToolSnapshotSources(expectedServerNames)
+    const expectedServerNameSet = new Set(expectedServerNames)
+    const failedServerNames = new Set(
+      [...this.cachedToolDefinitionFailedServerNames].filter((serverName) =>
+        hasExplicitExpectedServerNames
+          ? expectedServerNameSet.has(serverName)
+          : this.isServerAllowedByContext(serverName, context)
+      )
+    )
+    for (const serverName of expectedServerNames) {
+      if (
+        !this.cachedToolDefinitionSuccessfulServerNames.has(serverName) &&
+        !this.cachedToolDefinitionFailedServerNames.has(serverName)
+      ) {
+        failedServerNames.add(serverName)
+      }
+    }
+    const failedSourceCount = failedServerNames.size
+    return Object.freeze({
+      state: 'ready',
+      tools: Object.freeze(tools),
+      complete: failedSourceCount === 0,
+      failedSourceCount
+    })
   }
 
   private isPluginOwnedClient(client: McpClient): boolean {
@@ -279,7 +489,8 @@ export class ToolManager {
       const refreshGeneration = this.toolDefinitionsCacheGeneration
       console.info('Fetching/refreshing tool definitions and target map...')
       const clients = await awaitWithAbort(this.serverManager.getRunningClients(), options?.signal)
-      const sources = await this.loadToolSources(clients ?? [], options?.signal)
+      const loadedSources = await this.loadToolSources(clients ?? [], options?.signal)
+      const sources = loadedSources.sources
       const serverConfigs = await awaitWithAbort(this.mcpSettings.getMcpServers(), options?.signal)
       const results: MCPToolDefinition[] = []
       const nextToolNameToTargetMap = new Map<string, ToolTarget>()
@@ -351,7 +562,7 @@ export class ToolManager {
           )
 
           const serverConfig = serverConfigs[source.serverName]
-          results.push({
+          const definition: MCPToolDefinition = {
             // Server annotations are untrusted hints and must not weaken local execution policy.
             execution: TOOL_EXECUTION.write,
             type: 'function',
@@ -383,14 +594,16 @@ export class ToolManager {
               _meta: tool._meta,
               execution: tool.execution
             }
-          })
+          }
+          results.push(definition)
 
           nextToolNameToTargetMap.set(finalName, {
             serverName: source.serverName,
             originalName,
             client: source.client,
             catalogBacked: source.catalogBacked,
-            catalogTool: tool
+            catalogTool: tool,
+            definition: deepFreeze(structuredClone({ ...definition, source: 'mcp' as const }))
           })
         }
       }
@@ -404,6 +617,10 @@ export class ToolManager {
         return await this.getAllToolDefinitions(access, options)
       }
       this.cachedToolDefinitions = results
+      this.cachedToolDefinitionFailedServerNames = new Set(loadedSources.failedServerNames)
+      this.cachedToolDefinitionSuccessfulServerNames = new Set(
+        sources.map((source) => source.serverName)
+      )
       this.toolNameToTargetMap = nextToolNameToTargetMap
       console.info(`Cached ${results.length} final tool definitions and populated target map.`)
 
@@ -416,12 +633,16 @@ export class ToolManager {
     }
   }
 
-  private async loadToolSources(clients: McpClient[], signal?: AbortSignal): Promise<ToolSource[]> {
+  private async loadToolSources(
+    clients: McpClient[],
+    signal?: AbortSignal
+  ): Promise<{ sources: ToolSource[]; failedServerNames: ReadonlySet<string> }> {
     const catalogRegistrations = this.pluginOwnership.getAvailableToolCatalogs()
     const catalogServerNames = new Set(
       catalogRegistrations.map((registration) => registration.serverName)
     )
     const sources: ToolSource[] = []
+    const failedServerNames = new Set<string>()
 
     for (const client of clients) {
       if (
@@ -453,6 +674,7 @@ export class ToolManager {
         if (signal?.aborted) {
           throw error
         }
+        failedServerNames.add(client.serverName)
         this.handleToolListError(client, error)
       }
     }
@@ -469,7 +691,7 @@ export class ToolManager {
         catalogBacked: true
       })
     }
-    return sources
+    return { sources, failedServerNames }
   }
 
   private filterExplicitlyDeniedTools(serverName: string, tools: readonly Tool[]): readonly Tool[] {
@@ -503,7 +725,11 @@ export class ToolManager {
     toolDefinitions: MCPToolDefinition[],
     context: McpToolAccessContext
   ): MCPToolDefinition[] {
-    if (!context.enabledTools && !context.enabledServerIds) {
+    if (
+      !context.enabledTools &&
+      !context.enabledServerIds &&
+      context.includeRegularServers !== false
+    ) {
       return toolDefinitions
     }
 
@@ -527,6 +753,9 @@ export class ToolManager {
     // user-configured servers.
     if (this.pluginOwnership.isServerAvailable(serverName)) {
       return true
+    }
+    if (context.includeRegularServers === false) {
+      return false
     }
     return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
   }
@@ -564,10 +793,29 @@ export class ToolManager {
     return null
   }
 
-  private createTargetChangedResponse(toolCallId: string, reason: string): MCPToolResponse {
+  private createTargetChangedResponse(
+    toolCallId: string,
+    reason: string,
+    throwError = false
+  ): MCPToolResponse {
+    return this.createPreDispatchErrorResponse(
+      toolCallId,
+      'target_changed',
+      `Error: MCP tool execution was cancelled because ${reason}. Refresh tools and retry.`,
+      throwError
+    )
+  }
+
+  private createPreDispatchErrorResponse(
+    toolCallId: string,
+    code: McpPreDispatchErrorCode,
+    content: string,
+    throwError = false
+  ): MCPToolResponse {
+    if (throwError) throw new McpPreDispatchError(content, code)
     return {
       toolCallId,
-      content: `Error: MCP tool execution was cancelled because ${reason}. Refresh tools and retry.`,
+      content,
       isError: true
     }
   }
@@ -578,6 +826,8 @@ export class ToolManager {
       signal?: AbortSignal
       runId?: string
       expectedTarget?: McpExpectedToolTarget
+      assertCurrentToolDefinition?: (definition: MCPToolDefinition) => void
+      throwPreDispatchErrors?: boolean
       commitDispatch?: ToolDispatchCommit
       registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
     }
@@ -585,7 +835,7 @@ export class ToolManager {
     let previewCall: ComputerUsePreviewCall | null = null
     let previewStarted = false
     let previewTerminalNotified = false
-    let dispatchCommitFailed = false
+    let dispatchBoundaryFailed = false
     let dispatchCommitted = false
     try {
       access?.signal?.throwIfAborted()
@@ -607,22 +857,24 @@ export class ToolManager {
 
       if (!this.toolNameToTargetMap) {
         console.error('Tool target map is not available.')
-        return {
-          toolCallId: toolCall.id,
-          content: `Error: Internal error - tool information not available.`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'runtime_unavailable',
+          'Error: Internal error - tool information not available.',
+          access?.throwPreDispatchErrors
+        )
       }
 
       const targetInfo = this.toolNameToTargetMap.get(finalName)
 
       if (!targetInfo) {
         console.error(`Tool '${finalName}' not found in the target map.`)
-        return {
-          toolCallId: toolCall.id,
-          content: `Error: Tool '${finalName}' not found or server not running.`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'target_unavailable',
+          `Error: Tool '${finalName}' not found or server not running.`,
+          access?.throwPreDispatchErrors
+        )
       }
 
       const { originalName, serverName: toolServerName } = targetInfo
@@ -632,7 +884,11 @@ export class ToolManager {
         access?.expectedTarget
       )
       if (targetMismatch) {
-        return this.createTargetChangedResponse(toolCall.id, targetMismatch)
+        return this.createTargetChangedResponse(
+          toolCall.id,
+          targetMismatch,
+          access?.throwPreDispatchErrors
+        )
       }
       const accessContext = normalizeToolAccessContext({
         agentId: access?.agentId,
@@ -646,11 +902,12 @@ export class ToolManager {
       if (shouldCheckAcpAccess) {
         const agentId = accessContext.agentId
         if (!agentId) {
-          return {
-            toolCallId: toolCall.id,
-            content: 'ACP agent context is required for MCP access control.',
-            isError: true
-          }
+          return this.createPreDispatchErrorResponse(
+            toolCall.id,
+            'tool_not_allowed',
+            'ACP agent context is required for MCP access control.',
+            access?.throwPreDispatchErrors
+          )
         }
 
         try {
@@ -661,11 +918,12 @@ export class ToolManager {
               access?.signal
             )
             if (!selections?.length || !selections.includes(toolServerName)) {
-              return {
-                toolCallId: toolCall.id,
-                content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
-                isError: true
-              }
+              return this.createPreDispatchErrorResponse(
+                toolCall.id,
+                'tool_not_allowed',
+                `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
+                access?.throwPreDispatchErrors
+              )
             }
           }
         } catch (error) {
@@ -704,11 +962,12 @@ export class ToolManager {
             args = repaired
           } catch (repairError: unknown) {
             console.error('Error parsing MCP tool arguments even after jsonrepair:', repairError)
-            return {
-              toolCallId: toolCall.id,
-              content: 'Error: MCP tool arguments must be a valid JSON object.',
-              isError: true
-            }
+            return this.createPreDispatchErrorResponse(
+              toolCall.id,
+              'invalid_request',
+              'Error: MCP tool arguments must be a valid JSON object.',
+              access?.throwPreDispatchErrors
+            )
           }
         }
       }
@@ -719,11 +978,12 @@ export class ToolManager {
       const serverConfig = servers[toolServerName]
       if (!serverConfig) {
         console.error(`Configuration for server '${toolServerName}' not found.`)
-        return {
-          toolCallId: toolCall.id,
-          content: `Error: Configuration missing for server '${toolServerName}'.`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'target_unavailable',
+          `Error: Configuration missing for server '${toolServerName}'.`,
+          access?.throwPreDispatchErrors
+        )
       }
       const bindingMismatch = this.describeExpectedTargetMismatch(
         finalName,
@@ -732,14 +992,19 @@ export class ToolManager {
         serverConfig
       )
       if (bindingMismatch) {
-        return this.createTargetChangedResponse(toolCall.id, bindingMismatch)
+        return this.createTargetChangedResponse(
+          toolCall.id,
+          bindingMismatch,
+          access?.throwPreDispatchErrors
+        )
       }
       if (!this.isServerAllowedByContext(toolServerName, accessContext)) {
-        return {
-          toolCallId: toolCall.id,
-          content: `MCP server '${toolServerName}' is not allowed for DeepChat agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in DeepChat agent settings.`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'tool_not_allowed',
+          `MCP server '${toolServerName}' is not allowed for DeepChat agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in DeepChat agent settings.`,
+          access?.throwPreDispatchErrors
+        )
       }
       const pluginPolicy = resolvePluginToolPolicy(toolServerName, originalName)
       if (
@@ -747,14 +1012,14 @@ export class ToolManager {
         pluginPolicy.decision !== 'allow' &&
         pluginPolicy.decision !== 'ask'
       ) {
-        return {
-          toolCallId: toolCall.id,
-          content:
-            pluginPolicy.decision === 'deny'
-              ? `Tool '${originalName}' on server '${toolServerName}' is blocked by plugin policy.`
-              : `Tool '${originalName}' on server '${toolServerName}' is not declared by its closed plugin policy.`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'tool_not_allowed',
+          pluginPolicy.decision === 'deny'
+            ? `Tool '${originalName}' on server '${toolServerName}' is blocked by plugin policy.`
+            : `Tool '${originalName}' on server '${toolServerName}' is not declared by its closed plugin policy.`,
+          access?.throwPreDispatchErrors
+        )
       }
       const targetClient = await this.resolveToolClient(targetInfo, access?.signal)
       access?.signal?.throwIfAborted()
@@ -766,11 +1031,12 @@ export class ToolManager {
       )
       access?.signal?.throwIfAborted()
       if (!preparedArgs.ok) {
-        return {
-          toolCallId: toolCall.id,
-          content: `Error: ${preparedArgs.error}`,
-          isError: true
-        }
+        return this.createPreDispatchErrorResponse(
+          toolCall.id,
+          'invalid_request',
+          `Error: ${preparedArgs.error}`,
+          access?.throwPreDispatchErrors
+        )
       }
 
       const currentServers = await awaitWithAbort(this.mcpSettings.getMcpServers(), access?.signal)
@@ -791,7 +1057,8 @@ export class ToolManager {
       ) {
         return this.createTargetChangedResponse(
           toolCall.id,
-          finalMismatch || 'the active MCP client changed before dispatch'
+          finalMismatch || 'the active MCP client changed before dispatch',
+          access?.throwPreDispatchErrors
         )
       }
 
@@ -810,6 +1077,7 @@ export class ToolManager {
         : undefined
       access?.signal?.throwIfAborted()
       try {
+        access?.assertCurrentToolDefinition?.(currentTarget.definition)
         access?.commitDispatch?.({
           toolName: finalName,
           toolSource: 'mcp',
@@ -822,7 +1090,7 @@ export class ToolManager {
         })
         dispatchCommitted = access?.commitDispatch !== undefined
       } catch (error) {
-        dispatchCommitFailed = true
+        dispatchBoundaryFailed = true
         throw error
       }
       if (previewCall) {
@@ -907,8 +1175,16 @@ export class ToolManager {
       if (isAbortError(error) || (access?.signal?.aborted && !dispatchCommitted)) {
         throw error
       }
-      if (dispatchCommitFailed) {
+      if (dispatchBoundaryFailed) {
         throw error
+      }
+      if (error instanceof McpPreDispatchError) {
+        if (access?.throwPreDispatchErrors) throw error
+      } else if (access?.throwPreDispatchErrors && !dispatchCommitted) {
+        throw new McpPreDispatchError(
+          'MCP runtime became unavailable before target dispatch.',
+          'runtime_unavailable'
+        )
       }
 
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -994,13 +1270,13 @@ export class ToolManager {
     if (!liveTool) {
       const errorMessage = `Live MCP tool "${catalogTool.name}" is missing from catalog-backed server "${client.serverName}"`
       this.serverManager.setServerLastError(client.serverName, errorMessage)
-      throw new Error(errorMessage)
+      throw new McpPreDispatchError(errorMessage, 'definition_changed')
     }
     const difference = findJsonValueDifference(catalogTool.inputSchema, liveTool.inputSchema)
     if (difference) {
       const errorMessage = `Live MCP tool "${catalogTool.name}" schema differs from the packaged catalog for server "${client.serverName}" at ${formatSchemaDifference(difference)}`
       this.serverManager.setServerLastError(client.serverName, errorMessage)
-      throw new Error(errorMessage)
+      throw new McpPreDispatchError(errorMessage, 'definition_changed')
     }
     validation.verifiedToolNames.add(catalogTool.name)
   }

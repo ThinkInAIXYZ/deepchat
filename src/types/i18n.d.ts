@@ -259,6 +259,12 @@ declare module 'vue-i18n' {
       remove: string
       steerUnavailable: string
       steerFailed: string
+      resume: string
+      resumeFailed: string
+      retry: string
+      retryRequired: string
+      retryRequiredDescription: string
+      retryFailed: string
     }
     features: {
       webSearch: string
@@ -468,8 +474,6 @@ declare module 'vue-i18n' {
         env: string
         pythonShort: string
         nodeShort: string
-        enabled: string
-        disabled: string
         enable: string
         disable: string
         viewDetails: string
@@ -530,31 +534,17 @@ declare module 'vue-i18n' {
         menuItem: string
         title: string
         description: string
-        target: string
         resultPartial: string
         resultSuccess: string
-        resultSummary: string
+        resultSummaryV3: string
         sourceTitle: string
-        sourceDescription: string
-        loadingSources: string
-        sourceError: string
         emptySources: string
-        emptySourcesDescription: string
-        sourceKind: {
-          internal: string
-          external: string
-        }
         skillCount: string
         previewTitle: string
-        selectedCount: string
-        selectAll: string
-        clear: string
-        loadingPreview: string
-        previewError: string
         emptyPreview: string
-        emptyPreviewDescription: string
         status: {
           ready: string
+          same: string
           conflict: string
           unavailable: string
         }
@@ -563,10 +553,8 @@ declare module 'vue-i18n' {
           rename: string
           overwrite: string
         }
-        renameTarget: string
-        executeError: string
-        importing: string
-        importSelected: string
+        overwriteImpact: string
+        execute: string
       }
       sync: {
         title: string
@@ -658,111 +646,6 @@ declare module 'vue-i18n' {
         skip: string
         importSelected: string
       }
-      tabs: {
-        library: string
-        agents: string
-        syncDirectory: string
-      }
-      agents: {
-        title: string
-        summary: string
-        refresh: string
-        syncToAgent: string
-        empty: string
-        emptySkills: string
-        loadFailed: string
-        conflictCount: string
-        table: {
-          skill: string
-          owner: string
-          status: string
-          action: string
-          preview: string
-        }
-        owner: {
-          deepchat: string
-          'external-link': string
-          'broken-link': string
-          unknown: string
-        }
-        status: {
-          linked: string
-          'agent-owned': string
-          'linked-out': string
-          'broken-link': string
-          conflict: string
-          empty: string
-        }
-        actions: {
-          adopt: string
-          'resolve-conflict': string
-          'repair-link': string
-          'remove-link': string
-          open: string
-          pending: string
-          view: string
-        }
-        agentStatus: {
-          ready: string
-          'detected-no-skills-dir': string
-          'permission-denied': string
-        }
-        counts: {
-          skills: string
-          linked: string
-          agentOwned: string
-          conflicts: string
-          broken: string
-        }
-        adoptDialog: {
-          adoptTitle: string
-          conflictTitle: string
-          adoptDescription: string
-          conflictDescription: string
-          loading: string
-          previewFailed: string
-          executeFailed: string
-          currentLocation: string
-          afterAdoption: string
-          backup: string
-          chooseAction: string
-          adoptAs: string
-          replaceDeepChat: string
-          keepCurrent: string
-          unsupportedStrategies: string
-          warnings: string
-          apply: string
-          linkArrow: string
-          successTitle: string
-          successDescription: string
-        }
-        syncDialog: {
-          title: string
-          description: string
-          target: string
-          deepchatSkills: string
-          empty: string
-          preview: string
-          loading: string
-          noSelection: string
-          apply: string
-          failed: string
-          successTitle: string
-          successDescription: string
-          status: {
-            ready: string
-            'already-linked': string
-            conflict: string
-            missing: string
-          }
-        }
-        linkAction: {
-          repairSuccess: string
-          removeSuccess: string
-          successDescription: string
-          failed: string
-        }
-      }
       git: {
         title: string
         description: string
@@ -794,7 +677,6 @@ declare module 'vue-i18n' {
         saved: string
         export: string
         import: string
-        includeDisabled: string
         previewExport: string
         exportNow: string
         previewImport: string
@@ -848,6 +730,12 @@ declare module 'vue-i18n' {
         delete: string
         confirmDeleteTitle: string
         confirmDeleteDescription: string
+        enabledAgents: string
+        enabledAgentsHint: string
+        noEnabledAgents: string
+        addAgent: string
+        removeAgent: string
+        agentUpdateFailed: string
       }
       installToAgent: {
         title: string
@@ -865,6 +753,17 @@ declare module 'vue-i18n' {
         disconnectSuccess: string
         disconnectSuccessMessage: string
         disconnectFailed: string
+      }
+      impact: {
+        changed: string
+        editEnabled: string
+        editUnused: string
+        confirmDeleteEnabled: string
+        confirmDeleteUnused: string
+      }
+      syncDirectory: {
+        action: string
+        back: string
       }
     }
     workspace: {
@@ -981,6 +880,9 @@ declare module 'vue-i18n' {
       searchCommand: string
       chatSection: string
       workspace: string
+      addWorkspace: string
+      emptyWorkspace: string
+      addWorkspaceFailed: string
       remoteControlDisabled: string
       remoteControlStatus: {
         disabled: string
@@ -2130,7 +2032,7 @@ declare module 'vue-i18n' {
     'settings-prompt': string
     'settings-mcp-market': string
     'settings-acp': string
-    'settings-skills': string
+    'plugins-skills': string
     'settings-notifications-hooks': string
     'settings-scheduled-tasks': string
     'settings-dashboard': string

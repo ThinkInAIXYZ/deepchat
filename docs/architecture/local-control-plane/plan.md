@@ -125,3 +125,25 @@ Before each commit, review staged and unstaged changes in this order:
 
 Resolve all in-scope findings, rerun affected checks, then commit with a behavior-specific
 Conventional Commit subject of at most 50 characters.
+
+## Programmatic Tool Extension Plan
+
+This work follows completed V2 and does not reopen its checkboxes or generic route surface.
+
+1. Add version-negotiated `CLI_SURFACE_V3` as a strict immutable-V2 superset with four Agent-only tool
+   commands; keep V2, human, ACP, and generic raw MCP invocation denied from those routes.
+2. Build the immutable per-View `ProgrammaticToolCapabilityV1` without a future provider call ID,
+   then accept only a derived exact outer-operation grant/token; enforce surface version, route,
+   canonical invocation hash, adapter, identity, hashes, expiry, child/batch/I/O/time quotas, and no
+   descriptor fallback.
+3. Make search/describe frozen-surface reads with no authorization, activation, or target Journal
+   facts; route call/batch through the process-live parent controller and Journal v2 receipts.
+4. Keep prepared tokens inert until parent T1 arms them, bind receipts to the outer-result hash, add
+   bounded owned stdin, and reject background/detached/yielded Programmatic execution before T1.
+5. Add the bounded sequential non-durable batch controller, controller-assigned plan-index ordinals,
+   static RFC 6901 bindings from existing argument destinations to prior immutable results,
+   post-materialization quotas, and per-child approval/runtime gates.
+6. Verify v1/v2 negotiation, anti-oracle errors, principal separation, changed invocation body/route,
+   token replay/exhaustion, Journal-fatal propagation, terminal fencing, shutdown/crash parking, and
+   the absence of human/ACP access.
+7. Before every commit, perform the existing severity-ranked review, fix findings, and do not push.

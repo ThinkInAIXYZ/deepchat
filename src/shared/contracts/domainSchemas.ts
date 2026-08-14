@@ -234,34 +234,6 @@ export const SkillSyncImportPreviewSchema = z.looseObject({
   warnings: z.array(z.string())
 })
 
-export const SkillSyncExportPreviewSchema = z.looseObject({
-  skillName: z.string().min(1),
-  targetTool: z.string().min(1),
-  targetPath: z.string(),
-  convertedContent: z.string(),
-  warnings: z.array(z.string()),
-  conflict: z
-    .looseObject({
-      existingPath: z.string(),
-      strategy: SkillSyncConflictStrategySchema
-    })
-    .optional(),
-  exportOptions: z.record(z.string(), z.unknown()).optional()
-})
-
-export const SkillSyncResultSchema = z.looseObject({
-  success: z.boolean(),
-  imported: z.number().int().nonnegative(),
-  exported: z.number().int().nonnegative(),
-  skipped: z.number().int().nonnegative(),
-  failed: z.array(
-    z.looseObject({
-      skill: z.string(),
-      reason: z.string()
-    })
-  )
-})
-
 export const SkillSyncFormatCapabilitiesSchema = z.looseObject({
   hasFrontmatter: z.boolean(),
   supportsName: z.boolean(),

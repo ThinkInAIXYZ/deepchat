@@ -46,6 +46,7 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
+import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { createWindowClient } from '@api/WindowClient'
 import {
   RENDERER_PERFORMANCE_REPORTER,
@@ -136,7 +137,6 @@ watch(
 )
 
 const router = useRouter()
-const activeTab = ref('chat')
 const isStartupRouteReady = ref(false)
 const processingStartDeeplinkToken = ref<number | null>(null)
 const processedStartDeeplinkToken = ref<number | null>(null)
@@ -320,14 +320,17 @@ const handleStartGuidedOnboardingDev = async () => {
   }
 }
 
-const CHAT_GUIDED_ONBOARDING_STEP_IDS = new Set<GuidedOnboardingStepId>([
-  'switch-agent',
-  'switch-model',
-  'first-chat'
-])
-
 const routeToGuidedOnboardingStep = async (stepId: GuidedOnboardingStepId | null) => {
-  if (stepId && CHAT_GUIDED_ONBOARDING_STEP_IDS.has(stepId)) {
+  const target = resolveGuidedOnboardingStepTarget(stepId)
+
+  if (target?.surface === 'plugins') {
+    if (router.currentRoute.value.name !== target.routeName) {
+      await router.replace({ name: target.routeName })
+    }
+    return
+  }
+
+  if (target?.surface === 'chat') {
     if (router.currentRoute.value.name !== 'chat') {
       await router.replace({ name: 'chat' })
     }
@@ -341,12 +344,7 @@ const routeToGuidedOnboardingStep = async (stepId: GuidedOnboardingStepId | null
   }
 }
 
-const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
-  const resumeIntent = readGuidedOnboardingResumeIntent()
-  if (!resumeIntent || resumeIntent.trigger !== trigger) {
-    return
-  }
-
+const resumeGuidedOnboardingFromState = async () => {
   try {
     const onboardingState = await onboardingClient.getState()
 
@@ -369,6 +367,15 @@ const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigg
   }
 }
 
+const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
+  const resumeIntent = readGuidedOnboardingResumeIntent()
+  if (!resumeIntent || resumeIntent.trigger !== trigger) {
+    return
+  }
+
+  await resumeGuidedOnboardingFromState()
+}
+
 const handleGuidedOnboardingResumeRequested = (event: Event) => {
   const detail = (event as CustomEvent<GuidedOnboardingResumeRequestDetail>).detail
   if (!detail?.trigger) {
@@ -383,6 +390,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
     handleStartDeeplink(undefined, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
   },
   handleStartGuidedOnboardingDev,
+  handleResumeGuidedOnboarding: resumeGuidedOnboardingFromState,
   handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
   handleZoomIn,
   handleZoomOut,
@@ -486,23 +494,8 @@ onMounted(() => {
   )
 
   watch(
-    () => activeTab.value,
-    (newVal) => {
-      router.push({ name: newVal })
-    }
-  )
-
-  watch(
     () => route.fullPath,
-    (newVal) => {
-      const pathWithoutQuery = newVal.split('?')[0]
-      const newTab =
-        pathWithoutQuery === '/'
-          ? (route.name as string)
-          : pathWithoutQuery.split('/').filter(Boolean)[0] || ''
-      if (newTab !== activeTab.value) {
-        activeTab.value = newTab
-      }
+    () => {
       // Close artifacts page when route changes
       artifactStore.hideArtifact()
     }

@@ -10,6 +10,7 @@ import type {
   TapeBootstrapIncarnationReader,
   TapeEntryLifecycleStore,
   TapeEntryStore,
+  ToolSurfacePersistenceStore,
   TapeTransactionRunner
 } from './storage'
 import type { SkillMaterializationPersistenceStore } from './storage'
@@ -150,6 +151,7 @@ export interface TapeTerminalMessageReader {
 export type TapeApplicationEntryStore = TapeEntryStore &
   TapeTransactionRunner &
   TapeBootstrapStore &
+  ToolSurfacePersistenceStore &
   TapeBootstrapIncarnationReader
 
 export interface TapeApplicationDatabase {

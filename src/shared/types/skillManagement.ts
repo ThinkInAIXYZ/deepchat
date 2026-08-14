@@ -49,6 +49,23 @@ export interface SkillManagementItem {
   agentLinks?: Record<string, AgentLinkInfo>
 }
 
+export interface SharedSkillManagementItem {
+  name: string
+  canonicalPath: string
+  source: SkillSource
+}
+
+export interface AgentSkillBinding {
+  assigned: boolean
+  extension: SkillExtensionConfig
+  /** Opaque revision for external runtime environment values; never contains those values. */
+  runtimeBindingId?: string
+}
+
+export interface AgentSkillBindingState {
+  bindings: Record<string, AgentSkillBinding>
+}
+
 export interface LegacySkillManagementItem extends Omit<SkillManagementItem, 'disabled'> {
   deepchat: {
     disabled: boolean
@@ -67,18 +84,35 @@ export interface AgentSkillManagementState {
   migratedAt?: string
 }
 
-export interface SkillManagementMigrationState {
+export interface LegacySkillManagementMigrationState {
   targetAgentIds?: string[]
   completedAgentIds: string[]
   legacySkillAllowLists?: Record<string, string[]>
   completedAt?: string
 }
 
-export interface SkillManagementState {
+export interface LegacySkillManagementStateV2 {
   version: 2
   agents: Record<string, AgentSkillManagementState>
   sync?: SkillSyncDirectoryConfig
-  migration?: SkillManagementMigrationState
+  migration?: LegacySkillManagementMigrationState
+}
+
+export interface SharedSkillMigrationState {
+  sourceVersion: 1 | 2
+  status: 'planned' | 'committing' | 'completed'
+  startedAt: string
+  completedAt?: string
+  /** Maps an Agent's legacy Skill name to its canonical global name. */
+  agentSkillNames: Record<string, Record<string, string>>
+}
+
+export interface SkillManagementState {
+  version: 3
+  skills: Record<string, SharedSkillManagementItem>
+  agents: Record<string, AgentSkillBindingState>
+  sync?: SkillSyncDirectoryConfig
+  migration?: SharedSkillMigrationState
 }
 
 /** Read-only compatibility shape for settings written before Agent-owned Skill roots. */
@@ -86,10 +120,13 @@ export interface LegacySkillManagementState {
   version: 1
   skills: Record<string, LegacySkillManagementItem>
   sync?: SkillSyncDirectoryConfig
-  migration?: SkillManagementMigrationState
+  migration?: LegacySkillManagementMigrationState
 }
 
-export type StoredSkillManagementState = SkillManagementState | LegacySkillManagementState
+export type StoredSkillManagementState =
+  | SkillManagementState
+  | LegacySkillManagementStateV2
+  | LegacySkillManagementState
 
 export interface UnifiedSkillItem {
   agentId: string
@@ -104,9 +141,31 @@ export interface UnifiedSkillItem {
   ownerPluginId?: string
   canonicalPath: string
   sourceType: SkillSourceType
+  /** True when this item belongs to the requested Agent's derived catalog. */
+  assigned: boolean
+  /** Populated for global views; empty for callers that do not request enabled Agent impact. */
+  assignedAgentIds: string[]
   disabled: boolean
   /** @deprecated Renderer compatibility during the scoped-Skill migration. */
   deepchatDisabled: boolean
   agentLinks: Record<string, AgentLinkInfo>
   mutable: boolean
+}
+
+export interface SkillDeleteResult extends SkillInstallResultLike {
+  affectedAgentIds?: string[]
+}
+
+interface SkillInstallResultLike {
+  success: boolean
+  skillName?: string
+  error?: string
+  errorCode?:
+    | 'not_found'
+    | 'conflict'
+    | 'invalid_skill'
+    | 'permission_denied'
+    | 'target_locked'
+    | 'io_error'
+    | 'stale_impact'
 }

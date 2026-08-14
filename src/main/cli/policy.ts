@@ -240,7 +240,8 @@ export class CliRequestPolicy {
       return emptyRelease()
     }
 
-    const owner = input.caller.conversationId
+    const quotaDomain = input.entry.programmaticOnly ? 'programmatic-tool' : 'general'
+    const owner = `${quotaDomain}\0${input.caller.conversationId}`
     const active = this.activeAgentCompute.get(owner) ?? 0
     const now = this.now()
     this.pruneComputeStarts(now)

@@ -12,20 +12,35 @@
   "notImplemented": "暫不支援",
   "notImplementedDesc": "此供應商暫時無法預覽",
   "provider": "供應商",
-  "title": "請求參數預覽",
+  "title": "訊息診斷",
   "model": "模型",
   "tabs": {
     "request": "請求",
     "view": "檢視",
     "entries": "項目",
-    "budget": "預算"
+    "budget": "預算",
+    "execution": "執行稽核"
   },
   "empty": "沒有診斷資料",
-  "emptyDesc": "此訊息沒有可用的請求追蹤或檢視清單",
+  "emptyDesc": "此訊息沒有可用的請求追蹤、Tape 檢視清單或巢狀執行稽核",
   "requestUnavailable": "沒有請求追蹤",
   "requestUnavailableDesc": "此訊息沒有已儲存的供應商請求追蹤",
   "manifestUnavailable": "沒有檢視清單",
   "manifestUnavailableDesc": "此訊息沒有已儲存的 Tape 檢視清單",
+  "execution": {
+    "empty": "暫無巢狀執行",
+    "emptyDesc": "此請求沒有記錄程式化工具操作",
+    "corrupt": "執行稽核已損壞",
+    "corruptDesc": "巢狀 Journal 事實存在衝突或無法驗證",
+    "unavailable": "執行稽核不可用",
+    "unavailableDesc": "無法讀取巢狀 Journal 事實",
+    "truncated": "僅顯示前 256 個巢狀操作",
+    "status": {
+      "success": "成功",
+      "error": "錯誤",
+      "indeterminate": "結果不確定"
+    }
+  },
   "viewId": "檢視 ID",
   "policy": "策略",
   "policyVersion": "策略版本",

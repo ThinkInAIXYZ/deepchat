@@ -39,6 +39,7 @@ const buildAssistantMessage = (content: unknown) => ({
     reasoningEndTime: 4_500
   }),
   traceCount: 0,
+  hasNestedExecutionAudit: false,
   createdAt: 1,
   updatedAt: 1
 })
@@ -53,6 +54,7 @@ const buildSteerMessage = (text: string) => ({
   isContextEdge: 0,
   metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
   traceCount: 0,
+  hasNestedExecutionAudit: false,
   createdAt: 2,
   updatedAt: 2
 })
@@ -781,6 +783,16 @@ async function expectSessionRestoreTransactionStopsAfter(
 describe('ChatPage', () => {
   beforeEach(() => {
     localStorage.clear()
+  })
+
+  it('exposes trace diagnostics for messages with nested execution audit only', async () => {
+    const assistant = {
+      ...buildAssistantMessage([{ type: 'content', content: 'done', status: 'success' }]),
+      hasNestedExecutionAudit: true
+    }
+    const { wrapper } = await setup({ messages: [assistant] })
+
+    expect(wrapper.getComponent({ name: 'MessageList' }).props('traceMessageIds')).toEqual(['m1'])
   })
 
   it('passes the active session Agent to the ChatInputBox Skill scope', async () => {

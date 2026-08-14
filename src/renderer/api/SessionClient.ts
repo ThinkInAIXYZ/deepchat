@@ -295,7 +295,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return {
       traces: result.traces,
-      manifests
+      manifests,
+      nestedExecutions: result.nestedExecutions
     }
   }
 

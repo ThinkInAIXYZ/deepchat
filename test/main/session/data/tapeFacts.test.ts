@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMessageRecordToTape, appendToolFactsToTape } from '@/session/data/tapeFacts'
-import { buildEffectiveTapeView, projectTapeToolOrderSeq } from '@/tape/domain/effectiveView'
+import {
+  buildEffectiveTapeView,
+  projectTapeToolOrderSeq,
+  searchEffectiveTapeRows
+} from '@/tape/domain/effectiveView'
+import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
 import {
   messageRecordHasFinalToolUse,
   tapeToolRank
@@ -78,6 +83,30 @@ function toolCallBlock(
     tool_call: { id, name: 'search', params: '{"q":"x"}', ...(response ? { response } : {}) }
   } as AssistantMessageBlock
 }
+
+describe('Tool Surface audit provenance', () => {
+  it('stays out of effective conversation views and ordinary search', () => {
+    const rows = TOOL_SURFACE_TAPE_EVENT_NAMES.map(
+      (name, index): DeepChatTapeEntryRow => ({
+        session_id: 's1',
+        entry_id: index + 1,
+        kind: 'event',
+        name,
+        source_type: 'runtime_event',
+        source_id: 'm1',
+        source_seq: 1,
+        provenance_key: `surface:${index}`,
+        payload_json: JSON.stringify({ marker: `private-tool-surface-${index}` }),
+        meta_json: '{}',
+        created_at: index + 1
+      })
+    )
+
+    expect(buildEffectiveTapeView(rows).rows).toEqual([])
+    expect(searchEffectiveTapeRows(rows, 'private-tool-surface')).toEqual([])
+    expect(buildEffectiveTapeView(rows, { includeAuditEvents: true }).rows).toEqual(rows)
+  })
+})
 
 describe('appendToolFactsToTape', () => {
   it('ranks only explicit terminal tool statuses as final', () => {

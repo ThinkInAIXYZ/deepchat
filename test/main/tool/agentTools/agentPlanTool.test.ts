@@ -127,6 +127,35 @@ describe('AgentPlanTool', () => {
     })
   })
 
+  it('commits dispatch after validation and before mutating plan state', () => {
+    const tool = new AgentPlanTool()
+    const onProgress = vi.fn()
+    const beforeMutation = vi.fn(() => {
+      throw new Error('T1 unavailable')
+    })
+
+    expect(() =>
+      tool.call({ plan: [{ step: 'Blocked', status: 'pending' }] }, 'session-1', {
+        toolCallId: 'tool-1',
+        onProgress,
+        beforeMutation
+      })
+    ).toThrow('T1 unavailable')
+
+    expect(beforeMutation).toHaveBeenCalledWith({
+      plan: [{ step: 'Blocked', status: 'pending' }]
+    })
+    expect(onProgress).not.toHaveBeenCalled()
+
+    tool.call({ plan: [{ step: 'Committed', status: 'pending' }] }, 'session-1', {
+      toolCallId: 'tool-2',
+      onProgress
+    })
+    expect(onProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ snapshot: expect.objectContaining({ revision: 1 }) })
+    )
+  })
+
   it('clears session state so revisions restart for that session', () => {
     const tool = new AgentPlanTool()
     const onProgress = vi.fn()

@@ -768,6 +768,7 @@ describe('PluginRuntimeSupervisor', () => {
     )
 
     expect(supervisor.getAvailableToolCatalogs()).toEqual([])
+    expect(supervisor.getAvailableToolServerNames()).toEqual([])
     supervisor.commitPluginRegistration('com.deepchat.plugins.fixture')
     expect(supervisor.getAvailableToolCatalogs()).toEqual([
       expect.objectContaining({
@@ -775,6 +776,7 @@ describe('PluginRuntimeSupervisor', () => {
         displayName: 'Catalog Server'
       })
     ])
+    expect(supervisor.getAvailableToolServerNames()).toEqual(['catalog-server'])
   })
 
   it('gates staged registrations without exposing them before commit', async () => {

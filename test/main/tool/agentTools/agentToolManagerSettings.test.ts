@@ -58,6 +58,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
     getMetadataList: vi.fn(),
+    getAllSkills: vi.fn(),
     viewSkill: vi.fn(),
     viewSkillForAgent: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
@@ -126,6 +127,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     skillService.listSkillScriptsForAgent.mockResolvedValue([])
     skillService.resolveSessionAgentId.mockResolvedValue('agent-a')
     skillService.getMetadataList.mockResolvedValue([
+      {
+        name: 'code-review',
+        description: 'Code Review',
+        category: 'engineering',
+        platforms: [],
+        metadata: {}
+      }
+    ])
+    skillService.getAllSkills.mockResolvedValue([
       {
         name: 'code-review',
         description: 'Code Review',
@@ -511,10 +521,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
 
     const manager = buildManager()
     const commitDispatch = vi.fn()
-    const result = (await manager.callTool('skill_view', { name: 'deepchat-settings' }, 'conv-1', {
-      activeSkillNames: [],
-      commitDispatch
-    })) as { content: string; rawData?: { toolResult?: unknown } }
+    const result = (await manager.callTool(
+      'skill_view',
+      { name: ' deepchat-settings ' },
+      'conv-1',
+      {
+        activeSkillNames: [],
+        commitDispatch
+      }
+    )) as { content: string; rawData?: { toolResult?: unknown } }
 
     const content = JSON.parse(result.content) as Record<string, unknown>
     expect(content.isPinned).toBe(false)
@@ -600,7 +615,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     })
     expect(skillService.viewSkillForAgent).toHaveBeenCalledWith('agent-a', 'deepchat-settings', {
       filePath: 'references/guide.md',
-      conversationId: 'conv-1'
+      conversationId: 'conv-1',
+      activeSkillNames: ['deepchat-settings']
     })
     expect(commitDispatch).not.toHaveBeenCalled()
   })

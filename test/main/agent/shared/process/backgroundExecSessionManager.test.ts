@@ -304,6 +304,88 @@ describe('BackgroundExecSessionManager', () => {
     })
   })
 
+  it('does not report completion before a running process closes', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+    const onCompleted = vi.fn()
+    const resultPromise = manager.getCompletionResult('conv-1', started.sessionId)
+    void resultPromise.then(onCompleted)
+
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(onCompleted).not.toHaveBeenCalled()
+
+    child.stdout.emit('data', 'complete')
+    child.stdout.emit('end')
+    child.stderr.emit('end')
+    child.emit('close', 0, null)
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'done',
+      output: 'complete',
+      exitCode: 0,
+      timedOut: false
+    })
+  })
+
+  it('bounds completion when an exited process never closes inherited stdio', async () => {
+    vi.useFakeTimers()
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+    const onCompleted = vi.fn()
+    const resultPromise = manager.getCompletionResult('conv-1', started.sessionId)
+    void resultPromise.then(onCompleted)
+
+    child.stdout.emit('data', 'complete')
+    child.emit('exit', 0, null)
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(onCompleted).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'done',
+      output: 'complete',
+      exitCode: 0,
+      timedOut: false
+    })
+    expect(child.stdout.destroy).toHaveBeenCalledOnce()
+    expect(child.stderr.destroy).toHaveBeenCalledOnce()
+    expect(child.stdin.destroy).toHaveBeenCalledOnce()
+
+    child.emit('close', 7, null)
+    await expect(manager.poll('conv-1', started.sessionId)).resolves.toMatchObject({
+      status: 'done',
+      exitCode: 0
+    })
+  })
+
+  it('clears the close watchdog when another path finalizes the session', async () => {
+    vi.useFakeTimers()
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    mockTerminateProcessTree.mockResolvedValueOnce(false)
+
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+    child.emit('exit', 0, null)
+    expect(vi.getTimerCount()).toBe(1)
+
+    await manager.kill('conv-1', started.sessionId)
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('clears the yield timer when the session closes before the yield window elapses', async () => {
     vi.useFakeTimers()
 

@@ -25,6 +25,7 @@ import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
+import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 
 export interface SessionStatePort {
   initSession(
@@ -142,6 +143,10 @@ export interface SessionTapePort {
     sessionId: string,
     messageId: string
   ): Promise<DeepChatTapeViewManifestRecord[]>
+  listNestedExecutionAuditForMessage(
+    sessionId: string,
+    messageId: string
+  ): Promise<DeepChatNestedExecutionAudit>
   exportMessageTapeReplaySlice(
     sessionId: string,
     messageId: string,

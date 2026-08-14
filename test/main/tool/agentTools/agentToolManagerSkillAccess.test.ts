@@ -39,12 +39,11 @@ vi.mock('electron', () => ({
 describe('AgentToolManager skill file access', () => {
   const electronHome = path.join(os.tmpdir(), 'deepchat-electron-home')
   const agentId = `agent-a-${process.pid}`
-  const otherAgentId = `agent-b-${process.pid}`
   let workspaceDir: string
   let skillsDir: string
   let skillRoot: string
   let skillFilePath: string
-  let otherAgentSkillFilePath: string
+  let inactiveSkillFilePath: string
   let providerSettings: any
   let fileService: {
     getMimeType: ReturnType<typeof vi.fn>
@@ -56,6 +55,7 @@ describe('AgentToolManager skill file access', () => {
     getSkillsDir: ReturnType<typeof vi.fn>
     resolveSessionAgentId: ReturnType<typeof vi.fn>
     getMetadataList: ReturnType<typeof vi.fn>
+    getAllSkills: ReturnType<typeof vi.fn>
     getActiveSkillsAllowedTools: ReturnType<typeof vi.fn>
     listSkillScripts: ReturnType<typeof vi.fn>
     getSkillExtension: ReturnType<typeof vi.fn>
@@ -112,20 +112,14 @@ describe('AgentToolManager skill file access', () => {
 
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-skill-workspace-'))
     skillsDir = path.join(electronHome, '.deepchat', 'skills')
-    skillRoot = path.join(skillsDir, '.agent-scopes', agentId, 'skill-a')
+    skillRoot = path.join(skillsDir, 'skill-a')
     skillFilePath = path.join(skillRoot, 'guide.md')
-    otherAgentSkillFilePath = path.join(
-      skillsDir,
-      '.agent-scopes',
-      otherAgentId,
-      'skill-b',
-      'guide.md'
-    )
+    inactiveSkillFilePath = path.join(skillsDir, 'skill-b', 'guide.md')
 
     await fs.mkdir(skillRoot, { recursive: true })
-    await fs.mkdir(path.dirname(otherAgentSkillFilePath), { recursive: true })
+    await fs.mkdir(path.dirname(inactiveSkillFilePath), { recursive: true })
     await fs.writeFile(skillFilePath, 'active skill file', 'utf-8')
-    await fs.writeFile(otherAgentSkillFilePath, 'other agent skill file', 'utf-8')
+    await fs.writeFile(inactiveSkillFilePath, 'inactive skill file', 'utf-8')
 
     fileService = {
       getMimeType: vi.fn().mockResolvedValue('text/plain'),
@@ -137,6 +131,14 @@ describe('AgentToolManager skill file access', () => {
       getSkillsDir: vi.fn().mockResolvedValue(skillsDir),
       resolveSessionAgentId: vi.fn().mockResolvedValue(agentId),
       getMetadataList: vi.fn().mockResolvedValue([
+        {
+          name: 'skill-a',
+          description: 'Skill A',
+          path: path.join(skillRoot, 'SKILL.md'),
+          skillRoot
+        }
+      ]),
+      getAllSkills: vi.fn().mockResolvedValue([
         {
           name: 'skill-a',
           description: 'Skill A',
@@ -171,12 +173,39 @@ describe('AgentToolManager skill file access', () => {
     expect(result.content).toContain('active skill file')
   })
 
+  it('keeps Run snapshot roots allowed after the Agent is unassigned', async () => {
+    skillService.getMetadataList.mockResolvedValue([])
+    const manager = buildManager()
+
+    const rules = await (manager as any).buildProtectedSkillDirectoryRules('conv1', ['skill-a'])
+
+    expect(skillService.getMetadataList).not.toHaveBeenCalled()
+    expect(skillService.getAllSkills).toHaveBeenCalledOnce()
+    expect(rules).toEqual([{ root: skillsDir, allowedDirectories: [skillRoot] }])
+  })
+
+  it('uses message-active Skill roots during permission pre-checks after unassignment', async () => {
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getMetadataList.mockResolvedValue([])
+    const manager = buildManager()
+
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: skillFilePath },
+      'conv1',
+      { activeSkillNames: ['skill-a'] }
+    )
+
+    expect(permission).toBeNull()
+    expect(skillService.getAllSkills).toHaveBeenCalled()
+  })
+
   it('fails closed when the protected Skill root cannot be resolved', async () => {
     const manager = buildManager()
     skillService.getSkillsDir.mockRejectedValue(new Error('skills root unavailable'))
 
     await expect((manager as any).buildProtectedSkillDirectoryRules('conv1')).rejects.toThrow(
-      'Unable to resolve protected Agent Skill scopes'
+      'Unable to resolve the protected Skills root'
     )
   })
 
@@ -221,19 +250,19 @@ describe('AgentToolManager skill file access', () => {
   })
 
   it.each([
-    ['read', { path: () => otherAgentSkillFilePath }, 'read'],
-    ['write', { path: () => otherAgentSkillFilePath, content: 'overwritten' }, 'write'],
+    ['read', { path: () => inactiveSkillFilePath }, 'read'],
+    ['write', { path: () => inactiveSkillFilePath, content: 'overwritten' }, 'write'],
     [
       'edit',
       {
-        path: () => otherAgentSkillFilePath,
-        oldText: 'other agent skill file',
+        path: () => inactiveSkillFilePath,
+        oldText: 'inactive skill file',
         newText: 'edited'
       },
       'write'
     ]
   ] as const)(
-    'requires permission for %s access to another Agent default Skill scope',
+    'requires permission for %s access to an inactive shared Skill package',
     async (toolName, args, permissionType) => {
       const manager = buildManager()
       const toolArgs = { ...args, path: args.path() }
@@ -247,31 +276,29 @@ describe('AgentToolManager skill file access', () => {
             permissionRequest: expect.objectContaining({
               toolName,
               permissionType,
-              paths: [await fs.realpath(otherAgentSkillFilePath)],
+              paths: [await fs.realpath(inactiveSkillFilePath)],
               shellProfile: 'posix'
             })
           })
         })
       )
-      await expect(fs.readFile(otherAgentSkillFilePath, 'utf-8')).resolves.toBe(
-        'other agent skill file'
-      )
+      await expect(fs.readFile(inactiveSkillFilePath, 'utf-8')).resolves.toBe('inactive skill file')
     }
   )
 
   it.each([
-    ['read', { path: () => otherAgentSkillFilePath }],
-    ['write', { path: () => otherAgentSkillFilePath, content: 'overwritten' }],
+    ['read', { path: () => inactiveSkillFilePath }],
+    ['write', { path: () => inactiveSkillFilePath, content: 'overwritten' }],
     [
       'edit',
       {
-        path: () => otherAgentSkillFilePath,
-        oldText: 'other agent skill file',
+        path: () => inactiveSkillFilePath,
+        oldText: 'inactive skill file',
         newText: 'edited'
       }
     ]
   ] as const)(
-    'hard-denies %s access to another Agent scope in full access mode',
+    'hard-denies %s access to an inactive shared Skill package in full access mode',
     async (toolName, args) => {
       const manager = buildManager()
 
@@ -279,10 +306,8 @@ describe('AgentToolManager skill file access', () => {
         manager.callTool(toolName, { ...args, path: args.path() }, 'conv1', {
           allowExternalFileAccess: true
         })
-      ).rejects.toThrow('another Agent Skill scope')
-      await expect(fs.readFile(otherAgentSkillFilePath, 'utf-8')).resolves.toBe(
-        'other agent skill file'
-      )
+      ).rejects.toThrow('inactive shared Skill package')
+      await expect(fs.readFile(inactiveSkillFilePath, 'utf-8')).resolves.toBe('inactive skill file')
     }
   )
 
@@ -365,9 +390,9 @@ describe('AgentToolManager skill file access', () => {
     )
   })
 
-  it('hard-denies another Agent Skill root as exec cwd in full access mode', async () => {
+  it('hard-denies an inactive shared Skill root as exec cwd in full access mode', async () => {
     const manager = buildManager()
-    const otherSkillRoot = path.dirname(otherAgentSkillFilePath)
+    const otherSkillRoot = path.dirname(inactiveSkillFilePath)
 
     await expect(
       manager.callTool(
@@ -380,6 +405,6 @@ describe('AgentToolManager skill file access', () => {
         'conv1',
         { allowExternalFileAccess: true, commandShell: POSIX_COMMAND_SHELL }
       )
-    ).rejects.toThrow('another Agent Skill scope')
+    ).rejects.toThrow('inactive shared Skill package')
   })
 })

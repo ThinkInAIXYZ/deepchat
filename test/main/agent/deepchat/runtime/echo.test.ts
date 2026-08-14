@@ -129,6 +129,26 @@ describe('echo', () => {
     echo.stop()
   })
 
+  it('reports failed DB flushes and keeps pending state dirty', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(io.messageStore.updateAssistantContent).mockImplementation(() => {
+      throw new Error('database unavailable')
+    })
+    const echo = startEcho(state, io)
+    state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+    state.dirty = true
+
+    expect(echo.flush()).toBe(false)
+    expect(state.dirty).toBe(true)
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Failed to flush stream content to DB:',
+      expect.objectContaining({ message: 'database unavailable' })
+    )
+
+    echo.stop()
+    errorSpy.mockRestore()
+  })
+
   it('stop() cancels pending throttled work', () => {
     const echo = startEcho(state, io)
 

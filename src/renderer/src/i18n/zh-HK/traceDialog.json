@@ -12,20 +12,35 @@
   "notImplemented": "暫不支援",
   "notImplementedDesc": "此供應商暫時無法預覽",
   "provider": "供應商",
-  "title": "請求參數預覽",
+  "title": "訊息診斷",
   "model": "模型",
   "tabs": {
     "request": "要求",
     "view": "檢視",
     "entries": "項目",
-    "budget": "預算"
+    "budget": "預算",
+    "execution": "執行審計"
   },
   "empty": "沒有診斷資料",
-  "emptyDesc": "此訊息沒有可用的要求追蹤或檢視清單",
+  "emptyDesc": "此訊息沒有可用的要求追蹤、Tape 檢視清單或嵌套執行審計",
   "requestUnavailable": "沒有要求追蹤",
   "requestUnavailableDesc": "此訊息沒有已儲存的供應商要求追蹤",
   "manifestUnavailable": "沒有檢視清單",
   "manifestUnavailableDesc": "此訊息沒有已儲存的 Tape 檢視清單",
+  "execution": {
+    "empty": "暫無嵌套執行",
+    "emptyDesc": "此要求沒有記錄程式化工具操作",
+    "corrupt": "執行審計已損壞",
+    "corruptDesc": "嵌套 Journal 事實有衝突或無法驗證",
+    "unavailable": "執行審計不可用",
+    "unavailableDesc": "無法讀取嵌套 Journal 事實",
+    "truncated": "只顯示前 256 個嵌套操作",
+    "status": {
+      "success": "成功",
+      "error": "錯誤",
+      "indeterminate": "結果不確定"
+    }
+  },
   "viewId": "檢視 ID",
   "policy": "策略",
   "policyVersion": "策略版本",

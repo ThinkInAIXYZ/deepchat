@@ -9,6 +9,7 @@ import type { PersistedSessionGenerationRow } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
+import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
 
 type SessionStateHydrationMode = 'full' | 'summary'
 
@@ -57,6 +58,7 @@ export class SessionStateResolver {
       | PersistedSessionGenerationRow
       | undefined
     if (!dbSession) {
+      revokeToolSurfaceDeferredDispatchesForSession(sessionId)
       this.deps.registry.evict(toAppSessionId(sessionId))
       return null
     }

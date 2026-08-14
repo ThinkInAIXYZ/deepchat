@@ -9,6 +9,13 @@ import {
   createLocalControlSuccess
 } from '@shared/contracts/localControl'
 import { LocalControlCapabilitySchema } from '@shared/contracts/routes'
+import {
+  PROGRAMMATIC_TOOL_BATCH_MAX_STEPS,
+  toolBatchRoute,
+  toolCallRoute,
+  toolDescribeRoute,
+  toolSearchRoute
+} from '@shared/contracts/routes/tools.routes'
 
 const validDescriptor = {
   protocolVersion: LOCAL_CONTROL_PROTOCOL_VERSION,
@@ -38,6 +45,7 @@ describe('local-control contracts', () => {
 
   it.each([
     ['unsupported protocol version', { protocolVersion: 2 }],
+    ['unsupported descriptor surface version', { surfaceVersion: 3 }],
     [
       'NUL in the endpoint path',
       { endpoint: { kind: 'unix', path: '/tmp/deepchat.sock\0hidden' } }
@@ -104,5 +112,134 @@ describe('local-control contracts', () => {
       ok: false,
       error: { code: 'unavailable', retriable: true }
     })
+  })
+
+  it('defines strict bounded Programmatic Tool route bodies', () => {
+    expect(toolSearchRoute.input.parse({ query: 'calendar', limit: 4 })).toEqual({
+      query: 'calendar',
+      limit: 4
+    })
+    expect(() => toolSearchRoute.input.parse({ query: ' calendar ' })).toThrow()
+    expect(toolDescribeRoute.input.parse({ target: 'calendar_search' })).toEqual({
+      target: 'calendar_search'
+    })
+    expect(
+      toolCallRoute.input.parse({ target: 'calendar_search', arguments: { query: 'today' } })
+    ).toEqual({ target: 'calendar_search', arguments: { query: 'today' } })
+    expect(
+      toolBatchRoute.input.parse({
+        steps: [
+          { target: 'messages_list', arguments: {} },
+          {
+            target: 'messages_read',
+            arguments: { id: null },
+            bindings: [{ to: '/id', from: '$steps/0/result/items/0/id' }]
+          }
+        ]
+      })
+    ).toMatchObject({ steps: [{ target: 'messages_list' }, { target: 'messages_read' }] })
+
+    expect(() =>
+      toolCallRoute.input.parse({ target: 'calendar_search', arguments: {}, forEach: [] })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: Array.from({ length: PROGRAMMATIC_TOOL_BATCH_MAX_STEPS + 1 }, () => ({
+          target: 'calendar_search',
+          arguments: {}
+        }))
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: [
+          {
+            target: 'messages_read',
+            arguments: { id: null },
+            bindings: [{ to: '/id', from: '$steps[current]/result/id' }]
+          }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: [
+          {
+            target: 'messages_read',
+            arguments: { id: null },
+            bindings: [{ to: '/id', from: '$steps/0/result/id' }]
+          }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: [
+          { target: 'messages_list', arguments: {} },
+          {
+            target: 'messages_read',
+            arguments: { id: null },
+            bindings: [{ to: '/bad~2pointer', from: '$steps/0/result/id' }]
+          }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: [
+          { target: 'messages_list', arguments: {} },
+          {
+            target: 'messages_read',
+            arguments: { message: { id: null } },
+            bindings: [{ to: '/missing', from: '$steps/0/result/id' }]
+          }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.input.parse({
+        steps: [
+          { target: 'messages_list', arguments: {} },
+          {
+            target: 'messages_read',
+            arguments: { message: { id: null } },
+            bindings: [
+              { to: '/message', from: '$steps/0/result/message' },
+              { to: '/message/id', from: '$steps/0/result/id' }
+            ]
+          }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolCallRoute.output.parse({
+        step: { childOrdinal: 1, status: 'success', result: null }
+      })
+    ).toThrow()
+    expect(() =>
+      toolCallRoute.output.parse({
+        step: { childOrdinal: 0, status: 'not_started' }
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.output.parse({
+        steps: [
+          { childOrdinal: 0, status: 'success', result: null },
+          { childOrdinal: 0, status: 'not_started' }
+        ]
+      })
+    ).toThrow()
+    expect(() =>
+      toolBatchRoute.output.parse({
+        steps: [
+          {
+            childOrdinal: 0,
+            status: 'error',
+            error: { code: 'denied', message: 'Denied', retriable: false }
+          },
+          { childOrdinal: 1, status: 'success', result: null }
+        ]
+      })
+    ).toThrow()
   })
 })

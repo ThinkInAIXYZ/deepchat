@@ -32,10 +32,9 @@ import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import type { FileServicePort } from '@shared/types/file'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
-import type { ToolServicePort } from '@shared/types/tool'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
-import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
 import type {
@@ -146,6 +145,10 @@ import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
+import {
+  TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
+  ToolSurfaceRolloutOwner
+} from '@/agent/deepchat/runtime/toolSurfaceRollout'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
 import { MemoryDatabase } from '@/memory/data/database'
@@ -209,6 +212,7 @@ import {
   normalizeDeepChatSubagentSlots,
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
 import type {
   AcpAsLlmProviderPermissionPort,
@@ -252,6 +256,8 @@ import {
   CliLauncherService,
   CliMutationGuard,
   CliOcrService,
+  ProgrammaticToolDispatcher,
+  ProgrammaticToolParentRegistry,
   CliRequestPolicy,
   CliRunService,
   CliServer,
@@ -263,6 +269,7 @@ import {
   createCliRoutes,
   resolveBundledCliDirectory
 } from '@/cli'
+import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -518,13 +525,13 @@ export async function createMainProcessControl(dependencies: {
   let floatingButtonPresenter: FloatingButtonPresenter
   let knowledgeService: KnowledgeServicePort
   let workspaceService: WorkspaceServicePort
-  let toolService: ToolServicePort
+  let toolService: ToolService
   let deepChatAgentHarness: DeepChatAgentHarness
   let yoBrowserPresenter: IYoBrowserPresenter
   let computerUsePreviewPresenter: ComputerUsePreviewPresenter
   let agentPreviewCoordinator: AgentPreviewCoordinator
   let dialogService: DialogServicePort
-  let skillService: SkillServicePort
+  let skillService: SkillServicePort & SkillMetadataSnapshotPort
   let skillSyncService: SkillSyncServicePort
   let sessionQuery: SessionQuery
   let desktopSessionBinding: DesktopSessionBinding
@@ -608,6 +615,8 @@ export async function createMainProcessControl(dependencies: {
     getBoundRendererIds: (sessionId) => resolveBoundRendererIds(sessionId)
   })
   const agentCliTokenAuthority = new AgentCliTokenAuthority()
+  const toolSurfaceRollout = new ToolSurfaceRolloutOwner(TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1)
+  let programmaticToolDispatcher: ProgrammaticToolDispatcher
   const artifactSpool = new ArtifactSpool({
     directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
     consumeAgentBytes: (tokenId, bytes) => agentCliTokenAuthority.consumeBytes(tokenId, bytes),
@@ -633,6 +642,27 @@ export async function createMainProcessControl(dependencies: {
       const output = await dispatchDeepchatRoute(routeDispatcher, method, input, { caller })
       signal.throwIfAborted()
       return output
+    },
+    dispatchProgrammaticTool: async (
+      method,
+      input,
+      caller,
+      operation,
+      signal,
+      takeSettlementOwnership
+    ) => {
+      assertRouteAllowedDuringDatabaseMaintenance(method)
+      return await programmaticToolDispatcher.dispatch(
+        method,
+        input,
+        caller,
+        operation,
+        signal,
+        takeSettlementOwnership
+      )
+    },
+    completeProgrammaticToolPreDispatchFailure: (method, operation, error) => {
+      programmaticToolDispatcher.completePreDispatchFailure(method, operation, error)
     },
     dispatchStream: async (method, input, caller, requestId, signal, emit) => {
       if (cliRunService?.handlesStream(method)) {
@@ -754,6 +784,61 @@ export async function createMainProcessControl(dependencies: {
         })
     }
   )
+  const programmaticToolParents = new ProgrammaticToolParentRegistry({
+    tokenAuthority: agentCliTokenAuthority,
+    executionJournal: sessionData.programmaticExecutionJournal
+  })
+  programmaticToolDispatcher = new ProgrammaticToolDispatcher({
+    parents: programmaticToolParents,
+    executeChild: async (input) => await toolService.callProgrammaticToolChild(input),
+    authorizeChild: async ({
+      caller,
+      grant,
+      childOrdinal,
+      entry,
+      arguments: childArguments,
+      permission,
+      signal
+    }) => {
+      const requestId = permission.requestId?.trim()
+      if (!requestId) {
+        throw new CliRequestError(
+          'unavailable',
+          'Programmatic Tool permission request is unavailable',
+          { httpStatus: 503 }
+        )
+      }
+      await cliMutationGuard.authorize({
+        operation: 'tool.call',
+        effect: permission.permissionType === 'read' ? 'read' : 'destructive',
+        principal: caller.principal,
+        connectionId: caller.connectionId,
+        clientRequestId: `${grant.operation.providerToolCallId}:${childOrdinal}`,
+        arguments: {
+          target: entry.target.providerVisibleName,
+          arguments: childArguments
+        },
+        displayData: {
+          target: entry.target.providerVisibleName,
+          ...(typeof permission.argumentsPreview === 'string'
+            ? { argumentsPreview: permission.argumentsPreview }
+            : {})
+        },
+        signal,
+        timeoutMs: grant.quotas.maxDurationMs
+      })
+      if (!toolPermissionBroker.approve(requestId, grant.operation.sessionId)) {
+        throw new CliRequestError(
+          'unavailable',
+          'Programmatic Tool permission request is no longer active',
+          { httpStatus: 503 }
+        )
+      }
+    },
+    cancelChildPermission: (requestId, sessionId) => {
+      toolPermissionBroker.cancel(requestId, sessionId)
+    }
+  })
   const taskContractService = new TaskContractService(
     () => sessionData.database.deepchatContractStore
   )
@@ -1313,6 +1398,53 @@ export async function createMainProcessControl(dependencies: {
       }
     }
   })
+  const resolveConversationExecutionAuthorityNow = (conversationId: string) => {
+    const session = appSessionService.get(conversationId)
+    if (!session) return null
+    const resolveAgentConfig = (agentId: string) => {
+      const config = agentRepository.resolveDeepChatAgentConfig(agentId)
+      return {
+        ...config,
+        disabledAgentTools: Array.isArray(config.disabledAgentTools)
+          ? config.disabledAgentTools
+          : [...DEFAULT_DISABLED_AGENT_TOOLS]
+      }
+    }
+    const agentType = agentRepository.getAgentType(session.agentId)
+    const agentConfig = resolveAgentConfig(session.agentId)
+    const persistedDisabledAgentTools = appSessionService.getDisabledAgentTools(session.id)
+    let authority = composeSubagentAuthority({
+      disabledAgentTools: persistedDisabledAgentTools,
+      enabledMcpServerIds: agentConfig.enabledMcpServerIds
+    })
+    if (session.sessionKind === 'subagent') {
+      const parentSessionId = session.parentSessionId?.trim()
+      const parent = parentSessionId ? appSessionService.get(parentSessionId) : null
+      if (!parent || parent.sessionKind !== 'regular') {
+        throw new Error(`Subagent Session ${session.id} has no resolvable parent tool policy.`)
+      }
+      authority = composeSubagentAuthority(
+        { disabledAgentTools: persistedDisabledAgentTools },
+        { disabledAgentTools: appSessionService.getDisabledAgentTools(parent.id) },
+        resolveAgentConfig(parent.agentId),
+        agentConfig
+      )
+    }
+    return {
+      sessionId: session.id,
+      agentId: session.agentId,
+      projectDir: session.projectDir ?? null,
+      sessionKind: session.sessionKind,
+      disabledAgentTools: authority.disabledAgentTools,
+      enabledMcpServerIds: authority.enabledMcpServerIds,
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType,
+        sessionKind: session.sessionKind,
+        agentPolicyEnabled: agentConfig.subagentEnabled === true,
+        slots: normalizeDeepChatSubagentSlots(agentConfig.subagents)
+      })
+    }
+  }
   const agentToolDependencies: AgentToolDependencies = {
     agentInvocationAdmission,
     sessions: {
@@ -1332,55 +1464,9 @@ export async function createMainProcessControl(dependencies: {
 
         return null
       },
-      resolveConversationExecutionAuthority: async (conversationId) => {
-        const session = await sessionQuery.getSession(conversationId)
-        if (!session) {
-          return null
-        }
-
-        const [agentType, persistedDisabledAgentTools, agentConfig] = await Promise.all([
-          agentSettings.getAgentType(session.agentId),
-          sessionAssignment.getSessionDisabledAgentTools(session.id),
-          agentSettings.resolveDeepChatAgentConfig(session.agentId)
-        ])
-        let authority = composeSubagentAuthority({
-          disabledAgentTools: persistedDisabledAgentTools,
-          enabledMcpServerIds: agentConfig.enabledMcpServerIds
-        })
-        if (session.sessionKind === 'subagent') {
-          const parentSessionId = session.parentSessionId?.trim()
-          const parent = parentSessionId ? await sessionQuery.getSession(parentSessionId) : null
-          if (!parent || parent.sessionKind !== 'regular') {
-            throw new Error(`Subagent Session ${session.id} has no resolvable parent tool policy.`)
-          }
-          const [parentDisabledAgentTools, parentConfig] = await Promise.all([
-            sessionAssignment.getSessionDisabledAgentTools(parent.id),
-            agentSettings.resolveDeepChatAgentConfig(parent.agentId)
-          ])
-          authority = composeSubagentAuthority(
-            { disabledAgentTools: persistedDisabledAgentTools },
-            { disabledAgentTools: parentDisabledAgentTools },
-            parentConfig,
-            agentConfig
-          )
-        }
-        const subagentCapability = resolveDeepChatSubagentCapability({
-          agentType,
-          sessionKind: session.sessionKind,
-          agentPolicyEnabled: agentConfig.subagentEnabled === true,
-          slots: normalizeDeepChatSubagentSlots(agentConfig.subagents)
-        })
-
-        return {
-          sessionId: session.id,
-          agentId: session.agentId,
-          projectDir: session.projectDir ?? null,
-          sessionKind: session.sessionKind,
-          disabledAgentTools: authority.disabledAgentTools,
-          enabledMcpServerIds: authority.enabledMcpServerIds,
-          subagentCapability
-        }
-      },
+      resolveConversationExecutionAuthorityNow,
+      resolveConversationExecutionAuthority: async (conversationId) =>
+        resolveConversationExecutionAuthorityNow(conversationId),
       resolveConversationSessionInfo: async (conversationId) => {
         const session = await sessionQuery.getSession(conversationId)
         if (!session) {
@@ -1526,10 +1612,14 @@ export async function createMainProcessControl(dependencies: {
         windowPresenter.sendSettingsNavigation(windowId, navigation)
     },
     permissions: {
-      getApprovedFilePaths: (conversationId, requiredPermission) =>
-        filePermissionService.getApprovedPaths(conversationId, requiredPermission),
-      consumeSettingsApproval: (conversationId, toolName) =>
-        settingsPermissionService.consumeApproval(conversationId, toolName)
+      getApprovedFilePaths: (conversationId, requiredPermission, provisionalLeaseId) =>
+        filePermissionService.getApprovedPaths(
+          conversationId,
+          requiredPermission,
+          provisionalLeaseId
+        ),
+      consumeSettingsApproval: (conversationId, toolName, provisionalLeaseId) =>
+        settingsPermissionService.consumeApproval(conversationId, toolName, provisionalLeaseId)
     }
   }
 
@@ -1700,7 +1790,10 @@ export async function createMainProcessControl(dependencies: {
     },
     taskContractContext: {
       prepare: (sessionId) => liveDelegationService.prepareTaskContractContext(sessionId)
-    }
+    },
+    toolSurfaceRunMode: toolSurfaceRollout,
+    agentCliTokenAuthority,
+    programmaticToolParents
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
@@ -2583,7 +2676,6 @@ export async function createMainProcessControl(dependencies: {
       skillService,
       skillSyncService,
       skillSettings,
-      agentSettings,
       ensureInitialized: ensureSkillServicesInitialized,
       assertSessionActiveSkillsMutable: async (conversationId) => {
         const state = await deepChatAgentHarness.getSessionState(conversationId)

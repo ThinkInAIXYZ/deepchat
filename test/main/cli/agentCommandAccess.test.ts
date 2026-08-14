@@ -1,10 +1,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCAL_CONTROL_AGENT_TOKEN_ENV } from '@shared/contracts/localControl'
 import { AgentCliCommandAccess, resolveBundledCliDirectory } from '@/cli/agentCommandAccess'
-import { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
+import {
+  AgentCliTokenAuthority,
+  buildAgentCliProgrammaticInvocationHash,
+  type ArmedAgentCliProgrammaticToken
+} from '@/cli/agentTokenAuthority'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
 import {
   CMD_COMMAND_SHELL,
@@ -73,11 +77,278 @@ describe('AgentCliCommandAccess', () => {
     expect(authority.beginRequest(agentToken)).toEqual({ status: 'quota-exhausted' })
   })
 
+  it('injects only an already armed exact-operation token without minting another grant', async () => {
+    const { directory } = await createCliDirectory()
+    const authority = new AgentCliTokenAuthority()
+    const issue = vi.spyOn(authority, 'issue')
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: authority,
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => directory
+    })
+    const params = { target: 'remote_search', arguments: {} }
+    const stdin = JSON.stringify(params)
+    const armed = {
+      token: 'p'.repeat(43),
+      conversationId: 'conversation-1',
+      programmaticOperation: {
+        command: { domain: 'tool', verb: 'call' },
+        route: 'tool.call',
+        canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
+          command: { domain: 'tool', verb: 'call' },
+          route: 'tool.call',
+          params
+        }),
+        operation: { sessionId: 'conversation-1' }
+      }
+    } as unknown as ArmedAgentCliProgrammaticToken
+
+    expect(
+      access.createProgrammaticEnvironment(
+        armed,
+        ' conversation-1 ',
+        'deepchat tool call',
+        stdin,
+        POSIX_COMMAND_SHELL
+      )
+    ).toEqual({
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
+      prependPath: [directory],
+      preserveCommand: true
+    })
+    expect(issue).not.toHaveBeenCalled()
+    expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
+
+    expect(() =>
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-2',
+        'deepchat tool call',
+        stdin,
+        POSIX_COMMAND_SHELL
+      )
+    ).toThrow(/does not match its exact invocation/)
+    expect(() =>
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-1',
+        'deepchat tool call --target remote',
+        stdin,
+        POSIX_COMMAND_SHELL
+      )
+    ).toThrow(/does not match its exact invocation/)
+    expect(() =>
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-1',
+        'deepchat tool call',
+        '{"target":"changed","arguments":{}}',
+        POSIX_COMMAND_SHELL
+      )
+    ).toThrow(/does not match its exact invocation/)
+  })
+
+  it('fails closed when an armed Programmatic invocation has no bundled launcher', () => {
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: new AgentCliTokenAuthority(),
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => null
+    })
+    const params = { steps: [{ target: 'remote_search', arguments: {} }] }
+    const stdin = JSON.stringify(params)
+    const armed = {
+      token: 'p'.repeat(43),
+      conversationId: 'conversation-1',
+      programmaticOperation: {
+        command: { domain: 'tool', verb: 'batch' },
+        route: 'tool.batch',
+        canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
+          command: { domain: 'tool', verb: 'batch' },
+          route: 'tool.batch',
+          params
+        }),
+        operation: { sessionId: 'conversation-1' }
+      }
+    } as unknown as ArmedAgentCliProgrammaticToken
+
+    expect(() =>
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-1',
+        'deepchat tool batch',
+        stdin,
+        POSIX_COMMAND_SHELL
+      )
+    ).toThrow(/Bundled DeepChat CLI is unavailable/)
+  })
+
+  it('injects an exact discovery grant without stdin or human-token fallback', async () => {
+    const { directory } = await createCliDirectory()
+    const authority = new AgentCliTokenAuthority()
+    const issue = vi.spyOn(authority, 'issue')
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: authority,
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => directory
+    })
+    const command = 'deepchat tool search --query calendar --limit 4'
+    const armed = {
+      token: 'd'.repeat(43),
+      conversationId: 'conversation-1',
+      programmaticOperation: {
+        command: { domain: 'tool', verb: 'search' },
+        route: 'tool.search',
+        canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
+          command: { domain: 'tool', verb: 'search' },
+          route: 'tool.search',
+          params: { query: 'calendar', limit: 4 }
+        }),
+        operation: { sessionId: 'conversation-1' }
+      }
+    } as unknown as ArmedAgentCliProgrammaticToken
+
+    expect(
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-1',
+        command,
+        undefined,
+        POSIX_COMMAND_SHELL
+      )
+    ).toEqual({
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
+      prependPath: [directory],
+      preserveCommand: true
+    })
+    expect(issue).not.toHaveBeenCalled()
+    expect(() =>
+      access.createProgrammaticEnvironment(
+        armed,
+        'conversation-1',
+        'deepchat tool search --query mail --limit 4',
+        undefined,
+        POSIX_COMMAND_SHELL
+      )
+    ).toThrow(/does not match its exact invocation/)
+  })
+
+  it.each([POSIX_COMMAND_SHELL, WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL])(
+    'injects an exact multi-term discovery grant for the $dialect shell',
+    async (commandShell) => {
+      const { directory } = await createCliDirectory()
+      const access = new AgentCliCommandAccess({
+        tokenAuthority: new AgentCliTokenAuthority(),
+        commandPermission: new CommandPermissionService(),
+        resolveCliDirectory: () => directory
+      })
+      const command = 'deepchat tool search --query "calendar mail" --limit 4'
+      const armed = {
+        token: 'd'.repeat(43),
+        conversationId: 'conversation-1',
+        programmaticOperation: {
+          command: { domain: 'tool', verb: 'search' },
+          route: 'tool.search',
+          canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
+            command: { domain: 'tool', verb: 'search' },
+            route: 'tool.search',
+            params: { query: 'calendar mail', limit: 4 }
+          }),
+          operation: { sessionId: 'conversation-1' }
+        }
+      } as unknown as ArmedAgentCliProgrammaticToken
+
+      expect(
+        access.createProgrammaticEnvironment(
+          armed,
+          'conversation-1',
+          command,
+          undefined,
+          commandShell
+        )
+      ).toEqual({
+        variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
+        prependPath: [directory],
+        preserveCommand: true
+      })
+    }
+  )
+
+  it.each([POSIX_COMMAND_SHELL, WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL])(
+    'normalizes an exact double-quoted describe target for the $dialect shell',
+    async (commandShell) => {
+      const { directory } = await createCliDirectory()
+      const access = new AgentCliCommandAccess({
+        tokenAuthority: new AgentCliTokenAuthority(),
+        commandPermission: new CommandPermissionService(),
+        resolveCliDirectory: () => directory
+      })
+      const command = 'deepchat tool describe --target "calendar_search"'
+      const armed = {
+        token: 'd'.repeat(43),
+        conversationId: 'conversation-1',
+        programmaticOperation: {
+          command: { domain: 'tool', verb: 'describe' },
+          route: 'tool.describe',
+          canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
+            command: { domain: 'tool', verb: 'describe' },
+            route: 'tool.describe',
+            params: { target: 'calendar_search' }
+          }),
+          operation: { sessionId: 'conversation-1' }
+        }
+      } as unknown as ArmedAgentCliProgrammaticToken
+
+      expect(
+        access.createProgrammaticEnvironment(
+          armed,
+          'conversation-1',
+          command,
+          undefined,
+          commandShell
+        )
+      ).toEqual({
+        variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
+        prependPath: [directory],
+        preserveCommand: true
+      })
+    }
+  )
+
+  it.each([POSIX_COMMAND_SHELL, WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL])(
+    'rejects noncanonical multi-term discovery syntax for the $dialect shell',
+    async (commandShell) => {
+      const { directory } = await createCliDirectory()
+      const access = new AgentCliCommandAccess({
+        tokenAuthority: new AgentCliTokenAuthority(),
+        commandPermission: new CommandPermissionService(),
+        resolveCliDirectory: () => directory
+      })
+      const armed = {
+        conversationId: 'conversation-1',
+        programmaticOperation: { operation: { sessionId: 'conversation-1' } }
+      } as unknown as ArmedAgentCliProgrammaticToken
+
+      expect(() =>
+        access.createProgrammaticEnvironment(
+          armed,
+          'conversation-1',
+          'deepchat tool search --query "calendar $HOME"',
+          undefined,
+          commandShell
+        )
+      ).toThrow(/does not match its exact invocation/)
+    }
+  )
+
   it.each([
     'deepchat --json model invoke',
     'deepchat model',
     'deepchat run watch --run conversation-1',
     'deepchat provider remove --provider provider-1',
+    'deepchat tool search --query calendar',
+    'deepchat tool describe --target calendar_search',
+    'deepchat tool call',
+    'deepchat tool batch',
     'deepchat unknown command',
     'deepchat model invoke > output.txt',
     'deepchat model invoke | tee output.txt',

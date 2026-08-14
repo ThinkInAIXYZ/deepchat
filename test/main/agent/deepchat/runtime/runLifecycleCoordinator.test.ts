@@ -16,6 +16,7 @@ import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
 } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import * as toolSurface from '@/agent/deepchat/runtime/toolSurface'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
@@ -98,6 +99,7 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
   const terminalObserver: RunLifecycleCoordinatorPorts['terminalObserver'] = {
     observeTerminal: vi.fn()
   }
+  const revokeConversation = vi.fn()
   const emitMessageRefresh = vi.fn()
   const coordinator = new RunLifecycleCoordinator({
     runtime,
@@ -105,7 +107,8 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
     transcript,
     pendingInputWakeup,
     terminalObserver,
-    messageProjection: { refresh: emitMessageRefresh }
+    messageProjection: { refresh: emitMessageRefresh },
+    programmaticAuthority: { revokeConversation }
   })
 
   return {
@@ -113,6 +116,7 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
     emitMessageRefresh,
     messages,
     pendingInputWakeup,
+    revokeConversation,
     runtime,
     statusPorts,
     terminalObserver,
@@ -313,6 +317,27 @@ describe('RunLifecycleCoordinator', () => {
     expect(pendingInputWakeup.drain).toHaveBeenCalledWith(SESSION_ID, 'completed')
   })
 
+  it('revokes deferred dispatches and live Programmatic grants when a session is cancelled', async () => {
+    const { coordinator, revokeConversation } = createHarness()
+    const revoke = vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
+
+    await coordinator.cancel(SESSION_ID)
+
+    expect(revokeConversation).toHaveBeenCalledWith(SESSION_ID)
+    expect(revoke).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('revokes deferred dispatches and live grants when current scope operations are cancelled', () => {
+    const { coordinator, revokeConversation } = createHarness()
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    const revoke = vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
+
+    coordinator.cancelScopeOperations(scope)
+
+    expect(revokeConversation).toHaveBeenCalledWith(SESSION_ID)
+    expect(revoke).toHaveBeenCalledWith(SESSION_ID)
+  })
+
   it('preserves pending interaction order across assistant messages', () => {
     const first = createMessage('message-1', [
       createPendingAction('tool-1'),
@@ -414,7 +439,7 @@ describe('RunLifecycleCoordinator', () => {
     )
   })
 
-  it('isolates scheduled queue wake failures from lifecycle callers', async () => {
+  it('reports scheduled queue wake failures without rejecting lifecycle callers', async () => {
     const { coordinator, pendingInputWakeup } = createHarness()
     const error = new Error('queue unavailable')
     vi.mocked(pendingInputWakeup.drain).mockRejectedValueOnce(error)
@@ -425,7 +450,7 @@ describe('RunLifecycleCoordinator', () => {
 
     expect(logError).toHaveBeenCalledWith(
       '[DeepChatAgent] drainPendingQueueIfPossible error session=session reason=completed',
-      expect.anything()
+      { name: 'Error' }
     )
   })
 })

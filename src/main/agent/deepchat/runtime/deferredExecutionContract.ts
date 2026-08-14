@@ -18,7 +18,7 @@ export interface DeferredExecutionContractResolutionInput {
   messageId: string
   rawBinding: unknown
   runtimeContract?: DeepChatExecutionContract
-  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'> &
+  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessageRequest'> &
     TapeExecutionViewManifestReader
 }
 
@@ -69,12 +69,12 @@ export function resolveDeferredExecutionContract(
     records = skillManifestRecord
       ? [skillManifestRecord]
       : viewManifests
-          .listViewManifestsByMessage(sessionId, messageId)
-          .filter(
-            (record) =>
-              record.requestSeq === binding.request.requestSeq &&
-              record.manifest.schemaVersion === 5
+          .listViewManifestsByMessageRequest(
+            sessionId,
+            messageId,
+            binding.request.requestSeq
           )
+          .filter((record) => record.manifest.schemaVersion === 5)
   } catch (error) {
     throw new ExecutionContractDispatchError(
       'Paused tool dispatch could not recover its ExecutionContract View.',

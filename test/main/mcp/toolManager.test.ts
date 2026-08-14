@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
 import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
+import { McpPreDispatchError } from '@/mcp/errors'
 import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
 import * as toolPolicyStore from '@/plugin/toolPolicyStore'
@@ -138,6 +139,10 @@ describe('ToolManager', () => {
         getAvailableToolCatalogs: () =>
           (runtime.catalogs ?? []).filter(
             (catalog) => !runtime.unavailableServers?.has(catalog.serverName)
+          ),
+        getAvailableToolServerNames: () =>
+          Object.keys(pluginOwners).filter(
+            (serverName) => !runtime.unavailableServers?.has(serverName)
           ),
         ensureRunning:
           runtime.ensureRunning ??
@@ -642,6 +647,21 @@ describe('ToolManager', () => {
       'schema differs from the packaged catalog for server "catalog-server" at "#/properties/display_id" (not present in packaged schema)'
     )
     expect(liveClient.callTool).not.toHaveBeenCalled()
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'strict-catalog-schema-drift',
+          type: 'function',
+          function: { name: 'inspect_screen', arguments: '{}' }
+        },
+        { throwPreDispatchErrors: true }
+      )
+    ).rejects.toMatchObject({
+      code: 'definition_changed',
+      name: 'McpPreDispatchError'
+    } satisfies Partial<McpPreDispatchError>)
+    expect(liveClient.callTool).not.toHaveBeenCalled()
   })
 
   it('records duplicate live catalog tools as a server error', async () => {
@@ -1010,6 +1030,11 @@ describe('ToolManager', () => {
     const definitions = await manager.getAllToolDefinitions()
 
     expect(definitions).toEqual([])
+    expect(manager.snapshotCachedToolDefinitions()).toMatchObject({
+      state: 'ready',
+      complete: false,
+      failedSourceCount: 1
+    })
     expect(serverManager.setServerLastError).toHaveBeenCalledWith(
       'plugin-server',
       'tool list failed'
@@ -1026,6 +1051,11 @@ describe('ToolManager', () => {
 
     await expect(manager.getAllToolDefinitions()).resolves.toEqual([])
 
+    expect(manager.snapshotCachedToolDefinitions()).toMatchObject({
+      state: 'ready',
+      complete: false,
+      failedSourceCount: 1
+    })
     expect(semanticNotifications.occur).toHaveBeenCalledWith({
       code: 'mcp.toolListFailed',
       serverName: 'regular-server'
@@ -1034,6 +1064,11 @@ describe('ToolManager', () => {
     manager.invalidateRegistry()
     await expect(manager.getAllToolDefinitions()).resolves.toHaveLength(1)
 
+    expect(manager.snapshotCachedToolDefinitions()).toMatchObject({
+      state: 'ready',
+      complete: true,
+      failedSourceCount: 0
+    })
     expect(semanticNotifications.recover).toHaveBeenCalledWith({
       code: 'mcp.toolListFailed',
       serverName: 'regular-server'
@@ -1318,6 +1353,233 @@ describe('ToolManager', () => {
     expect((manager as any).toolNameToTargetMap).toBeNull()
   })
 
+  it('snapshots cached definitions without refreshing or exposing mutable cache objects', async () => {
+    const client = createClient('cached-server', [
+      {
+        name: 'cached_tool',
+        description: 'Cached tool',
+        inputSchema: { properties: { query: { type: 'string' } }, required: ['query'] }
+      }
+    ])
+    const serverManager = createServerManager([client])
+    const manager = createToolManager(
+      createProviderSettings('cached-server') as never,
+      serverManager as never
+    )
+    const initialState = {
+      cached: (manager as any).cachedToolDefinitions,
+      failures: (manager as any).cachedToolDefinitionFailedServerNames,
+      targets: (manager as any).toolNameToTargetMap,
+      generation: (manager as any).toolDefinitionsCacheGeneration,
+      refresh: (manager as any).activeToolDefinitionsRefresh,
+      validations: (manager as any).catalogValidationPromises
+    }
+
+    expect(manager.snapshotCachedToolDefinitions()).toEqual({ state: 'uninitialized' })
+    expect(serverManager.getRunningClients).not.toHaveBeenCalled()
+    expect(client.listTools).not.toHaveBeenCalled()
+    expect((manager as any).cachedToolDefinitions).toBe(initialState.cached)
+    expect((manager as any).cachedToolDefinitionFailedServerNames).toBe(initialState.failures)
+    expect((manager as any).toolNameToTargetMap).toBe(initialState.targets)
+    expect((manager as any).toolDefinitionsCacheGeneration).toBe(initialState.generation)
+    expect((manager as any).activeToolDefinitionsRefresh).toBe(initialState.refresh)
+    expect((manager as any).catalogValidationPromises).toBe(initialState.validations)
+
+    await manager.getAllToolDefinitions()
+    const cachedDefinitions = (manager as any).cachedToolDefinitions
+    const targetMap = (manager as any).toolNameToTargetMap
+    const listToolCallCount = client.listTools.mock.calls.length
+    const snapshot = manager.snapshotCachedToolDefinitions()
+
+    expect(snapshot).toMatchObject({
+      state: 'ready',
+      complete: true,
+      failedSourceCount: 0,
+      tools: [
+        expect.objectContaining({ function: expect.objectContaining({ name: 'cached_tool' }) })
+      ]
+    })
+    expect(client.listTools).toHaveBeenCalledTimes(listToolCallCount)
+    expect((manager as any).cachedToolDefinitions).toBe(cachedDefinitions)
+    expect((manager as any).toolNameToTargetMap).toBe(targetMap)
+    if (snapshot.state === 'ready') {
+      expect(snapshot.tools[0]).not.toBe(cachedDefinitions[0])
+      expect(Object.isFrozen(snapshot.tools[0].function.parameters.properties.query)).toBe(true)
+      expect(() => {
+        ;(snapshot.tools[0].function.parameters as any).properties.query.type = 'number'
+      }).toThrow(TypeError)
+    }
+    expect(
+      ((manager as any).cachedToolDefinitions[0].function.parameters as any).properties.query.type
+    ).toBe('string')
+
+    manager.invalidateRegistry()
+    expect(manager.snapshotCachedToolDefinitions()).toEqual({ state: 'uninitialized' })
+    expect(client.listTools).toHaveBeenCalledTimes(listToolCallCount)
+  })
+
+  it('distinguishes an empty completed cache from an uninitialized cache', async () => {
+    const serverManager = createServerManager([])
+    const manager = createToolManager(
+      createProviderSettings('unused-server') as never,
+      serverManager as never
+    )
+
+    await expect(manager.getAllToolDefinitions()).resolves.toEqual([])
+
+    expect(manager.snapshotCachedToolDefinitions()).toEqual({
+      state: 'ready',
+      tools: [],
+      complete: true,
+      failedSourceCount: 0
+    })
+  })
+
+  it('excludes cached regular tools when regular MCP access is disabled', async () => {
+    const client = createClient('disabled-regular-server', [
+      { name: 'regular_tool', inputSchema: { properties: {} } }
+    ])
+    const manager = createToolManager(
+      createProviderSettings('disabled-regular-server') as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+
+    expect(
+      manager.snapshotCachedToolDefinitions({
+        includeRegularServers: false,
+        expectedServerNames: []
+      })
+    ).toEqual({
+      state: 'ready',
+      tools: [],
+      complete: true,
+      failedSourceCount: 0
+    })
+  })
+
+  it('excludes failures outside the requested server scope from snapshot completeness', async () => {
+    const failedClient = createClient('failed-server')
+    failedClient.listTools.mockRejectedValueOnce(new Error('tool list failed'))
+    const healthyClient = createClient('healthy-server', [
+      { name: 'healthy_tool', inputSchema: { properties: {} } }
+    ])
+    const serverManager = createServerManager([failedClient, healthyClient])
+    const providerSettings = createProviderSettings('healthy-server')
+    providerSettings.getMcpServers.mockResolvedValue({
+      'failed-server': {},
+      'healthy-server': {}
+    })
+    const manager = createToolManager(providerSettings as never, serverManager as never)
+
+    await manager.getAllToolDefinitions()
+
+    const healthySnapshot = manager.snapshotCachedToolDefinitions({
+      enabledServerIds: ['healthy-server']
+    })
+    expect(healthySnapshot).toMatchObject({
+      state: 'ready',
+      complete: true,
+      failedSourceCount: 0
+    })
+    expect(healthySnapshot.state === 'ready' && healthySnapshot.tools).toHaveLength(1)
+    expect(healthySnapshot.state === 'ready' && healthySnapshot.tools[0].function.name).toBe(
+      'healthy_tool'
+    )
+    expect(manager.snapshotCachedToolDefinitions()).toMatchObject({
+      state: 'ready',
+      complete: false,
+      failedSourceCount: 1
+    })
+  })
+
+  it('marks an expected regular server missing from the cached refresh incomplete', async () => {
+    const client = createClient('healthy-server')
+    const manager = createToolManager(
+      createProviderSettings('healthy-server') as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+
+    expect(
+      manager.snapshotCachedToolDefinitions({
+        enabledServerIds: ['healthy-server', 'startup-failed-server'],
+        expectedServerNames: ['healthy-server', 'startup-failed-server']
+      })
+    ).toMatchObject({
+      state: 'ready',
+      complete: false,
+      failedSourceCount: 1
+    })
+  })
+
+  it('marks an available eager plugin without a cached source incomplete', async () => {
+    const manager = createToolManager(
+      createProviderSettings('unused-server') as never,
+      createServerManager([]) as never,
+      { 'eager-plugin': 'com.deepchat.plugins.fixture' }
+    )
+    await manager.getAllToolDefinitions()
+
+    expect(manager.snapshotCachedToolDefinitions({ expectedServerNames: [] })).toMatchObject({
+      state: 'ready',
+      complete: false,
+      failedSourceCount: 1
+    })
+  })
+
+  it('rejects oversized cached definition snapshots before cloning them', async () => {
+    const client = createClient('bounded-server')
+    const manager = createToolManager(
+      createProviderSettings('bounded-server') as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+    const cachedDefinition = (manager as any).cachedToolDefinitions[0]
+    cachedDefinition.function.description = 'x'.repeat(256 * 1_024 + 1)
+
+    expect(() => manager.snapshotCachedToolDefinitions()).toThrow(
+      'Cached Tool definition snapshot exceeds its byte limit.'
+    )
+  })
+
+  it('rejects unsafe cached definition graphs without invoking accessors', async () => {
+    const client = createClient('unsafe-server')
+    const manager = createToolManager(
+      createProviderSettings('unsafe-server') as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+    const properties = (manager as any).cachedToolDefinitions[0].function.parameters.properties
+    const getter = vi.fn(() => {
+      throw new Error('accessor should not run')
+    })
+    Object.defineProperty(properties, 'unsafe', {
+      enumerable: true,
+      get: getter
+    })
+
+    expect(() => manager.snapshotCachedToolDefinitions()).toThrow(
+      'Cached Tool definition snapshot contains an unsafe property.'
+    )
+    expect(getter).not.toHaveBeenCalled()
+  })
+
+  it('rejects cyclic cached definition graphs before cloning them', async () => {
+    const client = createClient('cyclic-server')
+    const manager = createToolManager(
+      createProviderSettings('cyclic-server') as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+    const properties = (manager as any).cachedToolDefinitions[0].function.parameters.properties
+    properties.self = properties
+
+    expect(() => manager.snapshotCachedToolDefinitions()).toThrow(
+      'Cached Tool definition snapshot contains an unsafe object graph.'
+    )
+  })
+
   it('discards a refresh superseded by a configuration cache clear', async () => {
     const staleClient = createClient('stale-server')
     const currentClient = createClient('current-server', [
@@ -1410,6 +1672,52 @@ describe('ToolManager', () => {
     expect(client.callTool).not.toHaveBeenCalled()
   })
 
+  it('throws a typed pre-dispatch error for strict callers when a binding changes', async () => {
+    const serverName = 'bound-server'
+    const client = createClient(serverName)
+    const providerSettings = createProviderSettings(serverName)
+    const originalConfig = {
+      serverId: '11111111-1111-4111-8111-111111111111',
+      configGeneration: 1,
+      bindingHash: 'binding-a'
+    }
+    providerSettings.getMcpServers.mockResolvedValue({ [serverName]: originalConfig })
+    const manager = createToolManager(providerSettings, createServerManager([client]))
+    const [definition] = await manager.getAllToolDefinitions()
+
+    providerSettings.getMcpServers.mockResolvedValue({
+      [serverName]: { ...originalConfig, configGeneration: 2, bindingHash: 'binding-b' }
+    })
+    const commitDispatch = vi.fn()
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'strict-bound-call',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' }
+        },
+        {
+          expectedTarget: {
+            finalName: definition.function.name,
+            serverName: definition.server.name,
+            serverId: definition.server.id!,
+            configGeneration: definition.server.configGeneration!,
+            bindingHash: definition.server.bindingHash!,
+            originalName: definition.raw!.name
+          },
+          throwPreDispatchErrors: true,
+          commitDispatch
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'target_changed',
+      name: 'McpPreDispatchError'
+    } satisfies Partial<McpPreDispatchError>)
+    expect(commitDispatch).not.toHaveBeenCalled()
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
   it('commits resolved dispatch metadata immediately before the target call', async () => {
     const serverName = 'dispatch-server'
     const order: string[] = []
@@ -1455,6 +1763,36 @@ describe('ToolManager', () => {
     expect(outcomeProjections).toHaveLength(1)
     outcomeProjections[0]()
     expect(order).toEqual(['journal', 'target', 'projection'])
+  })
+
+  it('checks the exact current definition before committing or calling the target', async () => {
+    const serverName = 'dispatch-server'
+    const client = createClient(serverName)
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      createServerManager([client])
+    )
+    const [definition] = await manager.getAllToolDefinitions()
+    const assertCurrentToolDefinition = vi.fn(() => {
+      throw new Error('definition drift')
+    })
+    const commitDispatch = vi.fn()
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'definition-drift-call',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' }
+        },
+        { assertCurrentToolDefinition, commitDispatch }
+      )
+    ).rejects.toThrow('definition drift')
+
+    expect(assertCurrentToolDefinition).toHaveBeenCalledOnce()
+    expect(assertCurrentToolDefinition).toHaveBeenCalledWith({ ...definition, source: 'mcp' })
+    expect(commitDispatch).not.toHaveBeenCalled()
+    expect(client.callTool).not.toHaveBeenCalled()
   })
 
   it('returns a known target result when cancellation arrives as the target settles', async () => {
@@ -2143,6 +2481,7 @@ describe('ToolManager', () => {
             }
           }
         ],
+        getAvailableToolServerNames: () => ['cua-driver'],
         ensureRunning: vi.fn().mockResolvedValue(undefined)
       },
       observer

@@ -33,7 +33,7 @@ import {
 import { appendMessageRecordToTape } from '@/session/data/tapeFacts'
 import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { createLoopRun, type LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
 import {
   MEMORY_INJECTION_TIMEOUT_MS,
   MemoryRuntimeCoordinator
@@ -66,7 +66,15 @@ import {
 } from '@/tape/domain/executionJournal'
 import { TapeFactService } from '@/tape/application/factService'
 import { buildTaskContract } from '@/tape/domain/taskContract'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME, TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
+  TAPE_TOOL_CATALOG_EVENT_NAME,
+  TAPE_TOOL_SURFACE_EVENT_NAME
+} from '@/tape/domain/toolSurfaceFacts'
+import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+import { MAX_PROGRAMMATIC_TOOL_INPUT_BYTES } from '@/agent/deepchat/runtime/programmaticToolSurface'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -91,7 +99,10 @@ vi.mock('@/events', () => ({
 
 const skillServiceMock = {
   getMetadataList: vi.fn().mockResolvedValue([]),
+  snapshotCachedMetadataList: vi.fn(() => ({ state: 'ready' as const, skills: [] })),
+  getAllSkills: vi.fn().mockResolvedValue([]),
   getActiveSkills: vi.fn().mockResolvedValue([]),
+  snapshotPersistedActiveSkillNames: vi.fn(() => []),
   setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
   revalidateActiveSkillsForAgent: vi.fn().mockResolvedValue([]),
   validateSkillNames: vi
@@ -210,6 +221,8 @@ function createMockSqlitePresenter() {
   }
   let memoryCursorOrderSeq = 0
   const tapeEntries: any[] = []
+  let tapeIncarnationSequence = 0
+  let tapeTransactionActive = false
   const pendingRows: any[] = []
   let pendingRowClock = 1
   const pendingInputsTable = {
@@ -310,7 +323,6 @@ function createMockSqlitePresenter() {
     deleteByMessageIds: vi.fn()
   }
   let deepchatTapeEntriesTable: any
-  let tapeIncarnationSequence = 0
   let memoryIngestionProjectionCurrent = false
   let memoryIngestionProjectionMaxEntryId = 0
   let memoryIngestionProjectionRows: any[] = []
@@ -367,11 +379,25 @@ function createMockSqlitePresenter() {
       delete: vi.fn()
     },
     deepchatTapeEntriesTable: (deepchatTapeEntriesTable = {
-      runInTransaction: vi.fn((operation: () => unknown) => operation()),
-      isInTransaction: vi.fn(() => false),
+      runInTransaction: vi.fn((operation: () => unknown) => {
+        const snapshot = tapeEntries.map((entry) => ({ ...entry }))
+        const previousTransactionState = tapeTransactionActive
+        tapeTransactionActive = true
+        try {
+          return operation()
+        } catch (error) {
+          tapeEntries.splice(0, tapeEntries.length, ...snapshot)
+          throw error
+        } finally {
+          tapeTransactionActive = previousTransactionState
+        }
+      }),
+      isInTransaction: vi.fn(() => tapeTransactionActive),
       ensureBootstrapAnchor: vi.fn((sessionId: string) => {
         if (
-          tapeEntries.some((entry) => entry.session_id === sessionId && entry.kind === 'anchor')
+          tapeEntries.some(
+            (entry) => entry.session_id === sessionId && entry.name === 'session/start'
+          )
         ) {
           return
         }
@@ -380,7 +406,11 @@ function createMockSqlitePresenter() {
           name: 'session/start',
           source: { type: 'session', id: sessionId, seq: 0 },
           state: { owner: 'human' },
-          meta: { tapeIncarnationId: `test-tape-${++tapeIncarnationSequence}` },
+          meta: {
+            tapeIncarnationId: `00000000-0000-4000-8000-${String(
+              ++tapeIncarnationSequence
+            ).padStart(12, '0')}`
+          },
           idempotent: true
         })
       }),
@@ -451,10 +481,58 @@ function createMockSqlitePresenter() {
           payload: { name: input.name, data: input.data }
         })
       }),
+      appendToolSurfaceEvent: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'event',
+          payload: { name: input.name, data: input.data }
+        })
+      }),
       listUnterminatedRunEvents: vi.fn(() =>
         tapeEntries.filter(
           (entry) => entry.kind === 'event' && entry.name?.startsWith('execution/')
         )
+      ),
+      listNestedOperationEventsForRun: vi.fn((sessionId: string, runId: string) =>
+        tapeEntries.filter((entry) => {
+          if (
+            entry.session_id !== sessionId ||
+            (entry.name !== 'execution/dispatch_committed' &&
+              entry.name !== 'execution/tool_outcome')
+          ) {
+            return false
+          }
+          const data = JSON.parse(entry.payload_json).data ?? {}
+          return data.protocolVersion === 2 && data.operation?.runId === runId
+        })
+      ),
+      listNestedOperationEventsForParent: vi.fn(
+        (
+          sessionId: string,
+          runId: string,
+          requestSeq: number,
+          providerToolCallId: string,
+          parentOperationKey: string
+        ) =>
+          tapeEntries.filter((entry) => {
+            if (entry.session_id !== sessionId) return false
+            if (entry.provenance_key?.startsWith(`execution:v2:parent:${parentOperationKey}:`)) {
+              return true
+            }
+            if (
+              entry.name !== 'execution/dispatch_committed' &&
+              entry.name !== 'execution/tool_outcome'
+            ) {
+              return false
+            }
+            const data = JSON.parse(entry.payload_json).data ?? {}
+            return (
+              data.protocolVersion === 2 &&
+              data.operation?.runId === runId &&
+              data.operation?.requestSeq === requestSeq &&
+              data.operation?.providerToolCallId === providerToolCallId
+            )
+          })
       ),
       getBySession: vi.fn((sessionId: string) =>
         tapeEntries.filter((entry) => entry.session_id === sessionId)
@@ -513,6 +591,45 @@ function createMockSqlitePresenter() {
             entry.source_type === 'runtime_event' &&
             entry.source_id === messageId
         )
+      ),
+      getEventsBySource: vi.fn(
+        (
+          sessionId: string,
+          name: string,
+          sourceType: string,
+          sourceId: string,
+          sourceSeq: number
+        ) =>
+          tapeEntries.filter(
+            (entry) =>
+              entry.session_id === sessionId &&
+              entry.kind === 'event' &&
+              entry.name === name &&
+              entry.source_type === sourceType &&
+              entry.source_id === sourceId &&
+              entry.source_seq === sourceSeq
+          )
+      ),
+      getEventsBySourceId: vi.fn(
+        (sessionId: string, name: string, sourceType: string, sourceId: string) =>
+          tapeEntries.filter(
+            (entry) =>
+              entry.session_id === sessionId &&
+              entry.kind === 'event' &&
+              entry.name === name &&
+              entry.source_type === sourceType &&
+              entry.source_id === sourceId
+          )
+      ),
+      getFirstEntriesBySessions: vi.fn((sessionIds: string[]) =>
+        [...new Set(sessionIds)]
+          .flatMap((sessionId) => {
+            const first = tapeEntries
+              .filter((entry) => entry.session_id === sessionId)
+              .sort((left, right) => left.entry_id - right.entry_id)[0]
+            return first ? [first] : []
+          })
+          .sort((left, right) => left.session_id.localeCompare(right.session_id))
       ),
       getMaxEventSourceSeq: vi.fn(
         (sessionId: string, name: string, sourceType: string, sourceId: string) =>
@@ -774,6 +891,7 @@ function createMockProviderSettings() {
   const settings = {
     capabilityFixture,
     getModelConfig: vi.fn().mockReturnValue({
+      type: ModelType.Chat,
       temperature: 0.7,
       maxTokens: 4096,
       contextLength: 128000,
@@ -912,6 +1030,12 @@ function createRuntimeDependencies(
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
     },
+    agentCliTokenAuthority: {
+      prepareProgrammaticOperation: vi.fn(() => {
+        throw new Error('Programmatic operation authority is not configured for this test')
+      }),
+      revokeConversation: vi.fn()
+    },
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
       resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
@@ -953,6 +1077,11 @@ function createDelegatingMemoryRuntimePort(getTarget: () => MemoryRuntimePort): 
 function createMockToolService(toolDefs: any[] = []) {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue(toolDefs),
+    getToolDefinitionUniverse: vi.fn().mockResolvedValue({
+      definitions: toolDefs,
+      complete: true,
+      unavailableSourceCount: 0
+    }),
     syncAgentToolContext: vi.fn(),
     callTool: vi.fn().mockResolvedValue({
       content: 'tool result',
@@ -1047,7 +1176,7 @@ function makeRecoveredMessageSkillProjection(agentId: string) {
     ref: {
       sessionId: 's1',
       entryId: 13,
-      tapeIncarnationId: 'test-tape-1',
+      tapeIncarnationId: '00000000-0000-4000-8000-000000000001',
       provenanceKey: 'skill-materialization:v1:recovered',
       payloadHash: 'a'.repeat(64)
     }
@@ -1071,6 +1200,7 @@ describe('DeepChatAgentHarness', () => {
   let transcriptMutations: SessionTranscriptMutations
   let sessionData: ReturnType<typeof createSessionData>
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
+  let programmaticToolParents: ProgrammaticToolParentRegistry
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
@@ -1298,6 +1428,25 @@ describe('DeepChatAgentHarness', () => {
       granted: true
     })
 
+  const recreateAgentWithToolSurfaceRunMode = (
+    resolve: NonNullable<DeepChatHarnessDependencies['toolSurfaceRunMode']>['resolve']
+  ): void => {
+    agent = createDeepChatAgentHarness({
+      ...runtimeDependencies,
+      providerRuntime: llmProvider,
+      providerSettings,
+      agentSettings: providerSettings,
+      database: sqlitePresenter,
+      sessionData,
+      toolService,
+      hookObserver: createHookObserver(hookDispatcher),
+      toolSurfaceRunMode: { resolve },
+      programmaticToolParents,
+      runJournalObserver,
+      diagnosticNow
+    })
+  }
+
   const getLatestUpdatedBlocks = (messageId = 'm1'): AssistantMessageBlock[] => {
     const update = [...sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls]
       .reverse()
@@ -1314,6 +1463,7 @@ describe('DeepChatAgentHarness', () => {
     ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillService = getSkillServiceMock()
     skillService.getMetadataList.mockResolvedValue([])
+    skillService.getAllSkills.mockResolvedValue([])
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.setActiveSkills.mockImplementation(async (_id: string, skills: string[]) => skills)
     skillService.revalidateActiveSkillsForAgent.mockResolvedValue([])
@@ -1378,6 +1528,7 @@ describe('DeepChatAgentHarness', () => {
       revokeOneShotCommandPermission: vi.fn()
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
+    programmaticToolParents = new ProgrammaticToolParentRegistry()
     sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
       publishPendingInputsChanged: vi.fn(),
       publishMessagesChanged: vi.fn()
@@ -1404,6 +1555,7 @@ describe('DeepChatAgentHarness', () => {
       sessionData: sessionData,
       toolService: toolService,
       hookObserver: createHookObserver(hookDispatcher),
+      programmaticToolParents,
       runJournalObserver,
       diagnosticNow
     })
@@ -2992,6 +3144,1961 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('processMessage', () => {
+    const createAutomaticAdapterDefinitions = (remoteToolCount: number): MCPToolDefinition[] => [
+      {
+        source: 'agent',
+        execution: TOOL_EXECUTION.write,
+        type: 'function',
+        function: {
+          name: 'exec',
+          description: 'Execute a command',
+          parameters: { type: 'object', properties: { command: { type: 'string' } } }
+        },
+        server: { name: 'agent-filesystem', icons: '', description: 'Agent filesystem tools' }
+      },
+      ...Array.from({ length: remoteToolCount }, (_, index) => {
+        const name = `remote_${String(index).padStart(2, '0')}`
+        return {
+          source: 'mcp',
+          execution: TOOL_EXECUTION.read.parallel,
+          type: 'function',
+          function: {
+            name,
+            description: `${name} description`,
+            parameters: { type: 'object', properties: { query: { type: 'string' } } }
+          },
+          server: {
+            id: '55555555-5555-4555-8555-555555555555',
+            name: 'automatic-adapter-tools',
+            icons: '',
+            description: 'Automatic adapter tools',
+            configGeneration: 1,
+            bindingHash: 'e'.repeat(64)
+          },
+          raw: {
+            name,
+            inputSchema: { type: 'object', properties: { query: { type: 'string' } } }
+          }
+        } satisfies MCPToolDefinition
+      })
+    ]
+
+    it.each([
+      {
+        remoteToolCount: 1,
+        cliProgrammaticCapability: 'proven' as const,
+        expectedMode: 'full' as const
+      },
+      {
+        remoteToolCount: 40,
+        cliProgrammaticCapability: 'unproven' as const,
+        expectedMode: 'native-activation' as const
+      },
+      {
+        remoteToolCount: 40,
+        cliProgrammaticCapability: 'proven' as const,
+        expectedMode: 'cli-programmatic' as const
+      }
+    ])(
+      'freezes automatic adapter $expectedMode from catalog and measured CLI gates',
+      async ({ remoteToolCount, cliProgrammaticCapability, expectedMode }) => {
+        const definitions = createAutomaticAdapterDefinitions(remoteToolCount)
+        providerSettings.getModelConfig.mockReturnValue({
+          ...providerSettings.getModelConfig(),
+          functionCall: true
+        })
+        toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+        toolService.getToolDefinitionUniverse.mockResolvedValue({
+          definitions,
+          complete: true,
+          unavailableSourceCount: 0
+        })
+        recreateAgentWithToolSurfaceRunMode(() => ({
+          mode: 'automatic',
+          cliProgrammaticCapability
+        }))
+        ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+          expect(params.run.resources.toolSurfaceMode).toBe(expectedMode)
+          const exec = params.run.resources.toolDefinitions.find(
+            (definition) => definition.function.name === 'exec'
+          )
+          expect(exec?.function.parameters.properties.stdin).toEqual(
+            expectedMode === 'cli-programmatic'
+              ? expect.objectContaining({
+                  type: 'string',
+                  maxLength: MAX_PROGRAMMATIC_TOOL_INPUT_BYTES
+                })
+              : undefined
+          )
+          expect(
+            String(params.run.messages[0]?.content).includes('## Programmatic Tool Access')
+          ).toBe(expectedMode === 'cli-programmatic')
+          return { status: 'completed', stopReason: 'complete' }
+        })
+
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        await agent.processMessage('s1', 'Hello')
+
+        expect(toolService.getToolDefinitionUniverse).toHaveBeenCalledOnce()
+        expect(agent.getToolSurfaceCanaryDiagnostics('s1')?.cohorts).toContainEqual(
+          expect.objectContaining({
+            adapterMode: expectedMode,
+            runs: expect.objectContaining({ observed: 1 })
+          })
+        )
+      }
+    )
+
+    it('does not let canary diagnostics change a committed Run result', async () => {
+      const definitions = createAutomaticAdapterDefinitions(1)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+      const terminalCommit = vi.spyOn(programmaticToolParents, 'commitRunTerminal')
+      vi.spyOn(ToolSurfaceCanaryDiagnosticsRegistry.prototype, 'recordRun').mockImplementation(
+        () => {
+          throw new Error('diagnostics unavailable')
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).resolves.toMatchObject({
+        messageId: 'mock-msg-id'
+      })
+      expect(terminalCommit).toHaveBeenCalledOnce()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('does not report provider metadata or terminal events as TTFT', async () => {
+      const definitions = createAutomaticAdapterDefinitions(1)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+      llmProvider.providerInstance.coreStream.mockImplementationOnce(async function* () {
+        yield {
+          type: 'usage',
+          usage: { prompt_tokens: 10, completion_tokens: 0, total_tokens: 10 }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      const recordRun = vi.spyOn(ToolSurfaceCanaryDiagnosticsRegistry.prototype, 'recordRun')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ ttftMs: null }))
+    })
+
+    it('measures TTFT from Run entry across adapter setup and resumed accounting', async () => {
+      vi.useFakeTimers()
+      diagnosticNow.mockImplementation(() => Date.now())
+      const definitions = createAutomaticAdapterDefinitions(1)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockImplementationOnce(async () => {
+        vi.setSystemTime(2_000)
+        return { definitions, complete: true, unavailableSourceCount: 0 }
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+      llmProvider.providerInstance.coreStream.mockImplementationOnce(async function* () {
+        vi.setSystemTime(5_000)
+        yield { type: 'text', content: 'Ready' }
+        vi.setSystemTime(6_000)
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.run.streamState.startTime -= 100_000
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      const recordRun = vi.spyOn(ToolSurfaceCanaryDiagnosticsRegistry.prototype, 'recordRun')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      vi.setSystemTime(1_000)
+      await agent.processMessage('s1', 'Hello')
+
+      expect(recordRun).toHaveBeenCalledWith(
+        expect.objectContaining({ durationMs: 5_000, ttftMs: 4_000 })
+      )
+    })
+
+    it('records provider rounds relative to resumed Run accounting', async () => {
+      const definitions = createAutomaticAdapterDefinitions(1)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.run.logicalRound = 5
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      const recordRun = vi.spyOn(ToolSurfaceCanaryDiagnosticsRegistry.prototype, 'recordRun')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const assistantRow = installPendingQuestion()
+      assistantRow.metadata = JSON.stringify({ providerRounds: 3, toolCalls: 0 })
+      await answerPendingQuestion()
+
+      expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ providerRounds: 2 }))
+    })
+
+    it('keeps automatic virtualization sticky through the exit hysteresis band', async () => {
+      const definitionsByRun = [
+        createAutomaticAdapterDefinitions(39),
+        createAutomaticAdapterDefinitions(31),
+        createAutomaticAdapterDefinitions(30)
+      ]
+      let universeIndex = 0
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockImplementation(
+        async () => definitionsByRun[Math.min(universeIndex, definitionsByRun.length - 1)]
+      )
+      toolService.getToolDefinitionUniverse.mockImplementation(async () => {
+        const definitions = definitionsByRun[Math.min(universeIndex, definitionsByRun.length - 1)]
+        universeIndex += 1
+        return { definitions, complete: true, unavailableSourceCount: 0 }
+      })
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'unproven'
+      }))
+      const modes: string[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(async (params) => {
+        modes.push(params.run.resources.toolSurfaceMode)
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Enter virtualization')
+      agent.deepChatRuntime.markToolRegistryChanged()
+      await agent.processMessage('s1', 'Stay virtualized')
+      agent.deepChatRuntime.markToolRegistryChanged()
+      await agent.processMessage('s1', 'Exit virtualization')
+
+      expect(modes).toEqual(['native-activation', 'native-activation', 'full'])
+    })
+
+    it('does not make a pre-admission automatic Run sticky', async () => {
+      const definitionsByRun = [
+        createAutomaticAdapterDefinitions(39),
+        createAutomaticAdapterDefinitions(31)
+      ]
+      let universeIndex = 0
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockImplementation(
+        async () => definitionsByRun[Math.min(universeIndex, definitionsByRun.length - 1)]
+      )
+      toolService.getToolDefinitionUniverse.mockImplementation(async () => {
+        const definitions = definitionsByRun[Math.min(universeIndex, definitionsByRun.length - 1)]
+        universeIndex += 1
+        return { definitions, complete: true, unavailableSourceCount: 0 }
+      })
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'unproven'
+      }))
+      const modes: string[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(async (params) => {
+        modes.push(params.run.resources.toolSurfaceMode)
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Stop before provider admission')
+      agent.deepChatRuntime.markToolRegistryChanged()
+      await agent.processMessage('s1', 'Remain on the direct adapter')
+
+      expect(modes).toEqual(['native-activation', 'full'])
+    })
+
+    it('falls back to Native Activation before admission when the Programmatic ceiling is oversized', async () => {
+      const definitions = createAutomaticAdapterDefinitions(300)
+      for (let index = 1; index < definitions.length; index += 1) {
+        const definition = definitions[index]
+        const suffix = `${String(index).padStart(3, '0')}_${'x'.repeat(450)}`
+        definition.function.name = `remote_${suffix}`
+        definition.server.name = `server_${suffix}_${'y'.repeat(450)}`
+        if (definition.raw) definition.raw.name = definition.function.name
+      }
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true,
+        contextLength: 1_000_000
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'proven'
+      }))
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('native-activation')
+        expect(String(params.run.messages[0]?.content)).not.toContain('## Programmatic Tool Access')
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+      expect(processStream).toHaveBeenCalledOnce()
+    })
+
+    it('observes shadow surfaces and provider cache usage without changing provider tools', async () => {
+      const eventOrder: string[] = []
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'tool_b',
+            description: 'Second tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' },
+          source: 'agent',
+          execution: TOOL_EXECUTION.read.parallel
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'tool_a',
+            description: 'First tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' },
+          source: 'agent',
+          execution: TOOL_EXECUTION.read.parallel
+        }
+      ] satisfies MCPToolDefinition[]
+      toolService.getAllToolDefinitions.mockResolvedValue(tools)
+      toolService.getToolDefinitionUniverse.mockImplementation(async () => {
+        eventOrder.push('shadow-universe')
+        return {
+          definitions: tools,
+          complete: true,
+          unavailableSourceCount: 0
+        }
+      })
+      llmProvider.providerInstance.coreStream.mockImplementation(async function* () {
+        eventOrder.push('provider-entered')
+        yield {
+          type: 'usage',
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: 10,
+            total_tokens: 110,
+            cached_tokens: 75,
+            cache_write_tokens: 5
+          }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('legacy')
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        expect(params.run.activeRequestToolSurface).toBeNull()
+        eventOrder.push('provider-complete')
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const providerTools = llmProvider.providerInstance.coreStream.mock.calls[0][5]
+      expect(providerTools).toEqual(tools)
+      expect(providerTools.map((tool: MCPToolDefinition) => tool.function.name)).toEqual([
+        'tool_b',
+        'tool_a'
+      ])
+      expect(eventOrder).toEqual(['provider-entered', 'provider-complete'])
+      await vi.waitFor(() =>
+        expect(eventOrder).toEqual(['provider-entered', 'provider-complete', 'shadow-universe'])
+      )
+      await vi.waitFor(() =>
+        expect(agent.getToolSurfaceShadowDiagnostics('s1')).toMatchObject({
+          runs: { observed: 1, measured: 1, collectorFailures: 0 },
+          surface: {
+            eligibleToolCount: { samples: 1, p50: 2 },
+            hypotheticalActiveToolCount: { samples: 1, p50: 2 }
+          },
+          initialViewAttempts: {
+            observed: 1,
+            withUsage: 1,
+            withCacheReadMetric: 1,
+            withCacheWriteMetric: 1,
+            inputTokens: { p50: 100 },
+            cacheReadTokens: { p50: 75 },
+            cacheWriteTokens: { p50: 5 }
+          }
+        })
+      )
+    })
+
+    it('wires a complete full Tool Surface through native provider Views', async () => {
+      const initialTools = [
+        {
+          type: 'function',
+          function: {
+            name: 'tool_b',
+            description: 'Second tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' },
+          source: 'agent',
+          execution: TOOL_EXECUTION.read.parallel
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'tool_a',
+            description: 'First tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' },
+          source: 'agent',
+          execution: TOOL_EXECUTION.read.parallel
+        }
+      ] satisfies MCPToolDefinition[]
+      const laterEligibleTool = {
+        type: 'function',
+        function: {
+          name: 'tool_c',
+          description: 'Later eligible tool',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'test', icons: '', description: '' },
+        source: 'agent',
+        execution: TOOL_EXECUTION.read.parallel
+      } satisfies MCPToolDefinition
+      const universeTools = [...initialTools, laterEligibleTool]
+      const eventOrder: string[] = []
+      const resolveRunMode = vi.fn(() => 'full' as const)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(initialTools)
+      toolService.getToolDefinitionUniverse.mockImplementation(async () => {
+        eventOrder.push('run-universe')
+        return {
+          definitions: universeTools,
+          complete: true,
+          unavailableSourceCount: 0
+        }
+      })
+      llmProvider.providerInstance.coreStream.mockImplementation(
+        async function* (
+          _messages,
+          _modelId,
+          _modelConfig,
+          _temperature,
+          _maxTokens,
+          providerTools
+        ) {
+          eventOrder.push(`provider:${providerTools.map((tool) => tool.function.name).join(',')}`)
+          yield { type: 'stop', stop_reason: 'complete' }
+        }
+      )
+      recreateAgentWithToolSurfaceRunMode(resolveRunMode)
+
+      const snapshots: LoopRunRequestToolSurfaceBinding[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('full')
+        expect(String(params.run.messages[0]?.content)).not.toContain('## Programmatic Tool Access')
+        for (const requestTools of [initialTools, universeTools]) {
+          for await (const _event of params.coreStream(
+            params.run.messages,
+            params.modelId,
+            params.modelConfig,
+            params.temperature,
+            params.maxTokens,
+            requestTools
+          )) {
+          }
+          const activeSurface = params.run.activeRequestToolSurface
+          if (!activeSurface) throw new Error('Expected an active Tool Surface binding.')
+          snapshots.push(activeSurface)
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(resolveRunMode).toHaveBeenCalledOnce()
+      expect(resolveRunMode).toHaveBeenCalledWith({
+        sessionId: 's1',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+      expect(toolService.getToolDefinitionUniverse).toHaveBeenCalledOnce()
+      expect(eventOrder).toEqual([
+        'run-universe',
+        'provider:tool_b,tool_a',
+        'provider:tool_b,tool_a,tool_c'
+      ])
+      expect(snapshots).toHaveLength(2)
+      expect(snapshots[1].requestSeq).toBe(snapshots[0].requestSeq + 1)
+      expect(snapshots[0].snapshot.virtualizationTriggered).toBe(false)
+      expect(snapshots[0].snapshot.toolDefinitions).toBe(
+        llmProvider.providerInstance.coreStream.mock.calls[0][5]
+      )
+      expect(snapshots[1].snapshot.toolDefinitions).toBe(
+        llmProvider.providerInstance.coreStream.mock.calls[1][5]
+      )
+      expect(snapshots[1].snapshot.activeEntries.map((entry) => entry.activationOrdinal)).toEqual([
+        0, 1, 2
+      ])
+      const toolSurfaceViewEvents = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) =>
+          ['view/assembled', TAPE_TOOL_CATALOG_EVENT_NAME, TAPE_TOOL_SURFACE_EVENT_NAME].includes(
+            row.name
+          )
+        )
+      expect(
+        toolSurfaceViewEvents.filter((row: any) => row.name === 'view/assembled')
+      ).toHaveLength(2)
+      expect(
+        toolSurfaceViewEvents.filter((row: any) => row.name === TAPE_TOOL_CATALOG_EVENT_NAME)
+      ).toHaveLength(2)
+      const surfaceFacts = toolSurfaceViewEvents
+        .filter((row: any) => row.name === TAPE_TOOL_SURFACE_EVENT_NAME)
+        .map((row: any) => JSON.parse(row.payload_json).data)
+      expect(surfaceFacts).toHaveLength(2)
+      expect(surfaceFacts.map((fact: any) => fact.contractBearing)).toEqual([false, false])
+      expect(surfaceFacts.map((fact: any) => fact.request.requestSeq)).toEqual([1, 2])
+      expect(agent.getToolSurfaceShadowDiagnostics('s1')).toBeNull()
+    })
+
+    it('wires an explicitly assigned Native Activation surface without changing the default route', async () => {
+      const agentTool = (name: string): MCPToolDefinition => ({
+        type: 'function',
+        function: {
+          name,
+          description: `${name} description`,
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' },
+        source: 'agent',
+        execution: TOOL_EXECUTION.read.parallel
+      })
+      const question = agentTool('deepchat_question')
+      const hidden = agentTool('hidden_capability')
+      const definitions = [question, hidden]
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'native-activation')
+
+      const providerToolNames: string[][] = []
+      llmProvider.providerInstance.coreStream.mockImplementation(
+        async function* (
+          _messages,
+          _modelId,
+          _modelConfig,
+          _temperature,
+          _maxTokens,
+          requestTools
+        ) {
+          providerToolNames.push(requestTools.map((tool) => tool.function.name))
+          yield { type: 'stop', stop_reason: 'complete' }
+        }
+      )
+      const bindings: LoopRunRequestToolSurfaceBinding[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('native-activation')
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        const first = params.run.activeRequestToolSurface
+        if (!first) throw new Error('Expected an active Native Activation binding.')
+        bindings.push(first)
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(providerToolNames).toEqual([['deepchat_question', TOOL_SEARCH_AGENT_TOOL_NAME]])
+      expect(bindings.map((binding) => binding.snapshot.adapterMode)).toEqual(['native-activation'])
+      expect(
+        bindings[0].snapshot.eligibleCatalog.entries.map(
+          (entry) => entry.target.providerVisibleName
+        )
+      ).toEqual(['deepchat_question', 'hidden_capability', TOOL_SEARCH_AGENT_TOOL_NAME])
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === TAPE_TOOL_SURFACE_EVENT_NAME)
+          .map((row: any) => JSON.parse(row.payload_json).data.adapterMode)
+      ).toEqual(['native-activation'])
+    })
+
+    it('prepares and atomically applies a Native Activation Skill bundle for the next View', async () => {
+      const agentTool = (name: string): MCPToolDefinition => ({
+        type: 'function',
+        function: {
+          name,
+          description: `${name} description`,
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' },
+        source: 'agent',
+        execution: TOOL_EXECUTION.read.parallel
+      })
+      const question = agentTool('deepchat_question')
+      const required = agentTool('skill_required')
+      const hidden = agentTool('skill_optional_hidden')
+      const definitions = [question, required, hidden]
+      const skillMetadata = {
+        name: 'review-skill',
+        description: 'Review skill',
+        category: 'engineering',
+        platforms: [],
+        metadata: {},
+        allowedTools: ['skill_required']
+      }
+      const sessionSkillMetadata = {
+        name: 'session-skill',
+        description: 'Session skill',
+        category: 'engineering',
+        platforms: [],
+        metadata: {}
+      }
+      const skillService = getSkillServiceMock()
+      skillService.snapshotCachedMetadataList.mockReturnValue({
+        state: 'ready',
+        skills: [skillMetadata, sessionSkillMetadata]
+      })
+      skillService.getMetadataList.mockResolvedValue([skillMetadata, sessionSkillMetadata])
+      skillService.getActiveSkills.mockResolvedValue(['session-skill'])
+      skillService.loadSkillContent.mockImplementation(
+        async (_agentId: string, skillName: string) =>
+          skillName === 'session-skill'
+            ? { content: '# Session instructions' }
+            : { content: '# Review instructions' }
+      )
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockImplementation(async (context: any) =>
+        context.activeSkillNames?.includes('review-skill') ? definitions : [question]
+      )
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'native-activation')
+
+      const bindings: LoopRunRequestToolSurfaceBinding[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        const initial = params.run.activeRequestToolSurface
+        if (!initial) throw new Error('Expected the initial Native Activation binding.')
+        bindings.push(initial)
+
+        const preparation = await params.controls?.prepareSkillActivation?.('review-skill')
+        expect(preparation?.kind).toBe('prepared')
+        expect(params.controls?.getActiveSkillNames?.()).toEqual(['session-skill'])
+        expect(params.run.resources.activeSkillNames).toEqual(['session-skill'])
+        expect(params.run.resources.toolDefinitions.map((tool) => tool.function.name)).toEqual([
+          'deepchat_question'
+        ])
+        if (preparation?.kind !== 'prepared') {
+          throw new Error('Expected a prepared Skill activation.')
+        }
+        preparation.apply()
+
+        expect(params.controls?.getActiveSkillNames?.()).toEqual(['review-skill', 'session-skill'])
+        expect(params.run.resources.activeSkillNames).toEqual(['review-skill', 'session-skill'])
+        expect(params.run.resources.toolDefinitions.map((tool) => tool.function.name)).toEqual([
+          'deepchat_question',
+          'skill_required',
+          'skill_optional_hidden'
+        ])
+        expect(params.run.resources.promptAssembly?.prompt).toContain('# Session instructions')
+        expect(params.run.resources.promptAssembly?.prompt).not.toContain('# Review instructions')
+        expect(String(params.run.messages[0]?.content)).toContain('# Session instructions')
+        expect(String(params.run.messages[0]?.content)).not.toContain('# Review instructions')
+        expect(toolService.buildToolSystemPrompt).toHaveBeenLastCalledWith({
+          conversationId: 's1',
+          toolDefinitions: expect.arrayContaining([
+            expect.objectContaining({
+              function: expect.objectContaining({ name: 'skill_required' })
+            })
+          ])
+        })
+        const promptToolDefinitions = toolService.buildToolSystemPrompt.mock.lastCall?.[0]
+          .toolDefinitions as MCPToolDefinition[]
+        expect(promptToolDefinitions.map((tool) => tool.function.name)).not.toContain(
+          'skill_optional_hidden'
+        )
+
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        const activated = params.run.activeRequestToolSurface
+        if (!activated) throw new Error('Expected the activated Native Activation binding.')
+        bindings.push(activated)
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      await expect(processStream.mock.results[0]?.value).resolves.toEqual({
+        status: 'completed',
+        stopReason: 'complete'
+      })
+      expect(bindings).toHaveLength(2)
+      expect(bindings[1].snapshot.toolDefinitions.map((tool) => tool.function.name)).toEqual([
+        'deepchat_question',
+        TOOL_SEARCH_AGENT_TOOL_NAME,
+        'skill_required'
+      ])
+      expect(
+        bindings[1].snapshot.activeEntries.find(
+          (entry) => entry.definition.function.name === 'skill_required'
+        )
+      ).toMatchObject({ reason: 'active-skill' })
+    })
+
+    it('keeps a Run alive while rejecting an inactive Skill with unresolved requirements', async () => {
+      const question: MCPToolDefinition = {
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          description: 'Ask a question',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' },
+        source: 'agent',
+        execution: TOOL_EXECUTION.read.parallel
+      }
+      const skillMetadata = {
+        name: 'broken-skill',
+        description: 'Broken skill',
+        category: 'engineering',
+        platforms: [],
+        metadata: {},
+        allowedTools: ['missing_required_tool']
+      }
+      const skillService = getSkillServiceMock()
+      skillService.snapshotCachedMetadataList.mockReturnValue({
+        state: 'ready',
+        skills: [skillMetadata]
+      })
+      skillService.getMetadataList.mockResolvedValue([skillMetadata])
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue([question])
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [question],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'native-activation')
+
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('native-activation')
+        await expect(params.controls?.prepareSkillActivation?.('broken-skill')).resolves.toEqual({
+          kind: 'rejected'
+        })
+        expect(params.run.resources.activeSkillNames).toEqual([])
+        expect(params.run.resources.toolDefinitions.map((tool) => tool.function.name)).toEqual([
+          'deepchat_question'
+        ])
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await expect(agent.processMessage('s1', 'Hello')).resolves.toMatchObject({
+        messageId: 'mock-msg-id'
+      })
+    })
+
+    it('assembles and persists exact CLI Programmatic provider Views', async () => {
+      const taskContract = buildTaskContract({
+        delegationId: 'delegation-programmatic-surface',
+        turnId: 'turn-programmatic-surface',
+        turnSeq: 1,
+        turnKind: 'initial',
+        parentSessionId: 'parent-1',
+        slotId: 'operator',
+        targetAgentId: 'deepchat',
+        title: 'Use a Programmatic Tool Surface',
+        prompt: 'Use only the delegated capabilities.',
+        workspace: { kind: 'runtime_default' },
+        handoffFormat: [],
+        maxToolEffect: 'write',
+        maxSubagentDepth: 0
+      })
+      sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) =>
+        sessionId === 's1'
+          ? {
+              id: 's1',
+              agent_id: 'deepchat',
+              session_kind: 'subagent',
+              parent_session_id: 'parent-1'
+            }
+          : sessionId === 'parent-1'
+            ? { id: 'parent-1', agent_id: 'deepchat', session_kind: 'regular' }
+            : undefined
+      )
+      vi.mocked(runtimeDependencies.taskContractContext.prepare).mockReturnValue({
+        contract: taskContract,
+        localRef: {
+          schemaVersion: 1,
+          sessionId: 's1',
+          tapeIdentity: 'c'.repeat(64),
+          entryId: 6,
+          contractHash: taskContract.contractHash
+        }
+      })
+      const execTool = {
+        source: 'agent',
+        execution: TOOL_EXECUTION.write,
+        type: 'function',
+        function: {
+          name: 'exec',
+          description: 'Execute a shell command',
+          parameters: { type: 'object', properties: { command: { type: 'string' } } }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent FileSystem tools'
+        }
+      } satisfies MCPToolDefinition
+      const questionTool = {
+        source: 'agent',
+        execution: TOOL_EXECUTION.write,
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          description: 'Ask the user a question',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' }
+      } satisfies MCPToolDefinition
+      const mcpTool = (name: string, effect: 'read' | 'write'): MCPToolDefinition => ({
+        source: 'mcp',
+        execution: effect === 'read' ? TOOL_EXECUTION.read.parallel : TOOL_EXECUTION.write,
+        type: 'function',
+        function: {
+          name,
+          description: `${name} description`,
+          parameters: { type: 'object', properties: { value: { type: 'string' } } }
+        },
+        server: {
+          id: '44444444-4444-4444-8444-444444444444',
+          name: 'remote-tools',
+          icons: '',
+          description: 'Remote tools',
+          configGeneration: 1,
+          bindingHash: 'd'.repeat(64)
+        },
+        raw: {
+          name,
+          inputSchema: { type: 'object', properties: { value: { type: 'string' } } }
+        }
+      })
+      const remoteRead = mcpTool('remote_read', 'read')
+      const remoteWrite = mcpTool('remote_write', 'write')
+      const definitions = [remoteWrite, execTool, remoteRead, questionTool]
+      const inactiveSkillRun = {
+        source: 'agent',
+        execution: TOOL_EXECUTION.write,
+        type: 'function',
+        function: {
+          name: 'skill_run',
+          description: 'Run an inactive skill script',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-skills', icons: '', description: 'Agent skill tools' }
+      } satisfies MCPToolDefinition
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [...definitions, inactiveSkillRun],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'cli-programmatic')
+      const providerEntryFactNames: string[][] = []
+      const providerToolNamesAtEntry: string[][] = []
+      const providerExecStdinSchemas: unknown[] = []
+      llmProvider.providerInstance.coreStream.mockImplementation(
+        async function* (
+          _messages,
+          _modelId,
+          _modelConfig,
+          _temperature,
+          _maxTokens,
+          requestTools
+        ) {
+          providerToolNamesAtEntry.push(requestTools.map((tool) => tool.function.name))
+          providerExecStdinSchemas.push(
+            requestTools.find((tool) => tool.function.name === 'exec')?.function.parameters
+              .properties.stdin
+          )
+          providerEntryFactNames.push(
+            sqlitePresenter.deepchatTapeEntriesTable
+              .getBySession('s1')
+              .filter((row: any) => row.name.startsWith('view/'))
+              .map((row: any) => row.name)
+          )
+          yield { type: 'stop', stop_reason: 'complete' }
+        }
+      )
+
+      const bindings: LoopRunRequestToolSurfaceBinding[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('cli-programmatic')
+        expect(
+          params.run.resources.toolDefinitions.find(
+            (definition) => definition.function.name === 'exec'
+          )?.function.parameters.properties.stdin
+        ).toMatchObject({ type: 'string', maxLength: MAX_PROGRAMMATIC_TOOL_INPUT_BYTES })
+        const initialSystemPrompt = String(params.run.messages[0]?.content)
+        expect(initialSystemPrompt).toContain('## Programmatic Tool Access')
+        expect(initialSystemPrompt.match(/## Programmatic Tool Access/g)).toHaveLength(1)
+        expect(params.run.resources.promptAssembly?.prompt).toBe(initialSystemPrompt)
+        for (let view = 0; view < 2; view += 1) {
+          const currentDefinitions =
+            view === 0
+              ? params.run.resources.toolDefinitions
+              : params.run.resources.toolDefinitions.filter(
+                  (definition) => definition.source === 'mcp'
+                )
+          for await (const _event of params.coreStream(
+            params.run.messages,
+            params.modelId,
+            params.modelConfig,
+            params.temperature,
+            params.maxTokens,
+            currentDefinitions
+          )) {
+          }
+          const binding = params.run.activeRequestToolSurface
+          if (!binding?.programmaticCapability) {
+            throw new Error('Expected a CLI Programmatic capability binding.')
+          }
+          bindings.push(binding)
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(providerToolNamesAtEntry).toEqual([['exec', 'deepchat_question'], []])
+      expect(providerExecStdinSchemas).toEqual([
+        expect.objectContaining({
+          type: 'string',
+          maxLength: MAX_PROGRAMMATIC_TOOL_INPUT_BYTES
+        }),
+        undefined
+      ])
+      expect(providerEntryFactNames).toEqual([
+        [
+          'view/assembled',
+          TAPE_TOOL_CATALOG_EVENT_NAME,
+          TAPE_TOOL_SURFACE_EVENT_NAME,
+          TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME
+        ],
+        [
+          'view/assembled',
+          TAPE_TOOL_CATALOG_EVENT_NAME,
+          TAPE_TOOL_SURFACE_EVENT_NAME,
+          TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
+          'view/assembled',
+          TAPE_TOOL_CATALOG_EVENT_NAME,
+          TAPE_TOOL_SURFACE_EVENT_NAME,
+          TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME
+        ]
+      ])
+      expect(bindings).toHaveLength(2)
+      expect(bindings[1].requestSeq).toBe(bindings[0].requestSeq + 1)
+      expect(bindings[0].snapshot.adapterMode).toBe('cli-programmatic')
+      expect(bindings[0].programmaticCapability?.ceilings).toEqual({
+        maxToolEffect: 'write',
+        workspace: { kind: 'runtime_default' },
+        maxSubagentDepth: 0
+      })
+      expect(bindings[0].programmaticCapability?.taskContractRef).toEqual({
+        schemaVersion: 1,
+        sessionId: 's1',
+        tapeIdentity: 'c'.repeat(64),
+        entryId: 6,
+        contractHash: taskContract.contractHash
+      })
+      expect(
+        bindings[0].programmaticCapability?.entries.map((entry) => entry.target.originalName)
+      ).toEqual(['remote_read', 'remote_write'])
+      expect(bindings[1].programmaticCapability).not.toBe(bindings[0].programmaticCapability)
+      expect(bindings[1].programmaticCapability?.request.requestSeq).toBe(
+        bindings[0].programmaticCapability!.request.requestSeq + 1
+      )
+
+      const rows = sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1')
+      const providerFacts = rows
+        .filter((row: any) => row.name === TAPE_TOOL_SURFACE_EVENT_NAME)
+        .map((row: any) => JSON.parse(row.payload_json).data)
+      const programmaticFacts = rows
+        .filter((row: any) => row.name === TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME)
+        .map((row: any) => JSON.parse(row.payload_json).data)
+      expect(providerFacts).toHaveLength(2)
+      expect(programmaticFacts).toHaveLength(2)
+      expect(providerFacts.map((fact: any) => fact.adapterMode)).toEqual([
+        'cli-programmatic',
+        'cli-programmatic'
+      ])
+      expect(providerFacts.map((fact: any) => fact.contractBearing)).toEqual([true, true])
+      expect(programmaticFacts.map((fact: any) => fact.capabilityHash)).toEqual(
+        bindings.map((binding) => binding.programmaticCapability!.capabilityHash)
+      )
+      expect(
+        programmaticFacts.map((fact: any) =>
+          fact.entries.map((entry: any) => entry.target.originalName)
+        )
+      ).toEqual([
+        ['remote_read', 'remote_write'],
+        ['remote_read', 'remote_write']
+      ])
+      const manifests = rows
+        .filter((row: any) => row.name === 'view/assembled')
+        .map((row: any) => JSON.parse(row.payload_json).data.manifest)
+      expect(
+        manifests.map((manifest: any) =>
+          manifest.executionContract.ceilings.tools.map(
+            (tool: { target: { originalName: string } }) => tool.target.originalName
+          )
+        )
+      ).toEqual([['deepchat_question', 'exec'], []])
+      for (let index = 0; index < providerFacts.length; index += 1) {
+        const activeTargets = new Set(
+          providerFacts[index].activeEntries.map((entry: any) => entry.stableTargetKey)
+        )
+        expect(
+          programmaticFacts[index].entries.some((entry: any) =>
+            activeTargets.has(entry.stableTargetKey)
+          )
+        ).toBe(false)
+        expect(programmaticFacts[index].request).toEqual(providerFacts[index].request)
+        expect(programmaticFacts[index].catalog).toEqual(providerFacts[index].catalog)
+        expect(programmaticFacts[index].manifestHash).toBe(providerFacts[index].manifestHash)
+      }
+    })
+
+    it('rejects CLI Programmatic admission without canonical Agent exec', async () => {
+      const remoteTool = {
+        source: 'mcp',
+        execution: TOOL_EXECUTION.read.parallel,
+        type: 'function',
+        function: {
+          name: 'remote_read',
+          description: 'Read remotely',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          id: '55555555-5555-4555-8555-555555555555',
+          name: 'remote-tools',
+          icons: '',
+          description: 'Remote tools',
+          configGeneration: 1,
+          bindingHash: 'e'.repeat(64)
+        },
+        raw: { name: 'remote_read', inputSchema: { type: 'object', properties: {} } }
+      } satisfies MCPToolDefinition
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue([remoteTool])
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [remoteTool],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'cli-programmatic')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === 'execution/run_started')
+      ).toEqual([])
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.stringContaining(
+          'CLI Programmatic Provider Active Surface requires the Agent exec tool.'
+        ),
+        'error',
+        expect.any(String)
+      )
+    })
+
+    it('keeps full Tool Surfaces within a child TaskContract ceiling', async () => {
+      const taskContract = buildTaskContract({
+        delegationId: 'delegation-full-surface',
+        turnId: 'turn-full-surface',
+        turnSeq: 1,
+        turnKind: 'initial',
+        parentSessionId: 'parent-1',
+        slotId: 'reviewer',
+        targetAgentId: 'deepchat',
+        title: 'Review a full Tool Surface',
+        prompt: 'Use only read capabilities.',
+        workspace: { kind: 'runtime_default' },
+        handoffFormat: [],
+        maxToolEffect: 'read',
+        maxSubagentDepth: 0
+      })
+      sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) =>
+        sessionId === 's1'
+          ? {
+              id: 's1',
+              agent_id: 'deepchat',
+              session_kind: 'subagent',
+              parent_session_id: 'parent-1'
+            }
+          : sessionId === 'parent-1'
+            ? { id: 'parent-1', agent_id: 'deepchat', session_kind: 'regular' }
+            : undefined
+      )
+      vi.mocked(runtimeDependencies.taskContractContext.prepare).mockReturnValue({
+        contract: taskContract,
+        localRef: {
+          schemaVersion: 1,
+          sessionId: 's1',
+          tapeIdentity: 'e'.repeat(64),
+          entryId: 4,
+          contractHash: taskContract.contractHash
+        }
+      })
+      const agentTool = (
+        name: string,
+        execution: MCPToolDefinition['execution']
+      ): MCPToolDefinition => ({
+        source: 'agent',
+        execution,
+        type: 'function',
+        function: {
+          name,
+          description: `${name} description`,
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' }
+      })
+      const universeTools = [
+        agentTool('read_file', TOOL_EXECUTION.read.parallel),
+        agentTool('write_file', TOOL_EXECUTION.write),
+        agentTool(LIVE_DELEGATION_AGENT_TOOL_NAME, TOOL_EXECUTION.read.sequential)
+      ]
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue(universeTools)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: universeTools,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      const persistedViewCountsAtProviderEntry: Array<{
+        manifests: number
+        catalogs: number
+        surfaces: number
+      }> = []
+      llmProvider.providerInstance.coreStream.mockImplementation(async function* () {
+        const rows = sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1')
+        persistedViewCountsAtProviderEntry.push({
+          manifests: rows.filter((row: any) => row.name === 'view/assembled').length,
+          catalogs: rows.filter((row: any) => row.name === TAPE_TOOL_CATALOG_EVENT_NAME).length,
+          surfaces: rows.filter((row: any) => row.name === TAPE_TOOL_SURFACE_EVENT_NAME).length
+        })
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+
+      const activeSurfaceNames: string[][] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(
+          params.run.resources.toolDefinitions.map((tool: MCPToolDefinition) => tool.function.name)
+        ).toEqual(['read_file'])
+        const refreshedTools = await params.toolCatalog.resolve({
+          activeSkillNames: ['runtime-skill']
+        })
+        expect(refreshedTools.map((tool: MCPToolDefinition) => tool.function.name)).toEqual([
+          'read_file'
+        ])
+        for (const requestTools of [params.run.resources.toolDefinitions, refreshedTools]) {
+          for await (const _event of params.coreStream(
+            params.run.messages,
+            params.modelId,
+            params.modelConfig,
+            params.temperature,
+            params.maxTokens,
+            requestTools
+          )) {
+          }
+          activeSurfaceNames.push(
+            params.run.activeRequestToolSurface?.snapshot.activeEntries.map(
+              (entry: { definition: MCPToolDefinition }) => entry.definition.function.name
+            ) ?? []
+          )
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(activeSurfaceNames).toEqual([['read_file'], ['read_file']])
+      expect(
+        llmProvider.providerInstance.coreStream.mock.calls.map((call) =>
+          call[5].map((tool: MCPToolDefinition) => tool.function.name)
+        )
+      ).toEqual([['read_file'], ['read_file']])
+      expect(persistedViewCountsAtProviderEntry).toEqual([
+        { manifests: 1, catalogs: 1, surfaces: 1 },
+        { manifests: 2, catalogs: 1, surfaces: 2 }
+      ])
+      const providerViewRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) =>
+          ['view/assembled', TAPE_TOOL_CATALOG_EVENT_NAME, TAPE_TOOL_SURFACE_EVENT_NAME].includes(
+            row.name
+          )
+        )
+      const manifests = providerViewRows
+        .filter((row: any) => row.name === 'view/assembled')
+        .map((row: any) => JSON.parse(row.payload_json).data.manifest)
+      const catalogRows = providerViewRows.filter(
+        (row: any) => row.name === TAPE_TOOL_CATALOG_EVENT_NAME
+      )
+      const surfaceFacts = providerViewRows
+        .filter((row: any) => row.name === TAPE_TOOL_SURFACE_EVENT_NAME)
+        .map((row: any) => JSON.parse(row.payload_json).data)
+      expect(
+        manifests.map((manifest: any) =>
+          manifest.executionContract.ceilings.tools.map(
+            (tool: { target: { providerVisibleName: string } }) => tool.target.providerVisibleName
+          )
+        )
+      ).toEqual([['read_file'], ['read_file']])
+      expect(catalogRows).toHaveLength(1)
+      expect(surfaceFacts).toHaveLength(2)
+      expect(surfaceFacts.map((fact: any) => fact.contractBearing)).toEqual([true, true])
+      expect(surfaceFacts.map((fact: any) => fact.manifestHash)).toEqual(
+        manifests.map((manifest: any) => manifest.hashes.manifestHash)
+      )
+      expect(surfaceFacts.map((fact: any) => fact.catalog.entryId)).toEqual([
+        catalogRows[0].entry_id,
+        catalogRows[0].entry_id
+      ])
+      expect(surfaceFacts.map((fact: any) => fact.catalog.fullCatalogHash)).toEqual([
+        JSON.parse(catalogRows[0].payload_json).data.fullCatalogHash,
+        JSON.parse(catalogRows[0].payload_json).data.fullCatalogHash
+      ])
+    })
+
+    it('rolls back strict Tool Surface provenance before provider execution', async () => {
+      const taskContract = buildTaskContract({
+        delegationId: 'delegation-surface-persistence',
+        turnId: 'turn-surface-persistence',
+        turnSeq: 1,
+        turnKind: 'initial',
+        parentSessionId: 'parent-1',
+        slotId: 'reviewer',
+        targetAgentId: 'deepchat',
+        title: 'Persist a strict Tool Surface',
+        prompt: 'Use only read capabilities.',
+        workspace: { kind: 'runtime_default' },
+        handoffFormat: [],
+        maxToolEffect: 'read',
+        maxSubagentDepth: 0
+      })
+      sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) =>
+        sessionId === 's1'
+          ? {
+              id: 's1',
+              agent_id: 'deepchat',
+              session_kind: 'subagent',
+              parent_session_id: 'parent-1'
+            }
+          : sessionId === 'parent-1'
+            ? { id: 'parent-1', agent_id: 'deepchat', session_kind: 'regular' }
+            : undefined
+      )
+      vi.mocked(runtimeDependencies.taskContractContext.prepare).mockReturnValue({
+        contract: taskContract,
+        localRef: {
+          schemaVersion: 1,
+          sessionId: 's1',
+          tapeIdentity: 'f'.repeat(64),
+          entryId: 5,
+          contractHash: taskContract.contractHash
+        }
+      })
+      const readTool = {
+        source: 'agent',
+        execution: TOOL_EXECUTION.read.parallel,
+        type: 'function',
+        function: {
+          name: 'read_file',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'agent-tools', icons: '', description: 'Agent tools' }
+      } satisfies MCPToolDefinition
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getAllToolDefinitions.mockResolvedValue([readTool])
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [readTool],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const appendToolSurfaceEvent = sqlitePresenter.deepchatTapeEntriesTable.appendToolSurfaceEvent
+      const appendImplementation = appendToolSurfaceEvent.getMockImplementation()!
+      appendToolSurfaceEvent.mockImplementation((input: any) => {
+        if (input.name === TAPE_TOOL_SURFACE_EVENT_NAME) {
+          throw new Error('surface write failed')
+        }
+        return appendImplementation(input)
+      })
+
+      await expect(async () => {
+        for await (const _event of callArgs.coreStream(
+          callArgs.run.messages,
+          callArgs.modelId,
+          callArgs.modelConfig,
+          callArgs.temperature,
+          callArgs.maxTokens,
+          callArgs.run.resources.toolDefinitions
+        )) {
+        }
+      }).rejects.toThrow('Failed to persist Tool surface provenance for session s1')
+
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) =>
+            ['view/assembled', TAPE_TOOL_CATALOG_EVENT_NAME, TAPE_TOOL_SURFACE_EVENT_NAME].includes(
+              row.name
+            )
+          )
+      ).toEqual([])
+      expect(callArgs.run.activeRequestContract).toBeNull()
+      expect(callArgs.run.activeRequestToolSurface).toBeNull()
+    })
+
+    it('fails full Tool Surface admission when the Run universe is incomplete', async () => {
+      const resolveRunMode = vi.fn(() => 'full' as const)
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: false,
+        unavailableSourceCount: 1
+      })
+      recreateAgentWithToolSurfaceRunMode(resolveRunMode)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === 'execution/run_started')
+      ).toEqual([])
+      expect((await agent.getSessionState('s1'))?.status).toBe('error')
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.stringContaining('Full Tool Surface mode requires a complete Run tool universe.'),
+        'error',
+        expect.any(String)
+      )
+    })
+
+    it('degrades an automatic assignment when the Run universe is temporarily incomplete', async () => {
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: false,
+        unavailableSourceCount: 1
+      })
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'unproven'
+      }))
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolSurfaceMode).toBe('legacy')
+        expect(params.run.activeRequestToolSurface).toBeNull()
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(agent.getToolSurfaceCanaryDiagnostics('s1')?.assignments).toEqual([
+        expect.objectContaining({
+          entered: 1,
+          selected: 0,
+          setupFailed: 0,
+          aborted: 0,
+          excluded: 1,
+          inFlight: 0
+        })
+      ])
+      expect(agent.getToolSurfaceCanaryDiagnostics('s1')?.cohorts).toEqual([])
+    })
+
+    it('still blocks automatic admission for an invalid active Skill requirement', async () => {
+      const skillService = getSkillServiceMock()
+      const skillMetadata = {
+        name: 'broken-skill',
+        description: 'Broken skill',
+        category: 'engineering',
+        platforms: [],
+        metadata: {},
+        allowedTools: ['missing_required_tool']
+      }
+      skillService.snapshotCachedMetadataList.mockReturnValue({
+        state: 'ready',
+        skills: [skillMetadata]
+      })
+      skillService.getMetadataList.mockResolvedValue([skillMetadata])
+      skillService.loadSkillContent.mockResolvedValue({ content: '# Broken skill' })
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'unproven'
+      }))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([])
+      await agent.processMessage('s1', {
+        text: 'Use the broken skill',
+        activeSkills: ['broken-skill']
+      })
+
+      expect(processStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('error')
+      expect(agent.getToolSurfaceCanaryDiagnostics('s1')?.assignments).toEqual([
+        expect.objectContaining({ entered: 1, setupFailed: 1, excluded: 0, inFlight: 0 })
+      ])
+    })
+
+    it('rejects full Tool Surfaces for prompt-emulated tool models', async () => {
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: false
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === 'execution/run_started')
+      ).toEqual([])
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.stringContaining(
+          'Full Tool Surface mode requires a native chat model with provider-native function calling.'
+        ),
+        'error',
+        expect.any(String)
+      )
+    })
+
+    it('does not start a legacy Run when mode resolution replaces its session instance', async () => {
+      recreateAgentWithToolSurfaceRunMode(() => {
+        const sessionId = toAppSessionId('s1')
+        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+        agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+          status: 'idle',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          permissionMode: 'default'
+        })
+        return 'legacy'
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === 'execution/run_started')
+      ).toEqual([])
+    })
+
+    it('does not admit a full Tool Surface after its session instance is replaced', async () => {
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      const rateGateEntered = deferred<void>()
+      const releaseRateGate = deferred<void>()
+      llmProvider.executeWithRateLimit.mockImplementation(async () => {
+        rateGateEntered.resolve()
+        await releaseRateGate.promise
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+      const recordRun = vi.spyOn(ToolSurfaceCanaryDiagnosticsRegistry.prototype, 'recordRun')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const turn = agent.processMessage('s1', 'Hello')
+      await rateGateEntered.promise
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      releaseRateGate.resolve()
+      await turn
+
+      expect(llmProvider.providerInstance.coreStream).not.toHaveBeenCalled()
+      expect(recordRun).not.toHaveBeenCalled()
+    })
+
+    it('does not start a retry attempt after its full Tool Surface session is replaced', async () => {
+      providerSettings.getModelConfig.mockReturnValue({
+        ...providerSettings.getModelConfig(),
+        functionCall: true
+      })
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      recreateAgentWithToolSurfaceRunMode(() => 'full')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.providerInstance.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementation(async function* () {
+        yield {
+          type: 'error',
+          error_message: 'temporarily unavailable',
+          failure: {
+            statusCode: 503,
+            retryHeaders: { 'retry-after-ms': '0' }
+          }
+        }
+        yield { type: 'stop', stop_reason: 'error' }
+      })
+      const retryRateGateEntered = deferred<void>()
+      const releaseRetryRateGate = deferred<void>()
+      let rateGateCallCount = 0
+      llmProvider.executeWithRateLimit.mockImplementation(async () => {
+        rateGateCallCount += 1
+        if (rateGateCallCount !== 2) return
+        retryRateGateEntered.resolve()
+        await releaseRetryRateGate.promise
+      })
+
+      const consuming = (async () => {
+        for await (const _event of callArgs.coreStream(
+          callArgs.run.messages,
+          callArgs.modelId,
+          callArgs.modelConfig,
+          callArgs.temperature,
+          callArgs.maxTokens,
+          callArgs.run.resources.toolDefinitions
+        )) {
+        }
+      })()
+      await retryRateGateEntered.promise
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      releaseRetryRateGate.resolve()
+
+      await expect(consuming).rejects.toThrow()
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row: any) => row.name === 'provider/attempt_completed')
+      ).toHaveLength(1)
+    })
+
+    it('keeps initial-View transient attempts separate from a later request sequence', async () => {
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      let providerAttempt = 0
+      llmProvider.providerInstance.coreStream.mockImplementation(async function* () {
+        providerAttempt += 1
+        if (providerAttempt === 1) {
+          yield {
+            type: 'error',
+            error_message: 'temporarily unavailable',
+            failure: {
+              statusCode: 503,
+              retryable: true,
+              retryHeaders: { 'retry-after-ms': '0' }
+            }
+          }
+          return
+        }
+        yield {
+          type: 'usage',
+          usage: {
+            prompt_tokens: providerAttempt === 2 ? 100 : 200,
+            completion_tokens: 10,
+            total_tokens: providerAttempt === 2 ? 110 : 210,
+            cached_tokens: providerAttempt === 2 ? 80 : 160
+          }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for (let request = 0; request < 2; request += 1) {
+          for await (const _event of params.coreStream(
+            params.run.messages,
+            params.modelId,
+            params.modelConfig,
+            params.temperature,
+            params.maxTokens,
+            params.run.resources.toolDefinitions
+          )) {
+          }
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(llmProvider.providerInstance.coreStream).toHaveBeenCalledTimes(3)
+      await vi.waitFor(() =>
+        expect(agent.getToolSurfaceShadowDiagnostics('s1')).toMatchObject({
+          initialViewAttempts: {
+            observed: 2,
+            withUsage: 1,
+            inputTokens: { samples: 1, p50: 100 },
+            cacheReadTokens: { samples: 1, p50: 80 }
+          }
+        })
+      )
+    })
+
+    it('excludes a context-recovery request sequence from initial-View diagnostics', async () => {
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: [],
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      llmProvider.providerInstance.coreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'input exceeds the context window' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 200,
+              completion_tokens: 10,
+              total_tokens: 210,
+              cached_tokens: 160
+            }
+          }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { contextLength: 8_192, maxTokens: 1_024 }
+      })
+      installSessionRows(
+        Array.from({ length: 3 }, (_, index) => [
+          makeDeepchatUserRow(index * 2 + 1, 'U'.repeat(2_400), `history-u${index}`),
+          makeDeepchatAssistantRow(index * 2 + 2, 'A'.repeat(2_400), `history-a${index}`)
+        ]).flat()
+      )
+      await agent.processMessage('s1', 'Hello')
+
+      expect(llmProvider.providerInstance.coreStream).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() =>
+        expect(agent.getToolSurfaceShadowDiagnostics('s1')).toMatchObject({
+          initialViewAttempts: {
+            observed: 1,
+            withUsage: 0,
+            inputTokens: { samples: 0 }
+          }
+        })
+      )
+    })
+
+    it('keeps generation fail-open when a shadow universe source is unavailable', async () => {
+      toolService.getToolDefinitionUniverse.mockRejectedValueOnce(
+        new Error('shadow universe unavailable')
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await expect(agent.processMessage('s1', 'Hello')).resolves.toMatchObject({
+        requestId: expect.any(String)
+      })
+
+      await vi.waitFor(() =>
+        expect(agent.getToolSurfaceShadowDiagnostics('s1')).toMatchObject({
+          runs: { observed: 1, measured: 0, degraded: 1, collectorFailures: 0 }
+        })
+      )
+    })
+
+    it('drops a shadow sample when the tool profile changes during universe resolution', async () => {
+      const pendingUniverse = deferred<{
+        definitions: MCPToolDefinition[]
+        complete: boolean
+        unavailableSourceCount: number
+      }>()
+      const universeStarted = deferred<void>()
+      toolService.getToolDefinitionUniverse.mockImplementationOnce(async () => {
+        universeStarted.resolve()
+        return await pendingUniverse.promise
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+      await universeStarted.promise
+
+      agent.refreshToolRegistry()
+      pendingUniverse.resolve({ definitions: [], complete: true, unavailableSourceCount: 0 })
+
+      await vi.waitFor(() =>
+        expect(agent.getToolSurfaceShadowDiagnostics('s1')).toMatchObject({
+          runs: { observed: 0, measured: 0 }
+        })
+      )
+    })
+
+    it('does not resolve a shadow universe when generation fails before a provider attempt', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('failed before provider admission')
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s1')).toBeNull()
+    })
+
     it('creates user and assistant messages with correct order_seq', async () => {
       sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
         .mockReturnValueOnce(0) // user message: seq 1
@@ -3127,6 +5234,7 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       const order: string[] = []
+      const terminalFence = vi.spyOn(programmaticToolParents, 'commitRunTerminal')
       const tape = sessionData.tapeStore
       const commitRunStarted = tape.commitRunStarted.bind(tape)
       const commitRunTerminal = tape.commitRunTerminal.bind(tape)
@@ -3175,50 +5283,10 @@ describe('DeepChatAgentHarness', () => {
         outcome: 'completed',
         stopReason: 'complete'
       })
-      expect(runJournalObserver).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({
-          type: 'started',
-          runKind: 'loop',
-          runId: started.runId,
-          sessionId: 's1',
-          messageId: started.messageId,
-          initialRequestSeq: 0
-        })
+      expect(terminalFence).toHaveBeenCalledWith(
+        { sessionId: 's1', runId: started.runId },
+        expect.any(Function)
       )
-      expect(runJournalObserver).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          type: 'terminal',
-          runKind: 'loop',
-          runId: started.runId,
-          outcome: 'completed',
-          stopReason: 'complete',
-          durationMs: expect.any(Number),
-          logicalRounds: 0,
-          toolCalls: 0
-        })
-      )
-    })
-
-    it('keeps the durable Run lifecycle intact when the diagnostic clock throws', async () => {
-      diagnosticNow.mockImplementation(() => {
-        throw new Error('clock unavailable')
-      })
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-
-      await expect(agent.processMessage('s1', 'Hello')).resolves.toMatchObject({
-        requestId: 'mock-msg-id'
-      })
-
-      const journalRows = sqlitePresenter.deepchatTapeEntriesTable
-        .getBySession('s1')
-        .filter((row: any) => row.name?.startsWith('execution/'))
-      expect(journalRows).toHaveLength(2)
-      expect(runJournalObserver).toHaveBeenCalledTimes(2)
-      const terminalObservation = runJournalObserver.mock.calls[1][0]
-      expect(terminalObservation).toMatchObject({ type: 'terminal', outcome: 'completed' })
-      expect(terminalObservation).not.toHaveProperty('durationMs')
     })
 
     it('does not register or terminally project a Run when its start commit fails', async () => {
@@ -4566,7 +6634,7 @@ describe('DeepChatAgentHarness', () => {
       )
     })
 
-    it('continues provider requests when view manifest persistence fails', async () => {
+    it('continues V4 provider requests with bounded provenance failure diagnostics', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
@@ -4574,32 +6642,64 @@ describe('DeepChatAgentHarness', () => {
       const providerCoreStream = llmProvider.providerInstance.coreStream
       const loggerWarnMock = vi.mocked(logger.warn)
       loggerWarnMock.mockClear()
-      sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mockImplementation(() => {
-        throw new Error('manifest write failed')
+      const appendEvent = sqlitePresenter.deepchatTapeEntriesTable.appendEvent
+      const appendImplementation = appendEvent.getMockImplementation()!
+      const failureReason = `manifest write failed \u001b[31m${'x'.repeat(1_024)}`
+      appendEvent.mockImplementation((input: any) => {
+        if (input.name === 'view/assembled') {
+          throw new Error(failureReason)
+        }
+        return appendImplementation(input)
       })
 
-      for await (const _event of callArgs.coreStream(
-        callArgs.run.messages,
-        callArgs.modelId,
-        callArgs.modelConfig,
-        callArgs.temperature,
-        callArgs.maxTokens,
-        callArgs.run.resources.toolDefinitions
-      )) {
+      for (let request = 0; request < 10; request += 1) {
+        for await (const _event of callArgs.coreStream(
+          callArgs.run.messages,
+          callArgs.modelId,
+          callArgs.modelConfig,
+          callArgs.temperature,
+          callArgs.maxTokens,
+          callArgs.run.resources.toolDefinitions
+        )) {
+        }
       }
 
-      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(providerCoreStream).toHaveBeenCalledTimes(10)
       expect(callArgs.run.activeRequestContract).toEqual({
-        requestSeq: 1,
+        requestSeq: 10,
         executionContract: null
       })
       const viewManifests = sqlitePresenter.deepchatTapeEntriesTable
         .getBySession('s1')
         .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
       expect(viewManifests).toEqual([])
-      expect(loggerWarnMock).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to persist tape view manifest: manifest write failed')
+      const failureDiagnostics = loggerWarnMock.mock.calls.filter(
+        ([message]) => message === '[DeepChatAgent] Provider View provenance persistence failed'
       )
+      expect(failureDiagnostics).toHaveLength(8)
+      expect(failureDiagnostics.map(([, diagnostic]: any[]) => diagnostic.requestSeq)).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8
+      ])
+      expect(failureDiagnostics[0][1]).toMatchObject({
+        schemaVersion: 1,
+        failurePolicy: 'fail-open',
+        toolSurfaceApplicable: false,
+        verified: false
+      })
+      expect((failureDiagnostics[0][1] as { reason: string }).reason).toHaveLength(512)
+      expect((failureDiagnostics[0][1] as { reason: string }).reason.endsWith('...')).toBe(true)
+      expect((failureDiagnostics[0][1] as { reason: string }).reason).not.toContain('\u001b')
+      expect(
+        loggerWarnMock.mock.calls.filter(
+          ([message]) =>
+            message === '[DeepChatAgent] Additional provider View provenance diagnostics suppressed'
+        )
+      ).toEqual([
+        [
+          '[DeepChatAgent] Additional provider View provenance diagnostics suppressed',
+          { schemaVersion: 1, limit: 8 }
+        ]
+      ])
     })
 
     it('recovers requestSeq from persisted traces when a prior manifest write was lost', async () => {
@@ -5155,7 +7255,7 @@ describe('DeepChatAgentHarness', () => {
       const skillService = getSkillServiceMock()
       installSessionRows([])
 
-      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: '' }])
       skillService.getActiveSkills.mockResolvedValue(['skill-a'])
       skillService.getActiveSkills.mockResolvedValueOnce([])
       skillService.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
@@ -5196,7 +7296,6 @@ describe('DeepChatAgentHarness', () => {
       expect(systemPrompt).not.toContain('## Active Skills')
       expect(skillService.loadSkillContent).not.toHaveBeenCalled()
     })
-
     it('intersects message-scoped skills with the session Agent catalog before the Run', async () => {
       const skillService = getSkillServiceMock()
       installSessionRows([])
@@ -5205,7 +7304,7 @@ describe('DeepChatAgentHarness', () => {
         async (_agentId: string, skills: string[]) =>
           skills.filter((skillName) => skillName === 'owned-skill')
       )
-      skillService.getMetadataList.mockResolvedValue([
+      skillService.getAllSkills.mockResolvedValue([
         { name: 'owned-skill', description: 'Owned skill' }
       ])
       skillService.loadSkillContent.mockResolvedValue({
@@ -5696,9 +7795,7 @@ describe('DeepChatAgentHarness', () => {
       const order: string[] = []
       const systemEnvPrompt = vi.mocked(buildSystemEnvPrompt)
       const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
-        { name: 'skill-a', description: 'phase skill' }
-      ])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a', description: 'phase skill' }])
       skillService.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
 
@@ -5950,7 +8047,7 @@ describe('DeepChatAgentHarness', () => {
     it('omits skill metadata when skill management tools are unavailable', async () => {
       const skillService = getSkillServiceMock()
 
-      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getAllSkills.mockResolvedValue([{ name: 'skill-a' }])
       skillService.getActiveSkills.mockResolvedValue([])
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -6328,6 +8425,10 @@ describe('DeepChatAgentHarness', () => {
         }
       ])
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+      recreateAgentWithToolSurfaceRunMode(() => ({
+        mode: 'automatic',
+        cliProgrammaticCapability: 'proven'
+      }))
 
       await agent.initSession('s-acp-subagent', {
         agentId: 'acp-reviewer',
@@ -6339,11 +8440,13 @@ describe('DeepChatAgentHarness', () => {
       await agent.processMessage('s-acp-subagent', 'Delegated task')
 
       expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
       expect(toolService.buildToolSystemPrompt).not.toHaveBeenCalled()
       expect(buildRuntimeCapabilitiesPrompt).not.toHaveBeenCalled()
       expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.run.resources.toolSurfaceMode).toBe('legacy')
       expect(callArgs.run.resources.toolDefinitions).toEqual([])
       expect(callArgs.run.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
       for await (const _event of callArgs.coreStream(
@@ -6368,6 +8471,7 @@ describe('DeepChatAgentHarness', () => {
         executionContract: null
       })
       expect(runtimeDependencies.taskContractContext.prepare).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s-acp-subagent')).toBeNull()
     })
 
     it('keeps local tool injection for regular ACP sessions', async () => {
@@ -6417,8 +8521,12 @@ describe('DeepChatAgentHarness', () => {
       expect(buildRuntimeCapabilitiesPrompt).toHaveBeenCalled()
       expect(buildSystemEnvPrompt).toHaveBeenCalled()
       expect(toolService.buildToolSystemPrompt).toHaveBeenCalled()
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s-acp-regular')).toBeNull()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.run.resources.toolSurfaceMode).toBe('legacy')
+      expect(callArgs.run.activeRequestToolSurface).toBeNull()
       expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
       expect(callArgs.run.messages[0].role).toBe('system')
     })
@@ -9708,6 +11816,8 @@ describe('DeepChatAgentHarness', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.maxTokens).toBe(4096)
       expect(prepareSpy).not.toHaveBeenCalled()
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s1')).toBeNull()
 
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
@@ -9824,6 +11934,8 @@ describe('DeepChatAgentHarness', () => {
       await agent.processMessage('s1', 'make a video')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s1')).toBeNull()
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       llmProvider.generateText.mockClear()
@@ -9904,6 +12016,9 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'read this aloud')
+
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+      expect(agent.getToolSurfaceShadowDiagnostics('s1')).toBeNull()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const providerCoreStream = llmProvider.providerInstance.coreStream
@@ -11730,7 +13845,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('does not trust stale runtime Skill state when rebuilding resume resources', async () => {
       const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
+      skillService.getAllSkills.mockResolvedValue([
         { name: 'runtime-skill', description: 'Runtime skill' }
       ])
       skillService.getActiveSkills.mockResolvedValue([])
@@ -12944,6 +15059,129 @@ describe('DeepChatAgentHarness', () => {
       expect(sessionPermissionPort.approvePermission).not.toHaveBeenCalled()
       expect(toolService.callTool).not.toHaveBeenCalled()
       expect(runtimeDependencies.interactionContinuationAdmission.resume).not.toHaveBeenCalled()
+    })
+
+    it('rejects an invalid Tool Surface binding before granting permission', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              toolSurfaceBinding: '{',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                shellProfile: 'posix',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toMatchObject({ code: 'invalid_binding' })
+
+      expect(sessionPermissionPort.approvePermission).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(runtimeDependencies.interactionContinuationAdmission.resume).not.toHaveBeenCalled()
+    })
+
+    it('parks a stale pending approval when its durable dispatch already exists', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              toolSurfaceBinding: JSON.stringify({
+                schemaVersion: 1,
+                request: {
+                  sessionId: 's1',
+                  messageId: 'm1',
+                  runId: '11111111-1111-4111-8111-111111111111',
+                  requestSeq: 1
+                },
+                toolCallId: 'tc1',
+                toolName: 'write_file',
+                stableTargetKey: 'agent:agent-filesystem:write_file:write_file',
+                canonicalToolDefinitionHash: '0'.repeat(64),
+                contractBearing: false
+              }),
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                shellProfile: 'posix',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+      vi.spyOn(sessionData.tapeStore, 'hasAnyCommittedDispatchForMessageToolCall').mockReturnValue(
+        true
+      )
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toMatchObject({ code: 'duplicate_dispatch' })
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toThrow('Execution is parked after its durable dispatch boundary')
+
+      expect(sessionPermissionPort.approvePermission).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(getLatestUpdatedBlocks()).toMatchObject([
+        {
+          status: 'error',
+          tool_call: {
+            response:
+              'Tool dispatch was recorded, but its outcome is indeterminate. It will not be retried automatically.'
+          }
+        },
+        { status: 'granted', extra: { needsUserAction: false } }
+      ])
     })
 
     it('handles permission grant by executing deferred tool and resuming', async () => {
@@ -14924,7 +17162,10 @@ describe('DeepChatAgentHarness', () => {
           expect.any(Function),
           undefined,
           'git-bash',
-          'command-grant-after-restart'
+          'command-grant-after-restart',
+          undefined,
+          expect.any(Function),
+          undefined
         )
         expect(sessionPermissionPort.revokeOneShotCommandPermission).toHaveBeenCalledWith(
           's1',
@@ -14936,7 +17177,7 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
-    it('settles a deferred interaction after T2 persistence fails without replaying the tool', async () => {
+    it('propagates T2 persistence failure after settling the interaction without replay', async () => {
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -14974,14 +17215,20 @@ describe('DeepChatAgentHarness', () => {
         throw new ExecutionJournalError('T2 unavailable', 'persistence_failed')
       })
 
-      await expect(approvePendingTool()).resolves.toEqual({ resumed: false })
+      await expect(approvePendingTool()).rejects.toThrow('T2 unavailable')
       await expect(approvePendingTool()).rejects.toThrow(
-        'No pending interaction found in target message.'
+        'Execution is parked after its durable dispatch boundary'
       )
 
       expect(toolService.callTool).toHaveBeenCalledOnce()
       expect(JSON.parse(row.content) as AssistantMessageBlock[]).toMatchObject([
-        { status: 'error', tool_call: { response: 'T2 unavailable' } },
+        {
+          status: 'error',
+          tool_call: {
+            response:
+              'Tool dispatch was recorded, but its outcome is indeterminate. It will not be retried automatically.'
+          }
+        },
         { status: 'granted', extra: { needsUserAction: false } }
       ])
     })
@@ -15026,7 +17273,7 @@ describe('DeepChatAgentHarness', () => {
 
       await expect(approvePendingTool()).rejects.toThrow('run terminal unavailable')
       await expect(approvePendingTool()).rejects.toThrow(
-        'Execution is parked after an Execution Journal failure'
+        'Execution is parked after its durable dispatch boundary'
       )
 
       expect(toolService.callTool).toHaveBeenCalledOnce()
@@ -15090,7 +17337,7 @@ describe('DeepChatAgentHarness', () => {
       })
       await agent.cleanupSession('s1')
       await expect(approvePendingTool()).rejects.toThrow(
-        'Execution is parked after an Execution Journal failure'
+        'Execution is parked after its durable dispatch boundary'
       )
 
       expect(toolService.callTool).toHaveBeenCalledOnce()

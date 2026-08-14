@@ -450,6 +450,11 @@ const resumeGuideStep = async (stepId: GuidedOnboardingStepId) => {
   }
 
   persistGuideResumeIntent('window-focus', action.stepId)
+  if (action.kind === 'plugins') {
+    await syncOnboardingStep(action.stepId)
+    await router.push({ name: action.routeName })
+    return
+  }
   await openSettings(action.routeName, action.stepId)
 }
 
@@ -511,10 +516,6 @@ const openSettings = async (
     await router.push({ name: 'plugins-mcp' })
     return
   }
-  if (routeName === 'settings-skills' && router.hasRoute('plugins-skills')) {
-    await router.push({ name: 'plugins-skills' })
-    return
-  }
   await configClient.openSettings({ routeName, section })
 }
 
@@ -522,6 +523,7 @@ const resolveGuideAction = (
   stepId: GuidedOnboardingStepId
 ):
   | { kind: 'chat'; stepId: GuidedOnboardingStepId }
+  | { kind: 'plugins'; routeName: 'plugins-skills'; stepId: GuidedOnboardingStepId }
   | { kind: 'settings'; routeName: SettingsRouteName; stepId: GuidedOnboardingStepId } => {
   const target = resolveGuidedOnboardingStepTarget(stepId)
 
@@ -535,6 +537,14 @@ const resolveGuideAction = (
   if (target?.surface === 'settings' && target.routeName) {
     return {
       kind: 'settings',
+      routeName: target.routeName,
+      stepId: target.stepId
+    }
+  }
+
+  if (target?.surface === 'plugins' && target.routeName === 'plugins-skills') {
+    return {
+      kind: 'plugins',
       routeName: target.routeName,
       stepId: target.stepId
     }
@@ -595,6 +605,11 @@ const handlePrimaryGuideAction = async () => {
   }
 
   persistGuideResumeIntent('window-focus', action.stepId)
+  if (action.kind === 'plugins') {
+    await syncOnboardingStep(action.stepId)
+    await router.push({ name: action.routeName })
+    return
+  }
   await openSettings(action.routeName, action.stepId)
 }
 

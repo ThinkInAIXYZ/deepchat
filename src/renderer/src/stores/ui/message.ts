@@ -838,6 +838,7 @@ export const useMessageStore = defineStore('message', () => {
       isContextEdge: 0,
       metadata: '{}',
       traceCount: 0,
+      hasNestedExecutionAudit: false,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
@@ -887,6 +888,7 @@ export const useMessageStore = defineStore('message', () => {
         cached.isContextEdge !== record.isContextEdge ||
         cached.metadata !== record.metadata ||
         cached.traceCount !== record.traceCount ||
+        cached.hasNestedExecutionAudit !== record.hasNestedExecutionAudit ||
         cached.createdAt !== record.createdAt
       )
     })
@@ -1009,6 +1011,7 @@ export const useMessageStore = defineStore('message', () => {
       isContextEdge: 0,
       metadata: serializedMetadata,
       traceCount: 0,
+      hasNestedExecutionAudit: false,
       createdAt: now,
       updatedAt: now
     }

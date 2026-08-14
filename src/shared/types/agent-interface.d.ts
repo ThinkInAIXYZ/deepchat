@@ -321,6 +321,7 @@ export interface AssistantMessageExtra {
   permissionRequestId?: string
   permissionRequest?: string
   executionContractBinding?: string
+  toolSurfaceBinding?: string
   commandInfo?: string
   rememberable?: boolean
   questionHeader?: string
@@ -420,6 +421,7 @@ export interface ChatMessageRecord {
   isContextEdge: number
   metadata: string // JSON string: MessageMetadata
   traceCount?: number
+  hasNestedExecutionAudit?: boolean
   createdAt: number
   updatedAt: number
 }

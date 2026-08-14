@@ -321,7 +321,7 @@ export class AgentFileSystemHandler {
 
   private assertProtectedPathAllowed(candidatePath: string): void {
     if (!this.isProtectedPathAllowed(candidatePath)) {
-      throw new Error('Access denied - path belongs to another Agent Skill scope')
+      throw new Error('Access denied - path belongs to an inactive shared Skill package')
     }
   }
 

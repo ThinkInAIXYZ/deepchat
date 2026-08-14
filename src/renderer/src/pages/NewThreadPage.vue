@@ -168,6 +168,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
@@ -234,6 +235,7 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configClient = createConfigClient()
+const router = useRouter()
 const fileClient = createFileClient()
 const modelClient = createModelClient()
 const providerClient = createProviderClient()
@@ -594,6 +596,10 @@ const continueChatGuide = async (
 ) => {
   const stepId = state?.status === 'completed' ? 'first-chat' : state?.currentStepId
   const target = resolveGuidedOnboardingStepTarget(stepId)
+  if (target?.surface === 'plugins' && target.routeName === 'plugins-skills') {
+    await router.push({ name: target.routeName })
+    return
+  }
   if (target?.surface !== 'settings' || !target.routeName) {
     return
   }

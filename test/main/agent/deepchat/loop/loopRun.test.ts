@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
   advanceRequestSequence,
   bindActiveRequestContract,
+  bindActiveRequestToolSurface,
   collectRuntimeSkillViewProjections,
   createLoopRun,
   enterLogicalRound,
@@ -12,6 +13,11 @@ import {
   resolveSkillContextsForRequest
 } from '@/agent/deepchat/loop/loopRun'
 import { inheritProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
+import {
+  buildToolSurfaceRunCeiling,
+  createProviderOrderedToolSurfaceActivationLedger,
+  createToolSurfaceSnapshot
+} from '@/agent/deepchat/runtime/toolSurface'
 import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
@@ -94,6 +100,7 @@ describe('LoopRun', () => {
     expect(second.messages).toEqual([{ role: 'user', content: 'second' }])
     expect(second.streamState.blocks).toEqual([])
     expect(second.resources.activeSkillNames).toEqual(['second-skill'])
+    expect(second.resources.toolSurfaceMode).toBe('legacy')
     expect(second.providerRecovery).toEqual({
       contextOverflowHandoffAttempted: false,
       strictProviderOverflowRetryUsed: false,
@@ -104,6 +111,30 @@ describe('LoopRun', () => {
     expect(second.logicalRound).toBe(0)
     expect(second.requestSeq).toBe(0)
     expect(second.physicalAttempt).toBe(0)
+  })
+
+  it('freezes the selected Tool Surface mode into Run resources', () => {
+    const run = createLoopRun({
+      runId: 'full:1',
+      sessionId: toAppSessionId('full'),
+      messageId: 'full-message',
+      abortController: new AbortController(),
+      messages: [],
+      streamState: {},
+      resources: {
+        toolDefinitions: [],
+        activeSkillNames: [],
+        commandShell: POSIX_COMMAND_SHELL,
+        toolSurfaceMode: 'full'
+      }
+    })
+
+    expect(run.resources.toolSurfaceMode).toBe('full')
+    expect(Object.getOwnPropertyDescriptor(run.resources, 'toolSurfaceMode')).toMatchObject({
+      configurable: false,
+      enumerable: true,
+      writable: false
+    })
   })
 
   it('advances request and physical attempts independently from logical rounds', () => {
@@ -163,6 +194,93 @@ describe('LoopRun', () => {
     expect(() => bindActiveRequestContract(run, requestSeq + 1, null)).toThrow(/request sequence/)
     expect(() => bindActiveRequestContract(run, requestSeq, contract({ runId: 'other' }))).toThrow(
       /Loop Run/
+    )
+  })
+
+  it('retains one exact Tool Surface through retries and clears it before the next View', () => {
+    const run = createRun('session')
+    const requestSeq = advanceRequestSequence(run)
+    const snapshot = createToolSurfaceSnapshot({
+      request: {
+        sessionId: run.sessionId,
+        messageId: run.messageId,
+        runId: run.runId,
+        requestSeq
+      },
+      policyVersion: 'full-v1',
+      virtualizationTriggered: false,
+      ceiling: buildToolSurfaceRunCeiling([]),
+      eligibleDefinitions: [],
+      activationLedger: createProviderOrderedToolSurfaceActivationLedger([])
+    })
+
+    const releaseActivationCandidates = vi.fn()
+    const binding = bindActiveRequestToolSurface(
+      run,
+      requestSeq,
+      snapshot,
+      releaseActivationCandidates
+    )
+
+    expect(binding.snapshot).toBe(snapshot)
+    expect(binding.releaseActivationCandidates).toBe(releaseActivationCandidates)
+    expect(run.activeRequestToolSurface).toBe(binding)
+    expect(Object.isFrozen(binding)).toBe(true)
+    enterPhysicalAttempt(run)
+    enterPhysicalAttempt(run)
+    expect(run.activeRequestToolSurface?.snapshot).toBe(snapshot)
+    advanceRequestSequence(run)
+    expect(run.activeRequestToolSurface).toBeNull()
+  })
+
+  it('rejects stale or cross-run Tool Surface bindings', () => {
+    const run = createRun('session')
+    const requestSeq = advanceRequestSequence(run)
+    const snapshot = (overrides: Record<string, unknown> = {}) =>
+      createToolSurfaceSnapshot({
+        request: {
+          sessionId: run.sessionId,
+          messageId: run.messageId,
+          runId: run.runId,
+          requestSeq,
+          ...overrides
+        },
+        policyVersion: 'full-v1',
+        virtualizationTriggered: false,
+        ceiling: buildToolSurfaceRunCeiling([]),
+        eligibleDefinitions: [],
+        activationLedger: createProviderOrderedToolSurfaceActivationLedger([])
+      })
+
+    const releaseActivationCandidates = vi.fn()
+    expect(() =>
+      bindActiveRequestToolSurface(run, requestSeq + 1, snapshot(), releaseActivationCandidates)
+    ).toThrow(/request sequence/)
+    expect(() =>
+      bindActiveRequestToolSurface(
+        run,
+        requestSeq,
+        snapshot({ messageId: 'other' }),
+        releaseActivationCandidates
+      )
+    ).toThrow(/Loop Run/)
+    expect(() =>
+      bindActiveRequestToolSurface(
+        run,
+        requestSeq,
+        {
+          request: {
+            sessionId: run.sessionId,
+            messageId: run.messageId,
+            runId: run.runId,
+            requestSeq
+          }
+        } as any,
+        releaseActivationCandidates
+      )
+    ).toThrow(/canonical builder/)
+    expect(() => bindActiveRequestToolSurface(run, requestSeq, snapshot(), null as never)).toThrow(
+      /release capability/
     )
   })
 

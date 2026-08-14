@@ -31,6 +31,8 @@ import {
 } from '@/agent/deepchat/runtime/toolAdapters'
 import { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
+import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import { resolveAgentOutputLimits } from '@shared/lib/agentOutputLimits'
 import {
   createToolPermissionReviewer,
@@ -47,6 +49,7 @@ import type {
   ExecutionRecoveryReport
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalRecoveryReader } from '@/tape/ports/capabilities'
+import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import {
   createDeepChatLoopTapePort,
   createSkillContextTapePort
@@ -258,7 +261,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     transcript: messageStore,
     messageProjection,
     terminalObserver: hookSink,
-    pendingInputWakeup: pendingInputWakeup.wakeup
+    pendingInputWakeup: pendingInputWakeup.wakeup,
+    programmaticAuthority: deps.agentCliTokenAuthority
   })
   const sessionState = new SessionStateResolver({
     registry: runtime,
@@ -299,6 +303,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     messageProjection
   })
   const interactionParking = new InteractionParkingRegistry()
+  const toolSurfaceDiagnostics = new ToolSurfaceShadowDiagnosticsRegistry()
+  const toolSurfaceCanaryDiagnostics = new ToolSurfaceCanaryDiagnosticsRegistry()
+  const programmaticToolParents =
+    deps.programmaticToolParents ??
+    new ProgrammaticToolParentRegistry({
+      tokenAuthority: deps.agentCliTokenAuthority,
+      executionJournal: sessionData.programmaticExecutionJournal
+    })
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,
     providerSettings,
@@ -312,7 +324,10 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     compaction,
     memory,
     runLifecycle,
-    interactionParking
+    interactionParking,
+    toolSurfaceDiagnostics,
+    toolSurfaceCanaryDiagnostics,
+    programmaticToolParents
   })
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
@@ -345,6 +360,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     messageProjection,
     commandShell,
     executionJournal: tapeService,
+    programmaticToolParents,
     runJournalObserver,
     diagnosticNow
   })
@@ -369,6 +385,10 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     compactionService,
     inputPreparationCoordinator,
     contextCoordinator,
+    toolSurfaceDiagnostics,
+    toolSurfaceCanaryDiagnostics,
+    toolSurfaceRunMode: deps.toolSurfaceRunMode,
+    programmaticToolParents,
     memoryIngestionObserver: memory,
     toolExecutionPort,
     toolResultPort,
@@ -453,7 +473,9 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     turnCoordinator,
     continuationAdmission: deps.interactionContinuationAdmission,
     interactionParking,
-    viewManifests: tapeService
+    executionJournal: tapeService,
+    viewManifests: tapeService,
+    toolSurfaces: tapeService
   })
   const transcriptMutation = new TranscriptMutationCoordinator({
     registry: runtime,
@@ -462,7 +484,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     admission: pendingInputAdmission,
     compaction,
     memory,
-    runLifecycle
+    runLifecycle,
+    toolSurfaceDiagnostics
   })
 
   const acpCompatibility: AcpAgentInstanceDependencyFactory = (input) =>
@@ -478,7 +501,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
         tapeReconciliation: tapeService,
         toolResolver,
         appendViewManifest: (manifest) =>
-          loopRunner.appendTapeViewManifest({
+          loopRunner.commitTapeProviderView({
             sessionId: manifest.sessionId,
             messageId: manifest.messageId,
             requestSeq: manifest.requestSeq,
@@ -494,7 +517,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
             summaryCursorOrderSeq: manifest.summaryCursorOrderSeq,
             supportsVision: manifest.supportsVision,
             supportsAudioInput: manifest.supportsAudioInput,
-            traceDebugEnabled: manifest.traceDebugEnabled
+            traceDebugEnabled: manifest.traceDebugEnabled,
+            programmaticToolCapability: null
           }),
         setStatus: (sessionId, status) => runLifecycle.transitionCurrentStatus(sessionId, status),
         getSessionState: async (sessionId) => await sessionState.get(sessionId),
@@ -557,6 +581,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     compaction,
     transcriptMutation,
     memoryIngestionObserver: memory,
+    toolSurfaceDiagnostics,
+    toolSurfaceCanaryDiagnostics,
     acpCompatibility
   }
 }

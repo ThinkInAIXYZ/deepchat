@@ -552,6 +552,15 @@ export type MCPResourceLinkContent = import('./core/mcp').MCPResourceLinkContent
 
 export type McpAddServerResult = Readonly<{ status: 'added' }> | Readonly<{ status: 'duplicate' }>
 
+export type McpToolDefinitionsSnapshot =
+  | Readonly<{ state: 'uninitialized' }>
+  | Readonly<{
+      state: 'ready'
+      tools: readonly MCPToolDefinition[]
+      complete: boolean
+      failedSourceCount: number
+    }>
+
 export interface McpServicePort {
   initialize(): Promise<void>
   shutdown(): Promise<void>
@@ -612,6 +621,16 @@ export interface McpServicePort {
           conversationId?: string
         }
   ): Promise<MCPToolDefinition[]>
+  snapshotCachedToolDefinitions(
+    enabledMcpTools?:
+      | string[]
+      | {
+          enabledTools?: string[]
+          enabledServerIds?: string[]
+          agentId?: string
+          conversationId?: string
+        }
+  ): Promise<McpToolDefinitionsSnapshot>
   getAllPrompts(): Promise<Array<PromptListEntry & { client: { name: string; icon: string } }>>
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
@@ -630,6 +649,8 @@ export interface McpServicePort {
       enabledServerIds?: string[]
       runId?: string
       expectedTarget?: McpExpectedToolTarget
+      assertCurrentToolDefinition?: (definition: MCPToolDefinition) => void
+      throwPreDispatchErrors?: boolean
       commitDispatch?: ToolDispatchCommit
       registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
     }

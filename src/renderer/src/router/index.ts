@@ -38,7 +38,7 @@ const router = createRouter({
           name: 'plugins-skills',
           component: () => import('@/pages/plugins/SkillsPluginsPage.vue'),
           meta: {
-            titleKey: 'routes.settings-skills',
+            titleKey: 'routes.plugins-skills',
             icon: 'lucide:wand-sparkles'
           }
         },

@@ -1,11 +1,15 @@
 import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import {
   toTapeSessionId,
-  type TapeEntryRef,
   type TapeMessageReplacementOptions,
   type TapeToolFactInput
 } from '../domain/facts'
+import {
+  TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
+  buildTapeToolResultPayloadHash
+} from '../domain/toolSurfaceFacts'
 import {
   MAX_SKILL_VIEW_RESULT_FACT_BYTES,
   validateRuntimeSkillJournalChain,
@@ -19,6 +23,7 @@ import type {
   TapeAnchorWriter,
   TapeIncarnationReader,
   TapeMessageFactWriter,
+  TapeToolFactAppendReceipt,
   TapeSkillViewResultFactWriter,
   TapeToolFactWriter
 } from '../ports/capabilities'
@@ -30,7 +35,7 @@ import {
   appendTapeToolFact,
   assertTapeToolFactPhysicalEnvelope
 } from './factPersistence'
-import { parseJsonObject } from './common'
+import { parseJsonObject, readCanonicalTapeIncarnationId } from './common'
 import type { TapeAnchorResult } from './contracts'
 
 type TapeFactProviders = Pick<TapeApplicationProviders, 'getEntryStore'>
@@ -129,7 +134,7 @@ export class TapeFactService
     return appendMessageRetractionToTape(this.table, record, reason)
   }
 
-  async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
+  async appendToolFact(input: TapeToolFactInput): Promise<TapeToolFactAppendReceipt> {
     const row = appendTapeToolFact(this.table, input, 'live', { reason: 'tool_loop' })
     if (!row) throw new Error('Tape tool fact was not appendable.')
     if (parseJsonObject(row.meta_json).skillContextEvidence) {
@@ -138,7 +143,38 @@ export class TapeFactService
         allowStoredSkillContextEvidence: true
       })
     }
-    return { sessionId: input.sessionId, entryId: row.entry_id }
+    let toolResult: TapeToolFactAppendReceipt['toolResult'] = null
+    if (row.kind === 'tool_result' && row.name === TOOL_SEARCH_AGENT_TOOL_NAME) {
+      const firstEntry = this.table.getFirstEntriesBySessions([input.sessionId])[0]
+      const tapeIncarnationId = firstEntry ? readCanonicalTapeIncarnationId(firstEntry) : null
+      let payload: Record<string, unknown> | null = null
+      let resultSucceeded = false
+      try {
+        const parsedPayload = JSON.parse(row.payload_json) as unknown
+        const parsedMeta = JSON.parse(row.meta_json) as unknown
+        if (
+          parsedPayload &&
+          typeof parsedPayload === 'object' &&
+          !Array.isArray(parsedPayload) &&
+          parsedMeta &&
+          typeof parsedMeta === 'object' &&
+          !Array.isArray(parsedMeta)
+        ) {
+          payload = parsedPayload as Record<string, unknown>
+          resultSucceeded = (parsedMeta as Record<string, unknown>).status === 'success'
+        }
+      } catch {}
+      if (tapeIncarnationId && payload && resultSucceeded) {
+        toolResult = {
+          sessionId: input.sessionId,
+          tapeIncarnationId,
+          entryId: row.entry_id,
+          payloadHashVersion: TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
+          payloadHash: buildTapeToolResultPayloadHash(payload)
+        }
+      }
+    }
+    return { sessionId: input.sessionId, entryId: row.entry_id, toolResult }
   }
 
   getTapeIncarnationId(sessionId: string): string {

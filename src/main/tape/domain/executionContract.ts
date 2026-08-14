@@ -668,6 +668,13 @@ function isStoredToolTarget(value: unknown): value is DeepChatExecutionToolTarge
   return value.source === 'mcp' ? hasStableBinding : hasNullBinding || hasStableBinding
 }
 
+/** Validate a target that has already passed canonical plain-data detachment. */
+export function isDetachedStoredToolTarget(
+  value: unknown
+): value is DeepChatExecutionToolTargetIdentity {
+  return isStoredToolTarget(value)
+}
+
 function isStoredExecutionPolicy(value: unknown): value is ToolExecutionContract {
   if (!hasExactKeys(value, EXECUTION_POLICY_KEYS)) return false
   return (

@@ -9,12 +9,13 @@ import type {
 } from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
-import type { AgentToolProgressUpdate } from '@shared/types/tool'
+import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { EffectiveSkillContentResolution } from '@shared/types/skill'
 import { isSkillSourceType } from '@shared/types/skillManagement'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { buildExecutionContractBinding } from '@/tape/domain/executionContract'
 import {
   parseQuestionToolArgs,
@@ -47,6 +48,7 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
+import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
 import {
   CommandShellProfileSchema,
   type CommandShellProfile,
@@ -85,7 +87,28 @@ import {
   type ExecutionOperationIdentity
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
-import type { LoopRunRequestViewBinding } from '@/agent/deepchat/loop/loopRun'
+import type {
+  LoopRunRequestToolSurfaceBinding,
+  LoopRunRequestViewBinding
+} from '@/agent/deepchat/loop/loopRun'
+import type {
+  ProgrammaticToolParentRegistration,
+  ProgrammaticToolParentRegistry
+} from '@/cli/programmaticToolParentRegistry'
+import {
+  ProgrammaticCommandLaunchError,
+  isProgrammaticCommandLaunchError
+} from '@/tool/agentTools/agentBashHandler'
+import {
+  buildToolSurfaceDeferredDispatchBinding,
+  claimToolSurfaceExecution,
+  createToolSurfaceExecutionBatch,
+  type ToolSurfaceActivationCandidate,
+  type ToolSurfaceExecutionBatch,
+  type ToolSurfaceSnapshot
+} from './toolSurface'
+import { recordToolSurfaceCanarySettledToolResult } from './toolSurfaceCanaryDiagnostics'
+import { prepareProgrammaticExecParent } from './programmaticExecParent'
 import { preflightRequestContext } from './contextBudget'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
@@ -132,6 +155,10 @@ type StagedToolResult = {
     skillName: string
     resolution: EffectiveSkillContentResolution
   }
+  preparedSkillActivation?: Extract<
+    Awaited<ReturnType<NonNullable<ProcessControlCollaborators['prepareSkillActivation']>>>,
+    { kind: 'prepared' }
+  >
 }
 
 type SkillDraftPromptPayload = {
@@ -146,6 +173,9 @@ type SkillDraftToolResult = {
     skillName?: unknown
   }
 }
+
+const SKILL_ACTIVATION_REJECTED_MESSAGE =
+  'This skill cannot be activated in the current Run because its required tools are unavailable or exceed the active tool budget.'
 
 type ToolRunOutcome =
   | {
@@ -228,12 +258,18 @@ interface CommitStagedToolResultsParams {
   contextLength: number
   maxTokens: number
   rendererFlushHandle: RendererFlushHandle
+  toolSurfaceSnapshot?: ToolSurfaceSnapshot
   controls?: ProcessControlCollaborators
+}
+
+interface CommittedStagedToolResults {
+  readonly outcome: ToolBatchOutcome<ToolBatchInteraction>
+  readonly successfulToolCallIds: readonly string[]
 }
 
 async function commitStagedToolResults(
   params: CommitStagedToolResultsParams
-): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
+): Promise<CommittedStagedToolResults> {
   const {
     stagedResults,
     pendingInteractions,
@@ -252,9 +288,11 @@ async function commitStagedToolResults(
     contextLength,
     maxTokens,
     rendererFlushHandle,
+    toolSurfaceSnapshot,
     controls
   } = params
   let toolsChanged = initialToolsChanged
+  let successfulToolCallIds: readonly string[] = Object.freeze([])
 
   if (stagedResults.length > 0) {
     for (const stagedResult of stagedResults) {
@@ -262,6 +300,19 @@ async function commitStagedToolResults(
         throw new ExecutionJournalCorruptionError(
           `Dispatched tool result was not committed for ${stagedResult.toolCallId}.`
         )
+      }
+    }
+    if (toolSurfaceSnapshot) {
+      for (const stagedResult of stagedResults) {
+        if (
+          stagedResult.toolSource === 'mcp' &&
+          stagedResult.operation &&
+          stagedResult.outcomeCommitted === true
+        ) {
+          // This records target T2 truth before provider-output fitting. The bounded observer is
+          // isolated and cannot change Journal settlement or transcript projection.
+          recordToolSurfaceCanarySettledToolResult(toolSurfaceSnapshot, !stagedResult.isError)
+        }
       }
     }
     const fittedResults = await toolResults.fitBatch({
@@ -347,7 +398,14 @@ async function commitStagedToolResults(
             operation: stagedResult.operation,
             outcomeEntryId: stagedResult.outcomeEntryId!
           })
-          const activeSkillNames = await controls.activateSkill(runtimeSkillView.skillName)
+          io.abortSignal.throwIfAborted()
+          let activeSkillNames: readonly string[]
+          if (stagedResult.preparedSkillActivation) {
+            stagedResult.preparedSkillActivation.apply()
+            activeSkillNames = controls.getActiveSkillNames?.() ?? []
+          } else {
+            activeSkillNames = await controls.activateSkill(runtimeSkillView.skillName)
+          }
           if (!activeSkillNames.includes(runtimeSkillView.skillName)) {
             throw new Error(
               `Runtime Skill-view activation did not activate ${runtimeSkillView.skillName}.`
@@ -355,6 +413,7 @@ async function commitStagedToolResults(
           }
         } catch (error) {
           if (error instanceof CommittedToolOutcomeProjectionError) throw error
+          if (io.abortSignal.aborted) throw error
           throw new CommittedToolOutcomeProjectionError(stagedResult.operation, { cause: error })
         }
         io.abortSignal.throwIfAborted()
@@ -380,18 +439,30 @@ async function commitStagedToolResults(
     persistToolExecutionState(io, state, rendererFlushHandle)
 
     if (fittedResults.kind === 'terminal_error') {
-      return buildToolBatchOutcome(
-        batchState,
-        pendingInteractions,
-        executed,
-        toolsChanged,
-        fittedResults.message
-      )
+      return {
+        outcome: buildToolBatchOutcome(
+          batchState,
+          pendingInteractions,
+          executed,
+          toolsChanged,
+          fittedResults.message
+        ),
+        successfulToolCallIds: Object.freeze([])
+      }
     }
+
+    successfulToolCallIds = Object.freeze(
+      fittedResults.results
+        .filter((result) => !result.isError && !result.downgraded)
+        .map((result) => result.toolCallId)
+    )
   }
 
   persistToolExecutionState(io, state, rendererFlushHandle)
-  return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
+  return {
+    outcome: buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged),
+    successfulToolCallIds
+  }
 }
 
 function snapshotToolBatchState(
@@ -933,10 +1004,14 @@ function extractSkillDraftPromptPayload(
 }
 
 function extractRuntimeSkillViewAfterCall(
-  toolName: string,
+  toolDefinition: MCPToolDefinition | undefined,
   rawData: MCPToolResponse
 ): StagedToolResult['runtimeSkillView'] {
-  if (toolName !== 'skill_view') {
+  if (
+    toolDefinition?.function.name !== 'skill_view' ||
+    toolDefinition.source !== 'agent' ||
+    toolDefinition.server.name !== 'agent-skills'
+  ) {
     return undefined
   }
 
@@ -981,6 +1056,25 @@ function extractRuntimeSkillViewAfterCall(
   return {
     skillName: activatedSkill,
     resolution: skillResolution
+  }
+}
+
+function buildRejectedSkillActivationResult(toolCallId: string): MCPToolResponse {
+  const content = JSON.stringify({
+    success: false,
+    error: SKILL_ACTIVATION_REJECTED_MESSAGE,
+    activeForCurrentMessage: false,
+    activatedForMessage: false,
+    activationScope: 'none'
+  })
+  return {
+    content,
+    toolCallId,
+    isError: true,
+    toolResult: {
+      activationApplied: false,
+      activationSource: 'none'
+    }
   }
 }
 
@@ -1352,15 +1446,23 @@ function getOneShotCommandSignature(
 async function runWithAutoGrantedPermission<T>(
   controls: ProcessControlCollaborators | undefined,
   permission: NonNullable<PendingToolInteraction['permission']>,
-  run: (oneShotCommandGrantId?: string) => Promise<T>
+  run: (
+    oneShotCommandGrantId?: string,
+    onDispatchCommitted?: () => void,
+    permissionLease?: ToolPermissionLeaseCapability
+  ) => Promise<T>,
+  assertAuthority?: () => void
 ): Promise<T> {
   const expectedCommandSignature = getOneShotCommandSignature(permission)
   if (permission.permissionType === 'command' && !expectedCommandSignature) {
     throw new Error('Command approval is missing a valid shell profile and signature.')
   }
   let grant: Awaited<ReturnType<typeof autoGrantPermission>> = null
+  let grantFinalized = false
   try {
+    assertAuthority?.()
     grant = await autoGrantPermission(controls, permission)
+    assertAuthority?.()
     if (expectedCommandSignature) {
       if (grant?.kind !== 'command') {
         throw new Error('Command approval did not return a one-shot grant lease.')
@@ -1373,8 +1475,19 @@ async function runWithAutoGrantedPermission<T>(
     if (grant?.kind === 'command') {
       throw new Error('Non-command approval returned a command grant lease.')
     }
-    return await run()
+    const provisionalGrant = grant?.kind === 'granted' ? grant : null
+    return await run(
+      undefined,
+      () => {
+        provisionalGrant?.lease?.finalize()
+        grantFinalized = true
+      },
+      provisionalGrant?.lease?.capability
+    )
   } finally {
+    if (grant?.kind === 'granted' && grant.lease && !grantFinalized) {
+      grant.lease.revoke()
+    }
     if (grant?.kind === 'command') {
       try {
         controls?.revokeOneShotCommandPermission?.(grant.signature, grant.oneShotGrantId)
@@ -1599,8 +1712,17 @@ function appendPermissionActionBlock(
   permission: NonNullable<PendingToolInteraction['permission']>,
   origin: Extract<PendingToolInteractionOrigin, 'pre-check-permission' | 'post-call-permission'>,
   order: number,
-  executionContract?: DeepChatExecutionContract | null
+  executionContract?: DeepChatExecutionContract | null,
+  toolSurfaceSnapshot?: ToolSurfaceSnapshot
 ): ToolBatchInteraction {
+  const toolSurfaceBinding = toolSurfaceSnapshot
+    ? buildToolSurfaceDeferredDispatchBinding({
+        snapshot: toolSurfaceSnapshot,
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        contractBearing: Boolean(executionContract)
+      })
+    : undefined
   state.blocks.push({
     type: 'action',
     content: permission.description,
@@ -1631,6 +1753,9 @@ function appendPermissionActionBlock(
             )
           }
         : {}),
+      ...(toolSurfaceBinding
+        ? { toolSurfaceBinding: JSON.stringify(toolSurfaceBinding) }
+        : {}),
       ...(permission.rememberable === false ? { rememberable: false } : {})
     }
   })
@@ -1646,6 +1771,7 @@ function appendPermissionActionBlock(
     serverName: toolCall.serverName,
     serverIcons: toolCall.serverIcons,
     serverDescription: toolCall.serverDescription,
+    ...(toolSurfaceBinding ? { toolSurfaceBinding } : {}),
     permission
   }
 }
@@ -1799,12 +1925,18 @@ async function runToolCall(params: {
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
+  toolSurfaceExecutionBatch?: ToolSurfaceExecutionBatch
+  toolSurfaceSnapshot?: ToolSurfaceSnapshot
+  programmaticToolCapability?: ProgrammaticToolCapabilityV1
+  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  toolCallOrdinalWithinBatch: number
   commandShell: ResolvedCommandShell
-  tools: MCPToolDefinition[]
   contextLength: number
   maxTokens: number
   pendingRuntimeSkillNames?: readonly string[]
   oneShotCommandGrantId?: string
+  onPermissionDispatchCommitted?: () => void
+  permissionLease?: ToolPermissionLeaseCapability
 }): Promise<ToolRunOutcome> {
   const {
     execution,
@@ -1823,17 +1955,61 @@ async function runToolCall(params: {
     operationScope,
     requestView,
     executionContract,
+    toolSurfaceExecutionBatch,
+    toolSurfaceSnapshot,
+    programmaticToolCapability,
+    programmaticToolParents,
+    toolCallOrdinalWithinBatch,
     commandShell,
     contextLength,
     maxTokens,
     pendingRuntimeSkillNames,
-    oneShotCommandGrantId
+    oneShotCommandGrantId,
+    onPermissionDispatchCommitted,
+    permissionLease
   } = params
   const { completedToolCall, toolCall, toolContext } = execution
+  const toolSurfaceContext =
+    completedToolCall.name === TOOL_SEARCH_AGENT_TOOL_NAME && toolSurfaceExecutionBatch
+      ? toolSurfaceExecutionBatch.createContext(toolCallOrdinalWithinBatch)
+      : undefined
+  const assertToolSurfaceAuthority = (): void => {
+    if (!toolSurfaceSnapshot) return
+    toolExecution.assertAuthority(toolCall, {
+      permissionMode: toolPermissionMode,
+      signal: io.abortSignal,
+      commandShell,
+      messageId: io.messageId,
+      runId: operationScope.runId,
+      requestSeq: operationScope.requestSeq,
+      toolSurfaceSnapshot
+    })
+  }
   let returnedToolResult: MCPToolResponse | null = null
   let dispatchedOperation: ExecutionOperationIdentity | undefined
   let committedOutcome: StagedToolResult | undefined
+  let programmaticToolParent: ProgrammaticToolParentRegistration | undefined
+  let programmaticCompletedResult: ReturnType<
+    ProgrammaticToolParentRegistration['takeCompletedInvocationResult']
+  > | undefined
+  let programmaticOuterOutcomeCommitted = false
+  let programmaticToolParentCancelled = false
   let returnedRuntimeSkillView: ReturnType<typeof extractRuntimeSkillViewAfterCall>
+  let preparedSkillActivation: Extract<
+    Awaited<ReturnType<NonNullable<ProcessControlCollaborators['prepareSkillActivation']>>>,
+    { kind: 'prepared' }
+  > | null = null
+  const cancelProgrammaticParentBeforeDispatch = (): void => {
+    if (
+      !programmaticToolParent ||
+      programmaticToolParentCancelled ||
+      dispatchedOperation
+    ) {
+      return
+    }
+    programmaticToolParent.cancelBeforeOuterDispatch()
+    programmaticToolParentCancelled = true
+  }
   const pendingOutcomeProjections: ToolOutcomeProjection[] = []
   const releaseOutcomeProjections = (outcomeCommitted: boolean): void => {
     if (pendingOutcomeProjections.length === 0) return
@@ -1851,6 +2027,25 @@ async function runToolCall(params: {
     if (outcome.kind !== 'staged') {
       return outcome
     }
+    if (
+      programmaticToolParent &&
+      outcome.stagedResult.operation &&
+      !outcome.stagedResult.outcomeCommitted
+    ) {
+      if (programmaticOuterOutcomeCommitted) {
+        const stagedResult: StagedToolResult = {
+          ...outcome.stagedResult,
+          outcomeCommitted: true
+        }
+        committedOutcome = stagedResult
+        releaseOutcomeProjections(true)
+        return { ...outcome, stagedResult }
+      }
+      throw new ExecutionJournalError(
+        'Programmatic outer outcome has no process-live settlement receipt.',
+        'invalid_fact'
+      )
+    }
     const stagedResult = commitDispatchedToolOutcome(
       outcome.stagedResult,
       executionJournal,
@@ -1865,6 +2060,9 @@ async function runToolCall(params: {
   const failPostDispatchPermission = (): void => {
     if (!dispatchedOperation) return
     const responseText = `Error: Tool ${toolContext.name} requested permission after dispatch.`
+    if (programmaticToolParent) {
+      throw new ExecutionJournalError(responseText, 'invalid_fact')
+    }
     const stagedResult = commitDispatchedToolOutcome(
       {
         toolCallId: completedToolCall.id,
@@ -1892,6 +2090,17 @@ async function runToolCall(params: {
       providerToolCallId: completedToolCall.id
     })
     io.abortSignal.throwIfAborted()
+    programmaticToolParent = prepareProgrammaticExecParent({
+      toolName: completedToolCall.name,
+      argumentsJson: completedToolCall.arguments,
+      operation,
+      sessionId: io.sessionId,
+      messageId: io.messageId,
+      permissionMode: toolPermissionMode,
+      toolSurfaceSnapshot,
+      capability: programmaticToolCapability,
+      parents: programmaticToolParents
+    })
     const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
       if (
         update.kind === 'agent_plan' &&
@@ -1931,6 +2140,7 @@ async function runToolCall(params: {
     }
 
     let toolCallStarted = false
+    let activePermissionDispatchCommit = onPermissionDispatchCommitted
     const commitDispatch = (input: ToolDispatchCommitInput): void => {
       const receipt = executionJournal.commitDispatch({
         sessionId: io.sessionId,
@@ -1942,53 +2152,74 @@ async function runToolCall(params: {
         throw new ExecutionJournalDuplicateDispatchError(operation)
       }
       dispatchedOperation = operation
-    }
-    const callTool = async (scopedOneShotCommandGrantId = oneShotCommandGrantId) => {
-      returnedToolResult = null
-      io.abortSignal.throwIfAborted()
-      if (requestView && requestView.requestSeq !== operationScope.requestSeq) {
-        throw new Error('Tool call ViewManifest identity does not match its provider request.')
-      }
-      if (!toolCallStarted) {
-        toolCallStarted = true
-        onToolCallStarted?.(completedToolCall.id)
-      }
-      const enabledMcpServerIds = controls?.getEnabledMcpServerIds?.()
-      const activeSkillNames = controls?.getActiveSkillNames?.()
-      const effectiveActiveSkillNames =
-        execution.toolDef?.source === 'agent' &&
-        completedToolCall.name === 'skill_view' &&
-        pendingRuntimeSkillNames?.length
-          ? Array.from(new Set([...(activeSkillNames ?? []), ...pendingRuntimeSkillNames]))
-          : activeSkillNames
-      const result = await toolExecution.execute(toolCall, {
-        runId: operationScope.runId,
-        messageId: io.messageId,
-        requestSeq: operationScope.requestSeq,
-        ...(requestView
-          ? {
-              manifestHash: requestView.manifestHash,
-              ...(requestView.tapeIncarnationId
-                ? { tapeIncarnationId: requestView.tapeIncarnationId }
-                : {})
-            }
-          : {}),
-        ...(executionContract ? { executionContract } : {}),
-        onProgress: applyProgressUpdate,
-        signal: io.abortSignal,
-        permissionMode: toolPermissionMode,
-        activeSkillNames: effectiveActiveSkillNames,
-        agentId: controls?.getAgentId?.(),
-        commitDispatch,
-        registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
-        commandShell,
-        oneShotCommandGrantId: scopedOneShotCommandGrantId,
-        ...(enabledMcpServerIds === null || enabledMcpServerIds === undefined
-          ? {}
-          : { enabledMcpServerIds })
+      programmaticToolParent?.armOuterDispatch({
+        ...receipt,
+        operation: programmaticToolParent.operation
       })
-      returnedToolResult = result.rawData.requiresPermission ? null : result.rawData
-      return result
+      activePermissionDispatchCommit?.()
+    }
+    const callTool = async (
+      scopedOneShotCommandGrantId = oneShotCommandGrantId,
+      scopedPermissionDispatchCommit = onPermissionDispatchCommitted,
+      scopedPermissionLease = permissionLease
+    ) => {
+      const previousPermissionDispatchCommit = activePermissionDispatchCommit
+      activePermissionDispatchCommit = scopedPermissionDispatchCommit
+      try {
+        returnedToolResult = null
+        io.abortSignal.throwIfAborted()
+        if (requestView && requestView.requestSeq !== operationScope.requestSeq) {
+          throw new Error('Tool call ViewManifest identity does not match its provider request.')
+        }
+        if (!toolCallStarted) {
+          toolCallStarted = true
+          onToolCallStarted?.(completedToolCall.id)
+        }
+        const enabledMcpServerIds = controls?.getEnabledMcpServerIds?.()
+        const activeSkillNames = controls?.getActiveSkillNames?.()
+        const effectiveActiveSkillNames =
+          execution.toolDef?.source === 'agent' &&
+          completedToolCall.name === 'skill_view' &&
+          pendingRuntimeSkillNames?.length
+            ? Array.from(new Set([...(activeSkillNames ?? []), ...pendingRuntimeSkillNames]))
+            : activeSkillNames
+        const result = await toolExecution.execute(toolCall, {
+          runId: operationScope.runId,
+          messageId: io.messageId,
+          requestSeq: operationScope.requestSeq,
+          ...(requestView
+            ? {
+                manifestHash: requestView.manifestHash,
+                ...(requestView.tapeIncarnationId
+                  ? { tapeIncarnationId: requestView.tapeIncarnationId }
+                  : {})
+              }
+            : {}),
+          ...(executionContract ? { executionContract } : {}),
+          ...(toolSurfaceSnapshot ? { toolSurfaceSnapshot } : {}),
+          ...(programmaticToolParent && programmaticToolCapability
+            ? { programmaticToolCapability, programmaticToolParent }
+            : {}),
+          onProgress: applyProgressUpdate,
+          signal: io.abortSignal,
+          permissionMode: toolPermissionMode,
+          activeSkillNames: effectiveActiveSkillNames,
+          agentId: controls?.getAgentId?.(),
+          commitDispatch,
+          registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
+          ...(toolSurfaceContext ? { toolSurfaceContext } : {}),
+          commandShell,
+          oneShotCommandGrantId: scopedOneShotCommandGrantId,
+          permissionLease: scopedPermissionLease,
+          ...(enabledMcpServerIds === null || enabledMcpServerIds === undefined
+            ? {}
+            : { enabledMcpServerIds })
+        })
+        returnedToolResult = result.rawData.requiresPermission ? null : result.rawData
+        return result
+      } finally {
+        activePermissionDispatchCommit = previousPermissionDispatchCommit
+      }
     }
 
     let toolCallResult = await callTool()
@@ -1996,6 +2227,7 @@ async function runToolCall(params: {
 
     if (toolRawData?.requiresPermission) {
       io.abortSignal.throwIfAborted()
+      assertToolSurfaceAuthority()
       const pendingPermission = normalizePermissionRequest(
         toolRawData.permissionRequest as PermissionRequestLike | undefined,
         {
@@ -2008,6 +2240,7 @@ async function runToolCall(params: {
       if (pendingPermission) {
         failPostDispatchPermission()
         if (pendingPermission.requiresUserConfirmation) {
+          cancelProgrammaticParentBeforeDispatch()
           return {
             kind: 'permission',
             permission: pendingPermission,
@@ -2018,7 +2251,8 @@ async function runToolCall(params: {
           toolCallResult = await runWithAutoGrantedPermission(
             controls,
             pendingPermission,
-            callTool
+            callTool,
+            assertToolSurfaceAuthority
           )
           toolRawData = toolCallResult.rawData
         } else if (permissionMode === 'auto_approve') {
@@ -2032,14 +2266,17 @@ async function runToolCall(params: {
             permission: pendingPermission,
             reason: 'requires_permission'
           })
+          assertToolSurfaceAuthority()
           if (review === 'auto_allow') {
             toolCallResult = await runWithAutoGrantedPermission(
               controls,
               pendingPermission,
-              callTool
+              callTool,
+              assertToolSurfaceAuthority
             )
             toolRawData = toolCallResult.rawData
           } else {
+            cancelProgrammaticParentBeforeDispatch()
             return {
               kind: 'permission',
               permission: pendingPermission,
@@ -2047,6 +2284,7 @@ async function runToolCall(params: {
             }
           }
         } else {
+          cancelProgrammaticParentBeforeDispatch()
           return {
             kind: 'permission',
             permission: pendingPermission,
@@ -2069,12 +2307,14 @@ async function runToolCall(params: {
       )
       if (pendingPermission) {
         failPostDispatchPermission()
+        cancelProgrammaticParentBeforeDispatch()
         return {
           kind: 'permission',
           permission: pendingPermission,
           toolContext
         }
       }
+      cancelProgrammaticParentBeforeDispatch()
       return commitOutcome(
         buildToolErrorOutcome(
           execution,
@@ -2084,10 +2324,49 @@ async function runToolCall(params: {
       )
     }
 
-    returnedRuntimeSkillView = extractRuntimeSkillViewAfterCall(
-      completedToolCall.name,
-      toolRawData
-    )
+    if (programmaticToolParent) {
+      try {
+        programmaticCompletedResult = programmaticToolParent.takeCompletedInvocationResult()
+      } catch (cause) {
+        throw new ProgrammaticCommandLaunchError({ cause })
+      }
+      toolCallResult = {
+        content: programmaticCompletedResult.responseText,
+        rawData: {
+          toolCallId: completedToolCall.id,
+          content: programmaticCompletedResult.responseText,
+          isError: programmaticCompletedResult.isError
+        }
+      }
+      toolRawData = toolCallResult.rawData
+      returnedToolResult = toolRawData
+      programmaticToolParent.settleOuterOutcome({
+        responseText: programmaticCompletedResult.responseText,
+        isError: programmaticCompletedResult.isError
+      })
+      programmaticOuterOutcomeCommitted = true
+    }
+
+    returnedRuntimeSkillView = extractRuntimeSkillViewAfterCall(execution.toolDef, toolRawData)
+    if (
+      returnedRuntimeSkillView &&
+      controls?.prepareSkillActivation &&
+      !dispatchedOperation
+    ) {
+      throw new ExecutionJournalError(
+        'Native Skill activation requires a committed dispatch before preparation.',
+        'invalid_fact'
+      )
+    }
+    if (
+      io.abortSignal.aborted &&
+      returnedRuntimeSkillView &&
+      controls?.prepareSkillActivation
+    ) {
+      toolRawData = buildRejectedSkillActivationResult(completedToolCall.id)
+      returnedToolResult = toolRawData
+      returnedRuntimeSkillView = undefined
+    }
     if (io.abortSignal.aborted) {
       if (returnedRuntimeSkillView) {
         return commitOutcome(
@@ -2101,6 +2380,17 @@ async function runToolCall(params: {
       return commitOutcome(
         buildReturnedToolResultOutcome(execution, toolRawData, dispatchedOperation)
       )
+    }
+
+    if (returnedRuntimeSkillView && controls?.prepareSkillActivation) {
+      const preparation = await controls.prepareSkillActivation(returnedRuntimeSkillView.skillName)
+      if (preparation.kind === 'rejected') {
+        toolRawData = buildRejectedSkillActivationResult(completedToolCall.id)
+        returnedToolResult = toolRawData
+        returnedRuntimeSkillView = undefined
+      } else {
+        preparedSkillActivation = preparation
+      }
     }
 
     const subagentState = extractSubagentToolState(toolRawData)
@@ -2188,31 +2478,50 @@ async function runToolCall(params: {
       preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
     const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
 
-    const stagedResult = commitDispatchedToolOutcome(
-      {
-        toolCallId: completedToolCall.id,
-        toolName: completedToolCall.name,
-        toolSource: execution.toolDef?.source,
-        serverName: toolContext.serverName,
-        toolArgs: completedToolCall.arguments,
-        responseText: stagedResponseText,
-        isError: stagedIsError,
-        offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
-        existingOffloadPath: toolRawData.outputOffloadPath,
-        searchPayload,
-        rtkApplied: toolRawData.rtkApplied,
-        rtkMode: toolRawData.rtkMode,
-        rtkFallbackReason: toolRawData.rtkFallbackReason,
-        imagePreviews,
-        mcpResult: toolRawData.mcpResult,
-        skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
-        postHookKind: stagedIsError ? 'failure' : 'success',
-        operation: dispatchedOperation,
-        ...(runtimeSkillView ? { requiresInline: true, runtimeSkillView } : {})
-      },
-      executionJournal,
-      io
-    )
+    const uncommittedResult: StagedToolResult = {
+      toolCallId: completedToolCall.id,
+      toolName: completedToolCall.name,
+      toolSource: execution.toolDef?.source,
+      serverName: toolContext.serverName,
+      toolArgs: completedToolCall.arguments,
+      responseText: stagedResponseText,
+      isError: stagedIsError,
+      offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
+      existingOffloadPath: toolRawData.outputOffloadPath,
+      searchPayload,
+      rtkApplied: toolRawData.rtkApplied,
+      rtkMode: toolRawData.rtkMode,
+      rtkFallbackReason: toolRawData.rtkFallbackReason,
+      imagePreviews,
+      mcpResult: toolRawData.mcpResult,
+      skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
+      postHookKind: stagedIsError ? 'failure' : 'success',
+      operation: dispatchedOperation,
+      ...(runtimeSkillView
+        ? {
+            requiresInline: true,
+            runtimeSkillView,
+            ...(preparedSkillActivation ? { preparedSkillActivation } : {})
+          }
+        : {})
+    }
+    let stagedResult: StagedToolResult
+    if (programmaticToolParent && dispatchedOperation) {
+      if (
+        !programmaticOuterOutcomeCommitted ||
+        !programmaticCompletedResult ||
+        stagedResponseText !== programmaticCompletedResult.responseText ||
+        stagedIsError !== programmaticCompletedResult.isError
+      ) {
+        throw new ExecutionJournalError(
+          'Programmatic outer projection does not match its committed process-live result.',
+          'projection_failed'
+        )
+      }
+      stagedResult = { ...uncommittedResult, outcomeCommitted: true }
+    } else {
+      stagedResult = commitDispatchedToolOutcome(uncommittedResult, executionJournal, io)
+    }
     if (stagedResult.outcomeCommitted) {
       committedOutcome = stagedResult
     }
@@ -2232,11 +2541,73 @@ async function runToolCall(params: {
       toolsChanged: false
     }
   } catch (err) {
-    if (isExecutionJournalError(err)) {
-      if (err.code === 'invalid_fact' && !dispatchedOperation) {
-        return buildToolErrorOutcome(execution, err)
+    if (programmaticToolParent && !dispatchedOperation) {
+      cancelProgrammaticParentBeforeDispatch()
+    }
+    if (
+      isProgrammaticCommandLaunchError(err) &&
+      isExecutionJournalError(err.cause)
+    ) {
+      throw err.cause
+    }
+    if (
+      programmaticToolParent &&
+      dispatchedOperation &&
+      isProgrammaticCommandLaunchError(err)
+    ) {
+      const responseText = 'Error: Programmatic CLI process exited before authoritative completion.'
+      let processResult: Readonly<{ responseText: string; isError: boolean }>
+      try {
+        processResult = programmaticToolParent.settleProcessFailure({ responseText }).result
+      } catch (settlementError) {
+        if (isExecutionJournalError(settlementError)) {
+          throw settlementError
+        }
+        throw new ExecutionJournalError(
+          'Programmatic CLI process failure could not settle its outer operation.',
+          'invalid_fact',
+          { cause: settlementError }
+        )
       }
+      const settled = buildReturnedToolResultOutcome(
+        execution,
+        {
+          toolCallId: completedToolCall.id,
+          content: processResult.responseText,
+          isError: processResult.isError
+        },
+        dispatchedOperation
+      )
+      settled.stagedResult.outcomeCommitted = true
+      committedOutcome = settled.stagedResult
+      return settled
+    }
+    if (isExecutionJournalError(err)) {
       throw err
+    }
+    if (
+      returnedRuntimeSkillView &&
+      controls?.prepareSkillActivation &&
+      dispatchedOperation &&
+      !committedOutcome?.operation
+    ) {
+      return commitOutcome(
+        buildReturnedToolResultOutcome(
+          execution,
+          buildRejectedSkillActivationResult(completedToolCall.id),
+          dispatchedOperation
+        )
+      )
+    }
+    if (programmaticOuterOutcomeCommitted && dispatchedOperation) {
+      throw new CommittedToolOutcomeProjectionError(dispatchedOperation, { cause: err })
+    }
+    if (programmaticToolParent && dispatchedOperation) {
+      throw new ExecutionJournalError(
+        'Programmatic outer execution failed after dispatch without a settlement receipt.',
+        'projection_failed',
+        { cause: err }
+      )
     }
     if (committedOutcome?.operation) {
       throw new CommittedToolOutcomeProjectionError(committedOutcome.operation, { cause: err })
@@ -2283,12 +2654,18 @@ export interface SettleToolBatchParams {
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
+  toolSurface?: LoopRunRequestToolSurfaceBinding | null
+  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
   commandShell: ResolvedCommandShell
+}
+
+export type SettledToolBatchOutcome = ToolBatchOutcome<ToolBatchInteraction> & {
+  readonly toolSurfaceActivationCandidates: readonly ToolSurfaceActivationCandidate[]
 }
 
 export async function settleToolBatch(
   params: SettleToolBatchParams
-): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
+): Promise<SettledToolBatchOutcome> {
   const {
     state,
     conversation,
@@ -2312,8 +2689,50 @@ export async function settleToolBatch(
     operationScope,
     requestView,
     executionContract,
+    toolSurface,
+    programmaticToolParents,
     commandShell
   } = params
+  if (
+    toolSurface &&
+    (toolSurface.requestSeq !== operationScope.requestSeq ||
+      toolSurface.snapshot.request.sessionId !== io.sessionId ||
+      toolSurface.snapshot.request.messageId !== io.messageId ||
+      toolSurface.snapshot.request.runId !== operationScope.runId ||
+      toolSurface.snapshot.request.requestSeq !== operationScope.requestSeq)
+  ) {
+    throw new Error('Tool batch does not match its request-scoped Tool Surface binding.')
+  }
+  const toolSurfaceExecutionBatch =
+    toolSurface?.snapshot.adapterMode === 'native-activation'
+      ? createToolSurfaceExecutionBatch({ snapshot: toolSurface.snapshot })
+      : null
+  if (toolSurface && !toolSurfaceExecutionBatch) {
+    claimToolSurfaceExecution(toolSurface.snapshot)
+  }
+  const candidateEligibleToolCallOrdinals = new Set<number>()
+  const sealToolBatchOutcome = (
+    committed: CommittedStagedToolResults
+  ): SettledToolBatchOutcome => {
+    if (committed.outcome.type === 'completed' && !committed.outcome.terminalError) {
+      const successfulToolCallIds = new Set(committed.successfulToolCallIds)
+      for (const ordinal of candidateEligibleToolCallOrdinals) {
+        const toolCall = toolCalls[ordinal]
+        if (toolCall && successfulToolCallIds.has(toolCall.id)) {
+          toolSurfaceExecutionBatch?.acceptToolCallCandidates(ordinal)
+        }
+      }
+    }
+    const candidates = toolSurfaceExecutionBatch?.seal() ?? Object.freeze([])
+    return {
+      ...committed.outcome,
+      toolSurfaceActivationCandidates:
+        committed.outcome.type === 'completed' && !committed.outcome.terminalError
+          ? candidates
+          : Object.freeze([])
+    }
+  }
+  try {
   const { notificationObserver, controls, diagnostics, onToolCallStarted } = collaborators ?? {}
   if (disposition.kind === 'execute') {
     io.abortSignal.throwIfAborted()
@@ -2406,29 +2825,44 @@ export async function settleToolBatch(
       })
     }
 
-    return await commitStagedToolResults({
-      stagedResults,
-      pendingInteractions,
-      batchState,
-      executed,
-      toolsChanged,
-      conversation,
-      state,
-      batchToolCallBlocks,
-      toolBlockStartIndex: prevBlockCount,
-      io,
-      notificationObserver,
-      takeInteractionOrder,
-      toolResults,
-      tools,
-      contextLength,
-      maxTokens,
-      rendererFlushHandle,
-      controls
-    })
+    return sealToolBatchOutcome(
+      await commitStagedToolResults({
+        stagedResults,
+        pendingInteractions,
+        batchState,
+        executed,
+        toolsChanged,
+        conversation,
+        state,
+        batchToolCallBlocks,
+        toolBlockStartIndex: prevBlockCount,
+        io,
+        notificationObserver,
+        takeInteractionOrder,
+        toolResults,
+        tools,
+        contextLength,
+        maxTokens,
+        rendererFlushHandle,
+        toolSurfaceSnapshot: toolSurface?.snapshot,
+        controls
+      })
+    )
   }
 
   const toolPermissionMode = resolveToolPermissionMode(permissionMode)
+  const assertToolSurfaceAuthority = (call: MCPToolCall): void => {
+    if (!toolSurface) return
+    toolExecution.assertAuthority(call, {
+      permissionMode: toolPermissionMode,
+      signal: io.abortSignal,
+      commandShell,
+      messageId: io.messageId,
+      runId: operationScope.runId,
+      requestSeq: operationScope.requestSeq,
+      toolSurfaceSnapshot: toolSurface.snapshot
+    })
+  }
 
   const batchExecutionMode = selectToolBatchExecutionMode({
     permissionMode,
@@ -2442,16 +2876,32 @@ export async function settleToolBatch(
     )
 
     const settledOutcomes = await Promise.allSettled(
-      executions.map(async (execution) => {
+      executions.map(async (execution, toolCallOrdinalWithinBatch) => {
         try {
+          // Reject stale or inactive definitions before permission policy observes the call. The
+          // post-precheck assertion below still closes revocation races while policy is awaiting.
+          assertToolSurfaceAuthority(execution.toolCall)
           let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
-          if (toolExecution.preCheck) {
+          if (
+            execution.completedToolCall.name !== TOOL_SEARCH_AGENT_TOOL_NAME &&
+            toolExecution.preCheck
+          ) {
             const preChecked = await toolExecution.preCheck(execution.toolCall, {
               permissionMode: toolPermissionMode,
               signal: io.abortSignal,
-              commandShell
+              activeSkillNames: controls?.getActiveSkillNames?.(),
+              commandShell,
+              ...(toolSurface
+                ? {
+                    messageId: io.messageId,
+                    runId: operationScope.runId,
+                    requestSeq: operationScope.requestSeq,
+                    toolSurfaceSnapshot: toolSurface.snapshot
+                  }
+                : {})
             })
             io.abortSignal.throwIfAborted()
+            assertToolSurfaceAuthority(execution.toolCall)
             if (preChecked?.needsPermission) {
               const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
                 toolName: execution.toolContext.name,
@@ -2471,7 +2921,11 @@ export async function settleToolBatch(
             }
           }
 
-          const execute = async (oneShotCommandGrantId?: string): Promise<ToolRunOutcome> => {
+          const execute = async (
+            oneShotCommandGrantId?: string,
+            onPermissionDispatchCommitted?: () => void,
+            permissionLease?: ToolPermissionLeaseCapability
+          ): Promise<ToolRunOutcome> => {
             io.abortSignal.throwIfAborted()
             emitDeepChatLoopNotification(notificationObserver, {
               event: 'PreToolUse',
@@ -2499,15 +2953,27 @@ export async function settleToolBatch(
               operationScope,
               requestView,
               executionContract,
+              toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
+              toolSurfaceSnapshot: toolSurface?.snapshot,
+              programmaticToolCapability: toolSurface?.programmaticCapability,
+              programmaticToolParents,
+              toolCallOrdinalWithinBatch,
               commandShell,
-              tools,
               contextLength,
               maxTokens,
-              oneShotCommandGrantId
+              pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
+              oneShotCommandGrantId,
+              onPermissionDispatchCommitted,
+              permissionLease
             })
           }
           return permissionToAutoGrant
-            ? await runWithAutoGrantedPermission(controls, permissionToAutoGrant, execute)
+            ? await runWithAutoGrantedPermission(
+                controls,
+                permissionToAutoGrant,
+                execute,
+                () => assertToolSurfaceAuthority(execution.toolCall)
+              )
             : await execute()
         } catch (error) {
           if (isExecutionJournalError(error)) throw error
@@ -2516,21 +2982,21 @@ export async function settleToolBatch(
         }
       })
     )
-    const outcomes: ToolRunOutcome[] = []
+    const outcomes: { outcome: ToolRunOutcome; toolCallOrdinalWithinBatch: number }[] = []
     let cancellationError: unknown
-    for (const outcome of settledOutcomes) {
-      if (outcome.status === 'fulfilled') {
-        outcomes.push(outcome.value)
-      } else if (isExecutionJournalError(outcome.reason)) {
-        throw outcome.reason
+    for (const [toolCallOrdinalWithinBatch, settled] of settledOutcomes.entries()) {
+      if (settled.status === 'fulfilled') {
+        outcomes.push({ outcome: settled.value, toolCallOrdinalWithinBatch })
+      } else if (isExecutionJournalError(settled.reason)) {
+        throw settled.reason
       } else if (io.abortSignal.aborted) {
-        cancellationError ??= outcome.reason
+        cancellationError ??= settled.reason
       } else {
-        throw outcome.reason
+        throw settled.reason
       }
     }
 
-    for (const outcome of outcomes) {
+    for (const { outcome, toolCallOrdinalWithinBatch } of outcomes) {
       batchState.invokedCallIds.add(
         outcome.kind === 'permission' ? outcome.toolContext.id : outcome.stagedResult.toolCallId
       )
@@ -2551,7 +3017,8 @@ export async function settleToolBatch(
           outcome.permission,
           'post-call-permission',
           takeInteractionOrder(),
-          executionContract
+          executionContract,
+          toolSurface?.snapshot
         )
         pendingInteractions.push(interaction)
         updateToolCallBlock(batchToolCallBlocks, outcome.toolContext.id, '', false)
@@ -2559,6 +3026,14 @@ export async function settleToolBatch(
         continue
       }
 
+      if (
+        executions[toolCallOrdinalWithinBatch].completedToolCall.name ===
+          TOOL_SEARCH_AGENT_TOOL_NAME &&
+        !outcome.stagedResult.isError &&
+        outcome.stagedResult.outcomeCommitted === true
+      ) {
+        candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
+      }
       stagedResults.push(outcome.stagedResult)
       toolsChanged = toolsChanged || outcome.toolsChanged
       executed += 1
@@ -2568,7 +3043,7 @@ export async function settleToolBatch(
       throw cancellationError
     }
 
-    return await commitStagedToolResults({
+    const committed = await commitStagedToolResults({
       stagedResults,
       pendingInteractions,
       batchState,
@@ -2586,11 +3061,13 @@ export async function settleToolBatch(
       contextLength,
       maxTokens,
       rendererFlushHandle,
+      toolSurfaceSnapshot: toolSurface?.snapshot,
       controls
     })
+    return sealToolBatchOutcome(committed)
   }
 
-  for (const tc of toolCalls) {
+  for (const [toolCallOrdinalWithinBatch, tc] of toolCalls.entries()) {
     if (io.abortSignal.aborted && stagedResults.length > 0) {
       break
     }
@@ -2614,6 +3091,9 @@ export async function settleToolBatch(
     }
 
     try {
+      // Questions and permission prechecks are effects of accepting this call, so the frozen View
+      // must admit it first. Later assertions retain the race checks around asynchronous policy.
+      assertToolSurfaceAuthority(toolCall)
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
         const parsedQuestion = parseQuestionToolArgs(tc.arguments)
         if (!parsedQuestion.success) {
@@ -2653,13 +3133,23 @@ export async function settleToolBatch(
 
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
-      if (toolExecution.preCheck) {
+      if (toolCall.function.name !== TOOL_SEARCH_AGENT_TOOL_NAME && toolExecution.preCheck) {
         const preChecked = await toolExecution.preCheck(toolCall, {
           permissionMode: toolPermissionMode,
           signal: io.abortSignal,
-          commandShell
+          activeSkillNames: controls?.getActiveSkillNames?.(),
+          commandShell,
+          ...(toolSurface
+            ? {
+                messageId: io.messageId,
+                runId: operationScope.runId,
+                requestSeq: operationScope.requestSeq,
+                toolSurfaceSnapshot: toolSurface.snapshot
+              }
+            : {})
         })
         io.abortSignal.throwIfAborted()
+        assertToolSurfaceAuthority(toolCall)
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
             toolName: toolContext.name,
@@ -2684,6 +3174,7 @@ export async function settleToolBatch(
             permission: preCheckedPermission,
             reason: 'precheck'
           })
+          assertToolSurfaceAuthority(toolCall)
           if (review === 'auto_allow') {
             permissionToAutoGrant = preCheckedPermission
           } else {
@@ -2710,7 +3201,8 @@ export async function settleToolBatch(
             preCheckedPermission,
             'pre-check-permission',
             takeInteractionOrder(),
-            executionContract
+            executionContract,
+            toolSurface?.snapshot
           )
           pendingInteractions.push(interaction)
           updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
@@ -2735,6 +3227,7 @@ export async function settleToolBatch(
           permission: reviewPermission,
           reason: 'tool_call'
         })
+        assertToolSurfaceAuthority(toolCall)
         if (review !== 'auto_allow') {
           emitDeepChatLoopNotification(notificationObserver, {
             event: 'PermissionRequest',
@@ -2752,7 +3245,8 @@ export async function settleToolBatch(
             reviewPermission,
             'pre-check-permission',
             takeInteractionOrder(),
-            executionContract
+            executionContract,
+            toolSurface?.snapshot
           )
           pendingInteractions.push(interaction)
           updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
@@ -2761,7 +3255,11 @@ export async function settleToolBatch(
         }
       }
 
-      const execute = async (oneShotCommandGrantId?: string): Promise<ToolRunOutcome> => {
+      const execute = async (
+        oneShotCommandGrantId?: string,
+        onPermissionDispatchCommitted?: () => void,
+        permissionLease?: ToolPermissionLeaseCapability
+      ): Promise<ToolRunOutcome> => {
         io.abortSignal.throwIfAborted()
         emitDeepChatLoopNotification(notificationObserver, {
           event: 'PreToolUse',
@@ -2789,16 +3287,27 @@ export async function settleToolBatch(
           operationScope,
           requestView,
           executionContract,
+          toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
+          toolSurfaceSnapshot: toolSurface?.snapshot,
+          programmaticToolCapability: toolSurface?.programmaticCapability,
+          programmaticToolParents,
+          toolCallOrdinalWithinBatch,
           commandShell,
-          tools,
           contextLength,
           maxTokens,
           pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
-          oneShotCommandGrantId
+          oneShotCommandGrantId,
+          onPermissionDispatchCommitted,
+          permissionLease
         })
       }
       const outcome = permissionToAutoGrant
-        ? await runWithAutoGrantedPermission(controls, permissionToAutoGrant, execute)
+        ? await runWithAutoGrantedPermission(
+            controls,
+            permissionToAutoGrant,
+            execute,
+            () => assertToolSurfaceAuthority(toolCall)
+          )
         : await execute()
       batchState.invokedCallIds.add(tc.id)
 
@@ -2819,7 +3328,8 @@ export async function settleToolBatch(
           outcome.permission,
           'post-call-permission',
           takeInteractionOrder(),
-          executionContract
+          executionContract,
+          toolSurface?.snapshot
         )
         pendingInteractions.push(interaction)
         updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
@@ -2827,6 +3337,13 @@ export async function settleToolBatch(
         continue
       }
 
+      if (
+        tc.name === TOOL_SEARCH_AGENT_TOOL_NAME &&
+        !outcome.stagedResult.isError &&
+        outcome.stagedResult.outcomeCommitted === true
+      ) {
+        candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
+      }
       stagedResults.push(outcome.stagedResult)
       if (outcome.stagedResult.runtimeSkillView) {
         pendingRuntimeSkillNames.add(outcome.stagedResult.runtimeSkillView.skillName)
@@ -2855,7 +3372,7 @@ export async function settleToolBatch(
     }
   }
 
-  return await commitStagedToolResults({
+  const committed = await commitStagedToolResults({
     stagedResults,
     pendingInteractions,
     batchState,
@@ -2873,8 +3390,13 @@ export async function settleToolBatch(
     contextLength,
     maxTokens,
     rendererFlushHandle,
+    toolSurfaceSnapshot: toolSurface?.snapshot,
     controls
   })
+  return sealToolBatchOutcome(committed)
+  } finally {
+    toolSurfaceExecutionBatch?.discard()
+  }
 }
 
 function stampGenerationTiming(state: StreamState): void {

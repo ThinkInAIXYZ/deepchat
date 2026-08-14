@@ -21,6 +21,10 @@ import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
+import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
+import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
+import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
+import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 
 export interface SessionInitConfig {
   agentId?: string
@@ -53,6 +57,9 @@ export interface SessionLifecycleCoordinatorDependencies {
     'cancel' | 'clearFirstTurnReady' | 'cancelScopeOperations' | 'scopeFor'
   >
   interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
+  toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
+  toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
+  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
 }
 
 export class SessionLifecycleCoordinator {
@@ -101,6 +108,7 @@ export class SessionLifecycleCoordinator {
    * backend hands the session off, so the next access rehydrates from persisted data.
    */
   async cleanup(sessionId: string): Promise<void> {
+    revokeToolSurfaceDeferredDispatchesForSession(sessionId)
     const instance = this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
     if (!instance) {
       return
@@ -108,6 +116,9 @@ export class SessionLifecycleCoordinator {
     try {
       await this.deps.runLifecycle.cancel(sessionId)
     } finally {
+      try {
+        this.deps.toolSurfaceDiagnostics.clear(instance)
+      } catch {}
       instance.clearOwnedState()
       if (this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance === instance) {
         this.deps.registry.evict(toAppSessionId(sessionId))
@@ -128,7 +139,14 @@ export class SessionLifecycleCoordinator {
     this.deps.pendingInputs.deleteBySession(sessionId)
     this.deps.transcript.deleteBySession(sessionId)
     this.deps.sessionStore.delete(sessionId)
+    this.deps.programmaticToolParents.releaseSession(sessionId)
+    this.deps.toolSurfaceCanaryDiagnostics.clearSession(sessionId)
     this.deps.interactionParking.clearSession(sessionId)
+    if (instance) {
+      try {
+        this.deps.toolSurfaceDiagnostics.clear(instance)
+      } catch {}
+    }
     instance?.clearOwnedState()
     this.deps.registry.evict(toAppSessionId(sessionId))
     this.deps.memory.finishSessionDestroy(sessionId)

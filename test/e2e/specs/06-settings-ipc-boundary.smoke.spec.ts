@@ -8,11 +8,6 @@ const migratedSettingsSurfaces = [
     pageTestId: 'settings-knowledge-base-page'
   },
   {
-    tabTestId: 'settings-tab-skills',
-    pageTestId: 'settings-skills-page',
-    routeName: 'settings-skills'
-  },
-  {
     tabTestId: 'settings-tab-remote',
     pageTestId: 'settings-remote-page',
     routeName: 'settings-remote'

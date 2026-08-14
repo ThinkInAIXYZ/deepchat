@@ -65,6 +65,7 @@
     "test/main/session/data/tapeLifecycle.test.ts",
     "test/main/session/data/tapeLineage.test.ts",
     "test/main/session/data/tapeRecall.test.ts",
+    "test/main/session/data/tapeToolSurfacePersistence.test.ts",
     "test/main/session/data/tapeViewReplay.test.ts",
     "test/main/memory/memoryNativeMigration.test.ts",
     "test/main/memory/memoryVectorStoreV2Native.test.ts",

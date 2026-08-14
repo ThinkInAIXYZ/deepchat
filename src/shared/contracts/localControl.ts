@@ -3,6 +3,14 @@ import { JsonValueSchema, TimestampMsSchema, type JsonValue } from './json'
 
 export const LOCAL_CONTROL_PROTOCOL_VERSION = 1 as const
 export const LOCAL_CONTROL_SURFACE_VERSION = 2 as const
+export const LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION = LOCAL_CONTROL_SURFACE_VERSION
+// Authenticated Programmatic grants negotiate a strict superset without advertising that route
+// surface in the public descriptor or accepting it from the wire envelope.
+export const LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION = 3 as const
+export const LOCAL_CONTROL_ROUTE_SURFACE_VERSIONS = [
+  LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION,
+  LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION
+] as const
 export const LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS = 30 * 60_000
 export const LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES = 16 * 1024 * 1024
 export const LOCAL_CONTROL_MAX_STREAM_RECORD_BYTES = 20 * 1024 * 1024
@@ -227,6 +235,7 @@ export const LocalControlStreamRecordSchema = z.union([
 export type LocalControlEffect = z.infer<typeof LocalControlEffectSchema>
 export type LocalControlScope = z.infer<typeof LocalControlScopeSchema>
 export type LocalControlPrincipal = z.infer<typeof LocalControlPrincipalSchema>
+export type LocalControlRouteSurfaceVersion = (typeof LOCAL_CONTROL_ROUTE_SURFACE_VERSIONS)[number]
 export type LocalControlEndpoint = z.infer<typeof LocalControlEndpointSchema>
 export type LocalControlDescriptor = z.infer<typeof LocalControlDescriptorSchema>
 export type LocalControlRpcRequest = z.infer<typeof LocalControlRpcRequestSchema>

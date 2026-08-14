@@ -14,33 +14,70 @@
               {{ headerDescription || t('settings.skills.detail.noDescription') }}
             </DialogDescription>
           </div>
-          <div
-            v-if="mutable"
-            data-testid="skill-detail-status-toggle"
-            class="flex shrink-0 items-center gap-2 pr-8"
-          >
-            <div class="flex items-center gap-2 rounded-md border px-2 py-1.5">
-              <span class="text-xs text-muted-foreground">
-                {{
-                  deepchatDisabled
-                    ? t('settings.skills.detail.disabled')
-                    : t('settings.skills.detail.enabled')
-                }}
-              </span>
-              <Switch
-                :model-value="!deepchatDisabled"
-                :disabled="saving"
-                :aria-label="
-                  deepchatDisabled
-                    ? t('settings.skills.detail.enable')
-                    : t('settings.skills.detail.disable')
-                "
-                @update:model-value="handleEnabledChange"
-              />
-            </div>
-          </div>
         </div>
       </DialogHeader>
+
+      <section
+        data-testid="plugins-skill-detail-enabled-agents"
+        class="rounded-md border bg-muted/20 px-3 py-3"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm font-medium">{{ t('settings.skills.detail.enabledAgents') }}</div>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              {{ t('settings.skills.detail.enabledAgentsHint') }}
+            </p>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <DcButton
+                data-testid="skill-detail-add-agent"
+                variant="outline"
+                size="sm"
+                :disabled="saving || agentUpdatePendingId !== null || availableAgents.length === 0"
+              >
+                <Icon icon="lucide:plus" class="mr-1 size-4" />
+                {{ t('settings.skills.detail.addAgent') }}
+              </DcButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-56">
+              <DcDropdownActionItem
+                v-for="agent in availableAgents"
+                :key="agent.id"
+                icon="lucide:bot"
+                :label="agent.name || agent.id"
+                @select="emit('enable-agent', agent.id)"
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div v-if="enabledAgents.length" class="mt-3 flex flex-wrap gap-2">
+          <span
+            v-for="agent in enabledAgents"
+            :key="agent.id"
+            :data-testid="`skill-detail-enabled-agent-${agent.id}`"
+            class="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md border bg-background pl-2.5 pr-1 text-xs"
+          >
+            <Icon icon="lucide:bot" class="size-3.5 shrink-0 text-muted-foreground" />
+            <span class="truncate">{{ agent.name }}</span>
+            <button
+              type="button"
+              class="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="saving || agentUpdatePendingId !== null"
+              :aria-label="t('settings.skills.detail.removeAgent', { agent: agent.name })"
+              @click="emit('disable-agent', agent.id)"
+            >
+              <Spinner v-if="agentUpdatePendingId === agent.id" class="size-3" />
+              <Icon v-else icon="lucide:x" class="size-3.5" />
+            </button>
+          </span>
+        </div>
+        <p v-else class="mt-3 text-xs text-muted-foreground">
+          {{ t('settings.skills.detail.noEnabledAgents') }}
+        </p>
+      </section>
 
       <div class="flex items-center justify-between gap-3">
         <div v-if="sourcePath" class="min-w-0 truncate font-mono text-xs text-muted-foreground">
@@ -74,11 +111,11 @@
           <DcConfirmDialog
             :open="deleteConfirmOpen"
             :title="t('settings.skills.detail.confirmDeleteTitle')"
-            :description="t('settings.skills.detail.confirmDeleteDescription', { name })"
+            :description="deleteDescription"
             :danger="true"
             :busy="saving"
-            confirm-label="t('common.delete')"
-            cancel-label="t('common.cancel')"
+            :confirm-label="t('common.delete')"
+            :cancel-label="t('common.cancel')"
             @update:open="handleDeleteConfirmOpenChange"
             @confirm="handleDelete"
             @cancel="handleDeleteCancel"
@@ -88,6 +125,10 @@
 
       <div v-if="editing" class="min-h-0 flex-1 overflow-auto rounded-md border p-4">
         <div class="space-y-4">
+          <div class="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {{ editImpactDescription }}
+          </div>
+
           <div class="space-y-1.5">
             <Label for="skill-detail-name">{{ t('settings.skills.edit.name') }}</Label>
             <Input id="skill-detail-name" :model-value="name" disabled class="bg-muted" />
@@ -170,25 +211,25 @@
     :title="t('settings.leaveGuard.dirtyTitle')"
     :description="t('settings.leaveGuard.dirtyDescription')"
     :danger="false"
-    confirm-label="t('settings.leaveGuard.discard')"
-    cancel-label="t('settings.leaveGuard.stay')"
-    @update:open="discardConfirmOpen = $event"
+    :confirm-label="t('settings.leaveGuard.discard')"
+    :cancel-label="t('settings.leaveGuard.stay')"
+    @update:open="handleDiscardConfirmOpenChange"
     @confirm="discardAndClose"
-    @cancel="discardConfirmOpen = false"
+    @cancel="cancelDiscard"
   />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { nanoid } from 'nanoid'
+import { onBeforeRouteLeave } from 'vue-router'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import {
   Dialog,
@@ -198,9 +239,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = withDefaults(
   defineProps<{
@@ -210,7 +255,10 @@ const props = withDefaults(
     sourcePath?: string
     markdown?: string
     mutable?: boolean
-    deepchatDisabled?: boolean
+    agents?: Array<{ id: string; name: string }>
+    enabledAgentIds?: string[]
+    enabledAgentNames?: string[]
+    agentUpdatePendingId?: string | null
     saving?: boolean
   }>(),
   {
@@ -218,7 +266,10 @@ const props = withDefaults(
     sourcePath: '',
     markdown: '',
     mutable: false,
-    deepchatDisabled: false,
+    agents: () => [],
+    enabledAgentIds: () => [],
+    enabledAgentNames: () => [],
+    agentUpdatePendingId: null,
     saving: false
   }
 )
@@ -226,7 +277,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:open': [value: boolean]
   save: [content: string]
-  'toggle-disabled': [disabled: boolean]
+  'enable-agent': [agentId: string]
+  'disable-agent': [agentId: string]
   delete: []
 }>()
 
@@ -240,6 +292,7 @@ const editContent = ref('')
 const baselineDraftSignature = ref('')
 const deleteConfirmOpen = ref(false)
 const discardConfirmOpen = ref(false)
+let pendingRouteLeave: ((allowed: boolean) => void) | null = null
 
 const initial = computed(() => props.name.trim().charAt(0).toUpperCase() || '?')
 const parsedSkill = computed(() =>
@@ -248,6 +301,31 @@ const parsedSkill = computed(() =>
 const displayMarkdown = computed(() => parsedSkill.value.body.trim())
 const headerDescription = computed(() =>
   draftActive.value ? editDescription.value : props.description
+)
+const agentNameById = computed(
+  () => new Map(props.agents.map((agent) => [agent.id, agent.name || agent.id] as const))
+)
+const enabledAgents = computed(() =>
+  props.enabledAgentIds.map((id) => ({ id, name: agentNameById.value.get(id) ?? id }))
+)
+const enabledAgentIdSet = computed(() => new Set(props.enabledAgentIds))
+const availableAgents = computed(() =>
+  props.agents.filter((agent) => !enabledAgentIdSet.value.has(agent.id))
+)
+const deleteDescription = computed(() =>
+  props.enabledAgentNames.length > 0
+    ? t('settings.skills.impact.confirmDeleteEnabled', {
+        name: props.name,
+        agents: props.enabledAgentNames.join(', ')
+      })
+    : t('settings.skills.impact.confirmDeleteUnused', { name: props.name })
+)
+const editImpactDescription = computed(() =>
+  props.enabledAgentNames.length > 0
+    ? t('settings.skills.impact.editEnabled', {
+        agents: props.enabledAgentNames.join(', ')
+      })
+    : t('settings.skills.impact.editUnused')
 )
 const currentDraftSignature = computed(() =>
   JSON.stringify([editDescription.value, editAllowedTools.value, editContent.value])
@@ -358,22 +436,44 @@ const handleOpenChange = (value: boolean) => {
   emit('update:open', value)
 }
 
+const requestClose = () => handleOpenChange(false)
+
+defineExpose({ requestClose })
+
+const finishRouteLeave = (allowed: boolean) => {
+  const resolve = pendingRouteLeave
+  pendingRouteLeave = null
+  resolve?.(allowed)
+}
+
 const discardAndClose = () => {
   if (props.saving) return
+  const routeLeavePending = pendingRouteLeave !== null
   discardConfirmOpen.value = false
   resetDraft()
+  if (routeLeavePending) {
+    finishRouteLeave(true)
+    return
+  }
   emit('update:open', false)
+}
+
+const cancelDiscard = () => {
+  discardConfirmOpen.value = false
+  finishRouteLeave(false)
+}
+
+const handleDiscardConfirmOpenChange = (open: boolean) => {
+  if (open) {
+    discardConfirmOpen.value = true
+    return
+  }
+  cancelDiscard()
 }
 
 const handleSave = () => {
   if (props.saving || descriptionMissing.value) return
   emit('save', buildSkillContent())
-}
-
-const handleEnabledChange = (value: boolean | string) => {
-  if (props.saving) return
-  const enabled = typeof value === 'string' ? value === 'true' : Boolean(value)
-  emit('toggle-disabled', !enabled)
 }
 
 const handleDeleteConfirmOpenChange = (open: boolean) => {
@@ -389,11 +489,18 @@ const handleDelete = () => {
   if (!props.saving) emit('delete')
 }
 
-const requestClose = () => {
-  if (props.saving) return
-  resetDraft()
-  emit('update:open', false)
-}
+onBeforeRouteLeave(() => {
+  if (props.saving) return false
+  if (!draftDirty.value) return true
+
+  finishRouteLeave(false)
+  discardConfirmOpen.value = true
+  return new Promise<boolean>((resolve) => {
+    pendingRouteLeave = resolve
+  })
+})
+
+onBeforeUnmount(() => finishRouteLeave(false))
 
 watch(
   () => [props.open, props.name, props.markdown],
@@ -404,21 +511,4 @@ watch(
   },
   { immediate: true }
 )
-
-const leaveGuardLease = settingsLeaveGuard.register({
-  id: `settings.skills.detail:${nanoid(8)}`,
-  onDiscard: requestClose
-})
-const stopLeaveRiskSync = watch(
-  [draftDirty, () => props.saving],
-  ([dirty, saving]) => {
-    leaveGuardLease.setRisk(saving ? 'busy' : dirty ? 'dirty' : 'clean')
-  },
-  { immediate: true, flush: 'sync' }
-)
-
-onBeforeUnmount(() => {
-  stopLeaveRiskSync()
-  leaveGuardLease.release()
-})
 </script>

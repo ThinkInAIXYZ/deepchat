@@ -60,6 +60,12 @@ import {
   skillsSetPublicStatusRoute,
   skillsUninstallPublicRoute
 } from './routes/skills.routes'
+import {
+  toolBatchRoute,
+  toolCallRoute,
+  toolDescribeRoute,
+  toolSearchRoute
+} from './routes/tools.routes'
 
 export type CliRpcContract =
   | typeof cliStatusRoute
@@ -108,6 +114,10 @@ export type CliRpcContract =
   | typeof runsGetRoute
   | typeof runsCancelRoute
   | typeof eventsSubscribeRoute
+  | typeof toolSearchRoute
+  | typeof toolDescribeRoute
+  | typeof toolCallRoute
+  | typeof toolBatchRoute
 
 export type CliCommandTimeoutClass = 'standard' | 'long-running' | 'approved-mutation'
 export type CliAgentInvocation = 'deny' | 'allow' | Readonly<{ contract: CliRpcContract }>
@@ -453,6 +463,34 @@ export const CLI_COMMAND_DEFINITIONS = [
     contract: runsCancelRoute,
     timeoutClass: standard,
     agentInvocation: 'allow'
+  },
+  {
+    domain: 'tool',
+    verb: 'search',
+    contract: toolSearchRoute,
+    timeoutClass: standard,
+    agentInvocation: 'deny'
+  },
+  {
+    domain: 'tool',
+    verb: 'describe',
+    contract: toolDescribeRoute,
+    timeoutClass: standard,
+    agentInvocation: 'deny'
+  },
+  {
+    domain: 'tool',
+    verb: 'call',
+    contract: toolCallRoute,
+    timeoutClass: longRunning,
+    agentInvocation: 'deny'
+  },
+  {
+    domain: 'tool',
+    verb: 'batch',
+    contract: toolBatchRoute,
+    timeoutClass: longRunning,
+    agentInvocation: 'deny'
   }
 ] as const satisfies readonly CliCommandDefinition[]
 

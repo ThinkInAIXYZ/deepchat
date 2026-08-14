@@ -1,9 +1,7 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
-import type { Agent } from '@shared/types/agent-interface'
 import { SKILL_NAME_MAX_LENGTH, type SkillInstallOptions } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { CanonicalSkill, ScanResult } from '@shared/types/skillSync'
@@ -11,48 +9,20 @@ import {
   AgentSkillImportService,
   type AgentSkillImportServiceDependencies
 } from '@/skill/agentSkillImportService'
+import { formatConverter } from '@/skill/sync/formatConverter'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
+vi.unmock('fs/promises')
+vi.unmock('node:fs/promises')
 
 const electronState = vi.hoisted(() => ({ tempPath: '/tmp' }))
-
-vi.mock('fs', async () => {
-  const actual = await vi.importActual<typeof import('fs')>('fs')
-  return { ...actual, default: actual }
-})
 
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => electronState.tempPath)
   }
 }))
-
-vi.mock('@shared/logger', () => ({
-  default: {
-    warn: vi.fn()
-  }
-}))
-
-const createAgent = (id: string, enabled = true): Agent =>
-  ({ id, name: id, type: 'deepchat', source: 'manual', enabled }) as Agent
-
-const createCatalogItem = (
-  name: string,
-  skillRoot: string,
-  overrides: Partial<UnifiedSkillItem> = {}
-): UnifiedSkillItem =>
-  ({
-    name,
-    description: `${name} description`,
-    path: path.join(skillRoot, 'SKILL.md'),
-    skillRoot,
-    agentId: 'source',
-    canonicalPath: skillRoot,
-    sourceType: 'created',
-    disabled: false,
-    deepchatDisabled: false,
-    agentLinks: {},
-    mutable: true,
-    ...overrides
-  }) as UnifiedSkillItem
 
 const createExternalScan = (skills: ScanResult['skills']): ScanResult => ({
   toolId: 'codex',
@@ -62,50 +32,78 @@ const createExternalScan = (skills: ScanResult['skills']): ScanResult => ({
   skills
 })
 
+const createCanonicalSkill = (name: string, instructions = '# Instructions'): CanonicalSkill => ({
+  name,
+  description: `${name} description`,
+  instructions
+})
+
 describe('AgentSkillImportService', () => {
   let tempRoot: string
-  let sourceRoot: string
-  let targetRoot: string
-  let agents: Agent[]
-  let catalogs: Map<string, UnifiedSkillItem[]>
+  let allSkills: UnifiedSkillItem[]
   let scans: ScanResult[]
   let externalPreviews: Array<{ skill: CanonicalSkill; warnings: string[] }>
-  let installImportedSkillForAgent: ReturnType<typeof vi.fn>
-  let refreshAgentCatalog: ReturnType<typeof vi.fn>
+  let installImportedSkill: ReturnType<typeof vi.fn>
   let dependencies: AgentSkillImportServiceDependencies
   let service: AgentSkillImportService
+
+  const addGlobalSkill = async (
+    skill: CanonicalSkill,
+    assignedAgentIds: string[] = [],
+    instructions = skill.instructions
+  ) => {
+    const skillRoot = path.join(tempRoot, 'allSkills', skill.name)
+    await mkdir(skillRoot, { recursive: true })
+    await writeFile(
+      path.join(skillRoot, 'SKILL.md'),
+      formatConverter.serializeToSkillMd({ ...skill, instructions }),
+      'utf-8'
+    )
+    allSkills.push({
+      name: skill.name,
+      description: skill.description,
+      path: path.join(skillRoot, 'SKILL.md'),
+      skillRoot,
+      canonicalPath: skillRoot,
+      sourceType: 'created',
+      disabled: false,
+      deepchatDisabled: false,
+      agentLinks: {},
+      mutable: true,
+      assigned: assignedAgentIds.length > 0,
+      assignedAgentIds
+    })
+  }
+
+  const useExternalSkills = (skills: CanonicalSkill[]) => {
+    scans = [
+      createExternalScan(
+        skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          path: `/external/skills/${skill.name}`,
+          format: 'codex',
+          lastModified: new Date()
+        }))
+      )
+    ]
+    externalPreviews = skills.map((skill) => ({ skill, warnings: [] }))
+  }
 
   beforeEach(async () => {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-agent-import-test-'))
     electronState.tempPath = tempRoot
-    sourceRoot = path.join(tempRoot, 'source')
-    targetRoot = path.join(tempRoot, 'target')
-    await Promise.all([
-      mkdir(sourceRoot, { recursive: true }),
-      mkdir(targetRoot, { recursive: true })
-    ])
-
-    agents = [createAgent('source'), createAgent('target')]
-    catalogs = new Map([
-      ['source', []],
-      ['target', []]
-    ])
+    await mkdir(path.join(tempRoot, 'allSkills'), { recursive: true })
+    allSkills = []
     scans = []
     externalPreviews = []
-    installImportedSkillForAgent = vi
+    installImportedSkill = vi
       .fn()
       .mockResolvedValue({ success: true, skillName: 'installed-skill' })
-    refreshAgentCatalog = vi.fn().mockResolvedValue([])
     dependencies = {
-      agents: {
-        listAgents: vi.fn(async () => agents),
-        getAgent: vi.fn(async (agentId) => agents.find((agent) => agent.id === agentId) ?? null)
-      },
       skills: {
-        getSkillsDir: vi.fn(async (agentId) => (agentId === 'source' ? sourceRoot : targetRoot)),
-        getUnifiedSkillCatalog: vi.fn(async (agentId) => catalogs.get(agentId) ?? []),
-        installImportedSkillForAgent,
-        refreshAgentCatalog
+        getAllSkills: vi.fn(async () => allSkills),
+        installImportedSkill
       },
       external: {
         scanExternalTools: vi.fn(async () => scans),
@@ -119,14 +117,7 @@ describe('AgentSkillImportService', () => {
     await rm(tempRoot, { recursive: true, force: true })
   })
 
-  it('lists peer Agents and excludes plugin-owned Skills from the source count', async () => {
-    const internalRoot = path.join(sourceRoot, 'owned')
-    agents.push(createAgent('disabled-source', false))
-    catalogs.set('disabled-source', [])
-    catalogs.set('source', [
-      createCatalogItem('owned', internalRoot),
-      createCatalogItem('plugin-skill', '/plugin/skill', { ownerPluginId: 'plugin-a' })
-    ])
+  it('lists only external Agent sources', async () => {
     scans = [
       createExternalScan([
         {
@@ -135,297 +126,216 @@ describe('AgentSkillImportService', () => {
           format: 'codex',
           lastModified: new Date()
         }
-      ])
+      ]),
+      {
+        toolId: 'cursor',
+        toolName: 'Cursor',
+        available: false,
+        skillsDir: '/external/cursor',
+        skills: []
+      }
     ]
 
-    await expect(service.listSources('target')).resolves.toEqual([
-      expect.objectContaining({ id: 'internal:disabled-source', skillCount: 0 }),
-      expect.objectContaining({ id: 'internal:source', skillCount: 1 }),
-      expect.objectContaining({ id: 'external:codex', skillCount: 1 })
+    await expect(service.listSources()).resolves.toEqual([
+      {
+        id: 'external:codex',
+        source: { kind: 'external', toolId: 'codex' },
+        name: 'Codex',
+        available: true,
+        skillCount: 1
+      },
+      {
+        id: 'external:cursor',
+        source: { kind: 'external', toolId: 'cursor' },
+        name: 'Cursor',
+        available: false,
+        skillCount: 0
+      }
     ])
   })
 
-  it('rejects duplicate selections instead of silently choosing one strategy', async () => {
+  it('previews identical packages as reusable and reports shared overwrite impact', async () => {
+    const sameSkill = createCanonicalSkill('same-skill')
+    const conflictSkill = createCanonicalSkill('conflict-skill')
+    await addGlobalSkill(sameSkill, ['target-a'])
+    await addGlobalSkill(conflictSkill, ['target-a', 'target-b'], '# Existing content')
+    useExternalSkills([sameSkill, conflictSkill])
+
     await expect(
-      service.execute({
-        targetAgentId: 'target',
-        source: { kind: 'internal', agentId: 'source' },
-        items: [
-          { skillName: 'same-skill', strategy: 'skip' },
-          { skillName: ' same-skill ', strategy: 'overwrite' }
-        ]
+      service.preview({
+        source: { kind: 'external', toolId: 'codex' }
       })
-    ).rejects.toThrow('Duplicate Skill selection')
-    expect(dependencies.skills.installImportedSkillForAgent).not.toHaveBeenCalled()
+    ).resolves.toEqual({
+      source: { kind: 'external', toolId: 'codex' },
+      items: [
+        {
+          name: 'conflict-skill',
+          description: 'conflict-skill description',
+          status: 'conflict',
+          suggestedTargetName: 'conflict-skill-copy',
+          affectedAgentIds: ['target-a', 'target-b'],
+          warning: undefined
+        },
+        {
+          name: 'same-skill',
+          description: 'same-skill description',
+          status: 'same',
+          suggestedTargetName: undefined,
+          affectedAgentIds: undefined,
+          warning: undefined
+        }
+      ]
+    })
+  })
+
+  it('reserves incoming names when suggesting conflict renames', async () => {
+    const conflictSkill = createCanonicalSkill('review')
+    const incomingCopy = createCanonicalSkill('review-copy')
+    await addGlobalSkill(conflictSkill, [], '# Existing content')
+    useExternalSkills([conflictSkill, incomingCopy])
+
+    const preview = await service.preview({
+      source: { kind: 'external', toolId: 'codex' }
+    })
+
+    expect(preview.items).toEqual([
+      expect.objectContaining({
+        name: 'review',
+        status: 'conflict',
+        suggestedTargetName: 'review-copy-2'
+      }),
+      expect.objectContaining({ name: 'review-copy', status: 'ready' })
+    ])
+  })
+
+  it('keeps suggested global names within the shared Skill name limit', async () => {
+    const name = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH - 1)}`
+    const conflictSkill = createCanonicalSkill(name)
+    await addGlobalSkill(conflictSkill, [], '# Existing content')
+    useExternalSkills([conflictSkill])
+
+    const preview = await service.preview({
+      source: { kind: 'external', toolId: 'codex' }
+    })
+
+    expect(preview.items[0].suggestedTargetName).toBe(
+      `${name.slice(0, SKILL_NAME_MAX_LENGTH - '-copy'.length)}-copy`
+    )
+    expect(preview.items[0].suggestedTargetName).toHaveLength(SKILL_NAME_MAX_LENGTH)
   })
 
   it('rejects selections beyond the shared Skill name limit', async () => {
-    const skillName = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH)}`
+    const name = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH)}`
 
     await expect(
       service.execute({
-        targetAgentId: 'target',
-        source: { kind: 'internal', agentId: 'source' },
-        items: [{ skillName, strategy: 'skip' }]
+        source: { kind: 'external', toolId: 'codex' },
+        items: [{ skillName: name, strategy: 'skip' }]
       })
     ).rejects.toThrow('Invalid Skill name in import request')
-    expect(dependencies.skills.installImportedSkillForAgent).not.toHaveBeenCalled()
+    expect(installImportedSkill).not.toHaveBeenCalled()
   })
 
-  it('materializes external references and scripts before installing the snapshot', async () => {
-    const canonicalSkill: CanonicalSkill = {
-      name: 'external-skill',
-      description: 'External skill',
-      instructions: '# Instructions',
+  it('materializes an external snapshot without enabling it for an Agent', async () => {
+    const skill: CanonicalSkill = {
+      ...createCanonicalSkill('external-skill'),
       references: [
         { name: 'guide.md', relativePath: 'references/nested/guide.md', content: '# Guide' }
       ],
       scripts: [{ name: 'run.sh', relativePath: 'scripts/run.sh', content: 'echo ok' }]
     }
-    scans = [
-      createExternalScan([
-        {
-          name: canonicalSkill.name,
-          description: canonicalSkill.description,
-          path: '/external/skills/external-skill',
-          format: 'codex',
-          lastModified: new Date()
-        }
-      ])
-    ]
-    externalPreviews = [{ skill: canonicalSkill, warnings: [] }]
-    installImportedSkillForAgent.mockImplementation(
+    useExternalSkills([skill])
+    installImportedSkill.mockImplementation(
       async (
-        _agentId: string,
+        agentIds: string[],
         folderPath: string,
-        provenance: { importedFrom: string; sourceAgentId?: string },
-        options?: SkillInstallOptions,
-        catalogPublication?: 'immediate' | 'deferred'
+        provenance: { importedFrom: string },
+        options?: SkillInstallOptions
       ) => {
+        expect(agentIds).toEqual([])
         expect(provenance).toEqual({ importedFrom: 'external:codex/external-skill' })
-        expect(options).toEqual({ overwrite: false, targetName: 'external-skill' })
-        expect(catalogPublication).toBe('deferred')
+        expect(options).toEqual({
+          overwrite: false,
+          acknowledgedAgentIds: undefined,
+          targetName: 'external-skill'
+        })
         await expect(
           readFile(path.join(folderPath, 'references/nested/guide.md'), 'utf-8')
         ).resolves.toBe('# Guide')
         await expect(readFile(path.join(folderPath, 'scripts/run.sh'), 'utf-8')).resolves.toBe(
           'echo ok'
         )
-        return { success: true, skillName: canonicalSkill.name }
+        return { success: true, skillName: 'external-skill' }
       }
     )
 
     await expect(
       service.execute({
-        targetAgentId: 'target',
         source: { kind: 'external', toolId: 'codex' },
-        items: [{ skillName: canonicalSkill.name, strategy: 'skip' }]
+        items: [{ skillName: 'external-skill', strategy: 'skip' }]
       })
     ).resolves.toEqual({
       success: true,
       imported: ['external-skill'],
+      reused: [],
       skipped: [],
       failed: []
     })
-    expect(refreshAgentCatalog).toHaveBeenCalledWith('target')
   })
 
-  it('rejects canonical files outside their declared top-level folder', async () => {
-    const canonicalSkill: CanonicalSkill = {
-      name: 'external-skill',
-      description: 'External skill',
-      instructions: '# Instructions',
-      references: [{ name: 'escape.md', relativePath: 'scripts/escape.md', content: 'nope' }]
-    }
-    scans = [
-      createExternalScan([
-        {
-          name: canonicalSkill.name,
-          path: '/external/skills/external-skill',
-          format: 'codex',
-          lastModified: new Date()
-        }
-      ])
-    ]
-    externalPreviews = [{ skill: canonicalSkill, warnings: [] }]
+  it('reuses identical content without changing enabled Agents', async () => {
+    const skill = createCanonicalSkill('shared-skill')
+    await addGlobalSkill(skill, ['target-a'])
+    useExternalSkills([skill])
 
-    const result = await service.execute({
-      targetAgentId: 'target',
-      source: { kind: 'external', toolId: 'codex' },
-      items: [{ skillName: canonicalSkill.name, strategy: 'skip' }]
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.failed).toEqual([
-      expect.objectContaining({
-        skillName: canonicalSkill.name,
-        reason: expect.stringContaining('Unsafe')
-      })
-    ])
-    expect(installImportedSkillForAgent).not.toHaveBeenCalled()
-  })
-
-  it('re-resolves target conflicts at execution time', async () => {
-    const skillRoot = path.join(sourceRoot, 'shared-skill')
-    await mkdir(skillRoot, { recursive: true })
-    await writeFile(
-      path.join(skillRoot, 'SKILL.md'),
-      '---\nname: shared-skill\ndescription: Shared\n---\n',
-      'utf-8'
-    )
-    catalogs.set('source', [createCatalogItem('shared-skill', skillRoot)])
-
-    await expect(
-      service.preview({
-        targetAgentId: 'target',
-        source: { kind: 'internal', agentId: 'source' }
-      })
-    ).resolves.toMatchObject({ items: [{ name: 'shared-skill', status: 'ready' }] })
-
-    catalogs.set('target', [
-      createCatalogItem('shared-skill', path.join(targetRoot, 'shared-skill'))
-    ])
     await expect(
       service.execute({
-        targetAgentId: 'target',
-        source: { kind: 'internal', agentId: 'source' },
+        source: { kind: 'external', toolId: 'codex' },
         items: [{ skillName: 'shared-skill', strategy: 'skip' }]
       })
-    ).resolves.toEqual({ success: true, imported: [], skipped: ['shared-skill'], failed: [] })
-    expect(installImportedSkillForAgent).not.toHaveBeenCalled()
-  })
-
-  it('keeps generated copy names within the shared Skill name limit', async () => {
-    const skillName = `a${'b'.repeat(SKILL_NAME_MAX_LENGTH - 1)}`
-    const skillRoot = path.join(sourceRoot, 'long-skill')
-    await mkdir(skillRoot, { recursive: true })
-    await writeFile(
-      path.join(skillRoot, 'SKILL.md'),
-      `---\nname: ${skillName}\ndescription: Long\n---\n`,
-      'utf-8'
-    )
-    catalogs.set('source', [createCatalogItem(skillName, skillRoot)])
-    catalogs.set('target', [createCatalogItem(skillName, path.join(targetRoot, 'existing-skill'))])
-
-    await service.execute({
-      targetAgentId: 'target',
-      source: { kind: 'internal', agentId: 'source' },
-      items: [{ skillName, strategy: 'rename' }]
+    ).resolves.toEqual({
+      success: true,
+      imported: [],
+      reused: ['shared-skill'],
+      skipped: [],
+      failed: []
     })
-
-    expect(installImportedSkillForAgent).toHaveBeenCalledWith(
-      'target',
-      expect.any(String),
-      expect.any(Object),
-      expect.objectContaining({
-        overwrite: false,
-        targetName: `${skillName.slice(0, SKILL_NAME_MAX_LENGTH - '-copy'.length)}-copy`
-      }),
-      'deferred'
-    )
+    expect(installImportedSkill).not.toHaveBeenCalled()
   })
 
-  it('marks symlinked internal Skill roots unavailable', async () => {
-    const outsideRoot = path.join(tempRoot, 'outside-skill')
-    const linkedRoot = path.join(sourceRoot, 'linked-skill')
-    await mkdir(outsideRoot, { recursive: true })
-    await writeFile(
-      path.join(outsideRoot, 'SKILL.md'),
-      '---\nname: linked-skill\ndescription: Linked\n---\n',
-      'utf-8'
-    )
-    await symlink(outsideRoot, linkedRoot)
-    catalogs.set('source', [createCatalogItem('linked-skill', linkedRoot)])
-
-    await expect(
-      service.preview({
-        targetAgentId: 'target',
-        source: { kind: 'internal', agentId: 'source' }
-      })
-    ).resolves.toMatchObject({
-      items: [{ name: 'linked-skill', status: 'unavailable' }]
-    })
-  })
-
-  it('reports per-Skill failures and refreshes after partial success', async () => {
-    const firstRoot = path.join(sourceRoot, 'first-skill')
-    const secondRoot = path.join(sourceRoot, 'second-skill')
-    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
-    await Promise.all([
-      writeFile(
-        path.join(firstRoot, 'SKILL.md'),
-        '---\nname: first-skill\ndescription: First\n---\n',
-        'utf-8'
-      ),
-      writeFile(
-        path.join(secondRoot, 'SKILL.md'),
-        '---\nname: second-skill\ndescription: Second\n---\n',
-        'utf-8'
-      )
-    ])
-    catalogs.set('source', [
-      createCatalogItem('first-skill', firstRoot),
-      createCatalogItem('second-skill', secondRoot)
-    ])
-    installImportedSkillForAgent.mockImplementation(
-      async (_agentId, _folderPath, _provenance, options) =>
-        options?.targetName === 'first-skill'
-          ? { success: true, skillName: 'first-skill' }
-          : { success: false, error: 'disk full' }
-    )
+  it('rejects stale overwrite impact and unsafe canonical paths', async () => {
+    const conflictSkill = createCanonicalSkill('conflict-skill')
+    const unsafeSkill: CanonicalSkill = {
+      ...createCanonicalSkill('unsafe-skill'),
+      references: [{ name: 'escape.md', relativePath: 'scripts/escape.md', content: 'nope' }]
+    }
+    await addGlobalSkill(conflictSkill, ['target-a'], '# Existing content')
+    useExternalSkills([conflictSkill, unsafeSkill])
 
     const result = await service.execute({
-      targetAgentId: 'target',
-      source: { kind: 'internal', agentId: 'source' },
+      source: { kind: 'external', toolId: 'codex' },
       items: [
-        { skillName: 'first-skill', strategy: 'skip' },
-        { skillName: 'second-skill', strategy: 'skip' }
+        { skillName: 'conflict-skill', strategy: 'overwrite', acknowledgedAgentIds: [] },
+        { skillName: 'unsafe-skill', strategy: 'skip' }
       ]
     })
 
     expect(result).toEqual({
       success: false,
-      imported: ['first-skill'],
+      imported: [],
+      reused: [],
       skipped: [],
-      failed: [{ skillName: 'second-skill', reason: 'disk full' }]
+      failed: [
+        {
+          skillName: 'conflict-skill',
+          reason: 'Enabled Agent impact changed; preview the import again.'
+        },
+        {
+          skillName: 'unsafe-skill',
+          reason: 'Unsafe imported Skill path: scripts/escape.md'
+        }
+      ]
     })
-    expect(installImportedSkillForAgent).toHaveBeenCalledTimes(2)
-    expect(installImportedSkillForAgent.mock.calls[0]?.[4]).toBe('deferred')
-    expect(installImportedSkillForAgent.mock.calls[1]?.[4]).toBe('deferred')
-    expect(refreshAgentCatalog).toHaveBeenCalledOnce()
-    expect(refreshAgentCatalog).toHaveBeenCalledWith('target')
-  })
-
-  it('keeps completed imports successful when only the catalog refresh fails', async () => {
-    const skillRoot = path.join(sourceRoot, 'installed-skill')
-    await mkdir(skillRoot)
-    await writeFile(
-      path.join(skillRoot, 'SKILL.md'),
-      '---\nname: installed-skill\ndescription: Installed\n---\n',
-      'utf-8'
-    )
-    catalogs.set('source', [createCatalogItem('installed-skill', skillRoot)])
-    refreshAgentCatalog.mockRejectedValueOnce(new Error('catalog unavailable'))
-
-    const result = await service.execute({
-      targetAgentId: 'target',
-      source: { kind: 'internal', agentId: 'source' },
-      items: [{ skillName: 'installed-skill', strategy: 'skip' }]
-    })
-
-    expect(result).toEqual({
-      success: true,
-      imported: ['installed-skill'],
-      skipped: [],
-      failed: []
-    })
-    expect(logger.warn).toHaveBeenCalledWith(
-      '[AgentSkillImportService] Failed to refresh imported Skill catalog.',
-      expect.objectContaining({
-        targetAgentId: 'target',
-        importedCount: 1,
-        error: expect.objectContaining({ message: 'catalog unavailable' })
-      })
-    )
+    expect(installImportedSkill).not.toHaveBeenCalled()
   })
 })

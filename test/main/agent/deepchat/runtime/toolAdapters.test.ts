@@ -6,7 +6,7 @@ import {
   type MCPToolDefinition
 } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
+import type { ToolExecutionOptions, ToolResultPort } from '@/agent/deepchat/loop/ports'
 import {
   createToolCatalogPort,
   createToolExecutionPort,
@@ -195,6 +195,7 @@ describe('DeepChat tool adapters', () => {
     const abortController = new AbortController()
     const onProgress = vi.fn()
     const commitDispatch = vi.fn()
+    const toolSurfaceContext = {} as NonNullable<ToolExecutionOptions['toolSurfaceContext']>
 
     await port.preCheck(call, { permissionMode })
     await port.execute(call, {
@@ -204,6 +205,7 @@ describe('DeepChat tool adapters', () => {
       activeSkillNames: ['skill-a'],
       agentId: 'agent-1',
       enabledMcpServerIds: ['mcp-1'],
+      toolSurfaceContext,
       commitDispatch
     })
 
@@ -215,8 +217,23 @@ describe('DeepChat tool adapters', () => {
       activeSkillNames: ['skill-a'],
       agentId: 'agent-1',
       enabledMcpServerIds: ['mcp-1'],
+      toolSurfaceContext,
       commitDispatch
     })
+  })
+
+  it('fails closed when a Tool Surface dispatch has no runtime authority gate', () => {
+    const port = createToolExecutionPort(createToolService())
+    const call: MCPToolCall = {
+      id: 'call-1',
+      type: 'function',
+      function: { name: 'write', arguments: '{}' },
+      conversationId: 'session-1'
+    }
+
+    expect(() =>
+      port.assertAuthority(call, { toolSurfaceSnapshot: {} } as never)
+    ).toThrow('Tool Surface runtime authority gate is unavailable.')
   })
 
   it('delegates success, error, screenshot fallback, preparation and batch fitting', async () => {

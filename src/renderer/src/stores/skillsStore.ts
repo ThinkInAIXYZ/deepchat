@@ -395,14 +395,6 @@ export const useSkillsStore = defineStore('skills', () => {
 
       for (const agentId of affectedAgentIds) {
         if (
-          payload.reason === 'disabled-updated' &&
-          payload.name &&
-          payload.disabled !== undefined &&
-          applySkillDisabled(agentId, payload.name, payload.disabled)
-        ) {
-          continue
-        }
-        if (
           payload.reason === 'uninstalled' &&
           payload.name &&
           removeSkillFromCatalog(agentId, payload.name)

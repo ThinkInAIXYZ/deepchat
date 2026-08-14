@@ -1,5 +1,5 @@
 {
-  "title": "Anmodningsforhåndsvisning",
+  "title": "Beskeddiagnostik",
   "provider": "Udbyder",
   "model": "Model",
   "endpoint": "API-endpoint",
@@ -18,14 +18,29 @@
     "request": "Anmodning",
     "view": "Visning",
     "entries": "Poster",
-    "budget": "Tokenbudget"
+    "budget": "Tokenbudget",
+    "execution": "Udførelsesrevision"
   },
   "empty": "Ingen diagnostik",
-  "emptyDesc": "Der er ingen anmodningssporing eller visningsmanifest for denne besked",
+  "emptyDesc": "Der er ingen anmodningssporing, Tape-visningsmanifest eller revision af indlejrede udførelser for denne besked",
   "requestUnavailable": "Ingen anmodningssporing",
   "requestUnavailableDesc": "Denne besked har ingen gemt udbyderanmodningssporing",
   "manifestUnavailable": "Intet visningsmanifest",
   "manifestUnavailableDesc": "Denne besked har intet gemt Tape-visningsmanifest",
+  "execution": {
+    "empty": "Ingen indlejrede udførelser",
+    "emptyDesc": "Der er ikke registreret nogen programmatisk værktøjsoperation for denne anmodning",
+    "corrupt": "Udførelsesrevisionen er beskadiget",
+    "corruptDesc": "De indlejrede Journal-fakta er i konflikt eller kan ikke verificeres",
+    "unavailable": "Udførelsesrevisionen er ikke tilgængelig",
+    "unavailableDesc": "De indlejrede Journal-fakta kunne ikke læses",
+    "truncated": "Kun de første 256 indlejrede operationer vises",
+    "status": {
+      "success": "Fuldført",
+      "error": "Fejl",
+      "indeterminate": "Ubestemt"
+    }
+  },
   "viewId": "Visnings-id",
   "policy": "Politik",
   "policyVersion": "Politikversion",

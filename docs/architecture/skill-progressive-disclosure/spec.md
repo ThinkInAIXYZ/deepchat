@@ -163,8 +163,10 @@ interface SkillListInput {
 - Ranking is exact name, normalized name/prefix, existing aliases or keywords when present,
   category, then bounded summary text; ties use stable category/name order.
 - The default page size is 10 and the hard maximum is 20.
-- `skill_list` is a system-model discovery capability while Skills are enabled; per-tool user
-  configuration cannot remove the only recovery path for omitted Route cards.
+- `skill_list`, `skill_view`, `skill_manage`, and `skill_run` are reserved system-model capabilities
+  while Skills are enabled. MCP tools cannot shadow them, and per-tool user configuration cannot
+  remove the discovery, activation, draft-management, or execution paths referenced by Skill
+  instructions. The global Skills setting remains the product-level availability control.
 - Query input is limited to 256 Unicode code points and 1,024 UTF-8 bytes. Cursor input is limited
   to 1,024 UTF-8 bytes.
 - Cursor decoding is validated and bound to the normalized-query hash, routing projection version,

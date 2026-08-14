@@ -1,5 +1,5 @@
 {
-  "title": "Minta pratonton parameter",
+  "title": "Diagnostik mesej",
   "provider": "pembekal",
   "model": "Model",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "Permintaan",
     "view": "Paparan",
     "entries": "Entri",
-    "budget": "Bajet"
+    "budget": "Bajet",
+    "execution": "Audit pelaksanaan"
   },
   "empty": "Tiada diagnostik",
-  "emptyDesc": "Tiada jejak permintaan atau manifes paparan tersedia untuk mesej ini",
+  "emptyDesc": "Tiada jejak permintaan, manifes paparan Tape atau audit pelaksanaan bersarang tersedia untuk mesej ini",
   "requestUnavailable": "Tiada jejak permintaan",
   "requestUnavailableDesc": "Mesej ini tiada jejak permintaan penyedia yang disimpan",
   "manifestUnavailable": "Tiada manifes paparan",
   "manifestUnavailableDesc": "Mesej ini tiada manifes paparan Tape yang disimpan",
+  "execution": {
+    "empty": "Tiada pelaksanaan bersarang",
+    "emptyDesc": "Tiada operasi alat berprogram direkodkan untuk permintaan ini",
+    "corrupt": "Audit pelaksanaan rosak",
+    "corruptDesc": "Fakta Journal bersarang bercanggah atau tidak dapat disahkan",
+    "unavailable": "Audit pelaksanaan tidak tersedia",
+    "unavailableDesc": "Fakta Journal bersarang tidak dapat dibaca",
+    "truncated": "Hanya 256 operasi bersarang pertama dipaparkan",
+    "status": {
+      "success": "Berjaya",
+      "error": "Ralat",
+      "indeterminate": "Tidak dapat ditentukan"
+    }
+  },
   "viewId": "ID paparan",
   "policy": "Dasar",
   "policyVersion": "Versi dasar",

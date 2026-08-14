@@ -80,7 +80,7 @@
         </div>
 
         <Tabs v-model="activeTab" class="h-0 flex-1 min-h-0 flex flex-col overflow-hidden">
-          <TabsList class="grid grid-cols-4 w-full">
+          <TabsList class="grid grid-cols-5 w-full">
             <TabsTrigger
               v-for="tab in diagnosticTabs"
               :key="tab.id"
@@ -283,6 +283,69 @@
               </p>
             </div>
           </TabsContent>
+
+          <TabsContent
+            v-if="activeTab === 'execution'"
+            value="execution"
+            class="flex-1 min-h-0 border rounded-b-lg overflow-auto p-4 mt-0"
+          >
+            <div
+              v-if="nestedExecutionAudit.state !== 'available'"
+              class="h-full flex flex-col items-center justify-center p-6 text-center"
+            >
+              <Icon
+                :icon="
+                  nestedExecutionAudit.state === 'corrupt'
+                    ? 'lucide:shield-alert'
+                    : 'lucide:database-zap'
+                "
+                class="w-10 h-10 text-destructive mb-2"
+              />
+              <p class="text-sm font-medium">
+                {{ t(`traceDialog.execution.${nestedExecutionAudit.state}`) }}
+              </p>
+              <p class="text-xs text-muted-foreground mt-1">
+                {{ t(`traceDialog.execution.${nestedExecutionAudit.state}Desc`) }}
+              </p>
+            </div>
+            <div v-else-if="selectedNestedExecutions.length" class="space-y-3">
+              <p v-if="nestedExecutionAudit.truncated" class="text-xs text-muted-foreground">
+                {{ t('traceDialog.execution.truncated') }}
+              </p>
+              <div
+                v-for="operation in selectedNestedExecutions"
+                :key="nestedExecutionKey(operation)"
+                class="space-y-2 rounded-md border p-3 text-xs"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-mono font-semibold break-all">{{ operation.toolName }}</div>
+                    <div class="mt-1 font-mono text-muted-foreground break-all">
+                      {{ formatNestedTarget(operation) }}
+                    </div>
+                  </div>
+                  <DcBadge :variant="nestedExecutionStatusVariant(operation.status)">
+                    {{ t(`traceDialog.execution.status.${operation.status}`) }}
+                  </DcBadge>
+                </div>
+                <div class="font-mono text-muted-foreground break-all">
+                  #{{ operation.childOrdinal }} · {{ operation.toolSource }} · T1
+                  {{ operation.dispatchEntryId }} → T2
+                  {{ formatNullable(operation.outcomeEntryId) }}
+                </div>
+                <div class="font-mono text-muted-foreground break-all">
+                  {{ operation.providerToolCallId }} · {{ operation.runId }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="h-full flex flex-col items-center justify-center p-6 text-center">
+              <Icon icon="lucide:workflow" class="w-10 h-10 text-muted-foreground mb-2" />
+              <p class="text-sm font-medium">{{ t('traceDialog.execution.empty') }}</p>
+              <p class="text-xs text-muted-foreground mt-1">
+                {{ t('traceDialog.execution.emptyDesc') }}
+              </p>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -331,8 +394,20 @@ import type {
   DeepChatTapeViewManifestIntegrity,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatNestedExecutionAudit,
+  DeepChatNestedExecutionAuditOperation,
+  DeepChatNestedExecutionStatus
+} from '@shared/types/execution-journal-audit'
 
-type DiagnosticTab = 'request' | 'view' | 'entries' | 'budget'
+type DiagnosticTab = 'request' | 'view' | 'entries' | 'budget' | 'execution'
+
+const emptyNestedExecutionAudit = (): DeepChatNestedExecutionAudit => ({
+  schemaVersion: 1,
+  state: 'available',
+  operations: [],
+  truncated: false
+})
 
 const { t } = useI18n()
 const sessionClient = createSessionClient()
@@ -377,6 +452,7 @@ const error = ref(false)
 const requestId = ref(0)
 const traceList = ref<MessageTraceRecord[]>([])
 const manifestList = ref<DeepChatTapeViewManifestRecord[]>([])
+const nestedExecutionAudit = ref<DeepChatNestedExecutionAudit>(emptyNestedExecutionAudit())
 const selectedRequestSeq = ref<number | null>(null)
 const activeTab = ref<DiagnosticTab>('request')
 
@@ -384,7 +460,8 @@ const diagnosticTabs: Array<{ id: DiagnosticTab; labelKey: string }> = [
   { id: 'request', labelKey: 'traceDialog.tabs.request' },
   { id: 'view', labelKey: 'traceDialog.tabs.view' },
   { id: 'entries', labelKey: 'traceDialog.tabs.entries' },
-  { id: 'budget', labelKey: 'traceDialog.tabs.budget' }
+  { id: 'budget', labelKey: 'traceDialog.tabs.budget' },
+  { id: 'execution', labelKey: 'traceDialog.tabs.execution' }
 ]
 
 const requestOptions = computed(() => {
@@ -395,6 +472,9 @@ const requestOptions = computed(() => {
   for (const manifest of manifestList.value) {
     seqs.add(manifest.requestSeq)
   }
+  for (const operation of nestedExecutionAudit.value.operations) {
+    seqs.add(operation.requestSeq)
+  }
   return [...seqs]
     .sort((left, right) => right - left)
     .map((requestSeq) => ({
@@ -402,7 +482,13 @@ const requestOptions = computed(() => {
     }))
 })
 
-const hasDiagnostics = computed(() => traceList.value.length > 0 || manifestList.value.length > 0)
+const hasDiagnostics = computed(
+  () =>
+    traceList.value.length > 0 ||
+    manifestList.value.length > 0 ||
+    nestedExecutionAudit.value.operations.length > 0 ||
+    nestedExecutionAudit.value.state !== 'available'
+)
 
 const selectedTrace = computed(() => {
   if (!traceList.value.length) {
@@ -426,6 +512,13 @@ const selectedManifest = computed(() => {
   }
 
   return manifestList.value[0] ?? null
+})
+
+const selectedNestedExecutions = computed(() => {
+  if (selectedRequestSeq.value === null) return nestedExecutionAudit.value.operations
+  return nestedExecutionAudit.value.operations.filter(
+    (operation) => operation.requestSeq === selectedRequestSeq.value
+  )
 })
 
 const diagnosticProviderId = computed(
@@ -490,6 +583,18 @@ const activeTabLabel = computed(() => {
 const activeJson = computed(() => {
   if (activeTab.value === 'request') {
     return formattedJson.value
+  }
+  if (activeTab.value === 'execution') {
+    return JSON.stringify(
+      {
+        schemaVersion: nestedExecutionAudit.value.schemaVersion,
+        state: nestedExecutionAudit.value.state,
+        truncated: nestedExecutionAudit.value.truncated,
+        operations: selectedNestedExecutions.value
+      },
+      null,
+      2
+    )
   }
   if (!selectedManifest.value) {
     return ''
@@ -685,20 +790,27 @@ const loadTraces = async (messageId: string) => {
   error.value = false
   traceList.value = []
   manifestList.value = []
+  nestedExecutionAudit.value = emptyNestedExecutionAudit()
   selectedRequestSeq.value = null
   activeTab.value = 'request'
 
   try {
-    const { traces, manifests } = await sessionClient.listMessageTraceDiagnostics(messageId)
+    const { traces, manifests, nestedExecutions } =
+      await sessionClient.listMessageTraceDiagnostics(messageId)
     if (currentRequestId !== requestId.value) {
       return
     }
 
     traceList.value = Array.isArray(traces) ? traces : []
     manifestList.value = Array.isArray(manifests) ? manifests : []
+    nestedExecutionAudit.value = nestedExecutions ?? emptyNestedExecutionAudit()
     selectedRequestSeq.value =
-      traceList.value[0]?.requestSeq ?? manifestList.value[0]?.requestSeq ?? null
-    activeTab.value = traceList.value.length > 0 ? 'request' : 'view'
+      traceList.value[0]?.requestSeq ??
+      manifestList.value[0]?.requestSeq ??
+      nestedExecutionAudit.value.operations.at(-1)?.requestSeq ??
+      null
+    activeTab.value =
+      traceList.value.length > 0 ? 'request' : manifestList.value.length > 0 ? 'view' : 'execution'
   } catch (err) {
     if (currentRequestId === requestId.value) {
       console.error('Failed to load message traces:', err)
@@ -716,6 +828,7 @@ const resetState = () => {
   error.value = false
   traceList.value = []
   manifestList.value = []
+  nestedExecutionAudit.value = emptyNestedExecutionAudit()
   selectedRequestSeq.value = null
   activeTab.value = 'request'
   cleanupEditor()
@@ -727,6 +840,22 @@ const formatNullable = (value: string | number | null): string => {
     return t('traceDialog.notAvailable')
   }
   return String(value)
+}
+
+const formatNestedTarget = (operation: DeepChatNestedExecutionAuditOperation): string => {
+  const targetName = operation.target.originalName ?? operation.toolName
+  return `${operation.target.serverName}/${targetName}`
+}
+
+const nestedExecutionKey = (operation: DeepChatNestedExecutionAuditOperation): string =>
+  `${operation.runId}:${operation.requestSeq}:${operation.providerToolCallId}:${operation.childOrdinal}`
+
+const nestedExecutionStatusVariant = (
+  status: DeepChatNestedExecutionStatus
+): 'secondary' | 'destructive' | 'outline' => {
+  if (status === 'error') return 'destructive'
+  if (status === 'indeterminate') return 'outline'
+  return 'secondary'
 }
 
 const close = () => {

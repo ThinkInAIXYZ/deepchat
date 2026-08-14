@@ -42,9 +42,92 @@ function providerAttemptProvenance(overrides: Record<string, unknown> = {}) {
 }
 
 describe('SessionTape recall', () => {
-  it('invalidates projections written before atomic generation transitions', () => {
-    expect(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION).toBeGreaterThan(5)
+  it('invalidates projections written before provider View manifest search exclusion', () => {
+    expect(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION).toBe(9)
   })
+
+  it.each([
+    {
+      projectionVersion: 7,
+      eventName: 'view/programmatic_tool_surface',
+      marker: 'historical-private-programmatic-surface'
+    },
+    {
+      projectionVersion: 8,
+      eventName: 'view/assembled',
+      marker: 'historical-private-provider-view'
+    }
+  ])(
+    'rebuilds a same-head v$projectionVersion projection that exposed $eventName provenance',
+    ({ projectionVersion, eventName, marker }) => {
+      const { table } = createTapeTableMock()
+      table.append({
+        sessionId: 's1',
+        kind: 'event',
+        name: eventName,
+        source: { type: 'runtime_event', id: 'm1', seq: 1 },
+        payload: { marker },
+        createdAt: 100
+      })
+      let storedVersion = projectionVersion
+      let projectedRows: any[] = [
+        {
+          sessionId: 's1',
+          entryId: 1,
+          kind: 'event',
+          name: eventName,
+          sourceType: 'runtime_event',
+          sourceId: 'm1',
+          sourceSeq: 1,
+          searchText: marker,
+          summaryText: marker,
+          refs: {},
+          createdAt: 100
+        }
+      ]
+      const projectionTable = {
+        isCurrent: vi.fn(
+          (_sessionId: string, maxEntryId: number) =>
+            storedVersion === DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION && maxEntryId === 1
+        ),
+        getSessionMeta: vi.fn(() => ({ projectionVersion: storedVersion, maxEntryId: 1 })),
+        getProjectedEntryIds: vi.fn(() => projectedRows.map((row) => row.entryId)),
+        appendSession: vi.fn(),
+        replaceSession: vi.fn((_sessionId: string, rows: any[]) => {
+          projectedRows = rows
+          storedVersion = DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION
+        }),
+        search: vi.fn((_sessionId: string, query: string) =>
+          projectedRows
+            .filter((row) => row.searchText.includes(query))
+            .map((row) => ({
+              session_id: row.sessionId,
+              entry_id: row.entryId,
+              kind: row.kind,
+              name: row.name,
+              source_type: row.sourceType,
+              source_id: row.sourceId,
+              source_seq: row.sourceSeq,
+              search_text: row.searchText,
+              summary_text: row.summaryText,
+              refs_json: JSON.stringify(row.refs),
+              created_at: row.createdAt,
+              score: 1
+            }))
+        )
+      }
+      const service = new SessionTape({
+        deepchatTapeEntriesTable: table,
+        deepchatTapeSearchProjectionTable: projectionTable,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+
+      expect(service.search('s1', marker)).toEqual([])
+      expect(projectionTable.replaceSession).toHaveBeenCalledTimes(1)
+      expect(projectionTable.appendSession).not.toHaveBeenCalled()
+      expect(storedVersion).toBe(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION)
+    }
+  )
 
   itIfSqlite('prunes legacy and metadata-orphaned search projections during initialization', () => {
     const db = new DatabaseCtor(':memory:')

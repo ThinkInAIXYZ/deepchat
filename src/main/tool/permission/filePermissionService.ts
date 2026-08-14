@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import path from 'path'
 
 export interface FilePermissionRequest {
@@ -25,6 +26,10 @@ export type FilePermissionLevel = FilePermissionRequest['permissionType']
 
 export class FilePermissionService {
   private readonly approvals = new Map<string, Map<string, FilePermissionLevel>>()
+  private readonly provisionalApprovals = new Map<
+    string,
+    Map<string, Map<string, FilePermissionLevel>>
+  >()
 
   approve(
     conversationId: string,
@@ -44,18 +49,62 @@ export class FilePermissionService {
     this.approvals.set(conversationId, existing)
   }
 
+  approveProvisional(
+    conversationId: string,
+    paths: string[],
+    permissionType: FilePermissionLevel
+  ): string {
+    if (!conversationId || paths.length === 0) {
+      throw new Error('Provisional file approval requires a conversation and at least one path.')
+    }
+    const leaseId = randomUUID()
+    const approvedPaths = new Map<string, FilePermissionLevel>()
+    for (const filePath of paths) {
+      approvedPaths.set(this.normalizePath(filePath), permissionType)
+    }
+    const leases = this.provisionalApprovals.get(conversationId) ?? new Map()
+    leases.set(leaseId, approvedPaths)
+    this.provisionalApprovals.set(conversationId, leases)
+    return leaseId
+  }
+
+  finalizeProvisional(conversationId: string, leaseId: string): void {
+    const approvedPaths = this.takeProvisional(conversationId, leaseId)
+    if (!approvedPaths) return
+    const existing = this.approvals.get(conversationId) ?? new Map<string, FilePermissionLevel>()
+    for (const [filePath, permissionType] of approvedPaths) {
+      existing.set(filePath, this.mergePermission(existing.get(filePath), permissionType))
+    }
+    this.approvals.set(conversationId, existing)
+  }
+
+  revokeProvisional(conversationId: string, leaseId: string): void {
+    this.takeProvisional(conversationId, leaseId)
+  }
+
   getApprovedPaths(
     conversationId?: string,
-    requiredPermission: FilePermissionLevel = 'read'
+    requiredPermission: FilePermissionLevel = 'read',
+    provisionalLeaseId?: string
   ): string[] {
     if (!conversationId) return []
-    return Array.from(this.approvals.get(conversationId)?.entries() ?? [])
+    const provisional = this.provisionalApprovals.get(conversationId)
+    const effective = new Map(this.approvals.get(conversationId) ?? [])
+    if (provisionalLeaseId) {
+      const approvedPaths = provisional?.get(provisionalLeaseId)
+      if (!approvedPaths) return []
+      for (const [filePath, permissionType] of approvedPaths) {
+        effective.set(filePath, this.mergePermission(effective.get(filePath), permissionType))
+      }
+    }
+    return Array.from(effective.entries())
       .filter(([, permissionType]) => this.allows(permissionType, requiredPermission))
       .map(([filePath]) => filePath)
   }
 
   clearConversation(conversationId: string): void {
     this.approvals.delete(conversationId)
+    this.provisionalApprovals.delete(conversationId)
   }
 
   /**
@@ -76,6 +125,19 @@ export class FilePermissionService {
 
   clearAll(): void {
     this.approvals.clear()
+    this.provisionalApprovals.clear()
+  }
+
+  private takeProvisional(
+    conversationId: string,
+    leaseId: string
+  ): Map<string, FilePermissionLevel> | undefined {
+    const leases = this.provisionalApprovals.get(conversationId)
+    const approvedPaths = leases?.get(leaseId)
+    if (!approvedPaths || !leases) return undefined
+    leases.delete(leaseId)
+    if (leases.size === 0) this.provisionalApprovals.delete(conversationId)
+    return approvedPaths
   }
 
   private normalizePath(targetPath: string): string {

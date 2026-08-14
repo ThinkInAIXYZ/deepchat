@@ -1,5 +1,5 @@
 import type { ProviderExecutionPort } from '@shared/types/provider'
-import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
@@ -35,13 +35,20 @@ import type {
   DeepChatSessionUpdatePublisher,
   RunJournalObserver
 } from '@/agent/deepchat/runtime/types'
-import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
 import type { MonotonicClock } from '@/lib/monotonicTime'
+import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
+import type { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
+import type { ToolSurfaceRunModePort } from '@/agent/deepchat/runtime/deepChatLoopRunner'
+import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
   | 'getMetadataList'
+  | 'getAllSkills'
   | 'getActiveSkills'
+  | 'snapshotPersistedActiveSkillNames'
   | 'resolveSessionAgentId'
   | 'setActiveSkills'
   | 'revalidateActiveSkillsForAgent'
@@ -51,7 +58,8 @@ export type DeepChatHarnessSkillPort = Pick<
   | 'viewDraftSkill'
   | 'installDraftSkill'
   | 'discardDraftSkill'
->
+> &
+  SkillMetadataSnapshotPort
 
 export interface DeepChatHarnessDependencies {
   providerRuntime: ProviderExecutionPort
@@ -78,6 +86,15 @@ export interface DeepChatHarnessDependencies {
   interactionContinuationAdmission: InteractionContinuationAdmissionPort
   taskContractContext: DeepChatTaskContractContextPort
   commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  /** Internal rollout seam. Production remains on the legacy path unless explicitly assigned. */
+  toolSurfaceRunMode?: ToolSurfaceRunModePort
+  /** Process-live causality owner. It never reconstructs dispatch authority from Tape. */
+  programmaticToolParents?: ProgrammaticToolParentRegistry
+  /** Shared local-control authority for inert exact-operation grants and Run-scoped revocation. */
+  agentCliTokenAuthority: Pick<
+    AgentCliTokenAuthority,
+    'prepareProgrammaticOperation' | 'revokeConversation'
+  >
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }
@@ -98,5 +115,7 @@ export interface DeepChatRuntimeServices {
   compaction: CompactionRuntimeCoordinator
   transcriptMutation: TranscriptMutationCoordinator
   memoryIngestionObserver: MemoryIngestionObserver
+  toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistry
+  toolSurfaceCanaryDiagnostics: ToolSurfaceCanaryDiagnosticsRegistry
   acpCompatibility: AcpAgentInstanceDependencyFactory
 }

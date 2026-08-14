@@ -7,6 +7,7 @@
  */
 
 import type {
+  SkillDeleteResult,
   SkillManagementState,
   SkillSyncDirectoryConfig,
   SkillSourceType,
@@ -149,15 +150,20 @@ export interface SkillScriptDescriptor {
 export interface SkillInstallResult {
   success: boolean
   error?: string
-  errorCode?: 'conflict' | 'invalid_skill' | 'not_found' | 'io_error' | 'target_locked'
+  errorCode?:
+    | 'conflict'
+    | 'invalid_skill'
+    | 'not_found'
+    | 'io_error'
+    | 'target_locked'
+    | 'permission_denied'
+    | 'stale_impact'
   /** Original selected name when a bulk import may rename the installed Skill. */
   sourceSkillName?: string
   skillName?: string
   existingSkillName?: string
   targetPath?: string
 }
-
-export type SkillCatalogPublicationMode = 'immediate' | 'deferred'
 
 /**
  * Skill installation options
@@ -166,6 +172,8 @@ export interface SkillInstallOptions {
   overwrite?: boolean
   /** Validated destination name used by snapshot import/rename flows. */
   targetName?: string
+  /** Required by shared-content workflows that previewed current assignment impact. */
+  acknowledgedAgentIds?: string[]
 }
 
 export interface SkillImportProvenance {
@@ -234,20 +242,6 @@ export interface SkillSyncDirectoryResult {
   imported?: number
   skipped: number
   failed: Array<{ skillName: string; reason: string }>
-}
-
-export interface SkillAdoptionRegistration {
-  name: string
-  canonicalPath: string
-  agentId: string
-  agentPath: string
-  originalPath: string
-}
-
-export interface SkillAgentLinkRegistration {
-  skillName: string
-  agentId: string
-  agentPath: string
 }
 
 /**
@@ -349,6 +343,18 @@ export interface SkillManageResult {
 
 export type SkillDraftUserAction = 'view' | 'install' | 'discard'
 
+export type SkillMetadataCatalogSnapshot =
+  | { readonly state: 'ready'; readonly skills: readonly SkillMetadata[] }
+  | { readonly state: 'overflow'; readonly minimumItemCount: number }
+  | { readonly state: 'unavailable' }
+
+export interface SkillMetadataSnapshotPort {
+  snapshotCachedMetadataList(
+    agentId: string,
+    options: { readonly maxItems: number }
+  ): SkillMetadataCatalogSnapshot
+}
+
 export interface SkillDraftActionResult {
   success: boolean
   action: SkillDraftUserAction
@@ -373,9 +379,13 @@ export interface SkillServicePort {
   getMetadataList(agentId: string): Promise<SkillMetadata[]>
   getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]>
   getUnifiedSkillCatalog(agentId: string): Promise<UnifiedSkillItem[]>
+  getAllSkills(): Promise<UnifiedSkillItem[]>
   getSkillManagementState(): Promise<SkillManagementState>
   setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
   setSkillDisabledForAgent(agentId: string, name: string, disabled: boolean): Promise<void>
+  setSkillAssignment(agentId: string, name: string, assigned: boolean): Promise<void>
+  setSkillAssignmentForAgents(agentIds: string[], name: string, assigned: boolean): Promise<void>
+  setSkillAssignments(agentId: string, skillNames: string[]): Promise<string[]>
 
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>
@@ -390,6 +400,7 @@ export interface SkillServicePort {
     options?: {
       filePath?: string
       conversationId?: string
+      activeSkillNames?: readonly string[]
     }
   ): Promise<SkillViewResult>
   viewSkill(
@@ -416,12 +427,11 @@ export interface SkillServicePort {
     folderPath: string,
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult>
-  installImportedSkillForAgent(
-    agentId: string,
+  installImportedSkill(
+    agentIds: string[],
     folderPath: string,
     provenance: SkillImportProvenance,
-    options?: SkillInstallOptions,
-    catalogPublication?: SkillCatalogPublicationMode
+    options?: SkillInstallOptions
   ): Promise<SkillInstallResult>
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromZipForAgent(
@@ -454,11 +464,9 @@ export interface SkillServicePort {
   executeSyncDirectoryImport(
     input: SkillSyncDirectoryImportInput
   ): Promise<SkillSyncDirectoryResult>
-  registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void>
-  registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void>
-  removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void>
   uninstallSkill(name: string): Promise<SkillInstallResult>
   uninstallSkillForAgent(agentId: string, name: string): Promise<SkillInstallResult>
+  deleteSkill(name: string, acknowledgedAgentIds: string[]): Promise<SkillDeleteResult>
   cleanupAgentSkills(agentId: string): Promise<void>
   registerPluginSkill(input: {
     ownerPluginId: string
@@ -509,6 +517,7 @@ export interface SkillServicePort {
   listSkillScriptsForAgent(agentId: string, name: string): Promise<SkillScriptDescriptor[]>
 
   // Session state management
+  snapshotPersistedActiveSkillNames(conversationId: string): string[]
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   removeActiveSkill(conversationId: string, skill: string): Promise<string[]>

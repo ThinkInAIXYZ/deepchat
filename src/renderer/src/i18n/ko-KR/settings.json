@@ -1956,7 +1956,7 @@
       "successMessage": "스킬 {name}이(가) 성공적으로 삭제되었습니다.",
       "title": "스킬 삭제"
     },
-    "description": "AI 어시스턴트의 스킬 모듈 관리 및 구성",
+    "description": "모든 Skills를 둘러보세요. Skill을 열어 미리 보고 활성화된 Agents를 관리할 수 있습니다.",
     "edit": {
       "allowedTools": "추가 도구",
       "allowedToolsHint": "쉼표로 구분된 도구 이름 목록",
@@ -1993,7 +1993,7 @@
       }
     },
     "empty": "스킬 없음",
-    "emptyHint": "\\\"skill 추가\\\" 버튼을 클릭하여 새 skill을 설치하세요.",
+    "emptyHint": "외부 Agent에서 Skills를 가져오세요.",
     "install": {
       "description": "스킬 설치 방법 선택",
       "dragInvalid": "지원하지 않는 항목입니다. skill 폴더 또는 단일 .zip 파일을 드래그하세요.",
@@ -2018,46 +2018,30 @@
     },
     "noResults": "일치하는 skill을 찾을 수 없습니다.",
     "agentImport": {
-      "menuItem": "Import from Agent...",
-      "title": "Import Skills from Agent",
-      "description": "Copy selected Skills from another internal or external Agent. Imported copies remain independent.",
-      "target": "Target Agent",
-      "resultPartial": "Import completed with errors",
-      "resultSuccess": "Import complete",
-      "resultSummary": "Imported {imported}, skipped {skipped}, failed {failed}.",
-      "sourceTitle": "Source Agent",
-      "sourceDescription": "Choose an Agent to copy Skills from.",
-      "loadingSources": "Loading Agents...",
-      "sourceError": "Failed to load Agent sources",
-      "emptySources": "No import sources",
-      "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": {
-        "internal": "DeepChat",
-        "external": "External"
-      },
+      "menuItem": "외부 Agent에서 가져오기",
+      "title": "외부 Agent에서 가져오기",
+      "description": "검증된 Skills를 DeepChat으로 가져옵니다. 각 Skill 미리 보기에서 Agents를 활성화할 수 있습니다.",
+      "resultPartial": "오류와 함께 가져오기 완료",
+      "resultSuccess": "가져오기 완료",
+      "sourceTitle": "원본 Agent",
+      "emptySources": "가져올 원본 없음",
       "skillCount": "{count} Skills",
-      "previewTitle": "Skills to import",
-      "selectedCount": "{count} selected",
-      "selectAll": "Select all",
-      "clear": "Clear",
-      "loadingPreview": "Loading Skills...",
-      "previewError": "Failed to preview Skills",
-      "emptyPreview": "No Skills available",
-      "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
+      "previewTitle": "가져올 Skills",
+      "emptyPreview": "사용 가능한 Skills 없음",
       "status": {
-        "ready": "Ready",
-        "conflict": "Conflict",
-        "unavailable": "Unavailable"
+        "ready": "준비됨",
+        "conflict": "충돌",
+        "unavailable": "사용할 수 없음",
+        "same": "이미 추가됨"
       },
       "strategy": {
-        "skip": "Skip",
-        "rename": "Rename",
-        "overwrite": "Overwrite"
+        "skip": "건너뛰기",
+        "rename": "이름 변경",
+        "overwrite": "덮어쓰기"
       },
-      "renameTarget": "Will be imported as {name}",
-      "executeError": "Failed to import Skills",
-      "importing": "Importing...",
-      "importSelected": "Import {count} selected"
+      "overwriteImpact": "이 Skill을 덮어쓰면 활성화된 Agents에 영향을 줍니다: {agents}.",
+      "resultSummaryV3": "가져옴 {imported}개, 재사용 {reused}개, 건너뜀 {skipped}개, 실패 {failed}개.",
+      "execute": "선택 항목 가져오기"
     },
     "sync": {
       "conflict": "충돌",
@@ -2157,8 +2141,6 @@
       "env": "{count} env",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "자세히 보기",
@@ -2174,111 +2156,6 @@
       "success": "Skill Disabled",
       "successMessage": "Skill {name} is disabled in DeepChat",
       "failed": "Disable Failed"
-    },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "동기화 디렉터리"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "미리보기"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "보기"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
     },
     "git": {
       "title": "Git",
@@ -2311,7 +2188,6 @@
       "saved": "동기화 디렉터리가 저장되었습니다",
       "export": "디렉터리로 내보내기",
       "import": "디렉터리에서 가져오기",
-      "includeDisabled": "비활성 skill 포함",
       "previewExport": "내보내기 미리보기",
       "exportNow": "지금 내보내기",
       "previewImport": "가져오기 미리보기",
@@ -2364,7 +2240,13 @@
       "edit": "편집",
       "delete": "삭제",
       "confirmDeleteTitle": "skill 삭제",
-      "confirmDeleteDescription": "skill \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+      "confirmDeleteDescription": "skill \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      "enabledAgents": "활성화된 Agents",
+      "enabledAgentsHint": "이 Agents는 해당 Skill을 사용할 수 있습니다.",
+      "noEnabledAgents": "아직 이 Skill을 사용하는 Agent가 없습니다.",
+      "addAgent": "Agent 추가",
+      "removeAgent": "{agent} 제거",
+      "agentUpdateFailed": "활성화된 Agents를 업데이트하지 못했습니다"
     },
     "installToAgent": {
       "title": "{name}을 Agent에 설치",
@@ -2382,6 +2264,17 @@
       "disconnectSuccess": "Agent에서 연결 해제됨",
       "disconnectSuccessMessage": "{name}의 대상 Agent 링크가 해제되었습니다.",
       "disconnectFailed": "Agent 연결 해제 실패"
+    },
+    "impact": {
+      "changed": "활성화된 Agents가 변경되었습니다. 영향을 확인한 후 다시 시도하세요.",
+      "editEnabled": "콘텐츠 변경 사항은 다음 실행 시 이 Agents에 적용됩니다: {agents}.",
+      "editUnused": "현재 이 Skill을 사용하는 Agent가 없습니다.",
+      "confirmDeleteEnabled": "{name}을(를) 삭제할까요? 다음 Agents에 활성화되어 있습니다: {agents}.",
+      "confirmDeleteUnused": "{name}을(를) 삭제할까요? 현재 사용하는 Agent가 없습니다."
+    },
+    "syncDirectory": {
+      "action": "디렉터리 동기화",
+      "back": "Skills로 돌아가기"
     }
   },
   "environments": {

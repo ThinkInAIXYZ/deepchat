@@ -7,8 +7,12 @@ import type {
   TapeAnchorAppendInput,
   TapeEventAppendInput
 } from '../domain/entry'
-import type { ExecutionJournalEventName } from '../domain/executionJournal'
+import type {
+  ExecutionJournalEventName,
+  ExecutionJournalRecoveryRow
+} from '../domain/executionJournal'
 import type { ContractTapeEventName } from '../domain/contractFacts'
+import type { ToolSurfaceTapeEventName } from '../domain/toolSurfaceFacts'
 import type { TapeSkillMaterializationPayload } from '../domain/skillMaterialization'
 
 export interface TapeMutationProjection {
@@ -23,6 +27,20 @@ export interface TapeEntryStore {
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow
   appendEvent(input: TapeEventAppendInput): DeepChatTapeEntryRow
   getBySession(sessionId: string): DeepChatTapeEntryRow[]
+  getByEntryId(sessionId: string, entryId: number): DeepChatTapeEntryRow | undefined
+  getEventsBySource(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string,
+    sourceSeq: number
+  ): DeepChatTapeEntryRow[]
+  getEventsBySourceId(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): DeepChatTapeEntryRow[]
   getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[]
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[]
   getMessageSourceEntries(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
@@ -81,6 +99,14 @@ export interface TapeBootstrapStore {
   ensureBootstrapAnchor(sessionId: string): void
 }
 
+/** Tool Surface provenance has a dedicated namespace gate and shares the host transaction. */
+export interface ToolSurfacePersistenceStore extends TapeTransactionRunner, TapeBootstrapStore {
+  appendToolSurfaceEvent(
+    input: TapeEventAppendInput & { name: ToolSurfaceTapeEventName }
+  ): DeepChatTapeEntryRow
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+}
+
 export interface TapeBootstrapIncarnationReader {
   getBootstrapIncarnation(sessionId: string): string | undefined
 }
@@ -91,7 +117,29 @@ export interface ExecutionJournalPersistenceStore
   appendExecutionJournalEvent(
     input: TapeEventAppendInput & { name: ExecutionJournalEventName }
   ): DeepChatTapeEntryRow
-  listUnterminatedRunEvents(): Iterable<DeepChatTapeEntryRow>
+  listUnterminatedRunEvents(): Iterable<ExecutionJournalRecoveryRow>
+  listNestedOperationEventsForMessage(
+    sessionId: string,
+    messageId: string,
+    maximumOperations: number
+  ): DeepChatTapeEntryRow[]
+  listMessageIdsWithNestedOperationEvents(
+    sessionId: string,
+    messageIds: readonly string[]
+  ): string[]
+  listNestedOperationEventsForRun(sessionId: string, runId: string): DeepChatTapeEntryRow[]
+  listNestedOperationEventsForParent(
+    sessionId: string,
+    runId: string,
+    requestSeq: number,
+    providerToolCallId: string,
+    parentOperationKey: string
+  ): DeepChatTapeEntryRow[]
+  listDispatchEventsForRecoveryIdentity(
+    sessionId: string,
+    messageId: string,
+    providerToolCallId: string
+  ): DeepChatTapeEntryRow[]
   getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
 }
 

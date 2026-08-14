@@ -1,7 +1,9 @@
 import type { DeepChatTapeEntryRow } from './entry'
 import { hashJson, hashJsonData, stableJsonStringify } from './canonicalJson'
+import { MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN } from './toolSurfaceFacts'
 
 export const EXECUTION_JOURNAL_PROTOCOL_VERSION = 1 as const
+export const EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION = 2 as const
 export const EXECUTION_JOURNAL_FACT_FAMILY = 'execution_journal' as const
 export const EXECUTION_JOURNAL_EVENT_NAMES = [
   'execution/run_started',
@@ -11,6 +13,9 @@ export const EXECUTION_JOURNAL_EVENT_NAMES = [
 ] as const
 
 export type ExecutionJournalEventName = (typeof EXECUTION_JOURNAL_EVENT_NAMES)[number]
+export type ExecutionJournalProtocolVersion =
+  | typeof EXECUTION_JOURNAL_PROTOCOL_VERSION
+  | typeof EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
 export type ExecutionRunKind = 'loop' | 'deferred_tool'
 export type ExecutionRunOutcome = 'completed' | 'paused' | 'aborted' | 'error'
 export type ExecutionToolSource = 'agent' | 'mcp'
@@ -20,8 +25,13 @@ export type ExecutionRecoveryClassification =
   | 'indeterminate'
   | 'corruption'
 
+/** Query-only ownership hint for malformed recovery candidates; never persisted or authoritative. */
+export interface ExecutionJournalRecoveryRow extends DeepChatTapeEntryRow {
+  recovery_run_id?: string
+}
+
 const MAX_IDENTITY_CHARS = 1_024
-const MAX_TOOL_NAME_CHARS = 512
+export const MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS = 512
 const MAX_TARGET_FIELD_CHARS = 1_024
 const MAX_STOP_REASON_CHARS = 1_024
 const SHA_256_PATTERN = /^[0-9a-f]{64}$/
@@ -32,6 +42,15 @@ export interface ExecutionOperationIdentity {
   requestSeq: number
   providerToolCallId: string
 }
+
+export interface NestedExecutionOperationIdentity extends ExecutionOperationIdentity {
+  kind: 'nested'
+  childOrdinal: number
+}
+
+export type AnyExecutionOperationIdentity =
+  | ExecutionOperationIdentity
+  | NestedExecutionOperationIdentity
 
 export interface ExecutionResolvedTarget {
   serverName: string
@@ -67,6 +86,28 @@ export interface CommitExecutionToolOutcomeInput {
   createdAt?: number
 }
 
+export interface CommitNestedExecutionDispatchInput {
+  sessionId: string
+  messageId: string
+  operation: NestedExecutionOperationIdentity
+  toolName: string
+  toolSource: ExecutionToolSource
+  normalizedArguments: Record<string, unknown>
+  target: ExecutionResolvedTarget
+  definitionHash: string
+  capabilityHash: string
+  createdAt?: number
+}
+
+export interface CommitNestedExecutionToolOutcomeInput {
+  sessionId: string
+  messageId: string
+  operation: NestedExecutionOperationIdentity
+  responseText: string
+  isError: boolean
+  createdAt?: number
+}
+
 export interface CommitExecutionRunTerminalInput {
   sessionId: string
   runId: string
@@ -83,8 +124,11 @@ export interface ExecutionJournalCommitReceipt {
   created: boolean
 }
 
-interface ExecutionFactBase<TName extends ExecutionJournalEventName> {
-  protocolVersion: typeof EXECUTION_JOURNAL_PROTOCOL_VERSION
+interface ExecutionFactBase<
+  TName extends ExecutionJournalEventName,
+  TVersion extends ExecutionJournalProtocolVersion = typeof EXECUTION_JOURNAL_PROTOCOL_VERSION
+> {
+  protocolVersion: TVersion
   type: TName
   sessionId: string
   runId: string
@@ -111,6 +155,28 @@ export interface ExecutionToolOutcomeFact extends ExecutionFactBase<'execution/t
   isError: boolean
 }
 
+export interface NestedExecutionDispatchFact extends ExecutionFactBase<
+  'execution/dispatch_committed',
+  typeof EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+> {
+  operation: NestedExecutionOperationIdentity
+  toolName: string
+  toolSource: ExecutionToolSource
+  argumentsHash: string
+  target: ExecutionResolvedTarget
+  definitionHash: string
+  capabilityHash: string
+}
+
+export interface NestedExecutionToolOutcomeFact extends ExecutionFactBase<
+  'execution/tool_outcome',
+  typeof EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+> {
+  operation: NestedExecutionOperationIdentity
+  responseHash: string
+  isError: boolean
+}
+
 export interface ExecutionRunTerminalFact extends ExecutionFactBase<'execution/run_terminal'> {
   outcome: ExecutionRunOutcome
   stopReason: string
@@ -121,6 +187,8 @@ export type ExecutionJournalFact =
   | ExecutionRunStartedFact
   | ExecutionDispatchFact
   | ExecutionToolOutcomeFact
+  | NestedExecutionDispatchFact
+  | NestedExecutionToolOutcomeFact
   | ExecutionRunTerminalFact
 
 export interface ExecutionRecoveryReport {
@@ -168,9 +236,9 @@ export class ExecutionJournalDuplicateDispatchError extends ExecutionJournalErro
 }
 
 export class CommittedToolOutcomeProjectionError extends ExecutionJournalError {
-  constructor(operation: ExecutionOperationIdentity, options?: ErrorOptions) {
+  constructor(operation: AnyExecutionOperationIdentity, options?: ErrorOptions) {
     super(
-      `Tool outcome was committed for operation ${formatExecutionOperationIdentity(operation)}, but its projection failed.`,
+      `Tool outcome was committed for operation ${formatAnyExecutionOperationIdentity(operation)}, but its projection failed.`,
       'projection_failed',
       options
     )
@@ -270,6 +338,60 @@ export function normalizeExecutionOperationIdentity(
   }
 }
 
+export function normalizeNestedExecutionOperationIdentity(
+  value: NestedExecutionOperationIdentity
+): NestedExecutionOperationIdentity {
+  const record = requireRecord(value, 'operation')
+  requireExactKeys(record, 'operation', [
+    'kind',
+    'runId',
+    'requestSeq',
+    'providerToolCallId',
+    'childOrdinal'
+  ])
+  if (record.kind !== 'nested') {
+    throw new ExecutionJournalError('Nested operation kind is invalid.', 'invalid_fact')
+  }
+  if (
+    !Number.isSafeInteger(record.childOrdinal) ||
+    (record.childOrdinal as number) < 0 ||
+    (record.childOrdinal as number) >= MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN
+  ) {
+    throw new ExecutionJournalError(
+      `childOrdinal must be a non-negative safe integer below ${MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN}.`,
+      'invalid_fact'
+    )
+  }
+  return {
+    kind: 'nested',
+    runId: requireExecutionRunId(record.runId),
+    requestSeq: requireRequestSeq(record.requestSeq),
+    providerToolCallId: requireString(
+      record.providerToolCallId,
+      'providerToolCallId',
+      MAX_IDENTITY_CHARS
+    ),
+    childOrdinal: record.childOrdinal as number
+  }
+}
+
+export function isNestedExecutionOperationIdentity(
+  operation: AnyExecutionOperationIdentity
+): operation is NestedExecutionOperationIdentity {
+  return 'kind' in operation && operation.kind === 'nested'
+}
+
+export function getNestedExecutionParentOperation(
+  operation: NestedExecutionOperationIdentity
+): ExecutionOperationIdentity {
+  const normalized = normalizeNestedExecutionOperationIdentity(operation)
+  return {
+    runId: normalized.runId,
+    requestSeq: normalized.requestSeq,
+    providerToolCallId: normalized.providerToolCallId
+  }
+}
+
 function normalizeTarget(value: ExecutionResolvedTarget): ExecutionResolvedTarget {
   const record = requireRecord(value, 'target')
   requireExactKeys(record, 'target', [
@@ -300,8 +422,11 @@ function normalizeTarget(value: ExecutionResolvedTarget): ExecutionResolvedTarge
   }
 }
 
-function requireProtocolVersion(value: unknown): typeof EXECUTION_JOURNAL_PROTOCOL_VERSION {
-  if (value !== EXECUTION_JOURNAL_PROTOCOL_VERSION) {
+function requireProtocolVersion(value: unknown): ExecutionJournalProtocolVersion {
+  if (
+    value !== EXECUTION_JOURNAL_PROTOCOL_VERSION &&
+    value !== EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+  ) {
     throw new ExecutionJournalError(
       `Unsupported execution journal protocol version: ${String(value)}.`,
       'invalid_fact'
@@ -350,8 +475,34 @@ export function formatExecutionOperationIdentity(operation: ExecutionOperationId
   return stableJsonStringify(normalizeExecutionOperationIdentity(operation))
 }
 
+export function formatNestedExecutionOperationIdentity(
+  operation: NestedExecutionOperationIdentity
+): string {
+  return stableJsonStringify(normalizeNestedExecutionOperationIdentity(operation))
+}
+
+export function formatAnyExecutionOperationIdentity(
+  operation: AnyExecutionOperationIdentity
+): string {
+  return isNestedExecutionOperationIdentity(operation)
+    ? formatNestedExecutionOperationIdentity(operation)
+    : formatExecutionOperationIdentity(operation)
+}
+
 export function buildExecutionOperationKey(operation: ExecutionOperationIdentity): string {
   return hashJson(normalizeExecutionOperationIdentity(operation))
+}
+
+export function buildNestedExecutionOperationKey(
+  operation: NestedExecutionOperationIdentity
+): string {
+  return hashJsonData(normalizeNestedExecutionOperationIdentity(operation))
+}
+
+export function buildAnyExecutionOperationKey(operation: AnyExecutionOperationIdentity): string {
+  return isNestedExecutionOperationIdentity(operation)
+    ? buildNestedExecutionOperationKey(operation)
+    : buildExecutionOperationKey(operation)
 }
 
 export function buildExecutionRunProvenanceKey(
@@ -366,6 +517,15 @@ export function buildExecutionOperationProvenanceKey(
   fact: 'dispatch' | 'outcome'
 ): string {
   return `execution:v${EXECUTION_JOURNAL_PROTOCOL_VERSION}:operation:${buildExecutionOperationKey(operation)}:${fact}`
+}
+
+export function buildNestedExecutionOperationProvenanceKey(
+  operation: NestedExecutionOperationIdentity,
+  fact: 'dispatch' | 'outcome'
+): string {
+  const normalized = normalizeNestedExecutionOperationIdentity(operation)
+  const parentKey = buildExecutionOperationKey(getNestedExecutionParentOperation(normalized))
+  return `execution:v${EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION}:parent:${parentKey}:operation:${buildNestedExecutionOperationKey(normalized)}:${fact}`
 }
 
 export function buildRunStartedData(input: CommitExecutionRunStartedInput) {
@@ -387,7 +547,7 @@ export function buildDispatchData(input: CommitExecutionDispatchInput) {
     protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
     operation: normalizeExecutionOperationIdentity(input.operation),
     messageId: requireMessageId(input.messageId),
-    toolName: requireString(input.toolName, 'toolName', MAX_TOOL_NAME_CHARS),
+    toolName: requireString(input.toolName, 'toolName', MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS),
     toolSource:
       input.toolSource === 'agent' || input.toolSource === 'mcp'
         ? input.toolSource
@@ -402,9 +562,6 @@ export function buildDispatchData(input: CommitExecutionDispatchInput) {
 export function buildToolOutcomeData(input: CommitExecutionToolOutcomeInput) {
   requireSessionId(input.sessionId)
   requireOptionalCreatedAt(input.createdAt)
-  if (typeof input.responseText !== 'string') {
-    throw new ExecutionJournalError('responseText must be a string.', 'invalid_fact')
-  }
   if (typeof input.isError !== 'boolean') {
     throw new ExecutionJournalError('isError must be a boolean.', 'invalid_fact')
   }
@@ -412,7 +569,51 @@ export function buildToolOutcomeData(input: CommitExecutionToolOutcomeInput) {
     protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
     operation: normalizeExecutionOperationIdentity(input.operation),
     messageId: requireMessageId(input.messageId),
-    responseHash: hashJson(input.responseText),
+    responseHash: buildExecutionToolResponseHash(input.responseText),
+    isError: input.isError
+  }
+}
+
+export function buildNestedDispatchData(input: CommitNestedExecutionDispatchInput) {
+  requireSessionId(input.sessionId)
+  requireOptionalCreatedAt(input.createdAt)
+  const normalizedArguments = requireRecord(input.normalizedArguments, 'normalizedArguments')
+  return {
+    protocolVersion: EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
+    operation: normalizeNestedExecutionOperationIdentity(input.operation),
+    messageId: requireMessageId(input.messageId),
+    toolName: requireString(input.toolName, 'toolName', MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS),
+    toolSource:
+      input.toolSource === 'agent' || input.toolSource === 'mcp'
+        ? input.toolSource
+        : (() => {
+            throw new ExecutionJournalError('toolSource is invalid.', 'invalid_fact')
+          })(),
+    argumentsHash: hashJsonFactValue(normalizedArguments, 'normalizedArguments'),
+    target: normalizeTarget(input.target),
+    definitionHash: requireHash(input.definitionHash, 'definitionHash'),
+    capabilityHash: requireHash(input.capabilityHash, 'capabilityHash')
+  }
+}
+
+export function buildExecutionToolResponseHash(responseText: string): string {
+  if (typeof responseText !== 'string') {
+    throw new ExecutionJournalError('responseText must be a string.', 'invalid_fact')
+  }
+  return hashJson(responseText)
+}
+
+export function buildNestedToolOutcomeData(input: CommitNestedExecutionToolOutcomeInput) {
+  requireSessionId(input.sessionId)
+  requireOptionalCreatedAt(input.createdAt)
+  if (typeof input.isError !== 'boolean') {
+    throw new ExecutionJournalError('isError must be a boolean.', 'invalid_fact')
+  }
+  return {
+    protocolVersion: EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
+    operation: normalizeNestedExecutionOperationIdentity(input.operation),
+    messageId: requireMessageId(input.messageId),
+    responseHash: buildExecutionToolResponseHash(input.responseText),
     isError: input.isError
   }
 }
@@ -440,6 +641,13 @@ export function buildExecutionJournalMeta(): Record<string, unknown> {
   }
 }
 
+export function buildNestedExecutionJournalMeta(): Record<string, unknown> {
+  return {
+    factFamily: EXECUTION_JOURNAL_FACT_FAMILY,
+    protocolVersion: EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION
+  }
+}
+
 function parseJsonObject(raw: string, label: string): Record<string, unknown> {
   try {
     return requireRecord(JSON.parse(raw), label)
@@ -455,6 +663,7 @@ function parseCommonRow(row: DeepChatTapeEntryRow): {
   name: ExecutionJournalEventName
   data: Record<string, unknown>
   runId: string
+  protocolVersion: ExecutionJournalProtocolVersion
 } {
   if (
     row.kind !== 'event' ||
@@ -470,17 +679,30 @@ function parseCommonRow(row: DeepChatTapeEntryRow): {
   if (payload.name !== name) {
     throw new ExecutionJournalError('Payload name does not match the row name.', 'invalid_fact')
   }
-  if (
-    meta.factFamily !== EXECUTION_JOURNAL_FACT_FAMILY ||
-    requireProtocolVersion(meta.protocolVersion) !== EXECUTION_JOURNAL_PROTOCOL_VERSION
-  ) {
+  if (meta.factFamily !== EXECUTION_JOURNAL_FACT_FAMILY) {
     throw new ExecutionJournalError('Row is not a native Execution Journal fact.', 'invalid_fact')
   }
+  const protocolVersion = requireProtocolVersion(meta.protocolVersion)
   if (row.source_type !== 'runtime_event') {
     throw new ExecutionJournalError('Execution Journal source type is invalid.', 'invalid_fact')
   }
   const data = requireRecord(payload.data, 'payload.data')
-  requireProtocolVersion(data.protocolVersion)
+  if (requireProtocolVersion(data.protocolVersion) !== protocolVersion) {
+    throw new ExecutionJournalError(
+      'Execution Journal payload and metadata protocol versions do not match.',
+      'invalid_fact'
+    )
+  }
+  if (
+    protocolVersion === EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION &&
+    name !== 'execution/dispatch_committed' &&
+    name !== 'execution/tool_outcome'
+  ) {
+    throw new ExecutionJournalError(
+      'Execution Journal v2 supports only nested operation facts.',
+      'invalid_fact'
+    )
+  }
   const runId = requireExecutionRunId(
     name === 'execution/dispatch_committed' || name === 'execution/tool_outcome'
       ? requireRecord(data.operation, 'operation').runId
@@ -492,13 +714,12 @@ function parseCommonRow(row: DeepChatTapeEntryRow): {
       'invalid_fact'
     )
   }
-  return { name, data, runId }
+  return { name, data, runId, protocolVersion }
 }
 
 export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJournalFact {
   const common = parseCommonRow(row)
   const base = {
-    protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
     sessionId: requireSessionId(row.session_id),
     runId: common.runId,
     entryId: row.entry_id,
@@ -512,6 +733,9 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
   }
 
   if (common.name === 'execution/run_started') {
+    if (common.protocolVersion !== EXECUTION_JOURNAL_PROTOCOL_VERSION) {
+      throw new ExecutionJournalError('Run-start facts must use protocol v1.', 'invalid_fact')
+    }
     requireExactKeys(common.data, 'payload.data', [
       'protocolVersion',
       'runId',
@@ -530,10 +754,67 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
     ) {
       throw new ExecutionJournalError('Run-start identity fields are inconsistent.', 'invalid_fact')
     }
-    return { ...base, type: common.name, messageId: data.messageId, runKind: data.runKind }
+    return {
+      ...base,
+      protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
+      type: common.name,
+      messageId: data.messageId,
+      runKind: data.runKind
+    }
   }
 
   if (common.name === 'execution/dispatch_committed') {
+    if (common.protocolVersion === EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION) {
+      requireExactKeys(common.data, 'payload.data', [
+        'protocolVersion',
+        'operation',
+        'messageId',
+        'toolName',
+        'toolSource',
+        'argumentsHash',
+        'target',
+        'definitionHash',
+        'capabilityHash'
+      ])
+      const operation = normalizeNestedExecutionOperationIdentity(
+        common.data.operation as NestedExecutionOperationIdentity
+      )
+      const toolName = requireString(
+        common.data.toolName,
+        'toolName',
+        MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS
+      )
+      const toolSource = common.data.toolSource
+      if (toolSource !== 'agent' && toolSource !== 'mcp') {
+        throw new ExecutionJournalError('toolSource is invalid.', 'invalid_fact')
+      }
+      const argumentsHash = requireHash(common.data.argumentsHash, 'argumentsHash')
+      const target = normalizeTarget(common.data.target as ExecutionResolvedTarget)
+      const definitionHash = requireHash(common.data.definitionHash, 'definitionHash')
+      const capabilityHash = requireHash(common.data.capabilityHash, 'capabilityHash')
+      if (
+        row.source_seq !== operation.requestSeq ||
+        row.provenance_key !== buildNestedExecutionOperationProvenanceKey(operation, 'dispatch')
+      ) {
+        throw new ExecutionJournalError(
+          'Nested dispatch identity fields are inconsistent.',
+          'invalid_fact'
+        )
+      }
+      return {
+        ...base,
+        protocolVersion: EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
+        type: common.name,
+        messageId: requireMessageId(common.data.messageId),
+        operation,
+        toolName,
+        toolSource,
+        argumentsHash,
+        target,
+        definitionHash,
+        capabilityHash
+      }
+    }
     requireExactKeys(common.data, 'payload.data', [
       'protocolVersion',
       'operation',
@@ -546,7 +827,11 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
     const operation = normalizeExecutionOperationIdentity(
       common.data.operation as ExecutionOperationIdentity
     )
-    const toolName = requireString(common.data.toolName, 'toolName', MAX_TOOL_NAME_CHARS)
+    const toolName = requireString(
+      common.data.toolName,
+      'toolName',
+      MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS
+    )
     const toolSource = common.data.toolSource
     if (toolSource !== 'agent' && toolSource !== 'mcp') {
       throw new ExecutionJournalError('toolSource is invalid.', 'invalid_fact')
@@ -561,6 +846,7 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
     }
     return {
       ...base,
+      protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
       type: common.name,
       messageId: requireMessageId(common.data.messageId),
       operation,
@@ -572,6 +858,40 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
   }
 
   if (common.name === 'execution/tool_outcome') {
+    if (common.protocolVersion === EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION) {
+      requireExactKeys(common.data, 'payload.data', [
+        'protocolVersion',
+        'operation',
+        'messageId',
+        'responseHash',
+        'isError'
+      ])
+      const operation = normalizeNestedExecutionOperationIdentity(
+        common.data.operation as NestedExecutionOperationIdentity
+      )
+      const responseHash = requireHash(common.data.responseHash, 'responseHash')
+      if (typeof common.data.isError !== 'boolean') {
+        throw new ExecutionJournalError('isError must be a boolean.', 'invalid_fact')
+      }
+      if (
+        row.source_seq !== operation.requestSeq ||
+        row.provenance_key !== buildNestedExecutionOperationProvenanceKey(operation, 'outcome')
+      ) {
+        throw new ExecutionJournalError(
+          'Nested tool-outcome identity fields are inconsistent.',
+          'invalid_fact'
+        )
+      }
+      return {
+        ...base,
+        protocolVersion: EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
+        type: common.name,
+        messageId: requireMessageId(common.data.messageId),
+        operation,
+        responseHash,
+        isError: common.data.isError
+      }
+    }
     requireExactKeys(common.data, 'payload.data', [
       'protocolVersion',
       'operation',
@@ -597,6 +917,7 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
     }
     return {
       ...base,
+      protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
       type: common.name,
       messageId: requireMessageId(common.data.messageId),
       operation,
@@ -605,6 +926,9 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
     }
   }
 
+  if (common.protocolVersion !== EXECUTION_JOURNAL_PROTOCOL_VERSION) {
+    throw new ExecutionJournalError('Run-terminal facts must use protocol v1.', 'invalid_fact')
+  }
   requireExactKeys(common.data, 'payload.data', [
     'protocolVersion',
     'runId',
@@ -634,6 +958,7 @@ export function parseExecutionJournalFact(row: DeepChatTapeEntryRow): ExecutionJ
   }
   return {
     ...base,
+    protocolVersion: EXECUTION_JOURNAL_PROTOCOL_VERSION,
     type: common.name,
     messageId: data.messageId,
     outcome: data.outcome,
@@ -647,8 +972,14 @@ type MutableRecoveryRun = {
   runId: string
   messageId: string | null
   starts: Array<Pick<ExecutionRunStartedFact, 'entryId'>>
-  dispatches: Map<string, Pick<ExecutionDispatchFact, 'entryId'>>
-  outcomes: Map<string, Pick<ExecutionToolOutcomeFact, 'entryId'>>
+  dispatches: Map<
+    string,
+    Pick<ExecutionDispatchFact | NestedExecutionDispatchFact, 'entryId' | 'operation'>
+  >
+  outcomes: Map<
+    string,
+    Pick<ExecutionToolOutcomeFact | NestedExecutionToolOutcomeFact, 'entryId' | 'operation'>
+  >
   terminals: Array<Pick<ExecutionRunTerminalFact, 'entryId' | 'outcome'>>
   reasons: Set<string>
 }
@@ -671,7 +1002,7 @@ function createMutableRecoveryRun(sessionId: string, runId: string): MutableReco
 }
 
 export function classifyExecutionJournalRows(
-  rows: Iterable<DeepChatTapeEntryRow>
+  rows: Iterable<ExecutionJournalRecoveryRow>
 ): ExecutionRecoveryReport[] {
   const runs = new Map<string, MutableRecoveryRun>()
   const getRun = (sessionId: string, runId: string) => {
@@ -696,25 +1027,31 @@ export function classifyExecutionJournalRows(
       if (fact.type === 'execution/run_started') {
         run.starts.push({ entryId: fact.entryId })
       } else if (fact.type === 'execution/dispatch_committed') {
-        const operationKey = buildExecutionOperationKey(fact.operation)
+        const operationKey = buildAnyExecutionOperationKey(fact.operation)
         if (run.dispatches.has(operationKey)) {
           run.reasons.add('duplicate_dispatch')
         } else {
-          run.dispatches.set(operationKey, { entryId: fact.entryId })
+          run.dispatches.set(operationKey, {
+            entryId: fact.entryId,
+            operation: fact.operation
+          })
         }
       } else if (fact.type === 'execution/tool_outcome') {
-        const operationKey = buildExecutionOperationKey(fact.operation)
+        const operationKey = buildAnyExecutionOperationKey(fact.operation)
         if (run.outcomes.has(operationKey)) {
           run.reasons.add('duplicate_outcome')
         } else {
-          run.outcomes.set(operationKey, { entryId: fact.entryId })
+          run.outcomes.set(operationKey, {
+            entryId: fact.entryId,
+            operation: fact.operation
+          })
         }
       } else {
         run.terminals.push({ entryId: fact.entryId, outcome: fact.outcome })
       }
     } catch (error) {
       const sessionId = row.session_id || '<invalid-session>'
-      const runId = row.source_id || `<invalid-run:${row.entry_id}>`
+      const runId = row.recovery_run_id || row.source_id || `<invalid-run:${row.entry_id}>`
       const run = getRun(sessionId, runId)
       run.reasons.add(
         `malformed_fact:${row.entry_id}:${error instanceof Error ? error.message : String(error)}`
@@ -758,6 +1095,45 @@ export function classifyExecutionJournalRows(
         }
       }
       const terminalEntryId = run.terminals[0]?.entryId
+      for (const dispatch of run.dispatches.values()) {
+        if (!isNestedExecutionOperationIdentity(dispatch.operation)) continue
+        const parentKey = buildExecutionOperationKey(
+          getNestedExecutionParentOperation(dispatch.operation)
+        )
+        const parentDispatch = run.dispatches.get(parentKey)
+        const parentOutcome = run.outcomes.get(parentKey)
+        if (!parentDispatch || isNestedExecutionOperationIdentity(parentDispatch.operation)) {
+          run.reasons.add('nested_dispatch_without_parent')
+        } else if (dispatch.entryId <= parentDispatch.entryId) {
+          run.reasons.add('nested_dispatch_before_parent')
+        }
+        if (parentOutcome && dispatch.entryId >= parentOutcome.entryId) {
+          run.reasons.add('nested_dispatch_after_parent_outcome')
+        }
+        const nestedOutcome = run.outcomes.get(buildNestedExecutionOperationKey(dispatch.operation))
+        if (parentOutcome && !nestedOutcome) {
+          run.reasons.add('parent_outcome_with_unsettled_nested')
+        } else if (
+          parentOutcome &&
+          nestedOutcome &&
+          parentOutcome.entryId <= nestedOutcome.entryId
+        ) {
+          run.reasons.add('parent_outcome_before_nested_outcome')
+        }
+        if (terminalEntryId !== undefined && (!nestedOutcome || !parentOutcome)) {
+          run.reasons.add('terminal_with_unsettled_nested')
+        }
+      }
+      for (const outcome of run.outcomes.values()) {
+        if (!isNestedExecutionOperationIdentity(outcome.operation)) continue
+        const parentKey = buildExecutionOperationKey(
+          getNestedExecutionParentOperation(outcome.operation)
+        )
+        const parentDispatch = run.dispatches.get(parentKey)
+        if (!parentDispatch || isNestedExecutionOperationIdentity(parentDispatch.operation)) {
+          run.reasons.add('nested_outcome_without_parent')
+        }
+      }
       if (
         terminalEntryId !== undefined &&
         [...run.dispatches.values(), ...run.outcomes.values()].some(

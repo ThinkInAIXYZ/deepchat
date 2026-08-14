@@ -94,6 +94,7 @@ export class SessionTranscriptMutations {
     const nextText = text.trim()
     if (!nextText) throw new Error('Edited message cannot be empty.')
 
+    await this.dependencies.runtime.cancelForTranscriptMutation(sessionId)
     this.dependencies.runtime.invalidateTranscriptFrom(sessionId, target.orderSeq)
     this.dependencies.transcript.updateMessageContent(
       messageId,

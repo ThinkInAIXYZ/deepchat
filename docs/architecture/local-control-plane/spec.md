@@ -66,7 +66,8 @@ protocol, schema, permission, or lifecycle foundation.
 - TCP, HTTP loopback, remote access, CORS, or a network-listening daemon.
 - A generic route-registry proxy or access to every internal route.
 - CLI-side approval resolution or a `confirmed` request field.
-- Raw MCP tool invocation, Browser/Computer Use, a TUI, or an interactive chat shell.
+- Generic or human raw MCP tool invocation, Browser/Computer Use, a TUI, or an interactive chat
+  shell. The approved Agent-scoped Programmatic Tool extension below is the sole strict exception.
 - Arbitrary settings, database, credential, filesystem, or application-secret reads.
 - A persistent input-artifact lifecycle or arbitrary main-process input paths.
 - Server-side OCR batch/layout/boxes/model management.
@@ -694,7 +695,89 @@ and cold application restarts.
 - Format, i18n validation, lint, typecheck, focused tests, full tests, production build, and
   current-platform packaged smoke pass where local prerequisites allow.
 
-## Open Questions
+## Resolved Questions
 
-None. Policy values above are the V1 baseline; future changes require an explicit surface/security
+None. Policy values above are the V2 baseline; future changes require an explicit surface/security
 review rather than implicit widening.
+
+## Approved Programmatic Tool Extension
+
+This section defines `CLI_SURFACE_V3` as a strict, version-negotiated superset of immutable
+`CLI_SURFACE_V2`. V2 names, contracts, callers, and semantics do not change, and V2 tokens cannot
+reach V3 routes. The strict V2 descriptor and wire envelopes remain byte- and shape-compatible at
+surface version 2; adding V3 advertisement fields there would make strict V2 clients reject the
+descriptor. Route-surface negotiation is therefore authenticated rather than caller-declared:
+human and ordinary Agent tokens select V2, while an exact Programmatic-tool grant selects V3. No
+header, request-body version, capability query, or descriptor field can widen that selection. An old
+client continues on V2 against a new server; a server that cannot mint the exact V3 grant cannot
+admit a Programmatic command. Unsupported routes fail before invocation. Agent invocation grants
+bind route-surface version 3, so downgrade cannot widen access.
+
+V3 does not open a generic raw MCP tunnel. For a Run frozen to the CLI Programmatic adapter, it adds
+Agent-only `tool.search|describe|call|batch` methods and
+`deepchat tool search|describe|call|batch` commands. This is the sole exception to the raw MCP
+Non-Goal and is bounded by the originating View's immutable Programmatic Surface.
+
+The extension reuses V2's local endpoint, authenticated Agent principal, deny-by-default route
+registry, shell gate, effect policy, approval infrastructure, quotas, and audit foundation. It also
+adds security-sensitive surface that V2 did not provide: an exact programmatic capability, controlled
+raw-target invocation, nested Execution Journal v2, and a process-live batch/parent-operation
+controller. It must not be described as zero additional trust surface or as process attestation.
+
+The per-View `ProgrammaticToolCapabilityV1` binds session, message, Run, and `requestSeq`, but cannot
+contain the future provider tool-call ID. After the provider creates an outer exec operation, its
+exact `ProgrammaticInvocationGrantV1` and Agent token additionally bind `providerToolCallId`,
+command/route,
+local-control surface version, `canonicalInvocationHash`, adapter mode, capability and surface
+hashes, expiry, and child/batch/I/O/time quotas. The invocation hash covers route plus canonical
+owned stdin or scalar arguments from the outer exec. `maxCalls: 1` limits local-control RPC use, not
+nested children. Tool call and batch also enter a bounded Agent compute admission domain separate
+from model, media, and OCR compute; this prevents either workload from consuming the other's
+concurrency or start-rate capacity. No grant is issued outside CLI Programmatic Runs.
+Search and describe are frozen-surface reads and create no target Journal operation; call and batch
+use per-child runtime/permission/approval checks and nested Journal causality. Human callers, ACP,
+Direct Native Runs, and Native Activation Runs cannot access these routes.
+
+Before ordinal allocation or approval, local control compares the canonical request to the grant and
+atomically consumes its token. Changed route/body, replay, expiry/revocation, surface downgrade, and
+wrong principal/conversation fail closed under the same bounded shape without target lookup.
+
+After exact admission, a local-control policy, capacity, or timeout failure that occurs before
+Programmatic dispatch completes a bounded typed error in the process-live parent controller. It
+creates no child Journal fact; the outer runtime still obtains that controller result and commits
+outer T2. CLI stdout and stderr remain non-authoritative transport and are never parsed to establish
+settlement.
+
+The shell integration may prepare an environment token before outer T1, but the token is inert until
+a newly created T1 receipt arms the exact process-live grant. Local control rejects unarmed grants;
+T1 failure revokes the token and prevents spawn. Programmatic CLI requests are foreground-only:
+background, detach, ordinary exec yielding, and later process polling are rejected before T1. Call
+and batch bodies use a bounded owned stdin field, never shell redirection or command-line JSON.
+Programmatic exec projection omits ordinary `timeoutMs`, `background`, and `yieldMs`; the capability
+owns its duration. The settlement receipt binds the canonical outer-result hash; stdout transports
+untrusted data but does not authorize outer T2. The attached shell deadline starts before
+local-control admission and therefore exceeds the capability duration by a small bounded settlement
+grace. That grace expands no child authority: token expiry and the dispatcher duration still enforce
+the capability deadline.
+
+If the CLI process exits after outer T1, the process-live controller first reuses an authoritative
+result already recorded by local control. Otherwise it may commit a bounded outer process error only
+when no child is in the dispatched-without-T2 state. Reservation, materialization, and fully settled
+children are deterministic; any child T1 without T2 keeps the parent and Run parked.
+
+An in-process outer shell approval may continue before T1 with the same frozen View capability and a
+fresh grant. A Programmatic command pending at that shell gate is not resumed after restart. Once
+outer T1 exists, child approval keeps the CLI request and outer exec open; restart aborts the
+controller and leaves existing T1 evidence for normal parking. Session Run cancellation, including
+transcript mutation, revokes all live Programmatic grants and terminates their attached CLI
+processes. That abort stops future children but never synthesizes an outcome for a dispatched child.
+
+Batch v1 is fixed-count, bounded, sequential, fail-fast, and non-durable. Only bounded static paths
+to earlier completed results are accepted through static RFC 6901 bindings from existing argument
+destinations to immutable prior-step results. Duplicate/overlapping destinations are invalid. The
+controller prevalidates the complete plan, fixes targets, and assigns contiguous plan-index child
+ordinals before execution; all input/retention quotas are reapplied after materialization. Dynamic
+expansion/interpolation, parallel/DAG execution, retry, cross-restart resume, recursion,
+replay/redelivery, and arbitrary Shell/JavaScript sandboxing remain Non-Goals. The canonical behavior
+and failure matrix are owned by
+`tool-surface-virtualization/spec.md`.

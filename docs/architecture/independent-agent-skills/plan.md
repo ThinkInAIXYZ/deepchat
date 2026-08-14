@@ -143,7 +143,7 @@ the final write always goes through the target Agent Skill root.
 
 - The Agent-scoped Skills page always has an explicit target Agent.
 - Add a focused `ImportSkillsFromAgentDialog.vue` with source, selection, conflicts and result steps.
-- Global Skills settings explicitly manages the built-in Agent for compatibility.
+- The global Skills surface explicitly manages the built-in Agent for compatibility.
 - Existing external Agents view becomes an import-source view; live link/adopt remains visible only
   for legacy link repair/removal until removed by a later goal.
 

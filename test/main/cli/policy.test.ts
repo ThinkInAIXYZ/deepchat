@@ -412,6 +412,36 @@ describe('CliRequestPolicy', () => {
     })
   })
 
+  it('isolates Programmatic Tool execution from general Agent compute capacity', async () => {
+    const harness = createHarness({ agentComputeLimit: 1, agentComputeStartsPerMinute: 2 })
+    const general = await harness.invoke('compute', agentCaller)
+    const programmaticEntry = {
+      ...entry('compute'),
+      programmaticOnly: true
+    } satisfies CliSurfaceEntry
+    const invokeProgrammatic = () =>
+      harness.policy.authorize({
+        entry: programmaticEntry,
+        input: {},
+        caller: agentCaller,
+        requestId: 'request-programmatic-tool',
+        signal: new AbortController().signal
+      })
+
+    const programmatic = await invokeProgrammatic()
+    await expect(harness.invoke('compute', agentCaller)).rejects.toMatchObject({
+      code: 'rate_limited'
+    })
+    await expect(invokeProgrammatic()).rejects.toMatchObject({ code: 'rate_limited' })
+
+    general.release()
+    programmatic.release()
+    const nextGeneral = await harness.invoke('compute', agentCaller)
+    const nextProgrammatic = await invokeProgrammatic()
+    nextGeneral.release()
+    nextProgrammatic.release()
+  })
+
   it('fails closed and releases compute admission when the audit sink fails', async () => {
     let shouldFail = true
     const harness = createHarness({

@@ -11,7 +11,9 @@ import {
   LOCAL_CONTROL_ARTIFACT_PATH_PREFIX,
   LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS,
   LOCAL_CONTROL_METHOD_HEADER,
+  LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
   LOCAL_CONTROL_PROTOCOL_VERSION,
+  LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION,
   LOCAL_CONTROL_RPC_PATH,
   LOCAL_CONTROL_SCOPES,
   LOCAL_CONTROL_STREAM_PATH,
@@ -31,6 +33,7 @@ import {
   createLocalControlSuccess,
   type LocalControlDescriptor,
   type LocalControlRpcRequest,
+  type LocalControlRouteSurfaceVersion,
   type LocalControlUploadBinding,
   type LocalControlStreamRecord
 } from '@shared/contracts/localControl'
@@ -52,11 +55,16 @@ import {
   type CliControlLayout
 } from './descriptor'
 import { CliRequestError } from './errors'
-import { CLI_SURFACE_V2 } from './surface'
+import { CLI_SURFACE_V2, CLI_SURFACE_V3 } from './surface'
 import type { CliSurfaceEntry } from './surface'
 import type { CliRuntimeStatus } from './routes'
 import type { ArtifactSpool } from './artifactSpool'
-import type { AgentCliRequestBeginResult, AgentCliRequestGrant } from './agentTokenAuthority'
+import {
+  parseAgentCliProgrammaticOperationGrant,
+  type AgentCliProgrammaticOperationGrant,
+  type AgentCliRequestBeginResult,
+  type AgentCliRequestGrant
+} from './agentTokenAuthority'
 
 const MAX_HEADER_BYTES = 8 * 1024
 const MAX_CONNECTIONS = 64
@@ -77,7 +85,8 @@ const AgentCliTokenSchema = z
       .regex(/^[A-Za-z0-9_-]+$/),
     conversationId: z.string().min(1).max(128),
     expiresAt: TimestampMsSchema.max(Number.MAX_SAFE_INTEGER),
-    scopes: LocalControlScopesSchema
+    scopes: LocalControlScopesSchema,
+    programmaticOperation: z.unknown().optional()
   })
   .strict()
 
@@ -101,6 +110,19 @@ export type CliServerDependencies = Readonly<{
     caller: CliRouteCaller,
     signal: AbortSignal
   ): Promise<unknown>
+  dispatchProgrammaticTool?(
+    method: string,
+    input: unknown,
+    caller: CliRouteCaller,
+    operation: AgentCliProgrammaticOperationGrant,
+    signal: AbortSignal,
+    takeSettlementOwnership: () => void
+  ): Promise<unknown>
+  completeProgrammaticToolPreDispatchFailure?(
+    method: string,
+    operation: AgentCliProgrammaticOperationGrant,
+    error: CliRequestError
+  ): void
   dispatchStream?(
     method: string,
     input: unknown,
@@ -130,6 +152,8 @@ type AuthenticationResult =
   | Readonly<{
       ok: true
       caller: CliRouteCaller
+      routeSurfaceVersion: LocalControlRouteSurfaceVersion
+      programmaticOperation?: AgentCliProgrammaticOperationGrant
       agentGrant?: AgentCliRequestGrant
     }>
   | Readonly<{ ok: false; quotaExhausted: boolean }>
@@ -268,7 +292,8 @@ export class CliServer {
   private readonly platform: NodeJS.Platform
   private readonly pid: number
   private readonly log: Pick<Console, 'warn' | 'error'>
-  private readonly surface: ReadonlyMap<string, CliSurfaceEntry>
+  private readonly surfaceV2: ReadonlyMap<string, CliSurfaceEntry>
+  private readonly surfaceV3: ReadonlyMap<string, CliSurfaceEntry>
   private readonly sockets = new Set<Socket>()
   private readonly connectionIds = new WeakMap<Socket, string>()
   private readonly pendingByConnection = new Map<string, number>()
@@ -287,7 +312,11 @@ export class CliServer {
     this.platform = dependencies.platform ?? process.platform
     this.pid = dependencies.pid ?? process.pid
     this.log = dependencies.log ?? console
-    this.surface = new Map(dependencies.surface ?? CLI_SURFACE_V2)
+    this.surfaceV2 = new Map(dependencies.surface ?? CLI_SURFACE_V2)
+    this.surfaceV3 = new Map([
+      ...this.surfaceV2,
+      ...[...CLI_SURFACE_V3].filter(([, entry]) => entry.programmaticOnly)
+    ])
   }
 
   getStatus(): CliRuntimeStatus {
@@ -491,7 +520,8 @@ export class CliServer {
           principal: 'human',
           connectionId,
           scopes: LOCAL_CONTROL_SCOPES
-        }
+        },
+        routeSurfaceVersion: LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
       }
     }
 
@@ -501,7 +531,21 @@ export class CliServer {
     }
     const grant = beginResult?.status === 'granted' ? beginResult.grant : undefined
     const agent = AgentCliTokenSchema.safeParse(grant?.claims)
-    if (!agent.success || agent.data.expiresAt <= this.now()) {
+    const hasProgrammaticOperation =
+      grant !== undefined &&
+      Object.prototype.hasOwnProperty.call(grant.claims, 'programmaticOperation')
+    const programmaticOperation = hasProgrammaticOperation
+      ? parseAgentCliProgrammaticOperationGrant(
+          agent.success ? agent.data.programmaticOperation : null
+        )
+      : null
+    if (
+      !agent.success ||
+      agent.data.expiresAt <= this.now() ||
+      (hasProgrammaticOperation && !programmaticOperation) ||
+      (programmaticOperation &&
+        programmaticOperation.operation.sessionId !== agent.data.conversationId)
+    ) {
       grant?.release()
       return { ok: false, quotaExhausted: false }
     }
@@ -516,6 +560,10 @@ export class CliServer {
         conversationId: agent.data.conversationId,
         expiresAt: agent.data.expiresAt
       },
+      routeSurfaceVersion: programmaticOperation
+        ? LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION
+        : LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION,
+      ...(programmaticOperation ? { programmaticOperation } : {}),
       ...(grant ? { agentGrant: grant } : {})
     }
   }
@@ -570,7 +618,7 @@ export class CliServer {
       )
       return
     }
-    const { caller, agentGrant } = authentication
+    const { caller, routeSurfaceVersion, programmaticOperation, agentGrant } = authentication
     if (agentGrant) {
       let released = false
       const releaseAgentGrant = () => {
@@ -581,11 +629,37 @@ export class CliServer {
       response.once('finish', releaseAgentGrant)
       response.once('close', releaseAgentGrant)
     }
+    if (isArtifactRequest && programmaticOperation) {
+      this.sendFailure(
+        response,
+        401,
+        UNKNOWN_REQUEST_ID,
+        new CliRequestError(
+          'authentication_failed',
+          'Programmatic CLI grant does not authorize this endpoint',
+          { httpStatus: 401 }
+        )
+      )
+      return
+    }
     if (isArtifactRequest) {
       await this.handleArtifactDownload(request, response, caller)
       return
     }
     const requestTransport = isUploadRequest ? 'upload' : isStreamRequest ? 'stream' : 'rpc'
+    if (programmaticOperation && requestTransport !== 'rpc') {
+      this.sendFailure(
+        response,
+        401,
+        UNKNOWN_REQUEST_ID,
+        new CliRequestError(
+          'authentication_failed',
+          'Programmatic CLI grant does not authorize this transport',
+          { httpStatus: 401 }
+        )
+      )
+      return
+    }
     if (
       (requestTransport === 'upload' && !requestContentTypeIsBinary(request)) ||
       (requestTransport !== 'upload' && !requestContentTypeIsJson(request))
@@ -646,7 +720,17 @@ export class CliServer {
 
     let requestId = UNKNOWN_REQUEST_ID
     let routeMethod = 'unknown'
+    let programmaticInvocationAdmitted = false
+    let programmaticSettlementOwned = false
     try {
+      const surface =
+        routeSurfaceVersion === LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION
+          ? this.surfaceV3
+          : this.surfaceV2
+      const unavailableMethodMessage =
+        routeSurfaceVersion === LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
+          ? 'Method is not exposed by CLI surface V2'
+          : 'Method is not exposed by the negotiated CLI surface'
       let rawRequest: unknown
       let transportBinding: LocalControlUploadBinding | undefined
       let declaredMethod: string | undefined
@@ -656,11 +740,16 @@ export class CliServer {
       } else {
         declaredMethod = readRequestMethodHeader(request)
         routeMethod = declaredMethod
-        entry = this.surface.get(declaredMethod)
+        if (programmaticOperation && declaredMethod !== programmaticOperation.route) {
+          throw new CliRequestError(
+            'authentication_failed',
+            'Programmatic CLI grant does not authorize this method',
+            { httpStatus: 401 }
+          )
+        }
+        entry = surface.get(declaredMethod)
         if (!entry || entry.transport !== requestTransport) {
-          throw new CliRequestError('not_found', 'Method is not exposed by the CLI surface', {
-            httpStatus: 404
-          })
+          throw new CliRequestError('not_found', unavailableMethodMessage, { httpStatus: 404 })
         }
         const body = await readBoundedRequestBody(request, {
           maxBytes: entry.limits.maxBodyBytes,
@@ -668,7 +757,7 @@ export class CliServer {
           tempDirectory: this.layout?.tempDirectory ?? this.dependencies.userDataPath,
           requireContentLength: true,
           ...(agentGrant
-            ? { consumeBytes: (bytes: number) => this.consumeAgentBytes(agentGrant, bytes) }
+            ? { consumeBytes: (bytes: number) => this.consumeAgentInputBytes(agentGrant, bytes) }
             : {})
         })
         rawRequest = await parseBoundedJsonBody(body)
@@ -703,17 +792,49 @@ export class CliServer {
       }
       requestId = rpcRequest.id
       routeMethod = rpcRequest.method
+      if (programmaticOperation && rpcRequest.method !== programmaticOperation.route) {
+        throw new CliRequestError(
+          'authentication_failed',
+          'Programmatic CLI grant does not authorize this method',
+          { httpStatus: 401 }
+        )
+      }
       if (declaredMethod && rpcRequest.method !== declaredMethod) {
         throw new CliRequestError(
           'invalid_request',
           'Method header does not match the request body'
         )
       }
-      entry ??= this.surface.get(rpcRequest.method)
+      entry ??= surface.get(rpcRequest.method)
       if (!entry || entry.transport !== requestTransport) {
-        throw new CliRequestError('not_found', 'Method is not exposed by the CLI surface', {
-          httpStatus: 404
-        })
+        throw new CliRequestError('not_found', unavailableMethodMessage, { httpStatus: 404 })
+      }
+      if (entry.programmaticOnly) {
+        const params = rpcRequest.params
+        const invocationAdmitted =
+          programmaticOperation !== undefined &&
+          agentGrant?.admitProgrammaticInvocation !== undefined &&
+          params !== null &&
+          typeof params === 'object' &&
+          !Array.isArray(params) &&
+          agentGrant.admitProgrammaticInvocation({
+            route: rpcRequest.method,
+            params
+          })
+        if (!invocationAdmitted) {
+          throw new CliRequestError(
+            'authentication_failed',
+            'Programmatic CLI invocation does not match its grant',
+            { httpStatus: 401 }
+          )
+        }
+        programmaticInvocationAdmitted = true
+      } else if (programmaticOperation) {
+        throw new CliRequestError(
+          'authentication_failed',
+          'Programmatic CLI grant does not authorize this method',
+          { httpStatus: 401 }
+        )
       }
       if (transportBinding && transportBinding.size > entry.limits.maxBodyBytes) {
         throw new CliRequestError('body_too_large', 'Upload body exceeds method limit', {
@@ -734,6 +855,12 @@ export class CliServer {
         throw new CliRequestError('invalid_request', 'Request does not match the route contract')
       }
       const input = parsedInput.data
+      if (entry.programmaticOnly && !this.dependencies.dispatchProgrammaticTool) {
+        throw new CliRequestError('unavailable', 'Programmatic Tool service is unavailable', {
+          httpStatus: 503,
+          retriable: true
+        })
+      }
       const timeout = setTimeout(() => {
         abortRequest(
           controller,
@@ -784,7 +911,7 @@ export class CliServer {
             tempDirectory: this.layout?.tempDirectory ?? this.dependencies.userDataPath,
             requireContentLength: false,
             ...(agentGrant
-              ? { consumeBytes: (bytes: number) => this.consumeAgentBytes(agentGrant, bytes) }
+              ? { consumeBytes: (bytes: number) => this.consumeAgentInputBytes(agentGrant, bytes) }
               : {})
           })
           try {
@@ -813,9 +940,33 @@ export class CliServer {
             await uploadBody.cleanup()
           }
         } else {
-          rawOutput = await runAbortable(controller.signal, async () =>
-            this.dependencies.dispatch(entry.contract.name, input, caller, controller.signal)
-          )
+          rawOutput = await runAbortable(controller.signal, async () => {
+            if (entry.programmaticOnly) {
+              if (!programmaticOperation || !this.dependencies.dispatchProgrammaticTool) {
+                throw new CliRequestError(
+                  'unavailable',
+                  'Programmatic Tool service is unavailable',
+                  { httpStatus: 503, retriable: true }
+                )
+              }
+              return await this.dependencies.dispatchProgrammaticTool(
+                entry.contract.name,
+                input,
+                caller,
+                programmaticOperation,
+                controller.signal,
+                () => {
+                  programmaticSettlementOwned = true
+                }
+              )
+            }
+            return await this.dependencies.dispatch(
+              entry.contract.name,
+              input,
+              caller,
+              controller.signal
+            )
+          })
         }
       } finally {
         admission?.release()
@@ -827,19 +978,36 @@ export class CliServer {
       const result = this.parseRouteOutput(entry, rawOutput, routeMethod)
       this.sendJson(response, 200, createLocalControlSuccess(requestId, result), agentGrant)
     } catch (error) {
-      if (error instanceof CliRequestError) {
-        this.sendFailure(response, error.httpStatus, requestId, error)
-      } else {
-        this.log.warn('[CLI] Route dispatch failed', { method: routeMethod }, error)
-        this.sendFailure(
-          response,
-          500,
-          requestId,
-          new CliRequestError('internal_error', 'Internal local-control error', {
-            httpStatus: 500
-          })
-        )
+      const failure =
+        error instanceof CliRequestError
+          ? error
+          : new CliRequestError('internal_error', 'Internal local-control error', {
+              httpStatus: 500
+            })
+      if (
+        programmaticOperation &&
+        programmaticInvocationAdmitted &&
+        !programmaticSettlementOwned &&
+        this.dependencies.completeProgrammaticToolPreDispatchFailure
+      ) {
+        try {
+          this.dependencies.completeProgrammaticToolPreDispatchFailure(
+            routeMethod,
+            programmaticOperation,
+            failure
+          )
+        } catch (completionError) {
+          this.log.warn(
+            '[CLI] Programmatic pre-dispatch failure could not reach its parent controller',
+            { method: routeMethod },
+            completionError
+          )
+        }
       }
+      if (!(error instanceof CliRequestError)) {
+        this.log.warn('[CLI] Route dispatch failed', { method: routeMethod }, error)
+      }
+      this.sendFailure(response, failure.httpStatus, requestId, failure)
     } finally {
       request.off('aborted', abort)
       agentGrant?.signal.removeEventListener('abort', abortRevokedAgentRequest)
@@ -987,7 +1155,7 @@ export class CliServer {
         httpStatus: 500
       })
     }
-    if (agentGrant) this.consumeAgentBytes(agentGrant, serialized.length)
+    if (agentGrant) this.consumeAgentOutputBytes(agentGrant, serialized.length)
     if (response.destroyed || response.writableEnded) {
       throw new CliRequestError('cancelled', 'Stream connection is closed')
     }
@@ -1029,7 +1197,7 @@ export class CliServer {
   ): Promise<void> {
     const rawId = request.url?.slice(LOCAL_CONTROL_ARTIFACT_PATH_PREFIX.length) ?? ''
     const parsedId = ArtifactIdSchema.safeParse(rawId)
-    const entry = this.surface.get(artifactsReadRoute.name)
+    const entry = this.surfaceV2.get(artifactsReadRoute.name)
     if (!parsedId.success || !entry || entry.transport !== 'download') {
       this.sendFailure(
         response,
@@ -1189,7 +1357,7 @@ export class CliServer {
         'utf8'
       )
     }
-    if (responseStatus < 400 && agentGrant && !agentGrant.consumeBytes(serialized.length)) {
+    if (responseStatus < 400 && agentGrant && !agentGrant.consumeOutputBytes(serialized.length)) {
       responseStatus = 429
       serialized = Buffer.from(
         JSON.stringify(
@@ -1215,8 +1383,15 @@ export class CliServer {
     response.end(serialized)
   }
 
-  private consumeAgentBytes(grant: AgentCliRequestGrant, bytes: number): void {
-    if (grant.consumeBytes(bytes)) return
+  private consumeAgentInputBytes(grant: AgentCliRequestGrant, bytes: number): void {
+    if (grant.consumeInputBytes(bytes)) return
+    throw new CliRequestError('rate_limited', 'Agent CLI token byte quota is exhausted', {
+      httpStatus: 429
+    })
+  }
+
+  private consumeAgentOutputBytes(grant: AgentCliRequestGrant, bytes: number): void {
+    if (grant.consumeOutputBytes(bytes)) return
     throw new CliRequestError('rate_limited', 'Agent CLI token byte quota is exhausted', {
       httpStatus: 429
     })

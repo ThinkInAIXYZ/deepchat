@@ -141,7 +141,8 @@ const setup = async (
   }))
   vi.doMock('@api/WindowClient', () => ({
     createWindowClient: () => ({
-      focusMainWindow: vi.fn().mockResolvedValue(true)
+      focusMainWindow: vi.fn().mockResolvedValue(true),
+      resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true })
     })
   }))
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({

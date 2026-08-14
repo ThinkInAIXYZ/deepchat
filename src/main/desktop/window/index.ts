@@ -880,6 +880,7 @@ export class WindowPresenter implements IWindowPresenter {
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
       if (windowIdBeingClosed === this.mainWindowId) {
+        this.mainWindowId = null
         this.mainWindowHiddenByClose = false
       }
       managedWindowState.unmanage() // 停止管理窗口状态
@@ -1076,6 +1077,14 @@ export class WindowPresenter implements IWindowPresenter {
       console.warn(`No active tab found in window ${windowId}, cannot send event "${channel}".`)
     }
     return false
+  }
+
+  async sendToMainWindow(channel: string, ...args: unknown[]): Promise<boolean> {
+    if (this.mainWindowId == null) {
+      return false
+    }
+
+    return await this.sendToActiveTab(this.mainWindowId, channel, ...args)
   }
 
   /**

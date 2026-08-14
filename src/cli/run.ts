@@ -335,6 +335,11 @@ export async function runCli(
           params = { ...params, updates: parseStdinJsonObject(input, 'MCP update') }
           break
         }
+        case 'tool.call':
+        case 'tool.batch': {
+          params = parseStdinJsonObject(input, 'Programmatic Tool request')
+          break
+        }
         default:
           throw new CliClientError(
             'internal_error',

@@ -78,6 +78,39 @@ describe('CLI argument grammar', () => {
     )
   })
 
+  it('parses Programmatic Tool commands without widening ordinary Agent invocation', () => {
+    expect(
+      parseCliArguments(['tool', 'search', '--query', 'calendar', '--limit', '4'], {})
+    ).toMatchObject({
+      contract: { name: 'tool.search' },
+      operation: 'rpc',
+      readStdin: false,
+      params: { query: 'calendar', limit: 4 }
+    })
+    expect(
+      parseCliArguments(['tool', 'describe', '--target', 'calendar_search'], {})
+    ).toMatchObject({
+      contract: { name: 'tool.describe' },
+      readStdin: false,
+      params: { target: 'calendar_search' }
+    })
+    expect(parseCliArguments(['tool', 'call'], {})).toMatchObject({
+      contract: { name: 'tool.call' },
+      readStdin: true,
+      params: {}
+    })
+    expect(parseCliArguments(['tool', 'batch'], {})).toMatchObject({
+      contract: { name: 'tool.batch' },
+      readStdin: true,
+      params: {}
+    })
+
+    expect(() => parseCliArguments(['tool', 'search'], {})).toThrow('requires --query')
+    expect(() => parseCliArguments(['tool', 'describe'], {})).toThrow('requires --target')
+    expect(() => parseCliArguments(['tool', 'call', '--stdin'], {})).toThrow('--stdin is not valid')
+    expect(formatCliHelp({ domain: 'tool', verb: 'call' })).toContain('request JSON on stdin')
+  })
+
   it('parses artifact ownership commands without accepting output flags on metadata operations', () => {
     const id = 'artifact_identifier_123'
 

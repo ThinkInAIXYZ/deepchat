@@ -1,13 +1,14 @@
 import type { SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { SkillSettingsPort } from './settings'
-import { AgentSkillImportService, type AgentSkillImportAgentPort } from './agentSkillImportService'
+import { AgentSkillImportService } from './agentSkillImportService'
 import {
   configGetSkillDraftSuggestionsRoute,
   configSetSkillDraftSuggestionsRoute,
   skillsExecuteSyncDirectoryExportRoute,
   skillsExecuteSyncDirectoryImportRoute,
   skillsExecuteAgentImportRoute,
+  skillsDeleteRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
@@ -18,6 +19,7 @@ import {
   skillsInstallFromUrlRoute,
   skillsInstallFromZipRoute,
   skillsListCatalogRoute,
+  skillsListAllRoute,
   skillsListAgentImportSourcesRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
@@ -32,17 +34,13 @@ import {
   skillsScanGitRepoRoute,
   skillsSetActiveRoute,
   skillsSetDisabledRoute,
+  skillsSetAssignmentsRoute,
   skillsSetSyncDirectoryRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute,
   skillSyncAcknowledgeDiscoveriesRoute,
-  skillSyncGetAgentDetailRoute,
-  skillSyncGetAgentSkillDetailRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
-  skillSyncRemoveAgentSkillLinkRoute,
-  skillSyncRepairAgentSkillLinkRoute,
-  skillSyncScanAgentsRoute,
   skillSyncScanExternalToolsRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
@@ -52,14 +50,12 @@ export function createSkillRoutes(deps: {
   skillService: SkillServicePort
   skillSyncService: SkillSyncServicePort
   skillSettings: SkillSettingsPort
-  agentSettings: AgentSkillImportAgentPort
   ensureInitialized(): Promise<void>
   assertSessionActiveSkillsMutable(conversationId: string): Promise<void>
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
   const { skillService, skillSyncService } = deps
   const agentSkillImportService = new AgentSkillImportService({
-    agents: deps.agentSettings,
     skills: skillService,
     external: skillSyncService
   })
@@ -79,7 +75,6 @@ export function createSkillRoutes(deps: {
       targetType,
       targetId: label,
       targetLabel: label,
-      routeName: 'settings-skills',
       summaryKey: 'settings.controlCenter.activity.settingUpdated',
       summaryParams: { key: label }
     })
@@ -125,11 +120,38 @@ export function createSkillRoutes(deps: {
       }
     ],
     [
+      skillsListAllRoute.name,
+      async (rawInput) => {
+        skillsListAllRoute.input.parse(rawInput)
+        return skillsListAllRoute.output.parse({
+          skills: await skillService.getAllSkills()
+        })
+      }
+    ],
+    [
+      skillsSetAssignmentsRoute.name,
+      async (rawInput) => {
+        const input = skillsSetAssignmentsRoute.input.parse(rawInput)
+        const skillNames = await skillService.setSkillAssignments(input.agentId, input.skillNames)
+        recordSkillActivity('updated', `${input.agentId} Skill assignments`, 'skill-assignment')
+        return skillsSetAssignmentsRoute.output.parse({ skillNames })
+      }
+    ],
+    [
+      skillsDeleteRoute.name,
+      async (rawInput) => {
+        const input = skillsDeleteRoute.input.parse(rawInput)
+        const result = await skillService.deleteSkill(input.name, input.acknowledgedAgentIds)
+        if (didSucceed(result)) recordSkillActivity('removed', input.name)
+        return skillsDeleteRoute.output.parse({ result })
+      }
+    ],
+    [
       skillsSetDisabledRoute.name,
       async (rawInput) => {
         const input = skillsSetDisabledRoute.input.parse(rawInput)
         await skillService.setSkillDisabledForAgent(input.agentId, input.name, input.disabled)
-        recordSkillActivity('updated', input.name, 'skill-disabled-state')
+        recordSkillActivity('updated', input.name, 'skill-assignment')
         return skillsSetDisabledRoute.output.parse({ saved: true })
       }
     ],
@@ -146,11 +168,13 @@ export function createSkillRoutes(deps: {
       skillsInstallFromFolderRoute.name,
       async (rawInput) => {
         const input = skillsInstallFromFolderRoute.input.parse(rawInput)
-        const result = await skillService.installFromFolderForAgent(
-          input.agentId,
-          input.folderPath,
-          input.options
-        )
+        const result = input.assignToAgent
+          ? await skillService.installFromFolderForAgent(
+              input.agentId,
+              input.folderPath,
+              input.options
+            )
+          : await skillService.installFromFolder(input.folderPath, input.options)
         if (didSucceed(result)) recordSkillActivity('created', 'skill folder source')
         return skillsInstallFromFolderRoute.output.parse({ result })
       }
@@ -159,11 +183,9 @@ export function createSkillRoutes(deps: {
       skillsInstallFromZipRoute.name,
       async (rawInput) => {
         const input = skillsInstallFromZipRoute.input.parse(rawInput)
-        const result = await skillService.installFromZipForAgent(
-          input.agentId,
-          input.zipPath,
-          input.options
-        )
+        const result = input.assignToAgent
+          ? await skillService.installFromZipForAgent(input.agentId, input.zipPath, input.options)
+          : await skillService.installFromZip(input.zipPath, input.options)
         if (didSucceed(result)) recordSkillActivity('created', 'skill zip source')
         return skillsInstallFromZipRoute.output.parse({ result })
       }
@@ -172,11 +194,9 @@ export function createSkillRoutes(deps: {
       skillsInstallFromUrlRoute.name,
       async (rawInput) => {
         const input = skillsInstallFromUrlRoute.input.parse(rawInput)
-        const result = await skillService.installFromUrlForAgent(
-          input.agentId,
-          input.url,
-          input.options
-        )
+        const result = input.assignToAgent
+          ? await skillService.installFromUrlForAgent(input.agentId, input.url, input.options)
+          : await skillService.installFromUrl(input.url, input.options)
         if (didSucceed(result)) recordSkillActivity('created', 'skill URL source')
         return skillsInstallFromUrlRoute.output.parse({ result })
       }
@@ -194,7 +214,9 @@ export function createSkillRoutes(deps: {
       skillsInstallFromGitRoute.name,
       async (rawInput) => {
         const input = skillsInstallFromGitRoute.input.parse(rawInput)
-        const results = await skillService.installSkillsFromGitForAgent(input.agentId, input)
+        const results = input.assignToAgent
+          ? await skillService.installSkillsFromGitForAgent(input.agentId, input)
+          : await skillService.installSkillsFromGit(input)
         if (results.some(didSucceed)) recordSkillActivity('created', 'skill Git source')
         return skillsInstallFromGitRoute.output.parse({ results })
       }
@@ -362,7 +384,6 @@ export function createSkillRoutes(deps: {
           action: 'updated',
           targetType: 'active-skills',
           targetLabel: 'active skills',
-          routeName: 'settings-skills',
           summaryKey: 'settings.controlCenter.activity.settingUpdated',
           summaryParams: { key: `active skills (${input.skills.length})` }
         })
@@ -380,7 +401,6 @@ export function createSkillRoutes(deps: {
           action: 'updated',
           targetType: 'active-skills',
           targetLabel: 'active skills',
-          routeName: 'settings-skills',
           summaryKey: 'settings.controlCenter.activity.settingUpdated',
           summaryParams: { key: `removed active skill (${input.skill})` }
         })
@@ -390,9 +410,9 @@ export function createSkillRoutes(deps: {
     [
       skillsListAgentImportSourcesRoute.name,
       async (rawInput) => {
-        const input = skillsListAgentImportSourcesRoute.input.parse(rawInput)
+        skillsListAgentImportSourcesRoute.input.parse(rawInput)
         return skillsListAgentImportSourcesRoute.output.parse({
-          sources: await agentSkillImportService.listSources(input.targetAgentId)
+          sources: await agentSkillImportService.listSources()
         })
       }
     ],
@@ -448,51 +468,6 @@ export function createSkillRoutes(deps: {
         skillSyncGetRegisteredToolsRoute.input.parse(rawInput)
         return skillSyncGetRegisteredToolsRoute.output.parse({
           tools: skillSyncService.getRegisteredTools()
-        })
-      }
-    ],
-    [
-      skillSyncScanAgentsRoute.name,
-      async (rawInput) => {
-        skillSyncScanAgentsRoute.input.parse(rawInput)
-        return skillSyncScanAgentsRoute.output.parse({
-          agents: await skillSyncService.scanSkillAgents()
-        })
-      }
-    ],
-    [
-      skillSyncGetAgentDetailRoute.name,
-      async (rawInput) => {
-        const input = skillSyncGetAgentDetailRoute.input.parse(rawInput)
-        return skillSyncGetAgentDetailRoute.output.parse({
-          agent: await skillSyncService.scanSkillAgent({ agentId: input.agentId })
-        })
-      }
-    ],
-    [
-      skillSyncGetAgentSkillDetailRoute.name,
-      async (rawInput) => {
-        const input = skillSyncGetAgentSkillDetailRoute.input.parse(rawInput)
-        return skillSyncGetAgentSkillDetailRoute.output.parse({
-          detail: await skillSyncService.getAgentSkillDetail(input)
-        })
-      }
-    ],
-    [
-      skillSyncRepairAgentSkillLinkRoute.name,
-      async (rawInput) => {
-        const input = skillSyncRepairAgentSkillLinkRoute.input.parse(rawInput)
-        return skillSyncRepairAgentSkillLinkRoute.output.parse({
-          result: await skillSyncService.repairAgentSkillLink(input)
-        })
-      }
-    ],
-    [
-      skillSyncRemoveAgentSkillLinkRoute.name,
-      async (rawInput) => {
-        const input = skillSyncRemoveAgentSkillLinkRoute.input.parse(rawInput)
-        return skillSyncRemoveAgentSkillLinkRoute.output.parse({
-          result: await skillSyncService.removeAgentSkillLink(input)
         })
       }
     ]

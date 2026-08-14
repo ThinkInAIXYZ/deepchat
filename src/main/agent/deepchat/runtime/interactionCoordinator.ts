@@ -42,6 +42,11 @@ import {
   stampTerminalMetadata
 } from './runtimeMetadata'
 import type { DeferredToolExecutionResult, DeferredToolExecutor } from './deferredToolExecutor'
+import {
+  releaseToolSurfaceDeferredDispatchClaim,
+  revokeToolSurfaceDeferredDispatch
+} from './toolSurface'
+import type { ToolSurfaceDeferredDispatch } from './toolSurface'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MessageProjectionService } from './messageProjectionService'
@@ -55,15 +60,21 @@ import type { RuntimeHookScope, RuntimeHookSink } from './runtimeHookSink'
 import { ExecutionJournalError, isExecutionJournalError } from '@/tape/domain/executionJournal'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type {
+  ExecutionJournalRecoveryReader,
   TapeExecutionViewManifestReader,
+  TapeToolSurfaceViewReader,
   TapeViewManifestReader
 } from '@/tape/ports/capabilities'
 import { resolveDeferredExecutionContract } from './deferredExecutionContract'
+import {
+  DeferredToolSurfaceError,
+  resolveDeferredToolSurfaceDispatch
+} from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
 import { isCommandSignatureForProfile } from '@/tool/permission'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
-  'Execution is parked after an Execution Journal failure and will not be retried automatically.'
+  'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
 
 type DeferredPermissionGrant = {
   serverName: string
@@ -71,6 +82,7 @@ type DeferredPermissionGrant = {
     signature: string
     oneShotGrantId: string
   }
+  lease?: Extract<SessionPermissionGrant, { kind: 'granted' }>['lease']
 }
 
 type InteractionRunLifecyclePort = Pick<
@@ -105,8 +117,16 @@ export interface InteractionCoordinatorPorts {
   continuationAdmission: InteractionContinuationAdmissionPort
   publishEvent: DeepChatEventPublisher
   interactionParking: Pick<InteractionParkingRegistry, 'isParked' | 'park'>
-  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessage'> &
+  executionJournal: Pick<
+    ExecutionJournalRecoveryReader,
+    'hasAnyCommittedDispatchForMessageToolCall'
+  >
+  viewManifests: Pick<TapeViewManifestReader, 'listViewManifestsByMessageRequest'> &
     TapeExecutionViewManifestReader
+  toolSurfaces: Pick<
+    TapeToolSurfaceViewReader,
+    'listToolSurfaceFactsByMessage' | 'listToolSurfaceFactsByMessageRequest'
+  >
 }
 
 export interface InteractionContinuationAdmissionPort {
@@ -140,6 +160,7 @@ export class InteractionCoordinator {
     let resumedWaitingAdmission = false
     let interactionAbortController: AbortController | null = null
     let interactionAbortSignal: AbortSignal | undefined
+    let claimedToolSurfaceDeferredDispatch: ToolSurfaceDeferredDispatch | undefined
     const resumeWaitingAdmission = async () => {
       if (
         await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)
@@ -284,37 +305,103 @@ export class InteractionCoordinator {
             runtimeContract: instance.getPendingToolBatchState()?.executionContract,
             viewManifests: this.ports.viewManifests
           })
-          await resumeWaitingAdmission()
-          let permissionGrant: DeferredPermissionGrant | null = null
-          let execution: DeferredToolExecutionResult
+          let toolSurfaceDeferredDispatch: ToolSurfaceDeferredDispatch | undefined
           try {
-            // Await the cache mutation directly so cleanup always owns the exact grant lease.
-            permissionGrant = await this.grantPermissionForPayload(
+            toolSurfaceDeferredDispatch = resolveDeferredToolSurfaceDispatch({
               sessionId,
-              permissionPayload,
-              toolCall
+              messageId,
+              toolCallId: toolCall.id,
+              toolName: toolCall.name || '',
+              rawBinding: actionBlock.extra?.toolSurfaceBinding,
+              executionContract,
+              executionJournal: this.ports.executionJournal,
+              viewManifests: this.ports.viewManifests,
+              toolSurfaces: this.ports.toolSurfaces
+            })
+          } catch (error) {
+            if (!(error instanceof DeferredToolSurfaceError) || error.code !== 'spent_dispatch') {
+              throw error
+            }
+            const parkedError = new ExecutionJournalError(
+              DEFERRED_INTERACTION_PARKED_ERROR,
+              'duplicate_dispatch',
+              { cause: error }
             )
-            throwIfAbortRequested(interactionAbortSignal)
-            const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
-            let deferredToolCallCounted = false
-            const markDeferredToolCallStarted = () => {
-              if (deferredToolCallCounted) {
-                return
+            this.ports.runLifecycle.transitionStatus(scope, 'idle')
+            this.ports.interactionParking.park(sessionId, messageId)
+            markPermissionResolved(actionBlock, true, permissionType)
+            updateToolCallResponse(
+              blocks,
+              toolCall.id,
+              'Tool dispatch was recorded, but its outcome is indeterminate. It will not be retried automatically.',
+              true
+            )
+            for (const block of blocks) {
+              if (
+                block.type !== 'action' ||
+                block.status !== 'pending' ||
+                block.extra?.needsUserAction === false
+              ) {
+                continue
               }
-              deferredToolCallCounted = true
-              resumeAccounting = nextToolCallAccounting
-              accountingChanged = true
-              this.ports.messageStore.updateAssistantMetadata(
-                messageId,
-                JSON.stringify(resumeAccounting)
+              block.status = 'error'
+              block.content = DEFERRED_INTERACTION_PARKED_ERROR
+              block.extra = { ...block.extra, needsUserAction: false }
+              if (block.tool_call?.id) {
+                updateToolCallResponse(
+                  blocks,
+                  block.tool_call.id,
+                  DEFERRED_INTERACTION_PARKED_ERROR,
+                  true
+                )
+              }
+            }
+            replacePendingInteractions(instance, [])
+            try {
+              this.ports.messageStore.updateAssistantContent(messageId, blocks)
+              this.ports.messageProjection.refresh(sessionId, messageId)
+            } catch (projectionError) {
+              throw new ExecutionJournalError(
+                `${parkedError.message} Failed to persist the parked interaction projection.`,
+                'projection_failed',
+                { cause: new AggregateError([parkedError, projectionError]) }
               )
             }
+            throw parkedError
+          }
+          claimedToolSurfaceDeferredDispatch = toolSurfaceDeferredDispatch
+          await resumeWaitingAdmission()
+          let permissionGrant: DeferredPermissionGrant | null = null
+          let permissionGrantFinalized = false
+          let execution: DeferredToolExecutionResult
+          const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
+          try {
             if ((nextToolCallAccounting.toolCalls ?? 0) > MAX_TOOL_CALLS) {
               execution = {
                 responseText: MAX_TOOL_CALLS_SKIPPED_ERROR,
                 isError: true
               }
             } else {
+              // Await the cache mutation directly so cleanup always owns the exact grant lease.
+              permissionGrant = await this.grantPermissionForPayload(
+                sessionId,
+                permissionPayload,
+                toolCall
+              )
+              throwIfAbortRequested(interactionAbortSignal)
+              let deferredToolCallCounted = false
+              const markDeferredToolCallStarted = () => {
+                if (deferredToolCallCounted) {
+                  return
+                }
+                deferredToolCallCounted = true
+                resumeAccounting = nextToolCallAccounting
+                accountingChanged = true
+                this.ports.messageStore.updateAssistantMetadata(
+                  messageId,
+                  JSON.stringify(resumeAccounting)
+                )
+              }
               hooks.emit({
                 event: 'PreToolUse',
                 tool: { callId: toolCall.id, name: toolCall.name, params: toolCall.params }
@@ -328,7 +415,13 @@ export class InteractionCoordinator {
                 markDeferredToolCallStarted,
                 executionContract,
                 permissionPayload?.shellProfile,
-                permissionGrant.command?.oneShotGrantId
+                permissionGrant.command?.oneShotGrantId,
+                toolSurfaceDeferredDispatch,
+                () => {
+                  permissionGrant?.lease?.finalize()
+                  permissionGrantFinalized = true
+                },
+                permissionGrant.lease?.capability
               )
               const refreshedInteraction = this.readLatestPendingInteraction(
                 sessionId,
@@ -336,6 +429,12 @@ export class InteractionCoordinator {
                 toolCall.id
               )
               if (!refreshedInteraction) {
+                revokeToolSurfaceDeferredDispatch(
+                  sessionId,
+                  messageId,
+                  toolCall.id,
+                  toolSurfaceDeferredDispatch
+                )
                 return { resumed: false }
               }
               blocks = refreshedInteraction.blocks
@@ -350,6 +449,9 @@ export class InteractionCoordinator {
               }
             }
           } finally {
+            if (permissionGrant?.lease && !permissionGrantFinalized) {
+              permissionGrant.lease.revoke()
+            }
             if (permissionGrant?.command) {
               this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
                 sessionId,
@@ -357,6 +459,21 @@ export class InteractionCoordinator {
                 permissionGrant.command.oneShotGrantId
               )
             }
+          }
+          if (!execution.requiresPermission) {
+            revokeToolSurfaceDeferredDispatch(
+              sessionId,
+              messageId,
+              toolCall.id,
+              toolSurfaceDeferredDispatch
+            )
+          } else if (toolSurfaceDeferredDispatch) {
+            releaseToolSurfaceDeferredDispatchClaim(
+              sessionId,
+              messageId,
+              toolCall.id,
+              toolSurfaceDeferredDispatch
+            )
           }
           if (execution.journalFailure) {
             this.ports.runLifecycle.transitionStatus(scope, 'idle')
@@ -504,6 +621,7 @@ export class InteractionCoordinator {
             shouldDispatchResolvedToolHook = true
           }
         } else {
+          revokeToolSurfaceDeferredDispatch(sessionId, messageId, toolCall.id)
           if (requestId) {
             await this.ports.sessionPermissionPort.denyPermission?.(sessionId, requestId)
           }
@@ -581,8 +699,19 @@ export class InteractionCoordinator {
       return { resumed }
     } catch (error) {
       if (resumedWaitingAdmission) this.ports.continuationAdmission.suspend(sessionId)
+      if (claimedToolSurfaceDeferredDispatch) {
+        revokeToolSurfaceDeferredDispatch(
+          sessionId,
+          messageId,
+          toolCallId,
+          claimedToolSurfaceDeferredDispatch
+        )
+      }
       if (isExecutionJournalError(error)) throw error
       if (interactionAbortSignal?.aborted) {
+        if (!claimedToolSurfaceDeferredDispatch) {
+          revokeToolSurfaceDeferredDispatch(sessionId, messageId, toolCallId)
+        }
         if (interactionOwnedByActiveRun) {
           return { resumed: false }
         }
@@ -837,7 +966,7 @@ export class InteractionCoordinator {
       ) {
         throw new Error('File approval is missing valid paths.')
       }
-      await this.grantNonCommandPermission(sessionId, {
+      const grant = await this.grantNonCommandPermission(sessionId, {
         permissionType:
           permissionType === 'read' || permissionType === 'write' || permissionType === 'all'
             ? permissionType
@@ -847,28 +976,29 @@ export class InteractionCoordinator {
         paths: payload.paths,
         shellProfile: parsedProfile.data
       })
-      return { serverName }
+      return { serverName, lease: grant.lease }
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      await this.grantNonCommandPermission(sessionId, {
+      const grant = await this.grantNonCommandPermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName
       })
-      return { serverName }
+      return { serverName, lease: grant.lease }
     }
 
     if (
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await this.grantNonCommandPermission(sessionId, {
+      const grant = await this.grantNonCommandPermission(sessionId, {
         permissionType,
         serverName,
         toolName,
         requestId: payload.requestId
       })
+      return { serverName, lease: grant.lease }
     }
     return { serverName }
   }
@@ -876,10 +1006,10 @@ export class InteractionCoordinator {
   private async grantNonCommandPermission(
     sessionId: string,
     permission: SessionPermissionRequest
-  ): Promise<void> {
+  ): Promise<Extract<SessionPermissionGrant, { kind: 'granted' }>> {
     const grant: SessionPermissionGrant =
       await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
-    if (grant?.kind === 'granted') return
+    if (grant?.kind === 'granted') return grant
     if (grant?.kind === 'command') {
       this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
         sessionId,

@@ -1,5 +1,5 @@
 {
-  "title": "Anteprima parametri richiesta",
+  "title": "Diagnostica del messaggio",
   "provider": "Provider",
   "model": "Modello",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "Richiesta",
     "view": "Vista",
     "entries": "Voci",
-    "budget": "Budget token"
+    "budget": "Budget token",
+    "execution": "Audit dell'esecuzione"
   },
   "empty": "Nessuna diagnostica",
-  "emptyDesc": "Per questo messaggio non è disponibile alcuna traccia della richiesta o manifesto della vista",
+  "emptyDesc": "Per questo messaggio non sono disponibili tracce della richiesta, manifesti della vista Tape o audit delle esecuzioni annidate",
   "requestUnavailable": "Nessuna traccia della richiesta",
   "requestUnavailableDesc": "Questo messaggio non ha una traccia persistita della richiesta al provider",
   "manifestUnavailable": "Nessun manifesto della vista",
   "manifestUnavailableDesc": "Questo messaggio non ha un manifesto della vista Tape persistito",
+  "execution": {
+    "empty": "Nessuna esecuzione annidata",
+    "emptyDesc": "Per questa richiesta non è registrata alcuna operazione programmatica degli strumenti",
+    "corrupt": "L'audit dell'esecuzione è danneggiato",
+    "corruptDesc": "I fatti Journal annidati sono in conflitto o non possono essere verificati",
+    "unavailable": "Audit dell'esecuzione non disponibile",
+    "unavailableDesc": "Non è stato possibile leggere i fatti Journal annidati",
+    "truncated": "Sono mostrate solo le prime 256 operazioni annidate",
+    "status": {
+      "success": "Operazione riuscita",
+      "error": "Errore",
+      "indeterminate": "Indeterminato"
+    }
+  },
   "viewId": "ID vista",
   "policy": "Criterio",
   "policyVersion": "Versione criterio",

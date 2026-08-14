@@ -1956,7 +1956,7 @@
       "successMessage": "skill {name} 已成功刪除",
       "title": "刪除 skill"
     },
-    "description": "管理和設定 AI 助手的 skill 模組",
+    "description": "管理全部 Skills。開啟 Skill 可預覽內容並管理啟用它的 Agent。",
     "edit": {
       "allowedTools": "額外工具",
       "allowedToolsHint": "逗號分隔的工具名稱列表",
@@ -1993,7 +1993,7 @@
       }
     },
     "empty": "暫無 skill",
-    "emptyHint": "點擊「添加 skill」按鈕安裝新 skill",
+    "emptyHint": "從外部 Agent 匯入 Skills。",
     "install": {
       "description": "選擇 skill 安裝方式",
       "dragInvalid": "不支援的拖放內容，請拖入 skill 資料夾或單一 .zip 檔案。",
@@ -2020,46 +2020,30 @@
     "openFolder": "開啟資料夾",
     "search": "搜尋 skill...",
     "agentImport": {
-      "menuItem": "從其他 Agent 匯入...",
-      "title": "從其他 Agent 匯入 Skills",
-      "description": "將另一個內建或外部 Agent 的所選 Skills 複製到目前 Agent。匯入後的副本彼此獨立。",
-      "target": "目標 Agent",
+      "menuItem": "從外部 Agent 匯入",
+      "title": "從外部 Agent 匯入",
+      "description": "將驗證後的 Skills 匯入 DeepChat。可在每個 Skill 的預覽中啟用 Agent。",
       "resultPartial": "匯入完成，但有部分錯誤",
       "resultSuccess": "匯入完成",
-      "resultSummary": "已匯入 {imported} 個，略過 {skipped} 個，失敗 {failed} 個。",
       "sourceTitle": "來源 Agent",
-      "sourceDescription": "選擇要從中複製 Skills 的 Agent。",
-      "loadingSources": "正在載入 Agents...",
-      "sourceError": "載入 Agent 來源失敗",
       "emptySources": "沒有可匯入的來源",
-      "emptySourcesDescription": "找不到其他包含可用 Skills 的 Agent。",
-      "sourceKind": {
-        "internal": "DeepChat",
-        "external": "外部"
-      },
       "skillCount": "{count} 個 Skills",
       "previewTitle": "要匯入的 Skills",
-      "selectedCount": "已選擇 {count} 個",
-      "selectAll": "全選",
-      "clear": "清除",
-      "loadingPreview": "正在載入 Skills...",
-      "previewError": "預覽 Skills 失敗",
       "emptyPreview": "沒有可用的 Skills",
-      "emptyPreviewDescription": "此 Agent 沒有可匯入的 Skills。",
       "status": {
         "ready": "可匯入",
         "conflict": "衝突",
-        "unavailable": "不可用"
+        "unavailable": "不可用",
+        "same": "已新增"
       },
       "strategy": {
         "skip": "略過",
         "rename": "重新命名",
         "overwrite": "覆寫"
       },
-      "renameTarget": "將匯入為 {name}",
-      "executeError": "匯入 Skills 失敗",
-      "importing": "正在匯入...",
-      "importSelected": "匯入所選 {count} 個"
+      "overwriteImpact": "覆寫此 Skill 會影響已啟用的 Agent：{agents}。",
+      "resultSummaryV3": "已匯入 {imported} 個、重用 {reused} 個、略過 {skipped} 個、失敗 {failed} 個。",
+      "execute": "匯入所選項目"
     },
     "sync": {
       "batchAction": "批次處理",
@@ -2157,8 +2141,6 @@
       "env": "{count} 個環境變數",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "已啟用",
-      "disabled": "已停用",
       "enable": "在 DeepChat 中啟用",
       "disable": "在 DeepChat 中停用",
       "viewDetails": "檢視詳細資訊",
@@ -2174,111 +2156,6 @@
       "success": "已停用 skill",
       "successMessage": "skill {name} 已在 DeepChat 中停用",
       "failed": "停用失敗"
-    },
-    "tabs": {
-      "library": "技能库",
-      "agents": "Agents",
-      "syncDirectory": "同步目錄"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} 个支持的 Agent",
-      "refresh": "刷新",
-      "empty": "未检测到支持的 Agent。",
-      "emptySkills": "该 Agent 暂无 skill。",
-      "loadFailed": "加载 Agent skills 失败",
-      "conflictCount": "{count} 冲突",
-      "table": {
-        "skill": "Skill",
-        "owner": "归属",
-        "status": "状态",
-        "action": "操作",
-        "preview": "預覽"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "外部链接",
-        "broken-link": "断开的链接",
-        "unknown": "未知"
-      },
-      "status": {
-        "linked": "已链接",
-        "agent-owned": "Agent 所有",
-        "linked-out": "链接到外部",
-        "broken-link": "链接断开",
-        "conflict": "冲突",
-        "empty": "空"
-      },
-      "actions": {
-        "adopt": "接管",
-        "resolve-conflict": "解决",
-        "repair-link": "修复",
-        "remove-link": "移除",
-        "open": "打开",
-        "pending": "写入操作将在后续阶段启用。",
-        "view": "檢視"
-      },
-      "agentStatus": {
-        "ready": "可用",
-        "detected-no-skills-dir": "无 skills 目录",
-        "permission-denied": "无权限"
-      },
-      "counts": {
-        "skills": "{count} 个 skill",
-        "linked": "{count} 已链接",
-        "agentOwned": "{count} Agent 所有",
-        "conflicts": "{count} 冲突",
-        "broken": "{count} 断开"
-      },
-      "adoptDialog": {
-        "adoptTitle": "接管 Skill",
-        "conflictTitle": "解决冲突",
-        "adoptDescription": "将该 skill 复制到 DeepChat，备份原始内容，并把 Agent 入口替换为链接。",
-        "conflictDescription": "{skill} 已存在于 DeepChat。默认操作会保留当前 DeepChat skill，并将该 Agent skill 以重命名副本接管。",
-        "loading": "正在准备接管预览...",
-        "previewFailed": "准备接管预览失败",
-        "executeFailed": "接管 skill 失败",
-        "currentLocation": "当前位置",
-        "afterAdoption": "接管后",
-        "backup": "备份",
-        "chooseAction": "选择操作",
-        "adoptAs": "接管为 {name}",
-        "replaceDeepChat": "替换现有 DeepChat skill",
-        "keepCurrent": "保持当前状态",
-        "unsupportedStrategies": "当前版本暂不支持替换和保持策略。",
-        "warnings": "警告",
-        "apply": "应用",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill 已接管",
-        "successDescription": "{name} 现在由 DeepChat 管理。"
-      },
-      "syncToAgent": "同步到 Agent",
-      "syncDialog": {
-        "title": "同步到 {agent}",
-        "description": "为所选 skill 创建 DeepChat 拥有的链接。已有 Agent 内容会被跳过。",
-        "target": "目标",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "没有可链接的 DeepChat skill。",
-        "preview": "预览",
-        "loading": "正在准备链接预览...",
-        "noSelection": "至少选择一个 skill。",
-        "apply": "应用",
-        "failed": "同步 skills 失败",
-        "successTitle": "Skills 已同步",
-        "successDescription": "已链接 {count} 个 skill。",
-        "status": {
-          "ready": "可用",
-          "already-linked": "已链接",
-          "conflict": "冲突",
-          "missing": "缺失"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "链接已修复",
-        "removeSuccess": "链接已移除",
-        "successDescription": "{name} 已更新。",
-        "failed": "更新链接失败"
-      }
     },
     "git": {
       "title": "Git",
@@ -2311,7 +2188,6 @@
       "saved": "同步目錄已儲存",
       "export": "匯出到目錄",
       "import": "從目錄匯入",
-      "includeDisabled": "包含已停用 skills",
       "previewExport": "預覽匯出",
       "exportNow": "立即匯出",
       "previewImport": "預覽匯入",
@@ -2364,7 +2240,13 @@
       "edit": "編輯",
       "delete": "刪除",
       "confirmDeleteTitle": "刪除 skill",
-      "confirmDeleteDescription": "確定要刪除 skill「{name}」嗎？此操作無法復原。"
+      "confirmDeleteDescription": "確定要刪除 skill「{name}」嗎？此操作無法復原。",
+      "enabledAgents": "已啟用的 Agent",
+      "enabledAgentsHint": "這些 Agent 可以使用此 Skill。",
+      "noEnabledAgents": "尚未有 Agent 使用此 Skill。",
+      "addAgent": "新增 Agent",
+      "removeAgent": "移除 {agent}",
+      "agentUpdateFailed": "更新啟用 Agent 失敗"
     },
     "installToAgent": {
       "title": "安裝 {name} 到 Agent",
@@ -2382,6 +2264,17 @@
       "disconnectSuccess": "已從 Agent 斷開",
       "disconnectSuccessMessage": "{name} 已從目標 Agent 斷開。",
       "disconnectFailed": "從 Agent 斷開失敗"
+    },
+    "impact": {
+      "changed": "啟用此 Skill 的 Agent 已變更，請確認影響後重試。",
+      "editEnabled": "內容修改會在下次執行時影響這些 Agent：{agents}。",
+      "editUnused": "目前沒有 Agent 使用此 Skill。",
+      "confirmDeleteEnabled": "刪除 {name}？已啟用此 Skill 的 Agent：{agents}。",
+      "confirmDeleteUnused": "刪除 {name}？目前沒有 Agent 使用此 Skill。"
+    },
+    "syncDirectory": {
+      "action": "同步目錄",
+      "back": "返回 Skills"
     }
   },
   "environments": {

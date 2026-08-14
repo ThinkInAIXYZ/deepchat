@@ -8,6 +8,28 @@ import {
   type SettingsPermissionService,
   type ToolPermissionBroker
 } from '@/tool/permission'
+import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
+
+function createPermissionGrantLease(
+  finalize: () => void,
+  revoke: () => void,
+  capability?: ToolPermissionLeaseCapability
+) {
+  let active = true
+  return Object.freeze({
+    ...(capability ? { capability } : {}),
+    finalize: () => {
+      if (!active) return
+      active = false
+      finalize()
+    },
+    revoke: () => {
+      if (!active) return
+      active = false
+      revoke()
+    }
+  })
+}
 
 export function createSessionPermissionPort(dependencies: {
   agentCliTokenAuthority: Pick<AgentCliTokenAuthority, 'revokeConversation'>
@@ -17,13 +39,24 @@ export function createSessionPermissionPort(dependencies: {
   >
   filePermissionService: Pick<
     FilePermissionService,
-    'approve' | 'clearConversation' | 'cloneConversation'
+    | 'approveProvisional'
+    | 'clearConversation'
+    | 'cloneConversation'
+    | 'finalizeProvisional'
+    | 'revokeProvisional'
   >
   settingsPermissionService: Pick<
     SettingsPermissionService,
-    'approve' | 'clearConversation' | 'cloneConversation'
+    | 'approveProvisional'
+    | 'clearConversation'
+    | 'cloneConversation'
+    | 'finalizeProvisional'
+    | 'revokeProvisional'
   >
-  toolPermissionBroker: Pick<ToolPermissionBroker, 'approve' | 'cancelConversation' | 'deny'>
+  toolPermissionBroker: Pick<
+    ToolPermissionBroker,
+    'approve' | 'cancel' | 'cancelConversation' | 'deny'
+  >
 }): SessionPermissionPort {
   const {
     agentCliTokenAuthority,
@@ -71,7 +104,16 @@ export function createSessionPermissionPort(dependencies: {
       }
 
       if (permission.requestId && toolPermissionBroker.approve(permission.requestId, sessionId)) {
-        return { kind: 'granted' }
+        const requestId = permission.requestId
+        return {
+          kind: 'granted',
+          lease: createPermissionGrantLease(
+            () => {},
+            () => {
+              toolPermissionBroker.cancel(requestId, sessionId)
+            }
+          )
+        }
       }
 
       if (
@@ -79,13 +121,31 @@ export function createSessionPermissionPort(dependencies: {
         Array.isArray(permission.paths) &&
         permission.paths.length > 0
       ) {
-        filePermissionService.approve(sessionId, permission.paths, permissionType, false)
-        return { kind: 'granted' }
+        const leaseId = filePermissionService.approveProvisional(
+          sessionId,
+          permission.paths,
+          permissionType
+        )
+        return {
+          kind: 'granted',
+          lease: createPermissionGrantLease(
+            () => filePermissionService.finalizeProvisional(sessionId, leaseId),
+            () => filePermissionService.revokeProvisional(sessionId, leaseId),
+            { kind: 'file', leaseId }
+          )
+        }
       }
 
       if (serverName === 'deepchat-settings' && toolName) {
-        settingsPermissionService.approve(sessionId, toolName, false)
-        return { kind: 'granted' }
+        const leaseId = settingsPermissionService.approveProvisional(sessionId, toolName)
+        return {
+          kind: 'granted',
+          lease: createPermissionGrantLease(
+            () => settingsPermissionService.finalizeProvisional(sessionId, leaseId),
+            () => settingsPermissionService.revokeProvisional(sessionId, leaseId),
+            { kind: 'settings', leaseId }
+          )
+        }
       }
 
       // MCP execution uses the one-time request handled above.

@@ -1,5 +1,5 @@
 {
-  "title": "Yêu cầu xem trước",
+  "title": "Chẩn đoán tin nhắn",
   "provider": "nhà cung cấp",
   "model": "người mẫu",
   "endpoint": "Điểm cuối API",
@@ -18,14 +18,29 @@
     "request": "Yêu cầu",
     "view": "Chế độ xem",
     "entries": "Mục",
-    "budget": "Ngân sách"
+    "budget": "Ngân sách",
+    "execution": "Kiểm tra thực thi"
   },
   "empty": "Không có chẩn đoán",
-  "emptyDesc": "Không có vết yêu cầu hoặc bản kê chế độ xem cho tin nhắn này",
+  "emptyDesc": "Không có vết yêu cầu, bản kê chế độ xem Tape hoặc kiểm tra thực thi lồng nhau cho tin nhắn này",
   "requestUnavailable": "Không có vết yêu cầu",
   "requestUnavailableDesc": "Tin nhắn này không có vết yêu cầu nhà cung cấp đã lưu",
   "manifestUnavailable": "Không có bản kê chế độ xem",
   "manifestUnavailableDesc": "Tin nhắn này không có bản kê chế độ xem Tape đã lưu",
+  "execution": {
+    "empty": "Không có thực thi lồng nhau",
+    "emptyDesc": "Không có thao tác công cụ lập trình nào được ghi lại cho yêu cầu này",
+    "corrupt": "Dữ liệu kiểm tra thực thi bị hỏng",
+    "corruptDesc": "Các dữ kiện Journal lồng nhau xung đột hoặc không thể xác minh",
+    "unavailable": "Không có dữ liệu kiểm tra thực thi",
+    "unavailableDesc": "Không thể đọc các dữ kiện Journal lồng nhau",
+    "truncated": "Chỉ hiển thị 256 thao tác lồng nhau đầu tiên",
+    "status": {
+      "success": "Thành công",
+      "error": "Lỗi",
+      "indeterminate": "Không xác định"
+    }
+  },
   "viewId": "ID chế độ xem",
   "policy": "Chính sách",
   "policyVersion": "Phiên bản chính sách",

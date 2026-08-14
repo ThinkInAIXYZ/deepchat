@@ -388,3 +388,25 @@ gate. Report any platform-gated crash test separately.
 Before each commit, review unstaged and staged diffs for hidden side effects, compatibility,
 boundary conditions, performance, security, naming, test gaps, and maintenance cost. Fix findings,
 rerun relevant validation, then commit with a concrete Conventional Commit message. Do not push.
+
+## Journal v2 Programmatic Extension Plan
+
+1. Add discriminated provider/nested parsers and strict canonical identity/payload validation while
+   preserving all v1 read and recovery behavior.
+2. Add bounded contiguous plan-index child ordinals and parent references; reserve the complete
+   process-live step/template mapping before child approval/T1 and prohibit caller-, materialization-,
+   or completion-order assignment.
+3. Add a process-live parent-operation controller and settlement receipts crossing local control;
+   never infer settlement from stdout.
+   Construct per-View capability before provider response, derive the exact invocation grant only
+   after the outer call exists, and arm it only from a newly created parent T1 receipt.
+4. Enforce parent T1 before child T1, child T2 before projection, complete child settlement before
+   outer T2, and rejection of outer T2/`run_terminal` while any Programmatic T1 is unmatched.
+5. Persist only hashes/status/bounded provenance and propagate every nested Journal failure as
+   Run-fatal.
+6. Cover known outcomes, denial, pending approval, cancellation, crash, T1-only parking, missing
+   outer T2, explicit new-operation retry, duplicate T1, corruption, and v1/v2 coexistence.
+   Include unarmed-token denial, parent-T1 failure before spawn, foreground-only CLI execution, and
+   canonical outer-result receipt validation. Add failpoints proving terminal commit cannot hide an
+   unmatched outer or nested T1 from recovery.
+7. Perform a severity-ranked review before each commit and do not push.

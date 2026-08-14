@@ -13,9 +13,16 @@ import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type { ContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
+import type {
+  ToolSurfaceDeferredDispatch,
+  ToolSurfaceExecutionContext,
+  ToolSurfaceSnapshot
+} from '@/agent/deepchat/runtime/toolSurface'
+import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import type { ResolvedCommandShell } from '@shared/commandShell'
+import type { ProgrammaticToolParentRegistration } from '@/cli/programmaticToolParentRegistry'
 
 export interface ProviderRequest {
   runId: string
@@ -52,12 +59,30 @@ export interface DeepChatTaskContractContextPort {
 export type ToolExecutionOptions = Omit<ToolCallOptions, 'commitDispatch' | 'commandShell'> & {
   commitDispatch: ToolDispatchCommit
   commandShell: ResolvedCommandShell
+  toolSurfaceDeferredDispatch?: ToolSurfaceDeferredDispatch
+  toolSurfaceContext?: ToolSurfaceExecutionContext
+  toolSurfaceSnapshot?: ToolSurfaceSnapshot
+  programmaticToolCapability?: ProgrammaticToolCapabilityV1
+  programmaticToolParent?: ProgrammaticToolParentRegistration
 }
 
+export type ToolExecutionPreCheckOptions = Pick<
+  ToolExecutionOptions,
+  | 'permissionMode'
+  | 'signal'
+  | 'activeSkillNames'
+  | 'commandShell'
+  | 'messageId'
+  | 'runId'
+  | 'requestSeq'
+  | 'toolSurfaceSnapshot'
+>
+
 export interface ToolExecutionPort {
+  assertAuthority(call: MCPToolCall, options: ToolExecutionPreCheckOptions): void
   preCheck(
     call: MCPToolCall,
-    options: Pick<ToolExecutionOptions, 'permissionMode' | 'signal' | 'commandShell'>
+    options: ToolExecutionPreCheckOptions
   ): Promise<ToolPermissionPreCheckResult | null>
   execute(
     call: MCPToolCall,

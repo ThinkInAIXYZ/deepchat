@@ -145,4 +145,57 @@ describe('SessionTranscriptMutations', () => {
     expect(() => mutations.commitRetryMessage('s1', 7)).toThrow('delete failed')
     expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
   })
+
+  it('cancels the active Run before editing transcript history', async () => {
+    const calls: string[] = []
+    const message = {
+      id: 'message-1',
+      sessionId: 's1',
+      orderSeq: 7,
+      role: 'user',
+      content: JSON.stringify({ text: 'old text' })
+    }
+    const runtime = {
+      assertNoActivePendingInputs: vi.fn(),
+      cancelForTranscriptMutation: vi.fn(async () => calls.push('cancel')),
+      invalidateTranscriptFrom: vi.fn(() => calls.push('invalidate'))
+    }
+    const mutations = new SessionTranscriptMutations({
+      transcript: {
+        getMessage: vi.fn(() => message),
+        updateMessageContent: vi.fn(() => calls.push('update'))
+      },
+      runtime
+    } as any)
+
+    await mutations.editUserMessage('s1', 'message-1', 'new text')
+
+    expect(calls).toEqual(['cancel', 'invalidate', 'update'])
+  })
+
+  it('does not edit transcript history when active Run cancellation fails', async () => {
+    const cancellationError = new Error('cancellation failed')
+    const runtime = {
+      assertNoActivePendingInputs: vi.fn(),
+      cancelForTranscriptMutation: vi.fn().mockRejectedValue(cancellationError),
+      invalidateTranscriptFrom: vi.fn()
+    }
+    const transcript = {
+      getMessage: vi.fn(() => ({
+        id: 'message-1',
+        sessionId: 's1',
+        orderSeq: 7,
+        role: 'user',
+        content: JSON.stringify({ text: 'old text' })
+      })),
+      updateMessageContent: vi.fn()
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+
+    await expect(mutations.editUserMessage('s1', 'message-1', 'new text')).rejects.toBe(
+      cancellationError
+    )
+    expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
+    expect(transcript.updateMessageContent).not.toHaveBeenCalled()
+  })
 })

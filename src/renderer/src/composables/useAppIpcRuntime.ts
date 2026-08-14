@@ -3,6 +3,7 @@ import { createAppRuntimeClient } from '@api/AppRuntimeClient'
 interface UseAppIpcRuntimeOptions {
   handleStartDeeplink: (payload?: unknown) => void
   handleStartGuidedOnboardingDev: () => void | Promise<void>
+  handleResumeGuidedOnboarding: () => void | Promise<void>
   handleWindowFocused: () => void | Promise<void>
   handleZoomIn: () => void
   handleZoomOut: () => void
@@ -28,6 +29,9 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
       }),
       appRuntimeClient.onGuidedOnboardingStartRequested(() => {
         void options.handleStartGuidedOnboardingDev()
+      }),
+      appRuntimeClient.onGuidedOnboardingResumeRequested(() => {
+        void options.handleResumeGuidedOnboarding()
       }),
       appRuntimeClient.onWindowFocused(() => {
         void options.handleWindowFocused()

@@ -6,6 +6,7 @@ import type { PendingInputAdmissionCoordinator } from './pendingInputAdmissionCo
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
+import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 
 export interface TranscriptMutationCoordinatorDependencies {
   registry: SessionScopeRegistry
@@ -28,6 +29,7 @@ export interface TranscriptMutationCoordinatorDependencies {
     | 'transitionCurrentStatus'
     | 'transitionStatus'
   >
+  toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'cancelPending'>
 }
 
 export class TranscriptMutationCoordinator {
@@ -41,6 +43,9 @@ export class TranscriptMutationCoordinator {
     }
     this.deps.runLifecycle.assertCurrentInstance(sessionId, instance)
 
+    try {
+      this.deps.toolSurfaceDiagnostics.cancelPending(instance)
+    } catch {}
     await this.deps.runLifecycle.cancel(sessionId)
     this.deps.runLifecycle.assertCurrentInstance(sessionId, instance)
     this.deps.runLifecycle.clearFirstTurnReady(sessionId)
@@ -83,6 +88,9 @@ export class TranscriptMutationCoordinator {
 
   async cancelForTranscriptMutation(sessionId: string): Promise<void> {
     const instance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    try {
+      this.deps.toolSurfaceDiagnostics.cancelPending(instance)
+    } catch {}
     await this.deps.runLifecycle.cancel(sessionId)
     this.deps.runLifecycle.assertCurrentInstance(sessionId, instance)
   }

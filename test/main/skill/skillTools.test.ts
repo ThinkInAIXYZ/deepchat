@@ -47,6 +47,7 @@ describe('SkillTools', () => {
       discoverSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
       resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       getMetadataList: vi.fn().mockResolvedValue(mockSkillMetadata),
+      getAllSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
       loadSkillContent: vi.fn().mockResolvedValue({ name: 'test', content: '# Test' }),
       viewSkillForAgent: vi.fn().mockResolvedValue({
         success: true,
@@ -175,6 +176,7 @@ describe('SkillTools', () => {
 
     it('reports current-message active skills without pinning them', async () => {
       ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
+      ;(mockSkillService.getMetadataList as Mock).mockResolvedValue([mockSkillMetadata[0]])
 
       const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
@@ -184,6 +186,7 @@ describe('SkillTools', () => {
       expect(result.skills.find((skill) => skill.name === 'git-commit')).toEqual(
         expect.objectContaining({ isPinned: false, active: true })
       )
+      expect(mockSkillService.getAllSkills).toHaveBeenCalledOnce()
     })
 
     it('keeps plugin-owned skills available through the Agent catalog', async () => {
@@ -239,15 +242,20 @@ describe('SkillTools', () => {
   })
 
   describe('handleSkillView', () => {
-    it('passes file_path and conversationId through to the presenter by default', async () => {
-      const result = await skillTools.handleSkillView('conv-123', {
-        name: ' code-review ',
-        file_path: 'references/checklist.md'
-      })
+    it('passes the Run Skill snapshot through to the presenter', async () => {
+      const result = await skillTools.handleSkillView(
+        'conv-123',
+        {
+          name: ' code-review ',
+          file_path: 'references/checklist.md'
+        },
+        ['code-review']
+      )
 
       expect(mockSkillService.viewSkillForAgent).toHaveBeenCalledWith('deepchat', 'code-review', {
         filePath: 'references/checklist.md',
-        conversationId: 'conv-123'
+        conversationId: 'conv-123',
+        activeSkillNames: ['code-review']
       })
       expect(result).toEqual(
         expect.objectContaining({

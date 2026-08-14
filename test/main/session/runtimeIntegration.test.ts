@@ -127,6 +127,46 @@ function createMockSqlitePresenter() {
     listUnterminatedRunEvents: vi.fn(() =>
       tapeEntries.filter((entry) => entry.kind === 'event' && entry.name?.startsWith('execution/'))
     ),
+    listNestedOperationEventsForRun: vi.fn((sessionId: string, runId: string) =>
+      tapeEntries.filter((entry) => {
+        if (
+          entry.session_id !== sessionId ||
+          (entry.name !== 'execution/dispatch_committed' && entry.name !== 'execution/tool_outcome')
+        ) {
+          return false
+        }
+        const data = JSON.parse(entry.payload_json).data ?? {}
+        return data.protocolVersion === 2 && data.operation?.runId === runId
+      })
+    ),
+    listNestedOperationEventsForParent: vi.fn(
+      (
+        sessionId: string,
+        runId: string,
+        requestSeq: number,
+        providerToolCallId: string,
+        parentOperationKey: string
+      ) =>
+        tapeEntries.filter((entry) => {
+          if (entry.session_id !== sessionId) return false
+          if (entry.provenance_key?.startsWith(`execution:v2:parent:${parentOperationKey}:`)) {
+            return true
+          }
+          if (
+            entry.name !== 'execution/dispatch_committed' &&
+            entry.name !== 'execution/tool_outcome'
+          ) {
+            return false
+          }
+          const data = JSON.parse(entry.payload_json).data ?? {}
+          return (
+            data.protocolVersion === 2 &&
+            data.operation?.runId === runId &&
+            data.operation?.requestSeq === requestSeq &&
+            data.operation?.providerToolCallId === providerToolCallId
+          )
+        })
+    ),
     getBySession: vi.fn((sessionId: string) =>
       tapeEntries.filter((entry) => entry.session_id === sessionId)
     ),
@@ -888,6 +928,12 @@ function createRuntimeDependencies() {
     },
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
+    },
+    agentCliTokenAuthority: {
+      prepareProgrammaticOperation: vi.fn(() => {
+        throw new Error('Programmatic operation authority is not configured for this test')
+      }),
+      revokeConversation: vi.fn()
     },
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
@@ -1856,6 +1902,25 @@ describe('Integration: multi-turn context', () => {
 })
 
 describe('Integration: Session Tape boundary', () => {
+  it('exposes nested Journal writes only through the Programmatic controller capability', () => {
+    const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
+    })
+
+    expect('commitNestedDispatch' in sessionData.tapeStore).toBe(false)
+    expect('commitNestedToolOutcome' in sessionData.tapeStore).toBe(false)
+    expect(Object.keys(sessionData.programmaticExecutionJournal).sort()).toEqual([
+      'commitNestedDispatch',
+      'commitNestedToolOutcome',
+      'commitToolOutcome'
+    ])
+    expect('commitDispatch' in sessionData.programmaticExecutionJournal).toBe(false)
+    expect('commitRunStarted' in sessionData.programmaticExecutionJournal).toBe(false)
+    expect('commitRunTerminal' in sessionData.programmaticExecutionJournal).toBe(false)
+    expect(Object.isFrozen(sessionData.programmaticExecutionJournal)).toBe(true)
+  })
+
   it('keeps linked reads free of readiness writes while preparing current reads', async () => {
     const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
       publishPendingInputsChanged: vi.fn(),

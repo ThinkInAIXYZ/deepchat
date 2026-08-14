@@ -548,7 +548,7 @@ export async function runNativeAgentEvalScenario(
       publishEvent: vi.fn(),
       publishSessionUpdate: vi.fn(),
       tapeToolFactWriter: {
-        appendToolFact: async () => ({ sessionId, entryId: 1 })
+        appendToolFact: async () => ({ sessionId, entryId: 1, toolResult: null })
       },
       executionJournalWriter: {
         commitDispatch: vi.fn(commitJournalFact),

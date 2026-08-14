@@ -16,7 +16,6 @@ export const SettingsRouteNameSchema = z.enum([
   'settings-notifications-hooks',
   'settings-scheduled-tasks',
   'settings-plugins',
-  'settings-skills',
   'settings-prompt',
   'settings-memory',
   'settings-knowledge-base',

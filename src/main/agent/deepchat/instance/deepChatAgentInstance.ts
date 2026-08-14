@@ -70,6 +70,7 @@ export class DeepChatAgentInstance {
   private readonly activeProviderPermissions = new Map<string, DeepChatActiveProviderPermission>()
   private readonly runtimeActivatedSkills = new Set<string>()
   private toolProfileCache?: DeepChatToolProfileCacheEntry
+  private toolProfileRevisionToken = Symbol('deepchat-tool-profile-revision')
   private compactionState?: SessionCompactionState
   private readonly contextWindowObservations = new Map<string, DeepChatContextWindowObservation>()
   private readonly memorySessionHandle: MemorySessionHandle
@@ -540,8 +541,13 @@ export class DeepChatAgentInstance {
     this.toolProfileCache = entry
   }
 
+  getToolProfileRevisionToken(): symbol {
+    return this.toolProfileRevisionToken
+  }
+
   invalidateToolProfileCache(): void {
     this.toolProfileCache = undefined
+    this.toolProfileRevisionToken = Symbol('deepchat-tool-profile-revision')
   }
 
   getCompactionState(): SessionCompactionState | undefined {

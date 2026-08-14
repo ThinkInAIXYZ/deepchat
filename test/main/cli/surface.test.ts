@@ -2,15 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { DEEPCHAT_ROUTE_CATALOG } from '@shared/contracts/routes'
 import {
   CLI_SURFACE_V2,
+  CLI_SURFACE_V3,
   getCliSurfaceEntry,
+  getCliSurfaceRegistry,
   listCliSurfaceCapabilities,
   resolveCliSurfaceEffect
 } from '@/cli/surface'
+import {
+  LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
+  LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
+} from '@shared/contracts/localControl'
 
 const humanApprovalCaller = { principal: 'human' } as const
 const agentApprovalCaller = { principal: 'agent' } as const
 
-describe('CLI surface V2', () => {
+describe('CLI surfaces', () => {
   it('contains only explicit canonical route contracts', () => {
     const methods = Array.from(CLI_SURFACE_V2.keys()).sort()
 
@@ -78,8 +84,36 @@ describe('CLI surface V2', () => {
     expect(getCliSurfaceEntry('approvals.resolve')).toBeUndefined()
   })
 
+  it('keeps Programmatic routes in the exact-grant V3 surface only', () => {
+    expect(getCliSurfaceRegistry(LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION)).toBe(CLI_SURFACE_V2)
+    expect(getCliSurfaceRegistry(LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION)).toBe(
+      CLI_SURFACE_V3
+    )
+    expect(CLI_SURFACE_V3).not.toBe(CLI_SURFACE_V2)
+    expect([...CLI_SURFACE_V3.keys()].slice(0, CLI_SURFACE_V2.size)).toEqual([
+      ...CLI_SURFACE_V2.keys()
+    ])
+    expect([...CLI_SURFACE_V3.keys()].slice(CLI_SURFACE_V2.size)).toEqual([
+      'tool.search',
+      'tool.describe',
+      'tool.call',
+      'tool.batch'
+    ])
+    for (const method of ['tool.search', 'tool.describe', 'tool.call', 'tool.batch']) {
+      expect(getCliSurfaceEntry(method)).toBeUndefined()
+      expect(
+        getCliSurfaceEntry(method, LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION)
+      ).toMatchObject({
+        callers: ['agent'],
+        scopes: [],
+        transport: 'rpc',
+        programmaticOnly: true
+      })
+    }
+  })
+
   it('keeps Agent mutation policy as an explicit operation opt-in', () => {
-    const policies = Array.from(CLI_SURFACE_V2, ([method, entry]) => ({ method, entry })).filter(
+    const policies = Array.from(CLI_SURFACE_V3, ([method, entry]) => ({ method, entry })).filter(
       ({ entry }) => entry.agentPolicy !== undefined
     )
 

@@ -19,6 +19,7 @@ import {
   RunIdSchema
 } from '@shared/contracts/routes/runs.routes'
 import { MessagePageCursorSchema } from '@shared/contracts/common'
+import { PROGRAMMATIC_TOOL_SEARCH_MAX_RESULTS } from '@shared/contracts/routes/tools.routes'
 import {
   cliCommandKey,
   getCliCommandDefinition,
@@ -179,6 +180,8 @@ const VALUE_DOMAIN_OPTIONS: Readonly<Record<string, DomainValueParser>> = {
   keys: stringOption,
   value: settingValueOption,
   backend: stringOption,
+  query: stringOption,
+  target: stringOption,
   'page-count': (value) =>
     parseNumberInRange(value, '--page-count', 1, PDF_PAGE_COUNT_SANITY_LIMIT, true)
 }
@@ -277,7 +280,11 @@ const COMMAND_DOMAIN_OPTIONS = new Map<string, ReadonlySet<string>>([
   ],
   ['run get', new Set(['run', 'cursor', 'limit'])],
   ['run watch', new Set(['run', 'cursor', 'limit'])],
-  ['run cancel', new Set(['run'])]
+  ['run cancel', new Set(['run'])],
+  ['tool search', new Set(['query', 'limit'])],
+  ['tool describe', new Set(['target'])],
+  ['tool call', new Set()],
+  ['tool batch', new Set()]
 ])
 
 const AUDIO_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -531,7 +538,8 @@ export function parseCliArguments(
   const messageLimit = getNumber('limit')
   const temperature = getNumber('temperature')
   const maxTokens = getNumber('max-tokens')
-  const readStdin = getBoolean('stdin') ?? false
+  const readStdin =
+    (getBoolean('stdin') ?? false) || commandKey === 'tool call' || commandKey === 'tool batch'
   const enabledOnly = getBoolean('enabled-only') ?? false
   const size = getString('size')
   const quality = getString('quality')
@@ -549,6 +557,8 @@ export function parseCliArguments(
   const speed = getNumber('speed')
   const instructions = getString('instructions')
   const backend = getString('backend')
+  const toolQuery = getString('query')
+  const toolTarget = getString('target')
   const sourcePageCountHint = getNumber('page-count')
   const settingKey = getString('key')
   const settingKeys = getString('keys')
@@ -622,6 +632,8 @@ export function parseCliArguments(
   const isRunGet = commandKey === 'run get'
   const isRunWatch = commandKey === 'run watch'
   const isRunCancel = commandKey === 'run cancel'
+  const isToolSearch = commandKey === 'tool search'
+  const isToolDescribe = commandKey === 'tool describe'
   const allowedDomainOptions = COMMAND_DOMAIN_OPTIONS.get(commandKey) ?? new Set<string>()
   const invalidDomainOption = Array.from(domainOptions).find(
     (option) => !allowedDomainOptions.has(option)
@@ -736,6 +748,22 @@ export function parseCliArguments(
   }
   if (!helpRequested && (isMcpAdd || isMcpUpdate) && !readStdin) {
     throw new CliUsageError(`deepchat mcp ${verb} requires --stdin`)
+  }
+  if (!helpRequested && isToolSearch && !toolQuery) {
+    throw new CliUsageError('deepchat tool search requires --query')
+  }
+  if (
+    !helpRequested &&
+    isToolSearch &&
+    messageLimit !== undefined &&
+    messageLimit > PROGRAMMATIC_TOOL_SEARCH_MAX_RESULTS
+  ) {
+    throw new CliUsageError(
+      `deepchat tool search --limit must not exceed ${PROGRAMMATIC_TOOL_SEARCH_MAX_RESULTS}`
+    )
+  }
+  if (!helpRequested && isToolDescribe && !toolTarget) {
+    throw new CliUsageError('deepchat tool describe requires --target')
   }
 
   const activeSkills = skillsValue ? parseIdentifierList(skillsValue, '--skills') : undefined
@@ -860,6 +888,13 @@ export function parseCliArguments(
     }
   }
   if (isRunCancel && runId) params = { runId }
+  if (isToolSearch && toolQuery) {
+    params = {
+      query: toolQuery,
+      ...(messageLimit !== undefined ? { limit: messageLimit } : {})
+    }
+  }
+  if (isToolDescribe && toolTarget) params = { target: toolTarget }
   if (isModelInvoke && providerId && modelId) {
     params = {
       providerId,
@@ -995,53 +1030,59 @@ export function formatCliHelp(command?: Pick<ParsedCliArguments, 'domain' | 'ver
           : ' --id <artifact-id>'
         : command.domain === 'agent'
           ? ' (--prompt <text>|--stdin) [--agent <id>] [--provider <id>] [--model <id>]'
-          : command.domain === 'run'
-            ? command.verb === 'get'
-              ? ' --run <run-id> [--cursor <json>] [--limit <n>]'
-              : command.verb === 'watch'
-                ? ' --run <run-id> [--cursor <event-cursor>] [--limit <n>]'
-                : ' --run <run-id>'
-            : command.domain === 'model'
-              ? command.verb === 'invoke'
-                ? ' --provider <id> --model <id> (--prompt <text>|--stdin)'
-                : command.verb === 'list'
-                  ? ' --provider <id>'
-                  : ` --provider <id> --model <id>${command.verb === 'config-set' ? ' --stdin' : ''}`
-              : command.domain === 'image' || command.domain === 'video'
-                ? ' --provider <id> --model <id> (--prompt <text>|--stdin)'
-                : command.domain === 'audio' && command.verb === 'speak'
-                  ? ' --provider <id> --model <id> (--text <text>|--stdin)'
-                  : command.domain === 'audio'
-                    ? ' --provider <id> --model <id> (--file <path>|--artifact <id>)'
-                    : command.domain === 'ocr' && command.verb === 'extract'
-                      ? ' (--file <path>|--artifact <id>)'
-                      : command.domain === 'provider'
-                        ? command.verb === 'list'
-                          ? ' [--enabled-only]'
-                          : command.verb === 'add'
-                            ? ' --name <name> --api-type <type> --base-url <url> [--enabled <bool>]'
-                            : command.verb === 'update'
-                              ? ' --provider <id> [--name <name>] [--api-type <type>] [--base-url <url>] [--enabled <bool>]'
-                              : command.verb === 'set-credential'
-                                ? ' --provider <id> --stdin'
-                                : ` --provider <id>${command.verb === 'test' ? ' [--model <id>]' : ''}`
-                        : command.domain === 'settings' && command.verb === 'get'
-                          ? ' [--keys <key,key>]'
-                          : command.domain === 'settings'
-                            ? ' --key <key> --value <json-scalar>'
-                            : command.domain === 'skill'
-                              ? command.verb === 'list'
-                                ? ' [--agent <id>]'
-                                : command.verb === 'install'
-                                  ? ' (--file <archive>|--url <https-url>) [--agent <id>] [--overwrite]'
-                                  : ' --name <name> [--agent <id>]'
-                              : command.domain === 'mcp'
+          : command.domain === 'tool'
+            ? command.verb === 'search'
+              ? ' --query <text> [--limit <n>]'
+              : command.verb === 'describe'
+                ? ' --target <name>'
+                : ' <request JSON on stdin>'
+            : command.domain === 'run'
+              ? command.verb === 'get'
+                ? ' --run <run-id> [--cursor <json>] [--limit <n>]'
+                : command.verb === 'watch'
+                  ? ' --run <run-id> [--cursor <event-cursor>] [--limit <n>]'
+                  : ' --run <run-id>'
+              : command.domain === 'model'
+                ? command.verb === 'invoke'
+                  ? ' --provider <id> --model <id> (--prompt <text>|--stdin)'
+                  : command.verb === 'list'
+                    ? ' --provider <id>'
+                    : ` --provider <id> --model <id>${command.verb === 'config-set' ? ' --stdin' : ''}`
+                : command.domain === 'image' || command.domain === 'video'
+                  ? ' --provider <id> --model <id> (--prompt <text>|--stdin)'
+                  : command.domain === 'audio' && command.verb === 'speak'
+                    ? ' --provider <id> --model <id> (--text <text>|--stdin)'
+                    : command.domain === 'audio'
+                      ? ' --provider <id> --model <id> (--file <path>|--artifact <id>)'
+                      : command.domain === 'ocr' && command.verb === 'extract'
+                        ? ' (--file <path>|--artifact <id>)'
+                        : command.domain === 'provider'
+                          ? command.verb === 'list'
+                            ? ' [--enabled-only]'
+                            : command.verb === 'add'
+                              ? ' --name <name> --api-type <type> --base-url <url> [--enabled <bool>]'
+                              : command.verb === 'update'
+                                ? ' --provider <id> [--name <name>] [--api-type <type>] [--base-url <url>] [--enabled <bool>]'
+                                : command.verb === 'set-credential'
+                                  ? ' --provider <id> --stdin'
+                                  : ` --provider <id>${command.verb === 'test' ? ' [--model <id>]' : ''}`
+                          : command.domain === 'settings' && command.verb === 'get'
+                            ? ' [--keys <key,key>]'
+                            : command.domain === 'settings'
+                              ? ' --key <key> --value <json-scalar>'
+                              : command.domain === 'skill'
                                 ? command.verb === 'list'
-                                  ? ''
-                                  : command.verb === 'add' || command.verb === 'update'
-                                    ? ' --name <name> --stdin'
-                                    : ' --name <name>'
-                                : ''
+                                  ? ' [--agent <id>]'
+                                  : command.verb === 'install'
+                                    ? ' (--file <archive>|--url <https-url>) [--agent <id>] [--overwrite]'
+                                    : ' --name <name> [--agent <id>]'
+                                : command.domain === 'mcp'
+                                  ? command.verb === 'list'
+                                    ? ''
+                                    : command.verb === 'add' || command.verb === 'update'
+                                      ? ' --name <name> --stdin'
+                                      : ' --name <name>'
+                                  : ''
     const commandKey = `${command.domain} ${command.verb}`
     const optionLines =
       commandKey === 'model invoke'

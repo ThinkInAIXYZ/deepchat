@@ -26,6 +26,11 @@ import type {
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
 import type {
+  DeepChatNestedExecutionAudit,
+  DeepChatNestedExecutionAuditState
+} from '@shared/types/execution-journal-audit'
+import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
+import type {
   SessionLightweightOptions,
   SessionListFilters,
   SessionProjectionAgentConfigPort,
@@ -58,6 +63,26 @@ export interface SessionQueryDependencies {
   agentConfig: SessionProjectionAgentConfigPort
   events: SessionProjectionEventPort
   ui: SessionProjectionUiPort
+}
+
+function unavailableNestedExecutionAudit(
+  state: Exclude<DeepChatNestedExecutionAuditState, 'available'>
+): DeepChatNestedExecutionAudit {
+  return {
+    schemaVersion: 1,
+    state,
+    operations: [],
+    truncated: false
+  }
+}
+
+function emptyNestedExecutionAudit(): DeepChatNestedExecutionAudit {
+  return {
+    schemaVersion: 1,
+    state: 'available',
+    operations: [],
+    truncated: false
+  }
 }
 
 export class SessionQuery implements SessionProjectionReadPort, SessionProjectionMutationPort {
@@ -204,6 +229,31 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
         error
       })
       return []
+    }
+  }
+
+  async listNestedExecutionAudit(messageId: string): Promise<DeepChatNestedExecutionAudit> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return emptyNestedExecutionAudit()
+
+    const message = this.dependencies.messages.get(normalizedMessageId)
+    if (!message || !this.dependencies.sessions.get(message.session_id)) {
+      return emptyNestedExecutionAudit()
+    }
+
+    try {
+      return await this.dependencies.tape.listNestedExecutionAuditForMessage(
+        message.session_id,
+        normalizedMessageId
+      )
+    } catch (error) {
+      const state = error instanceof ExecutionJournalCorruptionError ? 'corrupt' : 'unavailable'
+      logger.warn('[SessionQuery] Failed to list nested execution audit', {
+        messageId: normalizedMessageId,
+        state,
+        error
+      })
+      return unavailableNestedExecutionAudit(state)
     }
   }
 

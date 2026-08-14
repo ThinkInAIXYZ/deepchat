@@ -316,7 +316,16 @@ describe('TraceDialog', () => {
       getEditor: getEditorMock
     }))
     themeStoreMock.isDark = false
-    listMessageTraceDiagnosticsMock.mockResolvedValue({ traces: [], manifests: [] })
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [],
+      nestedExecutions: {
+        schemaVersion: 1,
+        state: 'available',
+        operations: [],
+        truncated: false
+      }
+    })
   })
 
   it('keeps the request preview constrained inside the dialog layout', async () => {
@@ -472,6 +481,74 @@ describe('TraceDialog', () => {
     expect(wrapper.text()).toContain('traceDialog.policyVersion')
     expect(wrapper.text()).toContain('1')
   })
+
+  it('shows bounded nested execution truth without raw arguments or responses', async () => {
+    const operation = (childOrdinal: number, status: 'success' | 'error' | 'indeterminate') => ({
+      runId: '22222222-2222-4222-8222-222222222222',
+      requestSeq: 1,
+      providerToolCallId: 'call_exec',
+      childOrdinal,
+      toolName: `private_tool_${childOrdinal}`,
+      toolSource: 'mcp',
+      target: { serverName: 'private-server', originalName: `target_${childOrdinal}` },
+      argumentsHash: '1'.repeat(64),
+      definitionHash: '2'.repeat(64),
+      capabilityHash: '3'.repeat(64),
+      status,
+      dispatchEntryId: childOrdinal * 2 + 1,
+      dispatchCreatedAt: 100 + childOrdinal,
+      outcomeEntryId: status === 'indeterminate' ? null : childOrdinal * 2 + 2,
+      outcomeCreatedAt: status === 'indeterminate' ? null : 200 + childOrdinal,
+      responseHash: status === 'indeterminate' ? null : '4'.repeat(64),
+      isError: status === 'indeterminate' ? null : status === 'error'
+    })
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [],
+      nestedExecutions: {
+        schemaVersion: 1,
+        state: 'available',
+        operations: [operation(0, 'success'), operation(1, 'error'), operation(2, 'indeterminate')],
+        truncated: true
+      }
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.tabs.execution')
+    expect(wrapper.text()).toContain('private-server/target_0')
+    expect(wrapper.text()).toContain('traceDialog.execution.status.success')
+    expect(wrapper.text()).toContain('traceDialog.execution.status.error')
+    expect(wrapper.text()).toContain('traceDialog.execution.status.indeterminate')
+    expect(wrapper.text()).toContain('traceDialog.execution.truncated')
+    expect(wrapper.text()).not.toContain('private arguments')
+    expect(wrapper.text()).not.toContain('private response')
+  })
+
+  it.each(['corrupt', 'unavailable'] as const)(
+    'surfaces %s nested execution audit state without partial operations',
+    async (state) => {
+      listMessageTraceDiagnosticsMock.mockResolvedValue({
+        traces: [],
+        manifests: [],
+        nestedExecutions: {
+          schemaVersion: 1,
+          state,
+          operations: [],
+          truncated: false
+        }
+      })
+
+      const wrapper = mountDialog()
+      await wrapper.setProps({ messageId: 'm1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain(`traceDialog.execution.${state}`)
+      expect(wrapper.text()).toContain(`traceDialog.execution.${state}Desc`)
+    }
+  )
 
   it('does not fall back to a different request when selected manifest has no trace', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({

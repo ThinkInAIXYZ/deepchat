@@ -48,6 +48,7 @@ import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDe
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { CommandShellProfile } from '@shared/commandShell'
+import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'
@@ -76,7 +77,14 @@ export type SessionPermissionGrant =
       signature: string
       oneShotGrantId: string
     }>
-  | Readonly<{ kind: 'granted' }>
+  | Readonly<{
+      kind: 'granted'
+      lease?: Readonly<{
+        capability?: ToolPermissionLeaseCapability
+        finalize(): void
+        revoke(): void
+      }>
+    }>
 
 export interface SessionPermissionPort {
   clearSessionPermissions(sessionId: string): void
@@ -128,6 +136,7 @@ export type SessionProjectionTapePort = Pick<
   | 'listTapeAnchors'
   | 'handoffTape'
   | 'listMessageViewManifests'
+  | 'listNestedExecutionAuditForMessage'
   | 'exportMessageTapeReplaySlice'
 >
 

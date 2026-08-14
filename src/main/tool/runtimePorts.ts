@@ -94,6 +94,9 @@ export interface CreateSubagentSessionInput {
 export interface AgentToolSessionPort {
   resolveConversationWorkdir(conversationId: string): Promise<string | null>
   resolveConversationSessionInfo(conversationId: string): Promise<ConversationSessionInfo | null>
+  resolveConversationExecutionAuthorityNow(
+    conversationId: string
+  ): ConversationExecutionAuthority | null
   resolveConversationExecutionAuthority(
     conversationId: string
   ): Promise<ConversationExecutionAuthority | null>
@@ -243,9 +246,14 @@ export interface AgentDisplaySettingsPort {
 export interface AgentToolPermissionPort {
   getApprovedFilePaths(
     conversationId: string,
-    requiredPermission?: 'read' | 'write' | 'all'
+    requiredPermission?: 'read' | 'write' | 'all',
+    provisionalLeaseId?: string
   ): string[]
-  consumeSettingsApproval(conversationId: string, toolName: string): boolean
+  consumeSettingsApproval(
+    conversationId: string,
+    toolName: string,
+    provisionalLeaseId?: string
+  ): boolean
 }
 
 export interface AgentToolDependencies {

@@ -63,6 +63,30 @@ type TapeViewReplayProviders = Pick<
 
 const BOOTSTRAP_ANCHOR_NAME = 'session/start'
 
+export function buildTapeViewManifestProvenanceKey(manifest: DeepChatTapeViewManifest): string {
+  if (manifest.schemaVersion === 6 || manifest.schemaVersion === 7) {
+    return buildTapeSkillViewManifestBindingProvenanceKey(manifest.schemaVersion, manifest)
+  }
+  return `view:${manifest.sessionId}:${manifest.messageId}:${manifest.requestSeq}:${manifest.hashes.manifestHash}`
+}
+
+export function buildTapeSkillViewManifestBindingProvenanceKey(
+  schemaVersion: 6 | 7,
+  input: {
+    sessionId: string
+    tapeIncarnationId: string
+    runId: string
+    requestSeq: number
+  }
+): string {
+  return `view${schemaVersion}:${hashJsonData({
+    sessionId: input.sessionId,
+    tapeIncarnationId: input.tapeIncarnationId,
+    runId: input.runId,
+    requestSeq: input.requestSeq
+  })}`
+}
+
 function isReconstructionAnchorName(name: string | null): boolean {
   if (name === null) {
     return false
@@ -534,12 +558,12 @@ export class TapeViewReplayService {
           )
         }
         this.validateSkillManifestEvidence(manifest)
-        const provenanceKey = this.skillManifestProvenanceKey(manifest)
+        const provenanceKey = buildTapeViewManifestProvenanceKey(manifest)
         const conflictingSchemaVersion = manifest.schemaVersion === 6 ? 7 : 6
         if (
           table.getByProvenanceKey(
             manifest.sessionId,
-            this.skillManifestBindingProvenanceKey(conflictingSchemaVersion, manifest)
+            buildTapeSkillViewManifestBindingProvenanceKey(conflictingSchemaVersion, manifest)
           )
         ) {
           throw new Error('Conflicting Skill-bearing ViewManifest execution binding.')
@@ -568,10 +592,7 @@ export class TapeViewReplayService {
         id: manifest.messageId,
         seq: manifest.requestSeq
       },
-      provenanceKey:
-        manifest.schemaVersion === 6 || manifest.schemaVersion === 7
-          ? this.skillManifestProvenanceKey(manifest)
-          : `view:${manifest.sessionId}:${manifest.messageId}:${manifest.requestSeq}:${manifest.hashes.manifestHash}`,
+      provenanceKey: buildTapeViewManifestProvenanceKey(manifest),
       data: {
         manifest
       },
@@ -585,27 +606,6 @@ export class TapeViewReplayService {
       createdAt: manifest.assembledAt,
       idempotent: true
     })
-  }
-
-  private skillManifestProvenanceKey(manifest: DeepChatTapeSkillViewManifest): string {
-    return this.skillManifestBindingProvenanceKey(manifest.schemaVersion, manifest)
-  }
-
-  private skillManifestBindingProvenanceKey(
-    schemaVersion: 6 | 7,
-    input: {
-      sessionId: string
-      tapeIncarnationId: string
-      runId: string
-      requestSeq: number
-    }
-  ): string {
-    return `view${schemaVersion}:${hashJsonData({
-      sessionId: input.sessionId,
-      tapeIncarnationId: input.tapeIncarnationId,
-      runId: input.runId,
-      requestSeq: input.requestSeq
-    })}`
   }
 
   private requireEqualSkillManifestRow(
@@ -667,7 +667,7 @@ export class TapeViewReplayService {
   private requireValidStoredSkillManifestOccurrence(
     row: DeepChatTapeEntryRow,
     manifest: DeepChatTapeSkillViewManifest,
-    provenanceKey = this.skillManifestProvenanceKey(manifest)
+    provenanceKey = buildTapeViewManifestProvenanceKey(manifest)
   ): void {
     if (
       verifyTapeViewManifestHash(manifest) !== 'valid' ||
@@ -863,6 +863,53 @@ export class TapeViewReplayService {
       .sort((left, right) => right.requestSeq - left.requestSeq || right.entryId - left.entryId)
   }
 
+  listViewManifestsByMessageRequest(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): DeepChatTapeViewManifestRecord[] {
+    const normalizedSessionId = sessionId.trim()
+    const normalizedMessageId = messageId.trim()
+    if (!normalizedSessionId || !normalizedMessageId || !isPositiveInteger(requestSeq)) {
+      throw new Error('View manifest recovery identity is invalid.')
+    }
+    return this.table
+      .getEventsBySource(
+        normalizedSessionId,
+        TAPE_VIEW_MANIFEST_EVENT_NAME,
+        'runtime_event',
+        normalizedMessageId,
+        requestSeq
+      )
+      .map((row) => {
+        const record = this.toViewManifestRecord(row)
+        const expectedProvenanceKey = record
+          ? buildTapeViewManifestProvenanceKey(record.manifest)
+          : null
+        if (
+          !record ||
+          row.provenance_key !== expectedProvenanceKey ||
+          row.created_at !== record.manifest.assembledAt ||
+          canonicalJsonStringifyData(parseJsonObject(row.payload_json)) !==
+            canonicalJsonStringifyData({
+              name: TAPE_VIEW_MANIFEST_EVENT_NAME,
+              data: { manifest: record.manifest }
+            }) ||
+          canonicalJsonStringifyData(parseJsonObject(row.meta_json)) !==
+            canonicalJsonStringifyData({
+              viewId: record.manifest.viewId,
+              requestSeq: record.manifest.requestSeq,
+              taskType: record.manifest.taskType,
+              policy: record.manifest.policy,
+              policyVersion: record.manifest.policyVersion
+            })
+        ) {
+          throw new Error(`View manifest entry ${row.entry_id} failed recovery validation.`)
+        }
+        return record
+      })
+  }
+
   private listExactRuntimeSkillExecutionManifests(
     sessionId: string,
     messageId: string
@@ -908,7 +955,7 @@ export class TapeViewReplayService {
     const tapeIncarnationId = this.table.getBootstrapIncarnation(input.sessionId)
     if (!tapeIncarnationId) return null
     const candidates = ([6, 7] as const).flatMap((schemaVersion) => {
-      const provenanceKey = this.skillManifestBindingProvenanceKey(schemaVersion, {
+      const provenanceKey = buildTapeSkillViewManifestBindingProvenanceKey(schemaVersion, {
         ...input,
         tapeIncarnationId
       })
@@ -992,7 +1039,7 @@ export class TapeViewReplayService {
           sourceSeq === null
             ? []
             : ([6, 7] as const).map((schemaVersion) =>
-                this.skillManifestBindingProvenanceKey(schemaVersion, {
+                buildTapeSkillViewManifestBindingProvenanceKey(schemaVersion, {
                   sessionId: input.sessionId,
                   tapeIncarnationId,
                   runId: input.runId,

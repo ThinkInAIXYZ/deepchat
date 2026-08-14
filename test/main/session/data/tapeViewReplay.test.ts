@@ -978,6 +978,31 @@ describe('SessionTape view and replay', () => {
         }
       }
     ])
+    expect(service.listViewManifestsByMessageRequest('s1', 'a1', 1)).toMatchObject([
+      {
+        entryId: first.entry_id,
+        integrity: 'valid',
+        manifest: { hashes: { manifestHash: manifest.hashes.manifestHash } }
+      }
+    ])
+  })
+
+  it('fails recovery-specific manifest reads on malformed physical duplicates', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({ deepchatTapeEntriesTable: table } as any)
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a1', seq: 1 },
+      provenanceKey: 'malformed-manifest',
+      data: { manifest: { schemaVersion: 5 } },
+      meta: {},
+      createdAt: 200
+    })
+
+    expect(() => service.listViewManifestsByMessageRequest('s1', 'a1', 1)).toThrow(
+      /failed recovery validation/
+    )
   })
 
   it('projects memory view anchors into inspection DTOs', () => {

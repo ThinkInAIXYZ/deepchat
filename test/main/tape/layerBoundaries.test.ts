@@ -579,9 +579,12 @@ describe('Tape layer boundaries', () => {
       ensureSessionTapeReady: vi.fn(),
       getViewManifestSourceMaps: vi.fn(),
       listViewManifestsByMessage: vi.fn(),
+      listViewManifestsByMessageRequest: vi.fn(),
+      getViewManifestByExecutionBinding: vi.fn(),
       assertSkillRequestAuthority: vi.fn(),
       appendViewManifest: vi.fn(),
-      appendToolFact: vi.fn(),
+      commitToolSurfaceView: vi.fn(),
+      appendToolFact: vi.fn(async () => ({ sessionId: 's1', entryId: 1, toolResult: null })),
       getTapeIncarnationId: vi.fn(),
       appendSkillViewResultFact: vi.fn(),
       recoverRuntimeSkillViewContexts: vi.fn(),
@@ -608,11 +611,14 @@ describe('Tape layer boundaries', () => {
       'commitRunStarted',
       'commitRunTerminal',
       'commitToolOutcome',
+      'commitToolSurfaceView',
       'ensureSessionTapeReady',
       'getMaxProviderAttemptRequestSeq',
       'getTapeIncarnationId',
+      'getViewManifestByExecutionBinding',
       'getViewManifestSourceMaps',
       'listViewManifestsByMessage',
+      'listViewManifestsByMessageRequest',
       'recoverRuntimeSkillViewContexts'
     ])
     expect('materializeSkillContexts' in loopPort).toBe(false)

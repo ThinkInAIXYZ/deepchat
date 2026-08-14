@@ -509,6 +509,7 @@ import {
   skillsExecuteSyncDirectoryExportRoute,
   skillsExecuteSyncDirectoryImportRoute,
   skillsExecuteAgentImportRoute,
+  skillsDeleteRoute,
   skillsInstallFromGitRoute,
   skillsInstallFromFolderRoute,
   skillsInstallPublicUrlRoute,
@@ -517,6 +518,7 @@ import {
   skillsInstallFromZipRoute,
   skillsListPublicRoute,
   skillsListCatalogRoute,
+  skillsListAllRoute,
   skillsListAgentImportSourcesRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
@@ -531,6 +533,7 @@ import {
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
   skillsSetDisabledRoute,
+  skillsSetAssignmentsRoute,
   skillsSetPublicStatusRoute,
   skillsSetSyncDirectoryRoute,
   skillsUninstallPublicRoute,
@@ -539,13 +542,8 @@ import {
 } from './routes/skills.routes'
 import {
   skillSyncAcknowledgeDiscoveriesRoute,
-  skillSyncGetAgentDetailRoute,
-  skillSyncGetAgentSkillDetailRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
-  skillSyncRemoveAgentSkillLinkRoute,
-  skillSyncRepairAgentSkillLinkRoute,
-  skillSyncScanAgentsRoute,
   skillSyncScanExternalToolsRoute
 } from './routes/skillSync.routes'
 import {
@@ -584,6 +582,7 @@ import {
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
+  windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute
 } from './routes/window.routes'
@@ -680,6 +679,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
     windowConsumePendingSettingsProviderInstallRoute,
   [windowRequeuePendingSettingsProviderInstallRoute.name]:
     windowRequeuePendingSettingsProviderInstallRoute,
+  [windowResumeGuidedOnboardingRoute.name]: windowResumeGuidedOnboardingRoute,
   [windowStartGuidedOnboardingRoute.name]: windowStartGuidedOnboardingRoute,
   [notificationRendererReadyRoute.name]: notificationRendererReadyRoute,
   [notificationAcknowledgePresentationRoute.name]: notificationAcknowledgePresentationRoute,
@@ -1076,6 +1076,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [ocrExtractArtifactRoute.name]: ocrExtractArtifactRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsListCatalogRoute.name]: skillsListCatalogRoute,
+  [skillsListAllRoute.name]: skillsListAllRoute,
+  [skillsSetAssignmentsRoute.name]: skillsSetAssignmentsRoute,
+  [skillsDeleteRoute.name]: skillsDeleteRoute,
   [skillsListPublicRoute.name]: skillsListPublicRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,
@@ -1113,11 +1116,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [skillSyncGetNewDiscoveriesRoute.name]: skillSyncGetNewDiscoveriesRoute,
   [skillSyncAcknowledgeDiscoveriesRoute.name]: skillSyncAcknowledgeDiscoveriesRoute,
   [skillSyncGetRegisteredToolsRoute.name]: skillSyncGetRegisteredToolsRoute,
-  [skillSyncScanAgentsRoute.name]: skillSyncScanAgentsRoute,
-  [skillSyncGetAgentDetailRoute.name]: skillSyncGetAgentDetailRoute,
-  [skillSyncGetAgentSkillDetailRoute.name]: skillSyncGetAgentSkillDetailRoute,
-  [skillSyncRepairAgentSkillLinkRoute.name]: skillSyncRepairAgentSkillLinkRoute,
-  [skillSyncRemoveAgentSkillLinkRoute.name]: skillSyncRemoveAgentSkillLinkRoute,
   [mcpListPublicRoute.name]: mcpListPublicRoute,
   [mcpGetServersRoute.name]: mcpGetServersRoute,
   [mcpGetEnabledRoute.name]: mcpGetEnabledRoute,

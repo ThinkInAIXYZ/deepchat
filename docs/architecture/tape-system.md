@@ -65,8 +65,10 @@ owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合
 | --- | --- |
 | DeepChat loop runner | `DeepChatLoopTapePort`（manifest、Skill request/runtime-view authority、tool fact、provider attempt 与 Journal 的窄能力组合） |
 | DeepChat Skill materializer | 冻结的 `SkillContextTapePort` adapter（incarnation、materialization、有效 user source 与 Run-manifest 能力） |
+| DeepChat Skill execution authority | 冻结的 `SkillExecutionAuthorityTapePort` adapter（exact execution ViewManifest、incarnation 与 materialization read-only 校验） |
 | DeepChat harness composition | `ExecutionJournalRecoveryReader` |
 | Deferred tool executor | `ExecutionJournalWriter` |
+| Interaction coordinator | deferred approval recovery 所需的 `ExecutionJournalRecoveryReader`、exact execution ViewManifest reader 与 tool-surface fact reader 窄组合 |
 | Live delegation repository | `ParentTaskContractWriter`、`TaskContractWriter`、`TaskEvaluationWriter` |
 | Turn coordinator / ACP compatibility | `TapeReconciliationPort` |
 | Transcript | `TapeMessageFactWriter` |
@@ -125,8 +127,8 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 | Fact/path | 失败策略 | 事务纪律 |
 | --- | --- | --- |
 | Context message/anchor | 沿既有交互 settlement policy | 与对应 transcript/projection mutation 同事务或按既有 fail-open 规则提交 |
-| interactive `view/assembled` | fail-open，记录 bounded diagnostic | provider request 前独立 append |
-| contract-bearing `view/assembled` | fail-closed | provider request 前独立、durable append |
+| interactive `view/assembled` + applicable tool-surface provenance | fail-open，记录 bounded diagnostic | provider request 前由 dedicated writer 在一条事务中 append/validate |
+| contract-bearing `view/assembled` + applicable tool-surface provenance | fail-closed | provider request 前由 dedicated writer 在一条事务中 durable append/validate |
 | `execution/*` | fail-closed | 跨外部副作用边界独立提交，拒绝宿主事务 |
 | parent `contract/task_frozen` | fail-closed | 与 delegation/turn 创建同一事务 |
 | child `contract/task_frozen` inherited copy | fail-closed | 与 dispatch preparation projection 同一事务，先于 Handoff/provider dispatch |
@@ -152,9 +154,9 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 
 Journal commit 使用 strict fail-closed contract；它不继承 Context Tape producer 的 warn-only/fail-open
 策略。dispatch 只保存 canonical arguments hash 与已解析 target，不保存原始参数；terminal error 只保存
-hash；tool outcome 保存有上限的 response text、hash 与可选 offload path。Journal events 默认从
-effective Context Tape view 和 search 排除，只在显式 audit view 中可见。prepared response text 仍可能
-包含敏感的用户或工具数据，必须继承 Session transcript 的数据库保护与保留策略，且不得进入恢复诊断日志。
+hash；tool outcome 按 detailed Journal spec 和当前 `responseHash + isError` 合同只保存 canonical response
+hash 与 error bit。Journal 不复制 response/error text、MCP envelope、binary 或 temporary/offload path。
+Journal events 默认从 effective Context Tape view 和 search 排除，只在显式 audit view 中可见。
 
 T1/T2 不承诺任意外部系统的 exactly-once。它把本地可证明状态限定为：
 
@@ -169,6 +171,40 @@ DeepChat harness 构造时先读取原生 v1 Journal facts，随后构建 runtim
 报告自动重放遗留 operation；明细日志最多 100 条并清理控制字符，超出部分只记分类汇总；Journal
 读取失败会阻止 harness 构造。v1 的 `parked` 是 recovery disposition，不是新的持久化 Session
 状态。后续显式继续执行必须创建新 Run，不复用已结束或崩溃遗留的 Run identity。
+
+Journal v2 在保留上述 v1 provider operation identity 的同时新增 discriminated nested identity：
+`(runId, requestSeq, providerToolCallId, childOrdinal)`。`childOrdinal` 是独立 child operation，不是
+attempt；由 controller 按 canonical batch plan index 在任何 child approval/T1 前连续分配并冻结完整
+step/template mapping，有界、不可复用。nested canonical payload 绑定真实 target、
+definition/arguments/capability hash；同 identity 异 payload 是 corruption。v1/v2 并存读取且不重写历史。
+outer exec T1 是 child T1 的前置，所有已开始 child 必须在 outer T2 前提交 T2，outer T2 或
+`run_terminal` 后禁止 child。包含 Programmatic outer operation 的 Run 只有在 outer T2 和所有 outer/child
+T1 都有 T2 时才可提交 `run_terminal`；未配对 T1 同时禁止 outer T2 和 `run_terminal`，Run 保持
+unterminated/parked，不能从 startup recovery 消失。process-live parent controller/settlement receipt 是跨
+CLI authority，stdout 和 Tape 都不是在线 dispatch authority。nested Journal failure/corruption 对 Run
+fatal。
+
+### Tool Surface provenance
+
+`view/tool_catalog` 和 `view/tool_surface` 继续只描述 provider exposure。新增有界
+`view/programmatic_tool_surface`，记录 request/manifest/catalog reference、programmatic capability 与
+surface hash、policy/canonicalization version、bounded target/definition projection 和 degradation。三个
+fact 都是同 identity 同 payload 幂等、异 payload corruption，并排除 effective View、Memory ingestion 和
+普通 search。strict V5 在 provider admission 前 durable bind 且 fail closed；V4 provenance 可沿既有
+fail-open，但不得冒充 verified。durable surface fact 只证明该 View 的 exposure provenance 已提交，不证明
+provider request 已发送或被上游接收。正常 dispatch 不读 Tape。
+
+`skill_run` 是窄化的安全例外：`SkillExecutionAuthorityResolver` 只能通过冻结的
+`SkillExecutionAuthorityTapePort` 读取 exact execution ViewManifest、当前 incarnation 和被 manifest
+引用的 materialization，并在进程 spawn 前再次校验。该读取只验证 provider-request-bound Skill
+authority，不得枚举 dispatch history、从 Tape 重建 process-live authority，或授权其他工具；generic
+tool dispatch 仍不得读取 Tape。
+
+每个 View 的 Provider Active Surface 与 Programmatic Surface immutable 且 stable-target 互斥；V5
+ExecutionContract ceilings 仍只含 provider-visible tools。Programmatic capability 的完整 canonical value
+只存在于 process-live View/runtime；persistence 从同值派生完整 capability hash、exact bounded
+ceilings/quotas 和 bounded provenance projection。Tape 不能重建 capability，也不能授权 search、call、batch
+或恢复 current authority。
 
 ## View 和 provenance
 
@@ -337,6 +373,11 @@ authority。
 
 `tape_info`、`tape_anchors` 是 diagnostic；`tape_handoff` 是 runtime-only。五个名称全部 reserved，
 MCP 不能 shadow，持久化 disabled-tool 配置也不能关闭 system capability。
+
+Skills 启用时，`skill_list`、`skill_view`、`skill_manage`、`skill_run` 同样是 reserved 的 system-model
+capability；MCP 不能 shadow，持久化 disabled-tool 配置不能逐项关闭。全局 Skills 设置仍是其产品级
+availability gate。`skill_view`/`skill_run` 的 provider-visible 结果和执行权限仍必须遵守上文的
+materialization、ViewManifest、Journal 与 source fence，不因 reserved/exposure 身份获得额外 authority。
 
 ## Fork 和 Subagent lineage
 

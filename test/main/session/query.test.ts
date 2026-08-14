@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatMessageRecord, SessionRecord } from '@shared/types/agent-interface'
 import { SessionQuery, type SessionQueryDependencies } from '@/session/query'
+import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
 
 const createSessionRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 's1',
@@ -80,6 +81,12 @@ function createHarness() {
     listTapeAnchors: vi.fn().mockResolvedValue([]),
     handoffTape: vi.fn().mockResolvedValue({}),
     listMessageViewManifests: vi.fn().mockResolvedValue([]),
+    listNestedExecutionAuditForMessage: vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      state: 'available',
+      operations: [],
+      truncated: false
+    }),
     exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null)
   }
   const messages = { get: vi.fn() }
@@ -215,6 +222,12 @@ describe('SessionQuery', () => {
     harness.tape.listTapeAnchors.mockResolvedValue([{ name: 'checkpoint' }])
     harness.tape.handoffTape.mockResolvedValue({ name: 'handoff' })
     harness.tape.listMessageViewManifests.mockResolvedValue([{ id: 'view-1' }])
+    harness.tape.listNestedExecutionAuditForMessage.mockResolvedValue({
+      schemaVersion: 1,
+      state: 'available',
+      operations: [{ toolName: 'search', status: 'success' }],
+      truncated: false
+    })
     harness.tape.exportMessageTapeReplaySlice.mockResolvedValue({ version: 1 })
     harness.searchResults.listByMessageId.mockReturnValue([
       { content: '{', rank: 1, search_id: 'new' },
@@ -256,6 +269,12 @@ describe('SessionQuery', () => {
     await expect(harness.coordinator.listMessageViewManifests(' m1 ')).resolves.toEqual([
       { id: 'view-1' }
     ])
+    await expect(harness.coordinator.listNestedExecutionAudit(' m1 ')).resolves.toEqual(
+      expect.objectContaining({
+        state: 'available',
+        operations: [expect.objectContaining({ toolName: 'search', status: 'success' })]
+      })
+    )
     await expect(harness.coordinator.exportMessageTapeReplaySlice('m1')).resolves.toEqual({
       version: 1
     })
@@ -355,15 +374,41 @@ describe('SessionQuery', () => {
     const harness = createHarness()
     harness.messages.get.mockReturnValue({ session_id: 's1' })
     harness.tape.listMessageViewManifests.mockRejectedValue(new Error('manifest failed'))
+    harness.tape.listNestedExecutionAuditForMessage.mockRejectedValue(
+      new Error('nested audit failed')
+    )
     harness.tape.exportMessageTapeReplaySlice.mockRejectedValue(new Error('replay failed'))
 
     await expect(harness.coordinator.listMessageViewManifests('m1')).resolves.toEqual([])
+    await expect(harness.coordinator.listNestedExecutionAudit('m1')).resolves.toMatchObject({
+      state: 'unavailable',
+      operations: []
+    })
     await expect(harness.coordinator.exportMessageTapeReplaySlice('m1')).resolves.toBeNull()
 
     harness.records.delete('s1')
     harness.tape.listMessageViewManifests.mockClear()
+    harness.tape.listNestedExecutionAuditForMessage.mockClear()
     await expect(harness.coordinator.listMessageViewManifests('m1')).resolves.toEqual([])
+    await expect(harness.coordinator.listNestedExecutionAudit('m1')).resolves.toMatchObject({
+      state: 'available',
+      operations: []
+    })
     expect(harness.tape.listMessageViewManifests).not.toHaveBeenCalled()
+    expect(harness.tape.listNestedExecutionAuditForMessage).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes corrupt nested Journal evidence from unavailable storage', async () => {
+    const harness = createHarness()
+    harness.messages.get.mockReturnValue({ session_id: 's1' })
+    harness.tape.listNestedExecutionAuditForMessage.mockRejectedValue(
+      new ExecutionJournalCorruptionError('conflicting nested facts')
+    )
+
+    await expect(harness.coordinator.listNestedExecutionAudit('m1')).resolves.toMatchObject({
+      state: 'corrupt',
+      operations: []
+    })
   })
 
   it('owns rename, pin, normalized updates, and UI refresh', async () => {

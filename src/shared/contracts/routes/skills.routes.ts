@@ -11,7 +11,11 @@ import type {
   SkillMetadata,
   SkillScriptDescriptor
 } from '@shared/types/skill'
-import type { SkillSyncDirectoryConfig, UnifiedSkillItem } from '@shared/types/skillManagement'
+import type {
+  SkillDeleteResult,
+  SkillSyncDirectoryConfig,
+  UnifiedSkillItem
+} from '@shared/types/skillManagement'
 import type {
   AgentSkillImportPreview,
   AgentSkillImportResult,
@@ -164,6 +168,7 @@ export type PublicSkill = z.infer<typeof PublicSkillSchema>
 
 const SkillMetadataSchema = z.custom<SkillMetadata>()
 const UnifiedSkillItemSchema = z.custom<UnifiedSkillItem>()
+const SkillDeleteResultSchema = z.custom<SkillDeleteResult>()
 const SkillInstallOptionsSchema = z.custom<SkillInstallOptions>().optional()
 const SkillInstallResultSchema = z.custom<SkillInstallResult>()
 const SkillInstallConflictStrategySchema = z.enum(['rename', 'overwrite', 'skip']).optional()
@@ -175,10 +180,10 @@ const SkillSyncDirectoryResultSchema = z.custom<SkillSyncDirectoryResult>()
 const SkillFolderNodeSchema = z.custom<SkillFolderNode>()
 const SkillExtensionConfigSchema = z.custom<SkillExtensionConfig>()
 const SkillScriptDescriptorSchema = z.custom<SkillScriptDescriptor>()
-const AgentSkillImportSourceSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('internal'), agentId: EntityIdSchema }),
-  z.object({ kind: z.literal('external'), toolId: z.string().trim().min(1) })
-])
+const AgentSkillImportSourceSchema = z.object({
+  kind: z.literal('external'),
+  toolId: z.string().trim().min(1)
+})
 const AgentSkillImportSourceInfoSchema = z.custom<AgentSkillImportSourceInfo>()
 const AgentSkillImportPreviewSchema = z.custom<AgentSkillImportPreview>()
 const AgentSkillImportResultSchema = z.custom<AgentSkillImportResult>()
@@ -192,7 +197,8 @@ const AgentSkillImportSelectionsSchema = z
   .array(
     z.object({
       skillName: AgentSkillImportNameSchema,
-      strategy: AgentSkillImportConflictStrategySchema
+      strategy: AgentSkillImportConflictStrategySchema,
+      acknowledgedAgentIds: z.array(EntityIdSchema).optional()
     })
   )
   .min(1)
@@ -227,6 +233,33 @@ export const skillsListCatalogRoute = defineRouteContract({
   })
 })
 
+export const skillsListAllRoute = defineRouteContract({
+  name: 'skills.listAll',
+  input: z.object({}),
+  output: z.object({
+    skills: z.array(UnifiedSkillItemSchema)
+  })
+})
+
+export const skillsSetAssignmentsRoute = defineRouteContract({
+  name: 'skills.setAssignments',
+  input: AgentSkillScopeSchema.extend({
+    skillNames: z.array(PublicSkillNameSchema).max(PUBLIC_SKILL_LIST_MAX_ITEMS)
+  }),
+  output: z.object({
+    skillNames: z.array(PublicSkillNameSchema)
+  })
+})
+
+export const skillsDeleteRoute = defineRouteContract({
+  name: 'skills.delete',
+  input: z.object({
+    name: PublicSkillNameSchema,
+    acknowledgedAgentIds: z.array(PublicSkillAgentIdSchema)
+  }),
+  output: z.object({ result: SkillDeleteResultSchema })
+})
+
 export const skillsSetDisabledRoute = defineRouteContract({
   name: 'skills.setDisabled',
   input: AgentSkillScopeSchema.extend({
@@ -250,7 +283,8 @@ export const skillsInstallFromFolderRoute = defineRouteContract({
   name: 'skills.installFromFolder',
   input: AgentSkillScopeSchema.extend({
     folderPath: z.string(),
-    options: SkillInstallOptionsSchema
+    options: SkillInstallOptionsSchema,
+    assignToAgent: z.boolean().optional().default(true)
   }),
   output: z.object({
     result: SkillInstallResultSchema
@@ -261,7 +295,8 @@ export const skillsInstallFromZipRoute = defineRouteContract({
   name: 'skills.installFromZip',
   input: AgentSkillScopeSchema.extend({
     zipPath: z.string(),
-    options: SkillInstallOptionsSchema
+    options: SkillInstallOptionsSchema,
+    assignToAgent: z.boolean().optional().default(true)
   }),
   output: z.object({
     result: SkillInstallResultSchema
@@ -272,7 +307,8 @@ export const skillsInstallFromUrlRoute = defineRouteContract({
   name: 'skills.installFromUrl',
   input: AgentSkillScopeSchema.extend({
     url: z.string(),
-    options: SkillInstallOptionsSchema
+    options: SkillInstallOptionsSchema,
+    assignToAgent: z.boolean().optional().default(true)
   }),
   output: z.object({
     result: SkillInstallResultSchema
@@ -294,7 +330,8 @@ export const skillsInstallFromGitRoute = defineRouteContract({
   input: AgentSkillScopeSchema.extend({
     repoUrl: z.string().min(1),
     skillNames: z.array(z.string().min(1)),
-    strategy: SkillInstallConflictStrategySchema
+    strategy: SkillInstallConflictStrategySchema,
+    assignToAgent: z.boolean().optional().default(true)
   }),
   output: z.object({
     results: z.array(SkillInstallResultSchema)
@@ -486,9 +523,7 @@ export const skillsRemoveActiveRoute = defineRouteContract({
 
 export const skillsListAgentImportSourcesRoute = defineRouteContract({
   name: 'skills.listAgentImportSources',
-  input: z.object({
-    targetAgentId: EntityIdSchema
-  }),
+  input: z.object({}),
   output: z.object({
     sources: z.array(AgentSkillImportSourceInfoSchema)
   })
@@ -497,7 +532,6 @@ export const skillsListAgentImportSourcesRoute = defineRouteContract({
 export const skillsPreviewAgentImportRoute = defineRouteContract({
   name: 'skills.previewAgentImport',
   input: z.object({
-    targetAgentId: EntityIdSchema,
     source: AgentSkillImportSourceSchema,
     skillNames: z.array(AgentSkillImportNameSchema).optional()
   }),
@@ -509,7 +543,6 @@ export const skillsPreviewAgentImportRoute = defineRouteContract({
 export const skillsExecuteAgentImportRoute = defineRouteContract({
   name: 'skills.executeAgentImport',
   input: z.object({
-    targetAgentId: EntityIdSchema,
     source: AgentSkillImportSourceSchema,
     items: AgentSkillImportSelectionsSchema
   }),

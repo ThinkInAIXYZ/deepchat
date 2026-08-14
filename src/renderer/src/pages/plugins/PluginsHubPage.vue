@@ -1,37 +1,36 @@
 <template>
   <div data-testid="plugins-hub-page" class="flex h-full min-h-0 w-full flex-col bg-background">
-    <template v-if="!isAcpAgent">
-      <div class="shrink-0 border-b border-border/70 px-5 py-3">
-        <div class="flex min-w-0 items-center justify-between gap-3">
-          <nav class="flex min-w-0 items-center gap-1" :aria-label="t('routes.plugins')">
-            <RouterLink
-              v-for="tab in tabs"
-              :key="tab.name"
-              :to="{ name: tab.name }"
-              class="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm transition-colors"
-              :class="
-                activeTab === tab.key
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-              "
-            >
-              <Icon :icon="tab.icon" class="size-4" />
-              <span>{{ t(tab.titleKey) }}</span>
-            </RouterLink>
-          </nav>
-        </div>
-        <p
-          data-testid="plugins-hub-scope-banner"
-          class="mt-2 text-xs leading-5 text-muted-foreground"
-        >
-          {{ scopeBannerText }}
-        </p>
+    <div class="shrink-0 border-b border-border/70 px-5 py-3">
+      <div class="flex min-w-0 items-center justify-between gap-3">
+        <nav class="flex min-w-0 items-center gap-1" :aria-label="t('routes.plugins')">
+          <RouterLink
+            v-for="tab in tabs"
+            :key="tab.name"
+            :to="{ name: tab.name }"
+            class="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm transition-colors"
+            :class="
+              activeTab === tab.key
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+            "
+          >
+            <Icon :icon="tab.icon" class="size-4" />
+            <span>{{ t(tab.titleKey) }}</span>
+          </RouterLink>
+        </nav>
       </div>
+      <p
+        v-if="scopeBannerText"
+        data-testid="plugins-hub-scope-banner"
+        class="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ scopeBannerText }}
+      </p>
+    </div>
 
-      <div class="min-h-0 flex-1">
-        <RouterView />
-      </div>
-    </template>
+    <div v-if="!isAcpUnavailable" class="min-h-0 flex-1">
+      <RouterView />
+    </div>
 
     <section
       v-else
@@ -77,7 +76,7 @@ const tabs = [
   {
     key: 'skills',
     name: 'plugins-skills',
-    titleKey: 'routes.settings-skills',
+    titleKey: 'routes.plugins-skills',
     icon: 'lucide:wand-sparkles'
   },
   {
@@ -108,6 +107,9 @@ const scopeBannerText = computed(() => {
   if (activeTab.value === 'plugins') {
     return t('settings.pluginsHub.scopeGlobalPlugins')
   }
+  if (activeTab.value === 'skills') {
+    return ''
+  }
   return t('settings.pluginsHub.scopeCurrentAgent', { agent: selectedAgentName.value })
 })
 
@@ -115,4 +117,6 @@ const isAcpAgent = computed(() => {
   const agent = agentStore.selectedAgent
   return Boolean(agent && (agent.agentType ?? agent.type) === 'acp')
 })
+
+const isAcpUnavailable = computed(() => isAcpAgent.value && activeTab.value === 'mcp')
 </script>

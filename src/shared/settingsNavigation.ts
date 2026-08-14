@@ -14,7 +14,6 @@ export interface SettingsNavigationItem {
     | 'settings-notifications-hooks'
     | 'settings-scheduled-tasks'
     | 'settings-plugins'
-    | 'settings-skills'
     | 'settings-prompt'
     | 'settings-memory'
     | 'settings-knowledge-base'
@@ -232,16 +231,6 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     groupKey: 'tools',
     keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
     supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
-    hiddenInSidebar: true
-  },
-  {
-    routeName: 'settings-skills',
-    path: '/skills',
-    titleKey: 'routes.settings-skills',
-    icon: 'lucide:wand-sparkles',
-    position: 6,
-    groupKey: 'knowledge',
-    keywords: ['skill', 'skills', '技能'],
     hiddenInSidebar: true
   },
   {

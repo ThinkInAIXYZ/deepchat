@@ -25,6 +25,7 @@ import {
 const FOREGROUND_PREVIEW_CHARS = 12000
 const FINISHED_SESSION_RETENTION_MS = 5 * 60 * 1000
 const COMPLETED_SESSION_RECONCILIATION_MS = 5 * 60 * 1000
+const PROCESS_CLOSE_WATCHDOG_MS = 2_000
 
 export const getBackgroundExecConfig = () => ({
   backgroundMs: parseInt(process.env.PI_BASH_YIELD_MS || '10000', 10),
@@ -118,6 +119,8 @@ interface BackgroundSession {
   closePromise: Promise<void>
   resolveClose: () => void
   closeSettled: boolean
+  closeWatchdogId?: NodeJS.Timeout
+  finalizationPromise?: Promise<void>
   flushOutputDecoders?: () => void
   killTimeoutId?: NodeJS.Timeout
   timedOut: boolean
@@ -495,7 +498,7 @@ export class BackgroundExecSessionManager {
   ): Promise<SessionCompletionResult> {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
-    await this.waitForSessionDrain(session)
+    await session.closePromise
     return this.buildCompletionResult(session, previewChars)
   }
 
@@ -725,24 +728,57 @@ export class BackgroundExecSessionManager {
       })
     })
 
+    session.child.on('exit', (code, signal) => {
+      if (session.killTimeoutId) {
+        clearTimeout(session.killTimeoutId)
+        session.killTimeoutId = undefined
+      }
+      if (session.closeSettled || session.finalizationPromise || session.closeWatchdogId) return
+      session.closeWatchdogId = setTimeout(() => {
+        session.closeWatchdogId = undefined
+        if (session.closeSettled || session.finalizationPromise) return
+        logger.warn(
+          `[BackgroundExec] Session ${session.sessionId} exited without closing inherited stdio; forcing finalization`
+        )
+        this.recordProcessTerminalState(session, code, signal)
+        session.child.stdout?.destroy()
+        session.child.stderr?.destroy()
+        session.child.stdin?.destroy()
+        session.child.unref()
+        void this.finalizeSession(session, code, signal)
+      }, PROCESS_CLOSE_WATCHDOG_MS)
+    })
+
     session.child.on('close', (code, signal) => {
       if (session.killTimeoutId) {
         clearTimeout(session.killTimeoutId)
+        session.killTimeoutId = undefined
       }
-
-      if (session.status !== 'killed') {
-        if (signal === 'SIGTERM' || signal === 'SIGKILL') {
-          session.status = 'killed'
-        } else if (code !== 0 && code !== null) {
-          session.status = 'error'
-        } else {
-          session.status = 'done'
-        }
+      if (session.closeWatchdogId) {
+        clearTimeout(session.closeWatchdogId)
+        session.closeWatchdogId = undefined
       }
-
-      session.exitCode = code ?? undefined
+      if (session.closeSettled || session.finalizationPromise) return
+      this.recordProcessTerminalState(session, code, signal)
       void this.finalizeSession(session, code, signal)
     })
+  }
+
+  private recordProcessTerminalState(
+    session: BackgroundSession,
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): void {
+    if (session.status !== 'killed') {
+      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+        session.status = 'killed'
+      } else if (code !== 0 && code !== null) {
+        session.status = 'error'
+      } else {
+        session.status = 'done'
+      }
+    }
+    session.exitCode = code ?? undefined
   }
 
   private async killInternal(session: BackgroundSession, reason: string): Promise<void> {
@@ -963,6 +999,19 @@ export class BackgroundExecSessionManager {
     code: number | null,
     signal: NodeJS.Signals | null
   ): Promise<void> {
+    session.finalizationPromise ??= this.completeSessionFinalization(session, code, signal)
+    await session.finalizationPromise
+  }
+
+  private async completeSessionFinalization(
+    session: BackgroundSession,
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): Promise<void> {
+    if (session.closeWatchdogId) {
+      clearTimeout(session.closeWatchdogId)
+      session.closeWatchdogId = undefined
+    }
     try {
       session.flushOutputDecoders?.()
       await session.outputWriteQueue.catch((error) => {

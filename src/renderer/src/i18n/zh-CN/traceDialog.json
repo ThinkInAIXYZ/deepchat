@@ -1,5 +1,5 @@
 {
-  "title": "请求参数预览",
+  "title": "消息诊断",
   "provider": "供应商",
   "model": "模型",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "请求",
     "view": "视图",
     "entries": "条目",
-    "budget": "预算"
+    "budget": "预算",
+    "execution": "执行审计"
   },
   "empty": "暂无诊断数据",
-  "emptyDesc": "此消息暂无请求追踪或视图清单",
+  "emptyDesc": "此消息暂无请求追踪、视图清单或嵌套执行审计",
   "requestUnavailable": "暂无请求追踪",
   "requestUnavailableDesc": "此消息暂无持久化的供应商请求追踪",
   "manifestUnavailable": "暂无视图清单",
   "manifestUnavailableDesc": "此消息暂无持久化的 Tape 视图清单",
+  "execution": {
+    "empty": "暂无嵌套执行",
+    "emptyDesc": "此请求没有记录程序化工具操作",
+    "corrupt": "执行审计已损坏",
+    "corruptDesc": "嵌套 Journal 事实存在冲突或无法验证",
+    "unavailable": "执行审计不可用",
+    "unavailableDesc": "无法读取嵌套 Journal 事实",
+    "truncated": "仅显示前 256 个嵌套操作",
+    "status": {
+      "success": "成功",
+      "error": "错误",
+      "indeterminate": "结果不确定"
+    }
+  },
   "viewId": "视图 ID",
   "policy": "策略",
   "policyVersion": "策略版本",

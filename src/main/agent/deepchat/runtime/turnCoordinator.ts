@@ -252,7 +252,7 @@ export class TurnCoordinator {
       this.ports.runLifecycle.assertCurrentInstance(sessionId, instance)
       instance.replaceRuntimeActivatedSkills(messageActiveSkillNames)
     }
-    const sessionActiveSkillNames =
+    const requestedSessionActiveSkillNames =
       input.sessionActiveSkillNamesOverride === undefined
         ? await this.runPreStreamStep(
             { sessionId, messageId, step: 'active-skills', signal },
@@ -262,14 +262,15 @@ export class TurnCoordinator {
                 signal
               )
           )
-        : await awaitWithAbort(
-            this.ports.toolResolver.validateSkillNamesForSession(
-              sessionId,
-              [...input.sessionActiveSkillNamesOverride],
-              instance
-            ),
-            signal
-          )
+        : [...input.sessionActiveSkillNamesOverride]
+    const sessionActiveSkillNames = await awaitWithAbort(
+      this.ports.toolResolver.validateSkillNamesForSession(
+        sessionId,
+        requestedSessionActiveSkillNames,
+        instance
+      ),
+      signal
+    )
     this.ports.runLifecycle.assertCurrentInstance(sessionId, instance)
     const requestedActiveSkillNames = resolveEffectiveActiveSkillNames(
       sessionActiveSkillNames,

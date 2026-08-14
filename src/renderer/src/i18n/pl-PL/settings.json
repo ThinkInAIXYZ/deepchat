@@ -2249,7 +2249,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Zarządzaj i konfiguruj umiejętności asystenta AI",
+    "description": "Przeglądaj wszystkie Skills. Otwórz Skill, aby go podejrzeć i zarządzać aktywowanymi Agents.",
     "draftSuggestions": {
       "title": "Sugeruj projekty umiejętności",
       "description": "Po ukończeniu zadania pozwól agentowi zasugerować tymczasowe projekty umiejętności wielokrotnego użytku. Wersje robocze pozostają w folderze tymczasowym, dopóki nie zdecydujesz się na ich ręczne zaimportowanie."
@@ -2257,7 +2257,7 @@
     "openFolder": "Otwórz folder",
     "addSkill": "Dodaj umiejętność",
     "empty": "Nie ma jeszcze żadnych umiejętności",
-    "emptyHint": "Kliknij „Dodaj umiejętność”, aby zainstalować nową umiejętność",
+    "emptyHint": "Zaimportuj Skills z zewnętrznego Agenta.",
     "noResults": "Nie znaleziono pasujących umiejętności",
     "search": "Szukaj umiejętności...",
     "count": "Umiejętności {count}",
@@ -2295,8 +2295,6 @@
       "env": "środowisko {count}",
       "pythonShort": "P",
       "nodeShort": "Węzeł",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Pokaż szczegóły",
@@ -2354,46 +2352,30 @@
       "overwrite": "Zastąp"
     },
     "agentImport": {
-      "menuItem": "Import from Agent...",
-      "title": "Import Skills from Agent",
-      "description": "Copy selected Skills from another internal or external Agent. Imported copies remain independent.",
-      "target": "Target Agent",
-      "resultPartial": "Import completed with errors",
-      "resultSuccess": "Import complete",
-      "resultSummary": "Imported {imported}, skipped {skipped}, failed {failed}.",
-      "sourceTitle": "Source Agent",
-      "sourceDescription": "Choose an Agent to copy Skills from.",
-      "loadingSources": "Loading Agents...",
-      "sourceError": "Failed to load Agent sources",
-      "emptySources": "No import sources",
-      "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": {
-        "internal": "DeepChat",
-        "external": "External"
-      },
+      "menuItem": "Importuj z zewnętrznego Agenta",
+      "title": "Importuj z zewnętrznego Agenta",
+      "description": "Importuj zweryfikowane Skills do DeepChat. Aktywuj Agents w podglądzie każdego Skill.",
+      "resultPartial": "Import zakończony z błędami",
+      "resultSuccess": "Import zakończony",
+      "sourceTitle": "Agent źródłowy",
+      "emptySources": "Brak źródeł importu",
       "skillCount": "{count} Skills",
-      "previewTitle": "Skills to import",
-      "selectedCount": "{count} selected",
-      "selectAll": "Select all",
-      "clear": "Clear",
-      "loadingPreview": "Loading Skills...",
-      "previewError": "Failed to preview Skills",
-      "emptyPreview": "No Skills available",
-      "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
+      "previewTitle": "Skills do zaimportowania",
+      "emptyPreview": "Brak dostępnych Skills",
       "status": {
-        "ready": "Ready",
-        "conflict": "Conflict",
-        "unavailable": "Unavailable"
+        "ready": "Gotowy",
+        "conflict": "Konflikt",
+        "unavailable": "Niedostępny",
+        "same": "Już dodany"
       },
       "strategy": {
-        "skip": "Skip",
-        "rename": "Rename",
-        "overwrite": "Overwrite"
+        "skip": "Pomiń",
+        "rename": "Zmień nazwę",
+        "overwrite": "Nadpisz"
       },
-      "renameTarget": "Will be imported as {name}",
-      "executeError": "Failed to import Skills",
-      "importing": "Importing...",
-      "importSelected": "Import {count} selected"
+      "overwriteImpact": "Nadpisanie tego Skill wpłynie na aktywowane Agents: {agents}.",
+      "resultSummaryV3": "Zaimportowano: {imported}, użyto ponownie: {reused}, pominięto: {skipped}, niepowodzenia: {failed}.",
+      "execute": "Importuj wybrane"
     },
     "sync": {
       "title": "Synchronizuj",
@@ -2485,111 +2467,6 @@
       "skip": "Pomiń",
       "importSelected": "Importuj wybrane"
     },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Katalog synchronizacji"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Podgląd"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Pokaż"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
-    },
     "git": {
       "title": "Git",
       "description": "Skanuj repozytorium Git i instaluj wybrane skills w DeepChat.",
@@ -2621,7 +2498,6 @@
       "saved": "Katalog synchronizacji zapisany",
       "export": "Eksportuj do katalogu",
       "import": "Importuj z katalogu",
-      "includeDisabled": "Uwzględnij wyłączone skills",
       "previewExport": "Podgląd eksportu",
       "exportNow": "Eksportuj teraz",
       "previewImport": "Podgląd importu",
@@ -2674,7 +2550,13 @@
       "edit": "Edytuj",
       "delete": "Usuń",
       "confirmDeleteTitle": "Usuń skill",
-      "confirmDeleteDescription": "Usunąć skill „{name}”? Tej akcji nie można cofnąć."
+      "confirmDeleteDescription": "Usunąć skill „{name}”? Tej akcji nie można cofnąć.",
+      "enabledAgents": "Aktywowane Agents",
+      "enabledAgentsHint": "Te Agents mogą używać tego Skill.",
+      "noEnabledAgents": "Żaden Agent nie używa jeszcze tego Skill.",
+      "addAgent": "Dodaj Agenta",
+      "removeAgent": "Usuń {agent}",
+      "agentUpdateFailed": "Nie udało się zaktualizować aktywowanych Agents"
     },
     "installToAgent": {
       "title": "Zainstaluj {name} w Agent",
@@ -2692,6 +2574,17 @@
       "disconnectSuccess": "Odłączono od Agent",
       "disconnectSuccessMessage": "{name} nie jest już połączony z docelowym Agent.",
       "disconnectFailed": "Nie udało się odłączyć od Agent"
+    },
+    "impact": {
+      "changed": "Lista aktywowanych Agents uległa zmianie. Sprawdź wpływ i spróbuj ponownie.",
+      "editEnabled": "Zmiany treści zostaną zastosowane do tych Agents przy następnym uruchomieniu: {agents}.",
+      "editUnused": "Żaden Agent obecnie nie używa tego Skill.",
+      "confirmDeleteEnabled": "Usunąć {name}? Skill jest aktywowany dla: {agents}.",
+      "confirmDeleteUnused": "Usunąć {name}? Żaden Agent obecnie go nie używa."
+    },
+    "syncDirectory": {
+      "action": "Synchronizuj katalog",
+      "back": "Wróć do Skills"
     }
   },
   "environments": {

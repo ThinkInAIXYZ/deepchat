@@ -22,6 +22,12 @@ describe('settings navigation helpers', () => {
     expect(getSettingsNavigationGroups()[0]?.key).toBe('overview')
   })
 
+  it('keeps Skills out of the settings window navigation', () => {
+    expect(getSettingsNavigationItems().some((item) => item.routeName === 'settings-skills')).toBe(
+      false
+    )
+  })
+
   it('resolves provider routes with params', () => {
     expect(
       resolveSettingsNavigationPath('settings-provider', {

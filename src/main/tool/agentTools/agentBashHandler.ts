@@ -23,6 +23,7 @@ import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
+import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -32,6 +33,7 @@ import {
 
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000
+const PROGRAMMATIC_SETTLEMENT_GRACE_MS = 5000
 const COMMAND_OFFLOAD_THRESHOLD = 10000
 const COMMAND_PREVIEW_CHARS = 12000
 
@@ -50,10 +52,15 @@ export interface ExecuteCommandOptions {
   conversationId?: string
   env?: Record<string, string>
   stdin?: string
+  programmatic?: boolean
+  signal?: AbortSignal
+  maxTimeoutMs?: number
   outputPrefix?: string
   outputPreviewChars?: number
   allowExternalCwd?: boolean
-  beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
+  beforeExecute?: (
+    normalizedArguments: Record<string, unknown>
+  ) => ArmedAgentCliProgrammaticToken | void
 }
 
 export interface AgentCommandEnvironmentPort {
@@ -68,6 +75,30 @@ export interface AgentCommandEnvironmentPort {
         preserveCommand: boolean
       }>
     | undefined
+  createProgrammaticEnvironment?(
+    armed: ArmedAgentCliProgrammaticToken,
+    conversationId: string,
+    command: string,
+    stdin: string | undefined,
+    commandShell: ResolvedCommandShell
+  ): Readonly<{
+    variables: Readonly<Record<string, string>>
+    prependPath: readonly string[]
+    preserveCommand: boolean
+  }>
+}
+
+export class ProgrammaticCommandLaunchError extends Error {
+  constructor(options?: ErrorOptions) {
+    super('Programmatic CLI launch did not reach authoritative settlement', options)
+    this.name = 'ProgrammaticCommandLaunchError'
+  }
+}
+
+export function isProgrammaticCommandLaunchError(
+  error: unknown
+): error is ProgrammaticCommandLaunchError {
+  return error instanceof ProgrammaticCommandLaunchError
 }
 
 interface PreparedCommand {
@@ -138,15 +169,37 @@ export class AgentBashHandler {
     }
 
     const { command, timeout, background, cwd: requestedCwd, yieldMs } = parsed.data
+    const isProgrammaticInvocation = options.programmatic === true
+    if (isProgrammaticInvocation) {
+      options.signal?.throwIfAborted()
+    }
+    if (
+      isProgrammaticInvocation &&
+      (!options.conversationId || background || yieldMs !== undefined)
+    ) {
+      throw new Error('DeepChat Programmatic Tool commands must remain attached and foreground.')
+    }
+    if (!isProgrammaticInvocation && options.stdin !== undefined) {
+      throw new Error('Owned stdin is limited to DeepChat Programmatic Tool commands.')
+    }
     const cwd = this.resolveWorkingDirectory(
       requestedCwd,
       options.commandShell,
       options.allowExternalCwd
     )
+    const executionTimeout = isProgrammaticInvocation
+      ? (options.maxTimeoutMs ?? COMMAND_DEFAULT_TIMEOUT_MS)
+      : Math.min(
+          timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+          options.maxTimeoutMs ?? Number.MAX_SAFE_INTEGER
+        )
+    const resolvedTimeout = isProgrammaticInvocation
+      ? Math.min(Number.MAX_SAFE_INTEGER, executionTimeout + PROGRAMMATIC_SETTLEMENT_GRACE_MS)
+      : executionTimeout
 
     // Handle background execution
     if (background) {
-      return this.executeCommandBackground(command, timeout, cwd, options)
+      return this.executeCommandBackground(command, resolvedTimeout, cwd, options)
     }
 
     const permissionCheck = this.commandPermissionHandler.checkPermission(
@@ -177,37 +230,74 @@ export class AgentBashHandler {
     const spawnCwd = resolveUsableSpawnCwd(cwd)
     let result: ShellProcessResult
 
-    const resolvedEnvironment = this.resolveCommandEnvironment(command, options)
+    const resolvedEnvironment = !isProgrammaticInvocation
+      ? this.resolveCommandEnvironment(command, options)
+      : { env: options.env, preserveCommand: true }
     const prepared = await this.prepareCommand(
       command,
       resolvedEnvironment.env,
       options.commandShell,
-      resolvedEnvironment.preserveCommand
+      resolvedEnvironment.preserveCommand || isProgrammaticInvocation
     )
+    if (isProgrammaticInvocation) {
+      options.signal?.throwIfAborted()
+    }
 
-    options.beforeExecute?.({
-      command: prepared.command,
-      cwd: spawnCwd,
-      timeoutMs: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      background: false,
-      ...(prepared.rewritten
-        ? {
-            fallbackCommand: prepared.originalCommand,
-            fallbackPolicy: 'rtk_capability_error'
-          }
-        : {}),
-      ...(yieldMs === undefined ? {} : { yieldMs })
-    })
-    result = await this.runShellProcess(
-      prepared.command,
-      spawnCwd,
-      timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      {
+    let armedProgrammaticToken: ArmedAgentCliProgrammaticToken | void
+    try {
+      armedProgrammaticToken = options.beforeExecute?.({
+        command: prepared.command,
+        cwd: spawnCwd,
+        timeoutMs: resolvedTimeout,
+        background: false,
+        ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
+        ...(prepared.rewritten
+          ? {
+              fallbackCommand: prepared.originalCommand,
+              fallbackPolicy: 'rtk_capability_error'
+            }
+          : {}),
+        ...(yieldMs === undefined ? {} : { yieldMs })
+      })
+      if (isProgrammaticInvocation) {
+        if (!armedProgrammaticToken || !options.conversationId) {
+          throw new Error('Programmatic CLI launch requires an armed outer operation grant')
+        }
+        const programmaticEnvironment = this.commandEnvironment?.createProgrammaticEnvironment?.(
+          armedProgrammaticToken,
+          options.conversationId,
+          prepared.command,
+          options.stdin,
+          options.commandShell
+        )
+        if (!programmaticEnvironment) {
+          throw new Error('Programmatic CLI command environment is unavailable')
+        }
+        prepared.env = mergeCommandEnvironment({
+          processEnv: process.env,
+          overrides: { ...prepared.env, ...programmaticEnvironment.variables },
+          prependPathSources: [...programmaticEnvironment.prependPath],
+          includeDefaultPaths: false
+        })
+      }
+    } catch (error) {
+      if (isProgrammaticInvocation) {
+        throw new ProgrammaticCommandLaunchError({ cause: error })
+      }
+      throw error
+    }
+    try {
+      result = await this.runShellProcess(prepared.command, spawnCwd, resolvedTimeout, {
         ...options,
         env: prepared.env,
         yieldMs
+      })
+    } catch (error) {
+      if (isProgrammaticInvocation) {
+        throw new ProgrammaticCommandLaunchError({ cause: error })
       }
-    )
+      throw error
+    }
 
     if (result.kind === 'running') {
       return {
@@ -236,16 +326,11 @@ export class AgentBashHandler {
         }
       )
 
-      result = await this.runShellProcess(
-        prepared.originalCommand,
-        spawnCwd,
-        timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-        {
-          ...options,
-          env: prepared.env,
-          yieldMs
-        }
-      )
+      result = await this.runShellProcess(prepared.originalCommand, spawnCwd, resolvedTimeout, {
+        ...options,
+        env: prepared.env,
+        yieldMs
+      })
 
       prepared.rtkApplied = false
       prepared.rtkMode = 'bypass'
@@ -343,6 +428,9 @@ export class AgentBashHandler {
     if (!conversationId) {
       throw new Error('Managed shell process requires a conversation ID')
     }
+    if (options.programmatic === true) {
+      options.signal?.throwIfAborted()
+    }
 
     const session = await backgroundExecSessionManager.start(conversationId, command, cwd, {
       commandShell: options.commandShell,
@@ -356,47 +444,132 @@ export class AgentBashHandler {
       )
     })
 
-    await backgroundExecSessionManager.write(
-      conversationId,
-      session.sessionId,
-      options.stdin ?? '',
-      true
-    )
+    let removal: Promise<void> | undefined
+    const removeSession = (): Promise<void> => {
+      removal ??= backgroundExecSessionManager.remove(conversationId, session.sessionId)
+      return removal
+    }
+    const signal = options.programmatic === true ? options.signal : undefined
+    let removeAbortListener = () => {}
+    const abortObserved = signal
+      ? new Promise<void>((resolve) => {
+          const onAbort = () => {
+            void removeSession().catch((error) => {
+              logger.warn(
+                '[AgentBashHandler] Failed to terminate an aborted Programmatic command',
+                {
+                  conversationId,
+                  sessionId: session.sessionId,
+                  error
+                }
+              )
+            })
+            resolve()
+          }
+          signal.addEventListener('abort', onAbort, { once: true })
+          removeAbortListener = () => signal.removeEventListener('abort', onAbort)
+          if (signal.aborted) onAbort()
+        })
+      : null
 
-    const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
-      conversationId,
-      session.sessionId,
-      options.yieldMs ?? getBackgroundExecConfig().backgroundMs,
-      options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
-    )
-
-    if (yielded.kind === 'running') {
-      return yielded
+    if (signal?.aborted) {
+      await removeSession().catch(() => {})
+      removeAbortListener()
+      signal.throwIfAborted()
     }
 
-    const shouldCleanupSession = !yielded.result.offloaded
+    try {
+      await backgroundExecSessionManager.write(
+        conversationId,
+        session.sessionId,
+        options.stdin ?? '',
+        true
+      )
+    } catch (error) {
+      await removeSession().catch((cause) => {
+        logger.warn('[AgentBashHandler] Failed to cleanup a session after stdin delivery failed', {
+          conversationId,
+          sessionId: session.sessionId,
+          cause
+        })
+      })
+      removeAbortListener()
+      if (signal?.aborted) signal.throwIfAborted()
+      throw error
+    }
 
     try {
-      return {
-        kind: 'completed',
-        output: yielded.result.output,
-        exitCode: yielded.result.exitCode,
-        timedOut: yielded.result.timedOut,
-        offloaded: yielded.result.offloaded,
-        outputFilePath: yielded.result.outputFilePath
+      const yielded =
+        options.stdin === undefined && options.programmatic !== true
+          ? await backgroundExecSessionManager.waitForCompletionOrYield(
+              conversationId,
+              session.sessionId,
+              options.yieldMs ?? getBackgroundExecConfig().backgroundMs,
+              options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+            )
+          : {
+              kind: 'completed' as const,
+              result: await (abortObserved && signal
+                ? Promise.race([
+                    backgroundExecSessionManager.getCompletionResult(
+                      conversationId,
+                      session.sessionId,
+                      options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+                    ),
+                    abortObserved.then(async () => {
+                      await removeSession().catch(() => {})
+                      signal.throwIfAborted()
+                      throw new DOMException('Aborted', 'AbortError')
+                    })
+                  ])
+                : backgroundExecSessionManager.getCompletionResult(
+                    conversationId,
+                    session.sessionId,
+                    options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+                  ))
+            }
+
+      if (yielded.kind === 'running') {
+        return yielded
       }
-    } finally {
-      if (shouldCleanupSession) {
-        await backgroundExecSessionManager
-          .remove(conversationId, session.sessionId)
-          .catch((error) => {
+
+      const retainOffloadedSession =
+        options.stdin === undefined && options.programmatic !== true && yielded.result.offloaded
+
+      try {
+        return {
+          kind: 'completed',
+          output: yielded.result.output,
+          exitCode: yielded.result.exitCode,
+          timedOut: yielded.result.timedOut,
+          offloaded: retainOffloadedSession,
+          outputFilePath: retainOffloadedSession ? yielded.result.outputFilePath : undefined
+        }
+      } finally {
+        if (!retainOffloadedSession) {
+          await removeSession().catch((error) => {
             logger.warn('[AgentBashHandler] Failed to cleanup completed foreground exec session', {
               conversationId,
               sessionId: session.sessionId,
               error
             })
           })
+        }
       }
+    } catch (error) {
+      if (options.programmatic === true) {
+        await removeSession().catch((cause) => {
+          logger.warn('[AgentBashHandler] Failed to cleanup failed Programmatic command', {
+            conversationId,
+            sessionId: session.sessionId,
+            cause
+          })
+        })
+      }
+      if (signal?.aborted) signal.throwIfAborted()
+      throw error
+    } finally {
+      removeAbortListener()
     }
   }
 
@@ -682,15 +855,6 @@ export class AgentBashHandler {
       }
     )
 
-    if (options.stdin !== undefined) {
-      await backgroundExecSessionManager.write(
-        conversationId,
-        result.sessionId,
-        options.stdin,
-        true
-      )
-    }
-
     return {
       output: { status: 'running', sessionId: result.sessionId },
       rtkApplied: prepared.rtkApplied,
@@ -720,7 +884,7 @@ export class AgentBashHandler {
       rtkApplied: prepared.rtkApplied,
       rtkMode: prepared.rtkMode,
       rtkFallbackReason: preserveCommand
-        ? 'RTK rewrite bypassed for scoped command authority'
+        ? 'RTK rewrite bypassed for exact command execution'
         : commandShell.dialect !== 'posix' && prepared.rtkMode !== 'direct'
           ? 'RTK rewrite bypassed for non-POSIX command shell'
           : prepared.rtkFallbackReason

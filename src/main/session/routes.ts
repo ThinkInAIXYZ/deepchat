@@ -92,6 +92,7 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
     | 'getTapeContext'
     | 'listMessageTraces'
     | 'listMessageViewManifests'
+    | 'listNestedExecutionAudit'
     | 'exportMessageTapeReplaySlice'
     | 'renameSession'
     | 'toggleSessionPinned'
@@ -427,7 +428,12 @@ export function createSessionRoutes(deps: {
         const input = sessionsListMessageTracesRoute.input.parse(rawInput)
         const traces = await deps.projection.listMessageTraces(input.messageId)
         const manifests = await deps.projection.listMessageViewManifests(input.messageId)
-        return sessionsListMessageTracesRoute.output.parse({ traces, manifests })
+        const nestedExecutions = await deps.projection.listNestedExecutionAudit(input.messageId)
+        return sessionsListMessageTracesRoute.output.parse({
+          traces,
+          manifests,
+          nestedExecutions
+        })
       }
     ],
     [

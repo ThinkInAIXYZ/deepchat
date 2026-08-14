@@ -37,6 +37,8 @@ import type {
   ExecutionRunOutcome
 } from '@/tape/domain/executionJournal'
 import type { SessionPermissionGrant } from '@/session/contracts'
+import type { ToolSurfaceDeferredDispatchBindingV1 } from './toolSurface'
+import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 
 interface RunJournalObservationIdentity {
   runId: string
@@ -158,6 +160,15 @@ export type ProcessIoParams = Pick<
   executionJournalWriter: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
 }
 
+export type SkillActivationPreparation =
+  | {
+      readonly kind: 'prepared'
+      apply(): void
+    }
+  | {
+      readonly kind: 'rejected'
+    }
+
 export interface ProcessControlCollaborators {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
@@ -178,6 +189,7 @@ export interface ProcessControlCollaborators {
   getActiveSkillNames?: () => string[]
   getEnabledMcpServerIds?: () => string[] | null | undefined
   getAgentId?: () => string | undefined
+  prepareSkillActivation?: (skillName: string) => Promise<SkillActivationPreparation>
   activateSkill?: (skillName: string) => Promise<string[]>
   commitRuntimeSkillView?: (input: {
     resolution: EffectiveSkillContentResolution
@@ -239,6 +251,7 @@ export interface PendingToolInteraction {
   serverName?: string
   serverIcons?: string
   serverDescription?: string
+  toolSurfaceBinding?: ToolSurfaceDeferredDispatchBindingV1
   question?: {
     header?: string
     question: string
@@ -319,6 +332,7 @@ export interface ProcessParams {
   notificationObserver?: DeepChatLoopNotificationObserver
   controls?: ProcessControlCollaborators
   diagnostics?: ProcessInternalDiagnostics
+  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
   commitRunTerminal(selection: ProcessTerminalSelection): void
   io: ProcessIoParams
 }

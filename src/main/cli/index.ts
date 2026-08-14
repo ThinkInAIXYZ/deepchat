@@ -11,6 +11,16 @@ export {
   resolveBundledCliDirectory,
   type AgentCliCommandAccessOptions
 } from './agentCommandAccess'
+export {
+  ProgrammaticToolParentRegistry,
+  type ProgrammaticToolInvocationContext,
+  type ProgrammaticToolParentRegistration,
+  type ProgrammaticToolParentRunIdentity
+} from './programmaticToolParentRegistry'
+export {
+  ProgrammaticToolDispatcher,
+  type ProgrammaticToolDispatcherOptions
+} from './programmaticToolDispatcher'
 export { CliAuditLog, type CliAuditLogOptions } from './auditLog'
 export { ArtifactSpool, type ArtifactSpoolOptions } from './artifactSpool'
 export { createArtifactRoutes } from './artifactRoutes'
@@ -35,7 +45,13 @@ export {
   createCliProviderModelAdminRoutes,
   type CliProviderModelAdminDependencies
 } from './providerModelAdminRoutes'
-export { CLI_SURFACE_V2, getCliSurfaceEntry, listCliSurfaceCapabilities } from './surface'
+export {
+  CLI_SURFACE_V2,
+  CLI_SURFACE_V3,
+  getCliSurfaceEntry,
+  getCliSurfaceRegistry,
+  listCliSurfaceCapabilities
+} from './surface'
 export {
   CliMutationGuard,
   type CliApprovalPresentationPort,

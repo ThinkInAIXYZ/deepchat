@@ -1,9 +1,11 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   DeepChatTapeSkillContext,
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
+import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type {
   TapeEntryRef,
@@ -27,9 +29,19 @@ import type {
   CommitExecutionRunStartedInput,
   CommitExecutionRunTerminalInput,
   CommitExecutionToolOutcomeInput,
+  CommitNestedExecutionDispatchInput,
+  CommitNestedExecutionToolOutcomeInput,
   ExecutionJournalCommitReceipt,
   ExecutionRecoveryReport
 } from '../domain/executionJournal'
+import type {
+  CreateTapeProgrammaticToolSurfaceFactInput,
+  CreateTapeToolCatalogFactInput,
+  CreateTapeToolSurfaceFactInput,
+  TapeToolCatalogFactReference,
+  TapeToolResultFactReference,
+  TapeToolSurfaceFact
+} from '../domain/toolSurfaceFacts'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -63,6 +75,11 @@ export type TapeViewManifestAssemblySources = {
 export interface TapeViewManifestReader {
   getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestAssemblySources
   listViewManifestsByMessage(sessionId: string, messageId: string): DeepChatTapeViewManifestRecord[]
+  listViewManifestsByMessageRequest(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): DeepChatTapeViewManifestRecord[]
 }
 
 export interface TapeExecutionViewManifestReader {
@@ -105,8 +122,72 @@ export interface TapeViewManifestWriter {
   appendViewManifest(manifest: DeepChatTapeViewManifest): void
 }
 
+export interface CommitTapeToolSurfaceViewInput {
+  readonly manifest: DeepChatTapeViewManifest
+  /** Exact provider-ordered definitions used to build the manifest; never persisted by this API. */
+  readonly activeToolDefinitions: readonly MCPToolDefinition[]
+  readonly catalog: CreateTapeToolCatalogFactInput
+  readonly surface: Omit<CreateTapeToolSurfaceFactInput, 'manifestHash' | 'catalog'>
+  /** Explicitly null outside CLI Programmatic Views. */
+  readonly programmaticSurface: Omit<
+    CreateTapeProgrammaticToolSurfaceFactInput,
+    'manifestHash' | 'catalog' | 'contractBearing'
+  > | null
+}
+
+export interface TapeToolSurfaceViewCommitReceipt {
+  readonly tapeIncarnationId: string
+  readonly manifest: {
+    readonly sessionId: string
+    readonly entryId: number
+    readonly manifestHash: string
+    readonly created: boolean
+  }
+  readonly catalog: TapeToolCatalogFactReference & { readonly created: boolean }
+  readonly surface: {
+    readonly sessionId: string
+    readonly tapeIncarnationId: string
+    readonly entryId: number
+    readonly surfaceHash: string
+    readonly created: boolean
+  }
+  readonly programmaticSurface: {
+    readonly sessionId: string
+    readonly tapeIncarnationId: string
+    readonly entryId: number
+    readonly capabilityHash: string
+    readonly programmaticSurfaceHash: string
+    readonly factHash: string
+    readonly created: boolean
+  } | null
+}
+
+export interface TapeToolSurfaceViewWriter {
+  commitToolSurfaceView(input: CommitTapeToolSurfaceViewInput): TapeToolSurfaceViewCommitReceipt
+}
+
+export interface TapeToolSurfaceFactRecord {
+  readonly entryId: number
+  readonly fact: TapeToolSurfaceFact
+}
+
+/** Recovery-only reader. Ordinary tool dispatch must use its process-live capability snapshot. */
+export interface TapeToolSurfaceViewReader {
+  listToolSurfaceFactsByMessage(sessionId: string, messageId: string): TapeToolSurfaceFactRecord[]
+  listToolSurfaceFactsByMessageRequest(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): TapeToolSurfaceFactRecord[]
+}
+
+export interface TapeToolFactAppendReceipt extends TapeEntryRef {
+  /** Present only for a ToolSearch result in a canonical Tape incarnation. */
+  readonly toolResult: TapeToolResultFactReference | null
+}
+
 export interface TapeToolFactWriter {
-  appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef>
+  appendToolFact(input: TapeToolFactInput): Promise<TapeToolFactAppendReceipt>
 }
 
 export interface TapeIncarnationReader {
@@ -148,8 +229,38 @@ export interface ExecutionJournalWriter {
   commitRunTerminal(input: CommitExecutionRunTerminalInput): ExecutionJournalCommitReceipt
 }
 
+/** Reserved for the process-live Programmatic parent controller; ordinary loops do not receive it. */
+export interface NestedExecutionJournalWriter {
+  commitNestedDispatch(input: CommitNestedExecutionDispatchInput): ExecutionJournalCommitReceipt
+  commitNestedToolOutcome(
+    input: CommitNestedExecutionToolOutcomeInput
+  ): ExecutionJournalCommitReceipt
+}
+
 export interface ExecutionJournalRecoveryReader {
   classifyRecoveryCandidates(): ExecutionRecoveryReport[]
+  /**
+   * Recovery-only replay fence. Deferred T1 uses a fresh physical Run identity, so Journal v1
+   * conservatively treats any matching message/tool-call dispatch as spent. Ordinary dispatch
+   * must not query Journal facts.
+   */
+  hasAnyCommittedDispatchForMessageToolCall(
+    sessionId: string,
+    messageId: string,
+    providerToolCallId: string
+  ): boolean
+}
+
+/** Read-only historical projection for renderer audit; never grants or participates in dispatch. */
+export interface ExecutionJournalAuditReader {
+  listNestedExecutionAuditForMessage(
+    sessionId: string,
+    messageId: string
+  ): DeepChatNestedExecutionAudit
+  listMessageIdsWithNestedExecutionAudit(
+    sessionId: string,
+    messageIds: readonly string[]
+  ): readonly string[]
 }
 
 // The DeepChat provider loop needs the coordinated Tape contract as one collaborator; splitting it
@@ -158,8 +269,10 @@ export interface DeepChatLoopTapePort
   extends
     TapeReconciliationPort,
     TapeViewManifestReader,
+    TapeExecutionViewManifestReader,
     TapeSkillRequestAuthorityReader,
     TapeViewManifestWriter,
+    TapeToolSurfaceViewWriter,
     TapeToolFactWriter,
     TapeIncarnationReader,
     TapeSkillViewResultFactWriter,

@@ -282,6 +282,11 @@ export function formatHumanResult(
         ])
       ].join('\n')
     }
+    case 'tool.search':
+    case 'tool.describe':
+    case 'tool.call':
+    case 'tool.batch':
+      return JSON.stringify(contract.output.parse(value), null, 2)
     default:
       return unsupportedCliContract(contract)
   }

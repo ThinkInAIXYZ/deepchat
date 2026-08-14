@@ -2,7 +2,20 @@ export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 export const LIVE_DELEGATION_AGENT_TOOL_NAME = 'deepchat_subagents'
 export const LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME = 'agent-live-delegation'
+export const TOOL_SEARCH_AGENT_TOOL_NAME = 'tool_search'
+export const TOOL_SEARCH_AGENT_TOOL_SERVER_NAME = 'agent-tool-surface'
+export const TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS = 8
+export const TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH = 8
 export const SKILL_LIST_AGENT_TOOL_NAME = 'skill_list'
+export const SKILL_VIEW_AGENT_TOOL_NAME = 'skill_view'
+export const SKILL_MANAGE_AGENT_TOOL_NAME = 'skill_manage'
+export const SKILL_RUN_AGENT_TOOL_NAME = 'skill_run'
+export const SKILL_AGENT_TOOL_NAMES = Object.freeze([
+  SKILL_LIST_AGENT_TOOL_NAME,
+  SKILL_VIEW_AGENT_TOOL_NAME,
+  SKILL_MANAGE_AGENT_TOOL_NAME,
+  SKILL_RUN_AGENT_TOOL_NAME
+] as const)
 export const DEFAULT_DISABLED_AGENT_TOOLS = [CRON_JOB_AGENT_TOOL_NAME] as const
 
 export const TAPE_TOOL_NAMES = Object.freeze({
@@ -25,7 +38,11 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> =
   [TAPE_TOOL_NAMES.handoff]: 'runtime-only',
   [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model',
   [LIVE_DELEGATION_AGENT_TOOL_NAME]: 'system-model',
-  [SKILL_LIST_AGENT_TOOL_NAME]: 'system-model'
+  [TOOL_SEARCH_AGENT_TOOL_NAME]: 'system-model',
+  [SKILL_LIST_AGENT_TOOL_NAME]: 'system-model',
+  [SKILL_VIEW_AGENT_TOOL_NAME]: 'system-model',
+  [SKILL_MANAGE_AGENT_TOOL_NAME]: 'system-model',
+  [SKILL_RUN_AGENT_TOOL_NAME]: 'system-model'
 })
 
 const TAPE_TOOL_NAME_SET = new Set<string>(Object.values(TAPE_TOOL_NAMES))

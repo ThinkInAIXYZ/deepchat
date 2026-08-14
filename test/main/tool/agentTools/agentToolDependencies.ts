@@ -11,6 +11,17 @@ export const createAgentToolDependencies = (
       overrides.resolveConversationWorkdir ?? vi.fn().mockResolvedValue(null),
     resolveConversationSessionInfo:
       overrides.resolveConversationSessionInfo ?? vi.fn().mockResolvedValue(null),
+    resolveConversationExecutionAuthorityNow:
+      overrides.resolveConversationExecutionAuthorityNow ??
+      vi.fn((sessionId: string) => ({
+        sessionId,
+        agentId: 'deepchat',
+        projectDir: null,
+        sessionKind: 'regular',
+        disabledAgentTools: [],
+        enabledMcpServerIds: undefined,
+        subagentCapability: { available: false, maxSlots: 0 }
+      })),
     resolveConversationExecutionAuthority:
       overrides.resolveConversationExecutionAuthority ?? vi.fn().mockResolvedValue(null)
   },

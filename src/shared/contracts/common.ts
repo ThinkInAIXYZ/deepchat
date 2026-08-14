@@ -501,6 +501,7 @@ export const ChatMessageRecordSchema = z.object({
   isContextEdge: z.number().int(),
   metadata: z.string(),
   traceCount: z.number().int().optional(),
+  hasNestedExecutionAudit: z.boolean().optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema
 })

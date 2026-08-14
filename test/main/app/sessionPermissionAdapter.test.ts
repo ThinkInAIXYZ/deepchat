@@ -13,17 +13,22 @@ describe('createSessionPermissionPort', () => {
     revokeOnce: vi.fn()
   }
   const filePermissionService = {
-    approve: vi.fn(),
+    approveProvisional: vi.fn(),
     clearConversation: vi.fn(),
-    cloneConversation: vi.fn()
+    cloneConversation: vi.fn(),
+    finalizeProvisional: vi.fn(),
+    revokeProvisional: vi.fn()
   }
   const settingsPermissionService = {
-    approve: vi.fn(),
+    approveProvisional: vi.fn(),
     clearConversation: vi.fn(),
-    cloneConversation: vi.fn()
+    cloneConversation: vi.fn(),
+    finalizeProvisional: vi.fn(),
+    revokeProvisional: vi.fn()
   }
   const toolPermissionBroker = {
     approve: vi.fn(),
+    cancel: vi.fn(),
     cancelConversation: vi.fn(),
     deny: vi.fn()
   }
@@ -105,56 +110,74 @@ describe('createSessionPermissionPort', () => {
     ).rejects.toThrow('Command approval did not return a one-shot grant lease.')
   })
 
-  it('returns a non-command grant without a lease', async () => {
+  it('revokes an approved tool request when its grant does not reach dispatch', async () => {
     toolPermissionBroker.approve.mockReturnValueOnce(true)
     const port = createPort()
 
-    await expect(
-      port.approvePermission('session-1', {
-        permissionType: 'write',
-        requestId: 'request-1'
-      })
-    ).resolves.toEqual({ kind: 'granted' })
+    const grant = await port.approvePermission('session-1', {
+      permissionType: 'write',
+      requestId: 'request-1'
+    })
+
+    expect(grant).toMatchObject({ kind: 'granted', lease: expect.any(Object) })
+    if (grant.kind === 'granted') grant.lease?.revoke()
+    expect(toolPermissionBroker.cancel).toHaveBeenCalledWith('request-1', 'session-1')
   })
 
-  it('grants deferred filesystem paths without issuing a command lease', async () => {
+  it('finalizes deferred filesystem paths only after dispatch commits', async () => {
+    filePermissionService.approveProvisional.mockReturnValueOnce('file-lease-1')
     const port = createPort()
 
-    await expect(
-      port.approvePermission('session-1', {
-        permissionType: 'write',
-        serverName: 'agent-filesystem',
-        toolName: 'write',
-        paths: ['/workspace/note.txt'],
-        shellProfile: 'posix'
-      })
-    ).resolves.toEqual({ kind: 'granted' })
+    const grant = await port.approvePermission('session-1', {
+      permissionType: 'write',
+      serverName: 'agent-filesystem',
+      toolName: 'write',
+      paths: ['/workspace/note.txt'],
+      shellProfile: 'posix'
+    })
 
-    expect(filePermissionService.approve).toHaveBeenCalledWith(
+    expect(filePermissionService.approveProvisional).toHaveBeenCalledWith(
       'session-1',
       ['/workspace/note.txt'],
-      'write',
-      false
+      'write'
     )
+    expect(grant).toMatchObject({
+      kind: 'granted',
+      lease: { capability: { kind: 'file', leaseId: 'file-lease-1' } }
+    })
+    if (grant.kind === 'granted') grant.lease?.finalize()
+    expect(filePermissionService.finalizeProvisional).toHaveBeenCalledWith(
+      'session-1',
+      'file-lease-1'
+    )
+    expect(filePermissionService.revokeProvisional).not.toHaveBeenCalled()
     expect(commandPermissionService.approve).not.toHaveBeenCalled()
   })
 
-  it('grants deferred settings tools without issuing a command lease', async () => {
+  it('revokes a deferred settings approval that does not reach dispatch', async () => {
+    settingsPermissionService.approveProvisional.mockReturnValueOnce('settings-lease-1')
     const port = createPort()
 
-    await expect(
-      port.approvePermission('session-1', {
-        permissionType: 'write',
-        serverName: 'deepchat-settings',
-        toolName: 'set_language'
-      })
-    ).resolves.toEqual({ kind: 'granted' })
+    const grant = await port.approvePermission('session-1', {
+      permissionType: 'write',
+      serverName: 'deepchat-settings',
+      toolName: 'set_language'
+    })
 
-    expect(settingsPermissionService.approve).toHaveBeenCalledWith(
+    expect(settingsPermissionService.approveProvisional).toHaveBeenCalledWith(
       'session-1',
-      'set_language',
-      false
+      'set_language'
     )
+    expect(grant).toMatchObject({
+      kind: 'granted',
+      lease: { capability: { kind: 'settings', leaseId: 'settings-lease-1' } }
+    })
+    if (grant.kind === 'granted') grant.lease?.revoke()
+    expect(settingsPermissionService.revokeProvisional).toHaveBeenCalledWith(
+      'session-1',
+      'settings-lease-1'
+    )
+    expect(settingsPermissionService.finalizeProvisional).not.toHaveBeenCalled()
     expect(commandPermissionService.approve).not.toHaveBeenCalled()
   })
 })
