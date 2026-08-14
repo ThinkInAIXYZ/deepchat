@@ -2,9 +2,21 @@
   <aside class="flex h-[38%] min-h-[220px] w-full shrink-0 flex-col border-t bg-background">
     <div class="flex h-9 shrink-0 items-center justify-between border-b px-3">
       <span class="text-xs font-medium">{{ t('tapeInspector.detail.title') }}</span>
-      <span v-if="capabilities" class="text-[10px] uppercase text-muted-foreground">
-        {{ t(`tapeInspector.detail.sources.${capabilities.source}`) }}
-      </span>
+      <div class="flex items-center gap-2">
+        <span v-if="capabilities" class="text-[10px] uppercase text-muted-foreground">
+          {{ t(`tapeInspector.detail.sources.${capabilities.source}`) }}
+        </span>
+        <DcButton
+          v-if="detail"
+          data-testid="tape-inspector-copy-selected"
+          size="icon-sm"
+          variant="ghost"
+          :icon="copied ? 'lucide:check' : 'lucide:copy'"
+          :label="copied ? t('common.copied') : t('common.copy')"
+          :tooltip="copied ? t('common.copied') : t('common.copy')"
+          @click="copySelected"
+        />
+      </div>
     </div>
 
     <div v-if="!row" class="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
@@ -68,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -92,6 +104,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const copied = ref(false)
+let copiedTimer: number | null = null
+let copyGeneration = 0
 
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2)
@@ -174,5 +189,66 @@ const integrityLabel = computed(() => {
   const integrity =
     props.detail?.source === 'tape' ? props.detail.detail.record.integrity : undefined
   return integrity ? t(`tapeInspector.integrity.${integrity}`) : null
+})
+
+function copyValue(): unknown {
+  const detail = props.detail
+  if (!detail) return null
+  if (detail.source === 'tape') return detail.detail
+  if (detail.source === 'request') {
+    return {
+      id: detail.trace.id,
+      messageId: detail.trace.messageId,
+      sessionId: detail.trace.sessionId,
+      providerId: detail.trace.providerId,
+      modelId: detail.trace.modelId,
+      requestSeq: detail.trace.requestSeq,
+      logicalRound: detail.trace.logicalRound,
+      physicalAttempt: detail.trace.physicalAttempt,
+      endpoint: detail.trace.endpoint,
+      headers: parseJson(detail.trace.headersJson),
+      body: parseJson(detail.trace.bodyJson),
+      truncated: detail.trace.truncated,
+      createdAt: detail.trace.createdAt
+    }
+  }
+  if (detail.source === 'derived') return detail.group
+  return { kind: 'unbound_evidence', count: detail.count }
+}
+
+async function copySelected(): Promise<void> {
+  const generation = copyGeneration
+  const value = copyValue()
+  try {
+    await navigator.clipboard.writeText(json(value))
+    if (generation !== copyGeneration) return
+    copied.value = true
+    if (copiedTimer !== null) window.clearTimeout(copiedTimer)
+    copiedTimer = window.setTimeout(() => {
+      copied.value = false
+      copiedTimer = null
+    }, 1_500)
+  } catch (error) {
+    if (generation === copyGeneration) {
+      console.error('[TapeInspector] Failed to copy selected record', error)
+    }
+  }
+}
+
+watch(
+  () => props.detail,
+  () => {
+    copyGeneration += 1
+    copied.value = false
+    if (copiedTimer !== null) {
+      window.clearTimeout(copiedTimer)
+      copiedTimer = null
+    }
+  }
+)
+
+onBeforeUnmount(() => {
+  copyGeneration += 1
+  if (copiedTimer !== null) window.clearTimeout(copiedTimer)
 })
 </script>

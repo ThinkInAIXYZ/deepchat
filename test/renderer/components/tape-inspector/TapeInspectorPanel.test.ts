@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inspectorStore = vi.hoisted(() => ({
   sessionId: null as string | null,
+  tapeIncarnationId: 'incarnation-1' as string | null,
   loadedSearch: '',
   loadingSearchFill: false,
   serverFilters: {},
@@ -51,6 +52,7 @@ const inspectorStore = vi.hoisted(() => ({
 }))
 
 const sessionClient = vi.hoisted(() => ({
+  exportTapeInspectorSupportTrace: vi.fn(),
   subscribeTapeInspectorHead: vi.fn(async () => ({
     subscribed: true as const,
     tapeIncarnationId: 'incarnation-1',
@@ -65,6 +67,8 @@ const sessionClient = vi.hoisted(() => ({
   stopHeadListener: vi.fn()
 }))
 
+const downloadBlob = vi.hoisted(() => vi.fn())
+
 vi.mock('@/components/tape-inspector/store', () => ({
   useTapeInspectorStore: () => inspectorStore
 }))
@@ -72,6 +76,8 @@ vi.mock('@/components/tape-inspector/store', () => ({
 vi.mock('../../../../src/renderer/api/SessionClient', () => ({
   createSessionClient: () => sessionClient
 }))
+
+vi.mock('@/lib/download', () => ({ downloadBlob }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -154,6 +160,7 @@ describe('TapeInspectorPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     inspectorStore.sessionId = null
+    inspectorStore.tapeIncarnationId = 'incarnation-1'
     inspectorStore.livePaused = false
     inspectorStore.serverSort = { column: 'entryId', direction: 'asc' }
     inspectorStore.canonicalSort = true
@@ -162,6 +169,19 @@ describe('TapeInspectorPanel', () => {
       subscribed: true,
       tapeIncarnationId: 'incarnation-1',
       maxEntryId: 20
+    })
+    sessionClient.exportTapeInspectorSupportTrace.mockResolvedValue({
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        exportedAt: 1_700_000_000_000,
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        snapshotMaxEntryId: 20,
+        facts: [],
+        evidence: [],
+        truncated: { facts: false, evidence: false, detailData: false }
+      }
     })
   })
 
@@ -405,5 +425,145 @@ describe('TapeInspectorPanel', () => {
 
     expect(sessionClient.unsubscribeTapeInspectorHead).toHaveBeenCalledWith(expect.any(String))
     expect(inspectorStore.handleLiveHeadPulse).not.toHaveBeenCalled()
+  })
+
+  it('downloads a bounded support trace with a sanitized filename', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session/unsafe',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="tape-inspector-export"]').trigger('click')
+    await flushPromises()
+
+    expect(sessionClient.exportTapeInspectorSupportTrace).toHaveBeenCalledWith({
+      sessionId: 'session/unsafe',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
+    expect(downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      'tape-inspector-session_unsafe-2023-11-14T22-13-20-000Z.json'
+    )
+  })
+
+  it('reinitializes instead of downloading an export from a stale incarnation', async () => {
+    sessionClient.exportTapeInspectorSupportTrace.mockResolvedValueOnce({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-2',
+      snapshotMaxEntryId: 1
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    inspectorStore.initialize.mockClear()
+
+    await wrapper.get('[data-testid="tape-inspector-export"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadBlob).not.toHaveBeenCalled()
+    expect(inspectorStore.initialize).toHaveBeenCalledWith('session-1', { preselection: null })
+  })
+
+  it('drops a late export response after switching sessions', async () => {
+    let resolveExport!: (value: {
+      status: 'ok'
+      trace: {
+        schemaVersion: 1
+        exportedAt: number
+        sessionId: string
+        tapeIncarnationId: string
+        snapshotMaxEntryId: number
+        facts: never[]
+        evidence: never[]
+        truncated: { facts: boolean; evidence: boolean; detailData: boolean }
+      }
+    }) => void
+    sessionClient.exportTapeInspectorSupportTrace.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveExport = resolve
+      })
+    )
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="tape-inspector-export"]').trigger('click')
+    expect(sessionClient.exportTapeInspectorSupportTrace).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ sessionId: 'session-2' })
+    await flushPromises()
+    resolveExport({
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        exportedAt: 1_700_000_000_000,
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        snapshotMaxEntryId: 20,
+        facts: [],
+        evidence: [],
+        truncated: { facts: false, evidence: false, detailData: false }
+      }
+    })
+    await flushPromises()
+
+    expect(downloadBlob).not.toHaveBeenCalled()
+  })
+
+  it('drops a late export response after the Tape incarnation changes', async () => {
+    let resolveExport!: (value: {
+      status: 'ok'
+      trace: {
+        schemaVersion: 1
+        exportedAt: number
+        sessionId: string
+        tapeIncarnationId: string
+        snapshotMaxEntryId: number
+        facts: never[]
+        evidence: never[]
+        truncated: { facts: boolean; evidence: boolean; detailData: boolean }
+      }
+    }) => void
+    sessionClient.exportTapeInspectorSupportTrace.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveExport = resolve
+      })
+    )
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="tape-inspector-export"]').trigger('click')
+    inspectorStore.tapeIncarnationId = 'incarnation-2'
+    resolveExport({
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        exportedAt: 1_700_000_000_000,
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        snapshotMaxEntryId: 20,
+        facts: [],
+        evidence: [],
+        truncated: { facts: false, evidence: false, detailData: false }
+      }
+    })
+    await flushPromises()
+
+    expect(downloadBlob).not.toHaveBeenCalled()
   })
 })

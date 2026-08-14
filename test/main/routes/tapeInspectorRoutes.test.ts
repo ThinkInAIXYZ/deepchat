@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  sessionsExportTapeInspectorSupportTraceRoute,
   sessionsGetTapeInspectorRecordDetailRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
@@ -114,6 +115,83 @@ describe('Tape Inspector route contracts', () => {
         entryId: 1
       }).success
     ).toBe(true)
+  })
+
+  it('bounds support exports and strips opaque evidence payload fields', () => {
+    const detail = {
+      record: {
+        recordType: 'fact' as const,
+        key: 'entry:1' as const,
+        entryId: 1,
+        kind: 'event' as const,
+        family: 'other' as const,
+        name: 'future/event',
+        createdAt: 100,
+        hashes: { payloadHash: 'a'.repeat(64), metaHash: 'b'.repeat(64) }
+      },
+      disclosure: 'metadata_only' as const,
+      provenance: {},
+      hashes: { payloadHash: 'a'.repeat(64), metaHash: 'b'.repeat(64) },
+      sizes: { payloadBytes: 2, metaBytes: 2 }
+    }
+    const evidence = {
+      recordType: 'evidence' as const,
+      key: 'trace:trace-1' as const,
+      traceId: 'trace-1',
+      messageId: 'message-1',
+      requestSeq: 1,
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      createdAt: 100,
+      truncated: false,
+      headersJson: '{"authorization":"private"}',
+      bodyJson: '{"prompt":"private"}'
+    }
+    const parsed = sessionsExportTapeInspectorSupportTraceRoute.output.parse({
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        exportedAt: 200,
+        sessionId: 'session-1',
+        tapeIncarnationId: 'incarnation-1',
+        snapshotMaxEntryId: 1,
+        facts: [detail],
+        evidence: [evidence],
+        truncated: { facts: false, evidence: false, detailData: false }
+      }
+    })
+
+    expect(parsed.status === 'ok' ? parsed.trace.evidence[0] : null).toEqual({
+      recordType: 'evidence',
+      key: 'trace:trace-1',
+      traceId: 'trace-1',
+      messageId: 'message-1',
+      requestSeq: 1,
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      createdAt: 100,
+      truncated: false
+    })
+    expect(
+      sessionsExportTapeInspectorSupportTraceRoute.input.safeParse({
+        sessionId: 'session-1'
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsExportTapeInspectorSupportTraceRoute.output.safeParse({
+        status: 'ok',
+        trace: {
+          schemaVersion: 1,
+          exportedAt: 200,
+          sessionId: 'session-1',
+          tapeIncarnationId: 'incarnation-1',
+          snapshotMaxEntryId: 1,
+          facts: Array.from({ length: 201 }, () => detail),
+          evidence: [],
+          truncated: { facts: true, evidence: false, detailData: false }
+        }
+      }).success
+    ).toBe(false)
   })
 
   it('bounds opaque live subscription ids and projects committed heads', () => {

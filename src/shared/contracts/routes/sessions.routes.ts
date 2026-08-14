@@ -11,6 +11,7 @@ import type {
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
+  ExportTapeInspectorSupportTraceOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorEvidenceOutput,
@@ -19,6 +20,10 @@ import type {
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord,
   TapeInspectorRecordDetail
+} from '@shared/types/tape-inspector'
+import {
+  TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT,
+  TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
 } from '@shared/types/tape-inspector'
 import {
   DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT,
@@ -745,6 +750,42 @@ export const sessionsGetTapeInspectorRecordDetailRoute = defineRouteContract({
   }),
   output: GetTapeInspectorRecordDetailOutputSchema
 }) satisfies RouteContract<'sessions.getTapeInspectorRecordDetail'>
+
+const ExportTapeInspectorSupportTraceOutputSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('ok'),
+    trace: z.object({
+      schemaVersion: z.literal(1),
+      exportedAt: z.number().int().nonnegative(),
+      sessionId: EntityIdSchema,
+      tapeIncarnationId: TapeInspectorIdentitySchema,
+      snapshotMaxEntryId: z.number().int().nonnegative(),
+      facts: z.array(TapeInspectorRecordDetailSchema).max(TAPE_INSPECTOR_SUPPORT_FACT_LIMIT),
+      evidence: z
+        .array(TapeInspectorEvidenceRecordSchema)
+        .max(TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT),
+      truncated: z.object({
+        facts: z.boolean(),
+        evidence: z.boolean(),
+        detailData: z.boolean()
+      })
+    })
+  }),
+  z.object({
+    status: z.literal('reset'),
+    tapeIncarnationId: TapeInspectorIdentitySchema,
+    snapshotMaxEntryId: z.number().int().nonnegative()
+  })
+]) satisfies z.ZodType<ExportTapeInspectorSupportTraceOutput>
+
+export const sessionsExportTapeInspectorSupportTraceRoute = defineRouteContract({
+  name: 'sessions.exportTapeInspectorSupportTrace',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    expectedTapeIncarnationId: TapeInspectorIdentitySchema
+  }),
+  output: ExportTapeInspectorSupportTraceOutputSchema
+}) satisfies RouteContract<'sessions.exportTapeInspectorSupportTrace'>
 
 export const sessionsSubscribeTapeInspectorHeadRoute = defineRouteContract({
   name: 'sessions.subscribeTapeInspectorHead',

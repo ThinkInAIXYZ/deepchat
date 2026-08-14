@@ -443,6 +443,11 @@ function createRuntime() {
       status: 'not_found',
       tapeIncarnationId: 'incarnation-1'
     }),
+    exportTapeInspectorSupportTrace: vi.fn().mockResolvedValue({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0
+    }),
     listMessageTraces: vi.fn().mockResolvedValue([]),
     listMessageViewManifests: vi.fn().mockResolvedValue([]),
     listNestedExecutionAudit: vi.fn().mockResolvedValue({
@@ -4968,13 +4973,31 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const supportTrace = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.exportTapeInspectorSupportTrace',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1'
+      },
+      context
+    )
 
     expect(page).toMatchObject({ status: 'ok', tapeIncarnationId: 'incarnation-1' })
     expect(evidence).toEqual({ records: [], nextCursor: null })
     expect(detail).toEqual({ status: 'not_found', tapeIncarnationId: 'incarnation-1' })
+    expect(supportTrace).toEqual({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0
+    })
     expect(sessionProjectionPort.listTapeInspectorEvidence).toHaveBeenCalledWith({
       sessionId: 'session-1',
       physicalAttempt: null
+    })
+    expect(sessionProjectionPort.exportTapeInspectorSupportTrace).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1'
     })
     await expect(
       dispatchDeepchatRoute(

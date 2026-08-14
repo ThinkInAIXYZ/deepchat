@@ -20,6 +20,7 @@ import type {
 } from '@shared/types/tape-replay'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type {
+  ExportTapeInspectorSupportFactsOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
@@ -478,6 +479,13 @@ export class SessionTape
     entryId: number
   }): GetTapeInspectorRecordDetailOutput {
     return this.traceInspector.getDetail(input)
+  }
+
+  exportTapeInspectorSupportFacts(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+  }): ExportTapeInspectorSupportFactsOutput {
+    return this.traceInspector.exportSupportFacts(input)
   }
 
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {

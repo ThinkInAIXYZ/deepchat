@@ -1,11 +1,18 @@
+import { Buffer } from 'node:buffer'
 import type {
+  ExportTapeInspectorSupportFactsOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
   TapeInspectorEntryCursor,
   TapeInspectorFactRecord,
   TapeInspectorHead,
+  TapeInspectorRecordDetail,
   TapeInspectorSort
+} from '@shared/types/tape-inspector'
+import {
+  TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES,
+  TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
 } from '@shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
 import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
@@ -79,6 +86,16 @@ function cursorMatchesRow(cursor: TapeInspectorEntryCursor, row: DeepChatTapeEnt
   if (cursor.sort === 'name') return cursor.name === row.name
   if (cursor.sort === 'kind') return cursor.kind === row.kind
   return cursor.createdAt === row.created_at
+}
+
+function withoutDetailData(detail: TapeInspectorRecordDetail): TapeInspectorRecordDetail {
+  return {
+    record: detail.record,
+    disclosure: detail.disclosure,
+    provenance: detail.provenance,
+    hashes: detail.hashes,
+    sizes: detail.sizes
+  }
 }
 
 export class TapeTraceInspectorService {
@@ -219,6 +236,60 @@ export class TapeTraceInspectorService {
         status: 'ok',
         tapeIncarnationId,
         detail: projectTapeInspectorDetail(row)
+      }
+    })
+  }
+
+  exportSupportFacts(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+  }): ExportTapeInspectorSupportFactsOutput {
+    const table = this.providers.getEntryStore()
+    return table.runInTransaction(() => {
+      const tapeIncarnationId = table.getBootstrapIncarnation(input.sessionId)
+      if (!tapeIncarnationId) {
+        throw new Error('Session Tape bootstrap is missing or invalid.')
+      }
+      const snapshotMaxEntryId = table.getMaxEntryId(input.sessionId)
+      if (tapeIncarnationId !== input.expectedTapeIncarnationId) {
+        return { status: 'reset', tapeIncarnationId, snapshotMaxEntryId }
+      }
+      const page = table.listInspectorRows({
+        sessionId: input.sessionId,
+        mode: 'tail',
+        sort: CANONICAL_SORT,
+        snapshotMaxEntryId,
+        limit: TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
+      })
+      const facts: TapeInspectorRecordDetail[] = []
+      let remainingDetailDataBytes = TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES
+      let detailDataTruncated = false
+      for (let index = 0; index < page.rows.length; index += 1) {
+        const detail = projectTapeInspectorDetail(page.rows[index])
+        if (detail.data !== undefined) {
+          const bytes = Buffer.byteLength(JSON.stringify(detail.data), 'utf8')
+          if (bytes <= remainingDetailDataBytes) {
+            remainingDetailDataBytes -= bytes
+          } else {
+            facts.push(withoutDetailData(detail))
+            detailDataTruncated = true
+            continue
+          }
+        }
+        facts.push(detail)
+      }
+      facts.reverse()
+      this.attachEvidenceCounts(
+        input.sessionId,
+        facts.map((detail) => detail.record)
+      )
+      return {
+        status: 'ok',
+        tapeIncarnationId,
+        snapshotMaxEntryId,
+        facts,
+        factsTruncated: page.hasMore,
+        detailDataTruncated
       }
     })
   }

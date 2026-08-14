@@ -30,12 +30,14 @@ import type {
   DeepChatNestedExecutionAuditState
 } from '@shared/types/execution-journal-audit'
 import type {
+  ExportTapeInspectorSupportTraceOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorEvidenceOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput
 } from '@shared/types/tape-inspector'
+import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@shared/types/tape-inspector'
 import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
 import type {
   SessionLightweightOptions,
@@ -220,6 +222,36 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
   }): Promise<GetTapeInspectorRecordDetailOutput> {
     this.requireSession(input.sessionId)
     return await this.dependencies.tape.getTapeInspectorRecordDetail(input)
+  }
+
+  async exportTapeInspectorSupportTrace(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+  }): Promise<ExportTapeInspectorSupportTraceOutput> {
+    this.requireSession(input.sessionId)
+    const evidence = await this.listTapeInspectorEvidence({
+      sessionId: input.sessionId,
+      limit: TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT
+    })
+    const facts = await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
+    if (facts.status === 'reset') return facts
+    return {
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        exportedAt: Date.now(),
+        sessionId: input.sessionId,
+        tapeIncarnationId: facts.tapeIncarnationId,
+        snapshotMaxEntryId: facts.snapshotMaxEntryId,
+        facts: facts.facts,
+        evidence: [...evidence.records].reverse(),
+        truncated: {
+          facts: facts.factsTruncated,
+          evidence: evidence.nextCursor !== null,
+          detailData: facts.detailDataTruncated
+        }
+      }
+    }
   }
 
   async listTapeAnchors(

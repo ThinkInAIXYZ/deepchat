@@ -429,6 +429,38 @@ The detail pane exposes Summary, Payload, Timing, Provenance, Integrity, and Raw
 selected capability supports them. Empty states state why content is unavailable rather than
 silently omitting a selected row.
 
+## Support Export Contract
+
+`SessionQuery` owns the bounded session-level support export because it already validates the
+session and can compose the two independent read domains without creating another authority:
+
+```ts
+sessions.exportTapeInspectorSupportTrace({
+  sessionId,
+  expectedTapeIncarnationId
+})
+```
+
+The export is a versioned diagnostic document, not a ReplaySlice and not a lossless history dump.
+It contains two separate arrays and never invents a total order across them:
+
+- at most 200 of the most recent Tape facts, returned in chronological `entryId` order;
+- at most 200 of the most recent request-evidence metadata records, chronological within the
+  evidence domain.
+
+Tape fact details reuse the exact detail projection: allowlist, then redaction, then truncation.
+Their combined structured `data` has a 256 KiB UTF-8 budget, with the newest facts retaining data
+first. Rows over budget remain present with record, disclosure, provenance, hashes, and sizes.
+Context/Skill bodies and unknown-schema payloads remain metadata-only. Evidence exports identity,
+provider/model, timing point, and truncation metadata only; endpoint, headers, and body never enter
+the support document.
+
+The document reports independent `facts`, `evidence`, and `detailData` truncation flags. The Tape
+fact array, incarnation, and `snapshotMaxEntryId` share one explicit read transaction. Composition
+with the evidence table is a bounded best-effort diagnostic read, not a cross-table atomic snapshot;
+the two arrays retain their own authorities and cursors. An incarnation mismatch returns `reset`
+and produces no file.
+
 ## Live Follow
 
 P2 uses a demand-driven read-side head watcher. Tape producers and transaction paths remain
@@ -530,7 +562,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Request evidence payloads retain existing persistence redaction and size limits.
 - Context and Skill bodies never cross Inspector IPC, including details and export.
 - Raw means sanitized projected JSON, not raw database JSON.
-- Copy and export use the same detail projection and bounded payload contracts.
+- Copying a Tape fact uses the same projected detail shown in the pane; request-detail copy retains
+  the existing persisted trace redaction and size boundary.
+- Support export is stricter than request detail: request evidence is metadata-only.
 - No endpoint accepts a write, delete, clear, retry, or permission mutation.
 
 ## Performance Contract
@@ -576,6 +610,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 18. Live uses a demand-driven committed-head watcher with no write-path changes.
 19. ACP's sparse Tape spine and unbound evidence are expected states.
 20. The Inspector has no write or permission-authority behavior.
+21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
+22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
 
 ## Acceptance Criteria
 

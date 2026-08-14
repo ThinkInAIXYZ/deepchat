@@ -1310,6 +1310,10 @@ describe('renderer api clients', () => {
       expectedTapeIncarnationId: 'incarnation-1',
       entryId: 10
     })
+    await sessionClient.exportTapeInspectorSupportTrace({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
     await sessionClient.subscribeTapeInspectorHead('session-1', 'subscription-1')
     await sessionClient.unsubscribeTapeInspectorHead('subscription-1')
     const headListener = vi.fn()
@@ -1332,11 +1336,15 @@ describe('renderer api clients', () => {
       expectedTapeIncarnationId: 'incarnation-1',
       entryId: 10
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.subscribeTapeInspectorHead', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.exportTapeInspectorSupportTrace', {
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.subscribeTapeInspectorHead', {
       sessionId: 'session-1',
       subscriptionId: 'subscription-1'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.unsubscribeTapeInspectorHead', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'sessions.unsubscribeTapeInspectorHead', {
       subscriptionId: 'subscription-1'
     })
     expect(bridge.on).toHaveBeenCalledWith('sessions.tapeInspector.head.changed', headListener)

@@ -35,6 +35,7 @@ import type {
   ExecutionRecoveryReport
 } from '../domain/executionJournal'
 import type {
+  ExportTapeInspectorSupportFactsOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
@@ -332,6 +333,10 @@ export interface TapeSessionInspectionReader {
     expectedTapeIncarnationId: string
     entryId: number
   }): GetTapeInspectorRecordDetailOutput
+  exportTapeInspectorSupportFacts(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+  }): ExportTapeInspectorSupportFactsOutput
 }
 
 export interface TapeEffectiveMessageSourceEntry {

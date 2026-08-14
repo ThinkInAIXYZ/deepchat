@@ -144,6 +144,7 @@ export type SessionProjectionTapePort = Pick<
   | 'exportMessageTapeReplaySlice'
   | 'listTapeInspectorPage'
   | 'getTapeInspectorRecordDetail'
+  | 'exportTapeInspectorSupportFacts'
 >
 
 export interface SessionProjectionMessageLookupPort {

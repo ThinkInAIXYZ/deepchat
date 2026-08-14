@@ -233,3 +233,48 @@ export type GetTapeInspectorRecordDetailOutput =
       status: 'reset'
       tapeIncarnationId: string
     }
+
+export const TAPE_INSPECTOR_SUPPORT_FACT_LIMIT = 200
+export const TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT = 200
+export const TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES = 256 * 1024
+
+export type ExportTapeInspectorSupportFactsOutput =
+  | {
+      status: 'ok'
+      tapeIncarnationId: string
+      snapshotMaxEntryId: number
+      facts: TapeInspectorRecordDetail[]
+      factsTruncated: boolean
+      detailDataTruncated: boolean
+    }
+  | {
+      status: 'reset'
+      tapeIncarnationId: string
+      snapshotMaxEntryId: number
+    }
+
+export interface TapeInspectorSupportTrace {
+  schemaVersion: 1
+  exportedAt: number
+  sessionId: string
+  tapeIncarnationId: string
+  snapshotMaxEntryId: number
+  facts: TapeInspectorRecordDetail[]
+  evidence: TapeInspectorEvidenceRecord[]
+  truncated: {
+    facts: boolean
+    evidence: boolean
+    detailData: boolean
+  }
+}
+
+export type ExportTapeInspectorSupportTraceOutput =
+  | {
+      status: 'ok'
+      trace: TapeInspectorSupportTrace
+    }
+  | {
+      status: 'reset'
+      tapeIncarnationId: string
+      snapshotMaxEntryId: number
+    }

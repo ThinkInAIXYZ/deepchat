@@ -17,6 +17,7 @@ import {
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
   sessionsExportMessageTapeReplaySliceRoute,
+  sessionsExportTapeInspectorSupportTraceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -98,6 +99,7 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
     | 'listTapeInspectorPage'
     | 'listTapeInspectorEvidence'
     | 'getTapeInspectorRecordDetail'
+    | 'exportTapeInspectorSupportTrace'
     | 'listMessageTraces'
     | 'listMessageViewManifests'
     | 'listNestedExecutionAudit'
@@ -461,6 +463,15 @@ export function createSessionRoutes(deps: {
         const input = sessionsGetTapeInspectorRecordDetailRoute.input.parse(rawInput)
         return sessionsGetTapeInspectorRecordDetailRoute.output.parse(
           await deps.projection.getTapeInspectorRecordDetail(input)
+        )
+      }
+    ],
+    [
+      sessionsExportTapeInspectorSupportTraceRoute.name,
+      async (rawInput) => {
+        const input = sessionsExportTapeInspectorSupportTraceRoute.input.parse(rawInput)
+        return sessionsExportTapeInspectorSupportTraceRoute.output.parse(
+          await deps.projection.exportTapeInspectorSupportTrace(input)
         )
       }
     ],

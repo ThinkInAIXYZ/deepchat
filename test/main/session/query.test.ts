@@ -89,7 +89,8 @@ function createHarness() {
     }),
     exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
     listTapeInspectorPage: vi.fn(),
-    getTapeInspectorRecordDetail: vi.fn()
+    getTapeInspectorRecordDetail: vi.fn(),
+    exportTapeInspectorSupportFacts: vi.fn()
   }
   const messages = { get: vi.fn() }
   const searchResults = { listByMessageId: vi.fn().mockReturnValue([]) }
@@ -375,6 +376,115 @@ describe('SessionQuery', () => {
     })
     await expect(
       harness.coordinator.listTapeInspectorEvidence({ sessionId: 'missing' })
+    ).rejects.toThrow('Session not found: missing')
+  })
+
+  it('combines bounded support facts with metadata-only evidence and honors resets', async () => {
+    const harness = createHarness()
+    harness.traces.listInspectorMetadata.mockReturnValue({
+      rows: [
+        {
+          id: 'trace-1',
+          message_id: 'm1',
+          session_id: 's1',
+          provider_id: 'openai',
+          model_id: 'gpt-4',
+          request_seq: 2,
+          logical_round: 1,
+          physical_attempt: null,
+          endpoint: 'https://private.example',
+          headers_json: '{"authorization":"private"}',
+          body_json: '{"prompt":"private"}',
+          truncated: 1,
+          created_at: 456
+        }
+      ],
+      hasMore: true
+    })
+    harness.tape.exportTapeInspectorSupportFacts.mockReturnValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 8,
+      facts: [
+        {
+          record: {
+            recordType: 'fact',
+            key: 'entry:8',
+            entryId: 8,
+            kind: 'event',
+            family: 'other',
+            name: 'future/event',
+            createdAt: 400,
+            hashes: { payloadHash: 'a'.repeat(64), metaHash: 'b'.repeat(64) }
+          },
+          disclosure: 'metadata_only',
+          provenance: {},
+          hashes: { payloadHash: 'a'.repeat(64), metaHash: 'b'.repeat(64) },
+          sizes: { payloadBytes: 20, metaBytes: 2 }
+        }
+      ],
+      factsTruncated: true,
+      detailDataTruncated: false
+    })
+
+    const exported = await harness.coordinator.exportTapeInspectorSupportTrace({
+      sessionId: 's1',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
+
+    expect(exported).toMatchObject({
+      status: 'ok',
+      trace: {
+        schemaVersion: 1,
+        sessionId: 's1',
+        tapeIncarnationId: 'incarnation-1',
+        snapshotMaxEntryId: 8,
+        facts: [{ record: { entryId: 8 } }],
+        evidence: [
+          {
+            traceId: 'trace-1',
+            messageId: 'm1',
+            requestSeq: 2,
+            logicalRound: 1,
+            providerId: 'openai',
+            modelId: 'gpt-4',
+            truncated: true
+          }
+        ],
+        truncated: { facts: true, evidence: true, detailData: false }
+      }
+    })
+    expect(JSON.stringify(exported)).not.toContain('authorization')
+    expect(JSON.stringify(exported)).not.toContain('prompt')
+    expect(harness.traces.listInspectorMetadata).toHaveBeenCalledWith({
+      sessionId: 's1',
+      limit: 200
+    })
+    expect(harness.tape.exportTapeInspectorSupportFacts).toHaveBeenCalledWith({
+      sessionId: 's1',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
+
+    harness.tape.exportTapeInspectorSupportFacts.mockReturnValueOnce({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-2',
+      snapshotMaxEntryId: 1
+    })
+    await expect(
+      harness.coordinator.exportTapeInspectorSupportTrace({
+        sessionId: 's1',
+        expectedTapeIncarnationId: 'incarnation-1'
+      })
+    ).resolves.toEqual({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-2',
+      snapshotMaxEntryId: 1
+    })
+    await expect(
+      harness.coordinator.exportTapeInspectorSupportTrace({
+        sessionId: 'missing',
+        expectedTapeIncarnationId: 'incarnation-1'
+      })
     ).rejects.toThrow('Session not found: missing')
   })
 

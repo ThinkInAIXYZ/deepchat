@@ -125,6 +125,25 @@
         />
         {{ t('tapeInspector.actions.refresh') }}
       </DcButton>
+
+      <DcButton
+        data-testid="tape-inspector-export"
+        size="sm"
+        variant="ghost"
+        class="h-7 px-2 text-xs"
+        :class="{ 'text-destructive': exportFailed }"
+        :disabled="!store.tapeIncarnationId || store.loadingInitial || exporting"
+        :label="t('common.export')"
+        :title="exportFailed ? t('common.error.requestFailed') : t('common.export')"
+        @click="exportSupportTrace"
+      >
+        <Icon
+          :icon="exporting ? 'lucide:loader-circle' : 'lucide:download'"
+          class="mr-1.5 size-3.5"
+          :class="{ 'animate-spin': exporting }"
+        />
+        {{ t('common.export') }}
+      </DcButton>
     </div>
 
     <div
@@ -440,6 +459,7 @@ import type {
   TapeInspectorSort
 } from '@shared/types/tape-inspector'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
+import { downloadBlob } from '@/lib/download'
 import { createSessionClient } from '../../../api/SessionClient'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
@@ -499,6 +519,8 @@ const draftName = ref('')
 const draftStatus = ref('')
 const draftMessageId = ref('')
 const draftErrorsOnly = ref(false)
+const exporting = ref(false)
+const exportFailed = ref(false)
 const columnLimits: Record<InspectorColumn, { min: number; max: number }> = {
   name: { min: 180, max: 560 },
   kind: { min: 80, max: 240 },
@@ -591,6 +613,51 @@ const detailErrorCode = computed<TapeInspectorErrorCode>(() => {
 
 function matchingRequest(): TapeInspectorOpenRequest | null {
   return props.openRequest?.sessionId === props.sessionId ? props.openRequest : null
+}
+
+async function exportSupportTrace(): Promise<void> {
+  const tapeIncarnationId = store.tapeIncarnationId
+  if (!tapeIncarnationId || exporting.value) return
+  const generation = liveLifecycleGeneration
+  const sessionId = props.sessionId
+  exporting.value = true
+  exportFailed.value = false
+  try {
+    const result = await sessionClient.exportTapeInspectorSupportTrace({
+      sessionId,
+      expectedTapeIncarnationId: tapeIncarnationId
+    })
+    if (
+      generation !== liveLifecycleGeneration ||
+      props.sessionId !== sessionId ||
+      store.tapeIncarnationId !== tapeIncarnationId
+    ) {
+      return
+    }
+    if (result.status === 'reset') {
+      await initialize()
+      return
+    }
+    const safeSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/gu, '_').slice(0, 64) || 'session'
+    const timestamp = new Date(result.trace.exportedAt).toISOString().replace(/[:.]/gu, '-')
+    downloadBlob(
+      new Blob([`${JSON.stringify(result.trace, null, 2)}\n`], { type: 'application/json' }),
+      `tape-inspector-${safeSessionId}-${timestamp}.json`
+    )
+  } catch (error) {
+    if (
+      generation === liveLifecycleGeneration &&
+      props.sessionId === sessionId &&
+      store.tapeIncarnationId === tapeIncarnationId
+    ) {
+      exportFailed.value = true
+      console.error('[TapeInspector] Failed to export support trace', error)
+    }
+  } finally {
+    if (generation === liveLifecycleGeneration && props.sessionId === sessionId) {
+      exporting.value = false
+    }
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -768,6 +835,8 @@ function handleWaterfallKeydown(event: KeyboardEvent): void {
 
 async function initialize(): Promise<void> {
   const generation = ++liveLifecycleGeneration
+  exporting.value = false
+  exportFailed.value = false
   await releaseLiveSubscription()
   if (generation !== liveLifecycleGeneration) return
 

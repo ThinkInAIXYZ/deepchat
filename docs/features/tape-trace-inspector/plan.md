@@ -4,8 +4,8 @@
 
 Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes,
 renderer projection store, historical panel, gated entry points, and committed-head following are
-complete. P2 and P3 timeline navigation are complete; sanitized export and final regression closure
-are next.
+complete. P2 and P3 timeline navigation and sanitized export are complete; final regression closure
+is next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -153,7 +153,7 @@ payloads.
   order.
 - [x] Add measured expression/index-only migrations only where fixture query plans require them.
 - [x] Add column resizing, horizontal pan/zoom, range brushing, and timing tooltips.
-- [ ] Add bounded session-level sanitized support export composition.
+- [x] Add bounded session-level sanitized support export composition.
 - [ ] Add a representative high-entry-count fixture and responsive query/render regression.
 
 Completion condition: every remaining #2154 acceptance criterion is implemented or the issue text

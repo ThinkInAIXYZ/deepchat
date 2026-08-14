@@ -97,6 +97,9 @@ export function createSessionDataFromDatabase(
     getTapeInspectorRecordDetail(input) {
       return tapeStore.getTapeInspectorRecordDetail(input)
     },
+    exportTapeInspectorSupportFacts(input) {
+      return tapeStore.exportTapeInspectorSupportFacts(input)
+    },
     linkSubagentTape(input) {
       ensureTape(input.parentSessionId)
       ensureTape(input.childSessionId)

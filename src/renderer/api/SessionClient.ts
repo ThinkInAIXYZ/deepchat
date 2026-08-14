@@ -24,6 +24,7 @@ import {
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
   sessionsExportMessageTapeReplaySliceRoute,
+  sessionsExportTapeInspectorSupportTraceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -309,6 +310,13 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     entryId: number
   }) {
     return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
+  }
+
+  async function exportTapeInspectorSupportTrace(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+  }) {
+    return await bridge.invoke(sessionsExportTapeInspectorSupportTraceRoute.name, input)
   }
 
   async function subscribeTapeInspectorHead(sessionId: string, subscriptionId: string) {
@@ -661,6 +669,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     listTapeInspectorPage,
     listTapeInspectorEvidence,
     getTapeInspectorRecordDetail,
+    exportTapeInspectorSupportTrace,
     subscribeTapeInspectorHead,
     unsubscribeTapeInspectorHead,
     listMessageTraces,
