@@ -1,8 +1,8 @@
-import { defineComponent } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const inspectorStore = vi.hoisted(() => ({
+const inspectorStoreData = vi.hoisted(() => ({
   sessionId: null as string | null,
   tapeIncarnationId: 'incarnation-1' as string | null,
   loadedSearch: '',
@@ -10,7 +10,7 @@ const inspectorStore = vi.hoisted(() => ({
   serverFilters: {},
   serverSort: { column: 'entryId' as const, direction: 'asc' as const },
   canonicalSort: true,
-  records: [],
+  records: [] as Array<{ entryId: number; createdAt: number }>,
   evidence: [],
   rows: [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }],
   selectedKey: null,
@@ -50,6 +50,7 @@ const inspectorStore = vi.hoisted(() => ({
   loadSelectedDetail: vi.fn(async () => true),
   clear: vi.fn()
 }))
+const inspectorStore = reactive(inspectorStoreData)
 
 const sessionClient = vi.hoisted(() => ({
   exportTapeInspectorSupportTrace: vi.fn(),
@@ -384,6 +385,81 @@ describe('TapeInspectorPanel', () => {
     expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
   })
 
+  it('keeps the selected waterfall time window when the loaded range changes', async () => {
+    inspectorStore.records = [
+      { entryId: 1, createdAt: 100 },
+      { entryId: 2, createdAt: 200 }
+    ]
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 200,
+      bottom: 16,
+      width: 200,
+      height: 16,
+      toJSON: () => ({})
+    })
+    await viewport.trigger('pointerdown', { button: 0, pointerId: 13, clientX: 40 })
+    await viewport.trigger('pointermove', { pointerId: 13, clientX: 120 })
+    await viewport.trigger('pointerup', { pointerId: 13, clientX: 120 })
+    expect(viewport.attributes('aria-valuetext')).toBe('20%–60%')
+
+    inspectorStore.records = [
+      { entryId: 0, createdAt: 0 },
+      { entryId: 1, createdAt: 100 },
+      { entryId: 2, createdAt: 200 }
+    ]
+    await flushPromises()
+    expect(viewport.attributes('aria-valuetext')).toBe('60%–80%')
+
+    inspectorStore.records = [
+      { entryId: 0, createdAt: 0 },
+      { entryId: 1, createdAt: 100 },
+      { entryId: 2, createdAt: 200 },
+      { entryId: 3, createdAt: 400 }
+    ]
+    await flushPromises()
+    expect(viewport.attributes('aria-valuetext')).toBe('30%–40%')
+  })
+
+  it('keeps a waterfall viewport anchored to the live time tail', async () => {
+    inspectorStore.records = [
+      { entryId: 1, createdAt: 100 },
+      { entryId: 2, createdAt: 200 }
+    ]
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
+    await viewport.trigger('keydown', { key: '+' })
+    await viewport.trigger('keydown', { key: 'ArrowRight' })
+    await viewport.trigger('keydown', { key: 'ArrowRight' })
+    await viewport.trigger('keydown', { key: 'ArrowRight' })
+    expect(viewport.attributes('aria-valuetext')).toBe('30%–100%')
+
+    inspectorStore.records = [
+      { entryId: 1, createdAt: 100 },
+      { entryId: 2, createdAt: 200 },
+      { entryId: 3, createdAt: 300 }
+    ]
+    await flushPromises()
+    expect(viewport.attributes('aria-valuetext')).toBe('65%–100%')
+  })
+
   it('restores the same visible key and pixel offset after prepending older rows', async () => {
     inspectorStore.hasOlder = true
     inspectorStore.rows = [
@@ -469,6 +545,82 @@ describe('TapeInspectorPanel', () => {
     await wrapper.get('[data-testid="tape-inspector-live-toggle"]').trigger('click')
     expect(inspectorStore.setLivePaused).toHaveBeenCalledWith(true)
     expect(sessionClient.unsubscribeTapeInspectorHead).not.toHaveBeenCalled()
+  })
+
+  it('continues following after a live pulse appends multiple rows at the tail', async () => {
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    scrollerMethods.scrollToItem.mockClear()
+    const scroller = wrapper.get('[data-testid="recycle-scroller"]').element as HTMLElement
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 72 },
+      scrollHeight: { configurable: true, value: 360 }
+    })
+    scroller.scrollTop = 288
+    inspectorStore.handleLiveHeadPulse.mockImplementationOnce(async () => {
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
+        key: `fact:incarnation:entry:${index + 1}`,
+        recordType: 'fact'
+      }))
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
+      return true
+    })
+
+    sessionClient.headListener?.({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 15
+    })
+    await flushPromises()
+
+    expect(scrollerMethods.scrollToItem).toHaveBeenCalledWith(14)
+  })
+
+  it('does not force live rows into view after the user leaves the tail', async () => {
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    scrollerMethods.scrollToItem.mockClear()
+    const scroller = wrapper.get('[data-testid="recycle-scroller"]').element as HTMLElement
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 72 },
+      scrollHeight: { configurable: true, value: 360 }
+    })
+    scroller.scrollTop = 72
+    inspectorStore.handleLiveHeadPulse.mockImplementationOnce(async () => {
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
+        key: `fact:incarnation:entry:${index + 1}`,
+        recordType: 'fact'
+      }))
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
+      return true
+    })
+
+    sessionClient.headListener?.({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 15
+    })
+    await flushPromises()
+
+    expect(scrollerMethods.scrollToItem).not.toHaveBeenCalled()
   })
 
   it('unsubscribes a late successful registration after unmount', async () => {

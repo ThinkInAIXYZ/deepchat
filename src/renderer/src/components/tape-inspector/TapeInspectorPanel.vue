@@ -489,6 +489,11 @@ interface WaterfallBrushState {
   target: HTMLElement
 }
 
+interface WaterfallTimeRange {
+  min: number
+  max: number
+}
+
 const props = defineProps<{
   sessionId: string
   openRequest: TapeInspectorOpenRequest | null
@@ -552,8 +557,22 @@ const tableMinWidth = computed(() =>
 
 const MIN_WATERFALL_VIEWPORT = 0.04
 const MIN_WATERFALL_BRUSH = 0.015
+const WATERFALL_EDGE_EPSILON = 1e-6
 const waterfallViewport = ref({ start: 0, end: 1 })
 const waterfallBrush = ref<WaterfallBrushState | null>(null)
+const waterfallTimeRange = computed<WaterfallTimeRange | null>(() => {
+  let min = Number.POSITIVE_INFINITY
+  let max = Number.NEGATIVE_INFINITY
+  for (const record of store.records) {
+    min = Math.min(min, record.createdAt)
+    max = Math.max(max, record.createdAt)
+  }
+  for (const record of store.evidence) {
+    min = Math.min(min, record.createdAt)
+    max = Math.max(max, record.createdAt)
+  }
+  return Number.isFinite(min) ? { min, max } : null
+})
 const waterfallViewportPercent = computed(() =>
   Math.round((waterfallViewport.value.end - waterfallViewport.value.start) * 100)
 )
@@ -717,14 +736,52 @@ function finishColumnResize(event: PointerEvent): void {
   cancelColumnResize()
 }
 
-function setWaterfallViewport(start: number, end: number): void {
-  const span = clamp(end - start, MIN_WATERFALL_VIEWPORT, 1)
+function setWaterfallViewport(
+  start: number,
+  end: number,
+  minimumSpan = MIN_WATERFALL_VIEWPORT
+): void {
+  const span = clamp(end - start, minimumSpan, 1)
   const nextStart = clamp(start, 0, 1 - span)
   waterfallViewport.value = { start: nextStart, end: nextStart + span }
 }
 
 function resetWaterfall(): void {
   waterfallViewport.value = { start: 0, end: 1 }
+}
+
+function preserveWaterfallTimeWindow(
+  previousRange: WaterfallTimeRange | null,
+  nextRange: WaterfallTimeRange | null
+): void {
+  if (!previousRange || !nextRange) return
+  const viewport = waterfallViewport.value
+  const previousSpan = previousRange.max - previousRange.min
+  const nextSpan = nextRange.max - nextRange.min
+  const isFullRange =
+    viewport.start <= WATERFALL_EDGE_EPSILON && viewport.end >= 1 - WATERFALL_EDGE_EPSILON
+  if (isFullRange || previousSpan <= 0 || nextSpan <= 0) return
+
+  const duration = previousSpan * (viewport.end - viewport.start)
+  let startAt: number
+  let endAt: number
+  if (viewport.end >= 1 - WATERFALL_EDGE_EPSILON && nextRange.max > previousRange.max) {
+    endAt = nextRange.max
+    startAt = endAt - duration
+  } else {
+    startAt = previousRange.min + previousSpan * viewport.start
+    endAt = previousRange.min + previousSpan * viewport.end
+  }
+  if (startAt < nextRange.min) {
+    endAt += nextRange.min - startAt
+    startAt = nextRange.min
+  }
+  if (endAt > nextRange.max) {
+    startAt -= endAt - nextRange.max
+    endAt = nextRange.max
+  }
+  startAt = Math.max(startAt, nextRange.min)
+  setWaterfallViewport((startAt - nextRange.min) / nextSpan, (endAt - nextRange.min) / nextSpan, 0)
 }
 
 function zoomWaterfall(factor: number, anchor = 0.5): void {
@@ -974,7 +1031,11 @@ async function followTail(): Promise<void> {
 
 async function handleLiveHeadPulse(pulse: TapeInspectorHeadPulse): Promise<void> {
   if (pulse.sessionId !== props.sessionId) return
-  await store.handleLiveHeadPulse(pulse)
+  const wasAtTail = isAtTail()
+  const changed = await store.handleLiveHeadPulse(pulse)
+  if (changed && wasAtTail && liveConnected.value && !store.livePaused && store.canonicalSort) {
+    await followTail()
+  }
 }
 
 async function toggleLivePaused(): Promise<void> {
@@ -1041,13 +1102,8 @@ watch(
 )
 
 watch(
-  () => [store.tapeIncarnationId, store.records.length] as const,
-  () => {
-    if (!liveConnected.value || !store.liveSyncing || store.livePaused || !isAtTail()) {
-      return
-    }
-    void followTail()
-  },
+  waterfallTimeRange,
+  (nextRange, previousRange) => preserveWaterfallTimeWindow(previousRange, nextRange),
   { flush: 'sync' }
 )
 
