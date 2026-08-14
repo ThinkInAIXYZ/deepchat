@@ -41,8 +41,8 @@ boundary progress.
    protocol-valid provider View, even when summary generation fails.
 2. Keep Session Tape append-only and preserve all raw messages, tool calls, tool results, usage,
    errors, manifests, and anchors.
-3. Define recovery progress from durable boundary or persistent tool-result replacement facts, not
-   from an attempted compaction operation.
+3. Define semantic recovery progress from a durable boundary, and in-flight tool-result reduction
+   from a changed protocol-valid projection, not from an attempted compaction operation.
 4. Keep summary provenance explicit, add deterministic gap reconstruction when a summary is
    unavailable, and avoid repeated gap-notice growth.
 5. Bound long active turns by compacting only closed tool interaction units without breaking tool
@@ -68,9 +68,10 @@ boundary progress.
 
 - The reconstruction cursor is monotonic within a Tape incarnation, except for the existing
   explicit reset/edit invalidation path.
-- A recovery is reported as applied only when a durable boundary advances or an authorized
-  persistent tool-result replacement is committed and the re-derived provider View is strictly
-  smaller.
+- Semantic boundary recovery is reported as applied only when a durable boundary advances and the
+  re-derived provider View is strictly smaller.
+- In-flight tool-result compaction is not boundary progress. It can retry only when it produces a
+  changed protocol-valid projection, recorded by the next request's ViewManifest.
 - A prepared intent, an LLM call, a CAS attempt, or a changed summary alone is not View progress.
 - CAS loss is successful recovery only when the winning persisted state advances beyond the
   caller's previous cursor and produces a smaller View.
@@ -104,8 +105,9 @@ the existing changed-projection guard before retry.
 - The active turn is segmented into closed interaction units at assistant tool-call/result
   boundaries. An open tool call, pending permission, deferred execution, or unmatched result is
   protected.
-- Pressure reduction first reuses ToolOutputGuard-owned offload artifacts or its established stub
-  format. It never invents a path or marks an unpersisted result as recoverable.
+- Existing ToolOutputGuard offload stubs remain intact. Eligible large inline results use a stable
+  bounded head/tail projection that points back to Tape recall; it never invents a file path or
+  marks unpersisted content as an offload artifact.
 - Pruning changes provider-visible projections, not raw Transcript or Tape tool facts, unless the
   existing persistent replacement contract is explicitly used.
 - Recovery never blindly replays the original user request after tools may have produced external
@@ -144,11 +146,11 @@ assemble candidate View
   -> estimate pressure
   -> fits: send provider request
   -> pressure:
-       1. compact eligible closed tool results/offload projections
-       2. prepare a reconstruction boundary
-       3. try semantic summary
+       1. compact eligible closed inline tool results while preserving offload projections
+       2. if the changed projection fits: send it as a new request
+       3. otherwise prepare a reconstruction boundary and try semantic summary
        4. summary fails: commit deterministic boundary-only anchor
-       5. reassemble and require a strictly smaller View
+       5. reassemble and require a strictly smaller View for semantic recovery
        6. strict output-reserve retry when only output reduction can help
        7. fail only when protected content cannot fit or recovery made no progress
 ```
@@ -209,6 +211,23 @@ may run the state machine again until the Run-level recovery ceiling is reached.
 12. Focused runtime, Session/Tape, provider-loop, ToolOutputGuard, and harness tests pass, followed by
     formatting, i18n validation, lint, type checking, and the relevant broader main-process suite.
 13. No remote Git operation is performed.
+
+## Implementation Record
+
+Implemented on `fix/tape-context-compaction` as one local branch. The durable behavior is split into
+reviewable commits for boundary/summary decoupling, bounded recovery, usage anchoring, closed tool
+result View compaction, and canonical documentation. No persisted schema or public route migration
+was required.
+
+The canonical post-implementation contracts live in:
+
+- `docs/architecture/tape-system.md` for append-only Tape, selective View, reconstruction anchors,
+  usage anchoring, and tool-unit compaction;
+- `docs/architecture/agent-system.md` for request identity and recovery lifecycle.
+
+Validation covers summary success/failure/abort/CAS races, cursor-only state, strict protected-tail
+fitting, repeated bounded recovery, usage-anchor invalidation, closed/open tool units, harness
+replay, ViewManifest provenance, and Session/Tape compatibility.
 
 ## Non-Goals
 

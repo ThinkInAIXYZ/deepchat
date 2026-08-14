@@ -243,6 +243,40 @@ DeepChat message trace 通过 nullable identity 列兼容旧行和 ACP trace。�
 physicalAttempt 最大的 trace，再按 createdAt 和 ID 稳定排序；attempt-local trace callback 必须捕获
 不可变 identity。
 
+## Context compact 与压力恢复
+
+Tape 自身不做物理 compact。运行时 compact 的对象是 provider-visible View：reconstruction anchor
+单调推进默认读取边界，旧 entry 仍留在 append-only Tape 中供 recall、replay 和审计。semantic summary
+是挂在该边界上的可选重建提示，不是边界前进或 View 缩小的前置条件。
+
+自动和压力恢复使用以下有序降级；前一步已经得到可发送的更小 projection 时跳过后续模型调用：
+
+```text
+provider candidate
+  -> usage anchor + suffix estimate（信封变化时回退全量估算）
+  -> compact 已闭合的超大 tool result View
+  -> 仍有压力：尝试 semantic summary
+  -> summary 不可用：原子写 boundary-only reconstruction anchor
+  -> 从 Tape 与当前内存 active turn 重建 View
+  -> semantic recovery 仅在新 View 严格更小时生效
+  -> 必要时缩小 output reserve 做一次 strict retry
+  -> 每个通过 fit/change 或显式 output-reduction guard 的新 payload 创建新的 requestSeq / ViewManifest
+```
+
+boundary-only anchor 使用稳定的 `summary_unavailable` reason 和有界 `summaryGap` coverage；不保存
+provider error、stack、时间戳或 secret。连续 gap 合并为最新边界上的一个区间；旧有效 summary 只以
+`priorSummary` 作为部分上下文，不能伪装成该边界新生成的 summary。取消 summary 时不提交边界。
+
+active turn 不能通过重放原 user prompt 恢复，因为 tool 可能已经产生外部副作用。运行时只能压缩
+assistant tool-call 与其全部结果均已闭合的 unit，保留 call/result 配对，并保护 runtime Skill、provider
+replay 和 projection identity。原始 tool fact 仍在 Tape；stub 是当前 provider View 的非持久化派生投影，
+不推进 reconstruction cursor。
+
+每次成功 provider attempt 可以在当前 Run 内建立 prompt usage anchor。仅当 provider、model、generation
+config、provider-visible tools 和完整消息前缀 hash 全部一致时，下一次 preflight 才以 provider-reported
+prompt usage 为基线，只估新增 suffix；任一变化都回退保守全量估算。一次成功响应会重置当前 recovery
+sequence latch，使后续 tool step 可再次恢复；每个 Run 最多使用三条 recovery sequence，避免无限循环。
+
 ## Contract lineage 与评价
 
 每个 live-delegation turn 在 parent Tape 冻结一个 `TaskContract`，内容由 `taskSchema`、`taskConfig`、

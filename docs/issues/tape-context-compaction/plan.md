@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation in progress on `fix/tape-context-compaction`. All work stays local; no branch push,
+Implementation complete on `fix/tape-context-compaction`. All work stays local; no branch push,
 GitHub issue, or pull request is part of this plan.
 
 ## Implementation Slices
@@ -67,6 +67,20 @@ GitHub issue, or pull request is part of this plan.
   validation record.
 - Review the complete branch against its base and remove temporary probes or implementation-only
   tests.
+
+## Completion Summary
+
+- Boundary progress is independent from semantic summary success and uses atomic reconstruction
+  anchors with deterministic merged gap coverage.
+- Semantic boundary recovery requires a durable cursor advance and a strictly smaller View;
+  in-flight tool-result reduction instead requires a changed protocol-valid projection. Recovery
+  resets after a successful provider response and is bounded to three sequences per Run.
+- Closed active-turn tool results are compacted before model-backed summary without replaying tool
+  side effects or changing raw Tape facts.
+- Prompt pressure uses provider usage plus exact-prefix suffix projection when the request envelope
+  is unchanged, with conservative full-estimate fallback.
+- Canonical behavior is documented in `docs/architecture/tape-system.md` and
+  `docs/architecture/agent-system.md`.
 
 ## Test Matrix
 
