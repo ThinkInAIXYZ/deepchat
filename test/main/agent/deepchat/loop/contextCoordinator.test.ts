@@ -1253,6 +1253,138 @@ describe('DeepChatContextCoordinator', () => {
     })
   })
 
+  it('compacts closed tool results before invoking semantic pressure recovery', async () => {
+    const fixture = createAttemptInput()
+    const largeOutput = 'x'.repeat(9000)
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'user', content: 'current input' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'call-1', content: largeOutput }
+    )
+    fixture.input.budget.preflight = vi.fn(({ messages, requestedMaxTokens }) => {
+      const compacted = String(messages.at(-1)?.content).startsWith(
+        '[Tool output compacted from provider View]'
+      )
+      return createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: compacted ? requestedMaxTokens : 20,
+        requiresContextPressureRecovery: !compacted,
+        fitsWithinContext: compacted
+      })
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.input.recovery.recover).not.toHaveBeenCalled()
+    expect(String(fixture.providerRequests[0].messages.at(-1)?.content)).toContain(
+      '[Tool output compacted from provider View]'
+    )
+    expect(fixture.run.providerRecovery.contextRecoverySequencesUsed).toBe(1)
+  })
+
+  it('retries a provider overflow with model-free tool-result compaction first', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'user', content: 'current input' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'call-1', content: 'x'.repeat(9000) }
+    )
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.input.recovery.recover).not.toHaveBeenCalled()
+    expect(fixture.providerRequests).toHaveLength(2)
+    expect(String(fixture.providerRequests[1].messages.at(-1)?.content)).toContain(
+      '[Tool output compacted from provider View]'
+    )
+  })
+
+  it('falls through to semantic recovery when a compacted tool retry still overflows', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'assistant', content: 'optional closed history' },
+      { role: 'user', content: 'current input' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'call-1', content: 'x'.repeat(9000) }
+    )
+    fixture.input.recovery.recover = vi.fn(async ({ requestMessages }) => ({
+      messages: requestMessages.slice(1),
+      summaryCursorOrderSeq: 5
+    }))
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.input.recovery.recover).toHaveBeenCalledTimes(1)
+    expect(fixture.providerRequests).toHaveLength(3)
+    expect(fixture.providerRequests[2].messages[0]).toEqual({
+      role: 'user',
+      content: 'current input'
+    })
+  })
+
   it('skips a protected-only context retry when only its output cap would change', async () => {
     const fixture = createAttemptInput({
       providerEvents: [[{ type: 'error', error_message: 'context overflow' }]]

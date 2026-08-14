@@ -15,9 +15,14 @@ import {
 } from '@shared/lib/agentOutputLimits'
 import { throwIfAbortRequested } from './abortErrors'
 import { preflightRequestContext } from './contextBudget'
+import { getProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
 
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 const TOOL_OUTPUT_OFFLOAD_MARKER = '[Tool output offloaded]'
+const TOOL_OUTPUT_VIEW_COMPACTION_MARKER = '[Tool output compacted from provider View]'
+const TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD = 8192
+const TOOL_OUTPUT_VIEW_COMPACTION_HEAD = 4096
+const TOOL_OUTPUT_VIEW_COMPACTION_TAIL = 1024
 const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
 const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
   ...TOOLS_REQUIRING_OFFLOAD,
@@ -84,6 +89,75 @@ interface FitToolBatchOutputsParams extends ContextBudgetParams {
 type AgentOutputLimitsResolver = (
   sessionId: string
 ) => AgentOutputLimits | Promise<AgentOutputLimits>
+
+export function compactClosedToolResultsForContext(
+  messages: ChatMessage[],
+  protectedToolCallIds: ReadonlySet<string> = new Set()
+): ChatMessage[] {
+  const activeTurnStart = messages.findLastIndex((message) => message.role === 'user')
+  if (activeTurnStart < 0) return messages
+
+  let compacted: ChatMessage[] | null = null
+  for (let index = activeTurnStart + 1; index < messages.length; index += 1) {
+    const assistant = messages[index]
+    if (
+      assistant.role !== 'assistant' ||
+      assistant.provider_replay ||
+      !assistant.tool_calls?.length
+    ) {
+      continue
+    }
+
+    const expectedCallIds = new Set(assistant.tool_calls.map((toolCall) => toolCall.id))
+    const resultIndexes = new Map<string, number>()
+    let cursor = index + 1
+    while (cursor < messages.length && messages[cursor].role === 'tool') {
+      const toolCallId = messages[cursor].tool_call_id
+      if (
+        !toolCallId ||
+        !expectedCallIds.has(toolCallId) ||
+        resultIndexes.has(toolCallId)
+      ) {
+        resultIndexes.clear()
+        break
+      }
+      resultIndexes.set(toolCallId, cursor)
+      cursor += 1
+    }
+    if (resultIndexes.size !== expectedCallIds.size) continue
+
+    for (const [toolCallId, resultIndex] of resultIndexes) {
+      const toolMessage = messages[resultIndex]
+      if (
+        protectedToolCallIds.has(toolCallId) ||
+        toolMessage.provider_replay ||
+        getProviderProjectionIdentities(toolMessage).length > 0 ||
+        typeof toolMessage.content !== 'string' ||
+        toolMessage.content.length <= TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD ||
+        toolMessage.content.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER) ||
+        toolMessage.content.startsWith(TOOL_OUTPUT_VIEW_COMPACTION_MARKER)
+      ) {
+        continue
+      }
+      const original = toolMessage.content
+      const compactedContent = [
+        TOOL_OUTPUT_VIEW_COMPACTION_MARKER,
+        `Tool call ID: ${toolCallId}`,
+        `Original characters: ${original.length}`,
+        'The complete result remains in Session Tape. Use tape_search and tape_context to recall persisted evidence if needed.',
+        `First ${TOOL_OUTPUT_VIEW_COMPACTION_HEAD} characters:`,
+        original.slice(0, TOOL_OUTPUT_VIEW_COMPACTION_HEAD),
+        `Last ${TOOL_OUTPUT_VIEW_COMPACTION_TAIL} characters:`,
+        original.slice(-TOOL_OUTPUT_VIEW_COMPACTION_TAIL)
+      ].join('\n')
+      compacted ??= [...messages]
+      compacted[resultIndex] = { ...toolMessage, content: compactedContent }
+    }
+    index = Math.max(index, cursor - 1)
+  }
+
+  return compacted ?? messages
+}
 
 export class ToolOutputGuard {
   constructor(

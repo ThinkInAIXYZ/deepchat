@@ -5,13 +5,95 @@ import {
 } from '@shared/types/core/mcp'
 import { getUsableContextLength } from '@/agent/deepchat/runtime/contextBudget'
 import { estimateToolDefinitionTokens } from '@/agent/deepchat/runtime/contextBuilder'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import {
+  compactClosedToolResultsForContext,
+  ToolOutputGuard
+} from '@/agent/deepchat/runtime/toolOutputGuard'
+import { bindProviderProjectionIdentity } from '@/agent/deepchat/loop/providerProjectionIdentity'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => text.length)
 }))
 
 describe('ToolOutputGuard', () => {
+  it('compacts only a closed active-turn tool result and preserves protocol pairing', () => {
+    const rawOutput = `head:${'x'.repeat(9000)}:tail`
+    const messages = [
+      { role: 'system' as const, content: 'System' },
+      { role: 'user' as const, content: 'Run the tool' },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function' as const,
+            function: { name: 'inspect', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'call-1', content: rawOutput }
+    ]
+
+    const compacted = compactClosedToolResultsForContext(messages)
+
+    expect(compacted).not.toBe(messages)
+    expect(compacted.map((message) => message.role)).toEqual(messages.map((message) => message.role))
+    expect(compacted[2]).toBe(messages[2])
+    expect(String(compacted[3].content)).toContain('[Tool output compacted from provider View]')
+    expect(String(compacted[3].content)).toContain('Tool call ID: call-1')
+    expect(String(compacted[3].content)).toContain('head:')
+    expect(String(compacted[3].content)).toContain(':tail')
+    expect(messages[3].content).toBe(rawOutput)
+    expect(compactClosedToolResultsForContext(compacted)).toBe(compacted)
+  })
+
+  it('preserves open, explicitly protected, and authority-bound tool results', () => {
+    const largeOutput = 'x'.repeat(9000)
+    const authorityBound = { role: 'tool' as const, tool_call_id: 'call-3', content: largeOutput }
+    bindProviderProjectionIdentity(authorityBound, 'authority-1', largeOutput)
+    const messages = [
+      { role: 'user' as const, content: 'Run tools' },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function' as const,
+            function: { name: 'open', arguments: '{}' }
+          }
+        ]
+      },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-2',
+            type: 'function' as const,
+            function: { name: 'protected', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'call-2', content: largeOutput },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-3',
+            type: 'function' as const,
+            function: { name: 'authority', arguments: '{}' }
+          }
+        ]
+      },
+      authorityBound
+    ]
+
+    expect(compactClosedToolResultsForContext(messages, new Set(['call-2']))).toBe(messages)
+  })
+
   it('checks tool continuation budget against the safety-adjusted context window', () => {
     const guard = new ToolOutputGuard()
     const toolDefinitions: MCPToolDefinition[] = [

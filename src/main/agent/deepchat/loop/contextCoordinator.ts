@@ -47,6 +47,7 @@ import {
   buildProviderMessagesHash,
   buildProviderVisibleToolDefinitionsHash
 } from '@/tape/domain/executionContract'
+import { compactClosedToolResultsForContext } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
   classifyProviderFailure,
   emitProviderRetryLifecycleEvent,
@@ -720,6 +721,7 @@ export class DeepChatContextCoordinator {
   ): AsyncGenerator<LLMCoreStreamEvent> {
     let preflightContextRecoveryAttempted = false
     let providerOverflowRecoveryAttempted = false
+    let providerToolResultCompactionAttempted = false
     let providerContextOverflowRecoveryApplied = false
     let strictProviderOverflowRetryPending = false
     let nextRequestOrigin: DeepChatProviderRequestOrigin =
@@ -793,26 +795,47 @@ export class DeepChatContextCoordinator {
             beginContextRecoverySequence(input.run)
           ) {
             preflightContextRecoveryAttempted = true
-            const recovered = await input.recovery.recover({
-              requestMessages: this.withActiveTurnFrom(
-                input.requestMessages,
-                requestPreflight.messages
-              ),
-              requestedMaxTokens: requestPreflight.requestedMaxTokens,
-              tools: input.tools
-            })
-            if (recovered.summaryCursorOrderSeq !== undefined) {
-              manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+            const pressureCandidate = this.withActiveTurnFrom(
+              input.requestMessages,
+              requestPreflight.messages
+            )
+            const compactedToolResults = compactClosedToolResultsForContext(
+              pressureCandidate,
+              new Set(input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId))
+            )
+            if (compactedToolResults !== pressureCandidate) {
+              input.requestMessages.splice(0, input.requestMessages.length, ...compactedToolResults)
+              requestPreflight = input.budget.preflight({
+                messages: input.requestMessages,
+                tools: input.tools,
+                requestedMaxTokens
+              })
             }
-            if (recovered.syntheticContributions) {
-              manifestSyntheticContributions = recovered.syntheticContributions
+            if (
+              requestPreflight.requiresContextPressureRecovery ||
+              !requestPreflight.fitsWithinContext
+            ) {
+              const recovered = await input.recovery.recover({
+                requestMessages: this.withActiveTurnFrom(
+                  input.requestMessages,
+                  requestPreflight.messages
+                ),
+                requestedMaxTokens: requestPreflight.requestedMaxTokens,
+                tools: input.tools
+              })
+              if (recovered.summaryCursorOrderSeq !== undefined) {
+                manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+              }
+              if (recovered.syntheticContributions) {
+                manifestSyntheticContributions = recovered.syntheticContributions
+              }
+              input.requestMessages.splice(0, input.requestMessages.length, ...recovered.messages)
+              requestPreflight = input.budget.preflight({
+                messages: input.requestMessages,
+                tools: input.tools,
+                requestedMaxTokens
+              })
             }
-            input.requestMessages.splice(0, input.requestMessages.length, ...recovered.messages)
-            requestPreflight = input.budget.preflight({
-              messages: input.requestMessages,
-              tools: input.tools,
-              requestedMaxTokens
-            })
             input.requestMessages.splice(
               0,
               input.requestMessages.length,
@@ -980,9 +1003,21 @@ export class DeepChatContextCoordinator {
       if (!beginContextRecoverySequence(input.run)) {
         throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
       }
+      const recoveryCandidate = this.withActiveTurnFrom(input.requestMessages, providerMessages)
+      const compactedToolResults = compactClosedToolResultsForContext(
+        recoveryCandidate,
+        new Set(input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId))
+      )
+      if (compactedToolResults !== recoveryCandidate) {
+        providerToolResultCompactionAttempted = true
+        providerContextOverflowRecoveryApplied = true
+        strictProviderOverflowRetryPending = false
+        input.requestMessages.splice(0, input.requestMessages.length, ...compactedToolResults)
+        return
+      }
       providerOverflowRecoveryAttempted = true
       const recovered = await input.recovery.recover({
-        requestMessages: this.withActiveTurnFrom(input.requestMessages, providerMessages),
+        requestMessages: recoveryCandidate,
         requestedMaxTokens: providerMaxTokens,
         tools: input.tools
       })
@@ -1164,6 +1199,9 @@ export class DeepChatContextCoordinator {
               ) {
                 retryDecision = 'context_recovery_exhausted'
                 contextRecoveryAction = 'fail'
+              } else if (providerToolResultCompactionAttempted) {
+                retryDecision = 'context_recovery_scheduled'
+                contextRecoveryAction = 'recover'
               } else if (
                 preflightContextRecoveryAttempted ||
                 input.run.providerRecovery.contextOverflowHandoffAttempted
