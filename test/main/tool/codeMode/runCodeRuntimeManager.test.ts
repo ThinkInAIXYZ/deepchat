@@ -227,6 +227,85 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
+  it('retries a nested permission request in the same code cell', async () => {
+    const host = new FakeUtilityProcess(false)
+    const executeNested = vi
+      .fn<RunCodeRuntimeManagerOptions['executeNested']>()
+      .mockResolvedValueOnce({
+        content: 'permission required',
+        rawData: {
+          content: 'permission required',
+          requiresPermission: true,
+          permissionRequest: {
+            toolName: 'exec',
+            permissionType: 'command',
+            command: 'git status --short'
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        content: 'clean',
+        rawData: { content: 'clean' }
+      })
+    const manager = createManager(host, executeNested)
+    const input = {
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function' as const,
+      source: 'return await tools.exec({ command: "git status --short" })',
+      executionCatalog: [tool('exec')],
+      options: {}
+    }
+    const firstExecution = manager.execute(input)
+    await vi.waitFor(() =>
+      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+    )
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested-1',
+      bindingId: start.bindings[0].id,
+      arguments: { command: 'git status --short' }
+    })
+
+    await expect(firstExecution).resolves.toMatchObject({
+      rawData: { requiresPermission: true }
+    })
+
+    const retriedExecution = manager.execute({
+      ...input,
+      options: { oneShotCommandGrantId: 'grant-1' }
+    })
+    await vi.waitFor(() => expect(executeNested).toHaveBeenCalledTimes(2))
+    expect(executeNested.mock.calls[1][0].options.oneShotCommandGrantId).toBe('grant-1')
+    await vi.waitFor(() =>
+      expect(
+        host.messages.some(
+          (message) =>
+            message.type === 'NESTED_RESULT' && message.callId === 'nested-1' && message.ok
+        )
+      ).toBe(true)
+    )
+
+    host.emit('message', {
+      type: 'RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      output: [],
+      returnValue: 'clean',
+      store: {}
+    })
+
+    await expect(retriedExecution).resolves.toEqual({ content: 'clean' })
+    await manager.shutdown()
+  })
+
   it('aborts an in-flight nested call when its session is cancelled', async () => {
     const host = new FakeUtilityProcess(false)
     let nestedSignal: AbortSignal | undefined

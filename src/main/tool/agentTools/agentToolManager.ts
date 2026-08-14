@@ -1275,90 +1275,90 @@ export class AgentToolManager {
       options.activeSkillNames
     )
 
-    if (toolName === 'exec') {
-      if (!this.bashHandler) {
-        throw new Error('Bash handler not initialized for exec tool')
-      }
-      const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
-      const bashHandler = new AgentBashHandler(
-        allowedDirectories,
-        this.settings,
-        this.commandPermissionHandler,
-        this.commandEnvironment
-      )
-      const execArgs = parsedArgs as {
-        command: string
-        timeoutMs?: number
-        description?: string
-        cwd?: string
-        background?: boolean
-        yieldMs?: number
-      }
-      if (execArgs.cwd) {
-        const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
-          conversationId,
-          allowExternalAccess: true,
-          protectedDirectoryRules,
-          commandShellPathStyle: options.commandShell.pathStyle
-        })
-        skillScopeGuard.assertReadAllowedAbsolute(
-          skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
+    try {
+      if (toolName === 'exec') {
+        if (!this.bashHandler) {
+          throw new Error('Bash handler not initialized for exec tool')
+        }
+        const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
+        const bashHandler = new AgentBashHandler(
+          allowedDirectories,
+          this.settings,
+          this.commandPermissionHandler,
+          this.commandEnvironment
         )
-      }
-      const commandResult = await bashHandler.executeCommand(
-        {
-          command: execArgs.command,
-          timeout: execArgs.timeoutMs,
-          description: execArgs.description ?? 'Execute command',
-          cwd: execArgs.cwd,
-          background: execArgs.background,
-          yieldMs: execArgs.yieldMs
-        },
-        {
-          conversationId,
-          commandShell: options.commandShell,
-          oneShotCommandGrantId: options.oneShotCommandGrantId,
-          allowExternalCwd: allowExternalFileAccess,
-          outputPreviewChars: outputLimits.commandOutputInlineChars,
-          beforeExecute: this.createAgentDispatchCommit(
-            toolName,
-            'agent-filesystem',
-            parsedArgs,
-            options
+        const execArgs = parsedArgs as {
+          command: string
+          timeoutMs?: number
+          description?: string
+          cwd?: string
+          background?: boolean
+          yieldMs?: number
+        }
+        if (execArgs.cwd) {
+          const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
+            conversationId,
+            allowExternalAccess: true,
+            protectedDirectoryRules,
+            commandShellPathStyle: options.commandShell.pathStyle
+          })
+          skillScopeGuard.assertReadAllowedAbsolute(
+            skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
           )
         }
-      )
-      const content =
-        typeof commandResult.output === 'string'
-          ? commandResult.output
-          : JSON.stringify(commandResult.output)
-      return {
-        content,
-        rawData: {
+        const commandResult = await bashHandler.executeCommand(
+          {
+            command: execArgs.command,
+            timeout: execArgs.timeoutMs,
+            description: execArgs.description ?? 'Execute command',
+            cwd: execArgs.cwd,
+            background: execArgs.background,
+            yieldMs: execArgs.yieldMs
+          },
+          {
+            conversationId,
+            commandShell: options.commandShell,
+            oneShotCommandGrantId: options.oneShotCommandGrantId,
+            allowExternalCwd: allowExternalFileAccess,
+            outputPreviewChars: outputLimits.commandOutputInlineChars,
+            beforeExecute: this.createAgentDispatchCommit(
+              toolName,
+              'agent-filesystem',
+              parsedArgs,
+              options
+            )
+          }
+        )
+        const content =
+          typeof commandResult.output === 'string'
+            ? commandResult.output
+            : JSON.stringify(commandResult.output)
+        return {
           content,
-          rtkApplied: commandResult.rtkApplied,
-          rtkMode: commandResult.rtkMode,
-          rtkFallbackReason: commandResult.rtkFallbackReason,
-          outputOffloadPath: commandResult.outputOffloadPath
+          rawData: {
+            content,
+            rtkApplied: commandResult.rtkApplied,
+            rtkMode: commandResult.rtkMode,
+            rtkFallbackReason: commandResult.rtkFallbackReason,
+            outputOffloadPath: commandResult.outputOffloadPath
+          }
         }
       }
-    }
 
-    if (!this.fileSystemHandler) {
-      throw new Error('FileSystem handler not initialized')
-    }
+      if (!this.fileSystemHandler) {
+        throw new Error('FileSystem handler not initialized')
+      }
 
-    // Priority: explicit base_directory → conversation workdir → default
-    const explicitBaseDirectory = (parsedArgs as any).base_directory
-    const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
-      conversationId,
-      allowExternalAccess: allowExternalFileAccess,
-      protectedDirectoryRules,
-      commandShellPathStyle: options.commandShell.pathStyle
-    })
+      // Priority: explicit base_directory → conversation workdir → default
+      const explicitBaseDirectory = (parsedArgs as any).base_directory
+      const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+        conversationId,
+        allowExternalAccess: allowExternalFileAccess,
+        protectedDirectoryRules,
+        commandShellPathStyle: options.commandShell.pathStyle
+      })
 
-    try {
       switch (toolName) {
         case APPLY_PATCH_TOOL_NAME:
           await this.assertFileAccessPermission(
