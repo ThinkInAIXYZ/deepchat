@@ -155,9 +155,7 @@ export function compactClosedToolResultsForContext(
         toolMessage.provider_replay ||
         getProviderProjectionIdentities(toolMessage).length > 0 ||
         typeof toolMessage.content !== 'string' ||
-        toolMessage.content.length <= TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD ||
-        toolMessage.content.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER) ||
-        toolMessage.content.startsWith(TOOL_OUTPUT_VIEW_COMPACTION_MARKER)
+        toolMessage.content.length <= TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD
       ) {
         continue
       }
@@ -257,7 +255,6 @@ export class ToolOutputGuard {
   ): Promise<PreparedToolOutput | null> {
     if (!CONTEXT_FALLBACK_OFFLOAD_TOOLS.has(params.toolName)) return null
     if (!params.rawContent) return null
-    if (params.rawContent.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)) return null
 
     if (params.existingOffloadPath) {
       return {
@@ -408,8 +405,7 @@ export class ToolOutputGuard {
       if (
         current.isError ||
         current.requiresInline ||
-        current.offloadPath ||
-        current.responseText.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)
+        current.offloadPath
       ) {
         continue
       }

@@ -767,11 +767,12 @@ export class DeepChatContextCoordinator {
   async *streamProviderAttempts<TSelection>(
     input: ProviderAttemptInput<TSelection>
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    let preflightContextRecoveryAttempted = false
-    let providerOverflowRecoveryAttempted = false
-    let providerToolResultCompactionAttempted = false
+    let preflightSemanticRecoveryAttempted = false
+    let providerSemanticRecoveryAttempted = false
     let providerContextOverflowRecoveryApplied = false
     let strictProviderOverflowRetryPending = false
+    let nextToolResultCompactionStage: 'preserve_latest' | 'include_latest' | 'complete' =
+      'preserve_latest'
     let nextRequestOrigin: DeepChatProviderRequestOrigin =
       input.run.requestSeq === input.run.initialRequestSeq
         ? (input.viewContext?.taskType ?? 'tool_loop')
@@ -779,6 +780,25 @@ export class DeepChatContextCoordinator {
     let manifestSummaryCursorOrderSeq = input.viewContext?.summaryCursorOrderSeq ?? 1
     let manifestSyntheticContributions = input.viewContext?.syntheticContributions
     const legacyRequestToolReserveTokens = input.budget.estimateToolReserveTokens(input.tools)
+    const compactNextToolResultStage = (
+      messages: ChatMessage[],
+      protectedToolCallIds: ReadonlySet<string>
+    ): ChatMessage[] => {
+      if (nextToolResultCompactionStage === 'complete') return messages
+
+      if (nextToolResultCompactionStage === 'preserve_latest') {
+        nextToolResultCompactionStage = 'include_latest'
+        const compacted = compactClosedToolResultsForContext(messages, protectedToolCallIds, {
+          preserveMostRecentClosedUnit: true
+        })
+        if (compacted !== messages) return compacted
+      }
+
+      nextToolResultCompactionStage = 'complete'
+      return compactClosedToolResultsForContext(messages, protectedToolCallIds, {
+        preserveMostRecentClosedUnit: false
+      })
+    }
 
     const prepareProviderRequest = async (options: {
       requestOrigin: DeepChatProviderRequestOrigin
@@ -891,19 +911,17 @@ export class DeepChatContextCoordinator {
             !input.run.providerRecovery.contextOverflowHandoffAttempted &&
             beginContextRecoverySequence(input.run)
           ) {
-            preflightContextRecoveryAttempted = true
             const protectedToolCallIds = new Set(
               input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
             )
-            const compactToolResults = (preserveMostRecentClosedUnit: boolean): void => {
+            const compactToolResults = (): void => {
               const pressureCandidate = this.withActiveTurnFrom(
                 input.requestMessages,
                 requestPreflight.messages
               )
-              const compactedToolResults = compactClosedToolResultsForContext(
+              const compactedToolResults = compactNextToolResultStage(
                 pressureCandidate,
-                protectedToolCallIds,
-                { preserveMostRecentClosedUnit }
+                protectedToolCallIds
               )
               if (compactedToolResults === pressureCandidate) return
               input.requestMessages.splice(0, input.requestMessages.length, ...compactedToolResults)
@@ -913,17 +931,18 @@ export class DeepChatContextCoordinator {
                 requestedMaxTokens
               })
             }
-            compactToolResults(true)
+            compactToolResults()
             if (
               requestPreflight.requiresContextPressureRecovery ||
               !requestPreflight.fitsWithinContext
             ) {
-              compactToolResults(false)
+              compactToolResults()
             }
             if (
               requestPreflight.requiresContextPressureRecovery ||
               !requestPreflight.fitsWithinContext
             ) {
+              preflightSemanticRecoveryAttempted = true
               const recovered = await input.recovery.recover({
                 requestMessages: this.withActiveTurnFrom(
                   input.requestMessages,
@@ -1166,26 +1185,17 @@ export class DeepChatContextCoordinator {
       const protectedToolCallIds = new Set(
         input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
       )
-      let compactedToolResults = compactClosedToolResultsForContext(
+      const compactedToolResults = compactNextToolResultStage(
         recoveryCandidate,
-        protectedToolCallIds,
-        { preserveMostRecentClosedUnit: !providerToolResultCompactionAttempted }
+        protectedToolCallIds
       )
-      if (compactedToolResults === recoveryCandidate && !providerToolResultCompactionAttempted) {
-        compactedToolResults = compactClosedToolResultsForContext(
-          recoveryCandidate,
-          protectedToolCallIds,
-          { preserveMostRecentClosedUnit: false }
-        )
-      }
       if (compactedToolResults !== recoveryCandidate) {
-        providerToolResultCompactionAttempted = true
         providerContextOverflowRecoveryApplied = true
         strictProviderOverflowRetryPending = false
         input.requestMessages.splice(0, input.requestMessages.length, ...compactedToolResults)
         return
       }
-      providerOverflowRecoveryAttempted = true
+      providerSemanticRecoveryAttempted = true
       const recovered = await input.recovery.recover({
         requestMessages: recoveryCandidate,
         requestedMaxTokens: providerMaxTokens,
@@ -1381,17 +1391,11 @@ export class DeepChatContextCoordinator {
                 retryDecision = 'output_committed'
               } else if (
                 input.run.providerRecovery.strictProviderOverflowRetryUsed ||
-                providerOverflowRecoveryAttempted
+                providerSemanticRecoveryAttempted
               ) {
                 retryDecision = 'context_recovery_exhausted'
                 contextRecoveryAction = 'fail'
-              } else if (providerToolResultCompactionAttempted) {
-                retryDecision = 'context_recovery_scheduled'
-                contextRecoveryAction = 'recover'
-              } else if (
-                preflightContextRecoveryAttempted ||
-                input.run.providerRecovery.contextOverflowHandoffAttempted
-              ) {
+              } else if (preflightSemanticRecoveryAttempted) {
                 if (strictProviderOverflowRetryPending) {
                   retryDecision = 'context_recovery_exhausted'
                   contextRecoveryAction = 'fail'

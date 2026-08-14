@@ -2098,6 +2098,113 @@ describe('DeepChatContextCoordinator', () => {
     expect(fixture.providerRequests[0].messages[4].content).toBe(latestOutput)
   })
 
+  it('continues preflight tool compaction after a provider overflow', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    const olderOutput = `older:${'x'.repeat(9000)}`
+    const latestOutput = `latest:${'y'.repeat(9000)}`
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'user', content: 'current input' },
+      ...createClosedToolUnit('call-older', 'inspect', olderOutput),
+      ...createClosedToolUnit('call-latest', 'write', latestOutput)
+    )
+    fixture.input.budget.preflight = vi.fn(({ messages, requestedMaxTokens }) => {
+      const olderCompacted = String(messages[2]?.content).startsWith(
+        '[Tool output compacted from provider View]'
+      )
+      return createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: olderCompacted ? requestedMaxTokens : 20,
+        requiresContextPressureRecovery: !olderCompacted,
+        fitsWithinContext: olderCompacted
+      })
+    })
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.providerRequests).toHaveLength(2)
+    expect(String(fixture.providerRequests[0].messages[2].content)).toContain(
+      '[Tool output compacted from provider View]'
+    )
+    expect(fixture.providerRequests[0].messages[4].content).toBe(latestOutput)
+    expect(String(fixture.providerRequests[1].messages[4].content)).toContain(
+      '[Tool output compacted from provider View]'
+    )
+    expect(fixture.providerRequests.map(({ maxTokens }) => maxTokens)).toEqual([100, 100])
+    expect(fixture.input.recovery.recover).not.toHaveBeenCalled()
+  })
+
+  it('uses semantic recovery after preflight exhausts tool compaction', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [{ type: 'error', error_message: 'context overflow' }],
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    const optionalHistory: ChatMessage = { role: 'assistant', content: 'optional history' }
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      optionalHistory,
+      { role: 'user', content: 'current input' },
+      ...createClosedToolUnit('call-older', 'inspect', 'x'.repeat(9000)),
+      ...createClosedToolUnit('call-latest', 'write', 'y'.repeat(9000))
+    )
+    fixture.input.budget.preflight = vi.fn(({ messages, requestedMaxTokens }) => {
+      const toolMessages = messages.filter((message) => message.role === 'tool')
+      const allCompacted =
+        toolMessages.length === 2 &&
+        toolMessages.every((message) =>
+          String(message.content).startsWith('[Tool output compacted from provider View]')
+        )
+      return createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: allCompacted ? requestedMaxTokens : 20,
+        requiresContextPressureRecovery: !allCompacted,
+        fitsWithinContext: allCompacted
+      })
+    })
+    fixture.input.recovery.recover = vi.fn(async ({ requestMessages }) => ({
+      messages: requestMessages.slice(1),
+      summaryCursorOrderSeq: 5
+    }))
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+
+    expect(fixture.providerRequests).toHaveLength(2)
+    expect(
+      [3, 5].every((index) =>
+        String(fixture.providerRequests[0].messages[index]?.content).startsWith(
+          '[Tool output compacted from provider View]'
+        )
+      )
+    ).toBe(true)
+    expect(fixture.input.recovery.recover).toHaveBeenCalledOnce()
+    expect(fixture.providerRequests[1].messages).not.toContain(optionalHistory)
+  })
+
   it('retries a provider overflow with model-free tool-result compaction first', async () => {
     const fixture = createAttemptInput({
       providerEvents: [
