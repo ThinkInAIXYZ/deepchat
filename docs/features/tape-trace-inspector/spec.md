@@ -2,8 +2,8 @@
 
 ## Status
 
-Approved for implementation. This specification is the normative contract for the session-level
-Tape Trace Inspector requested by [#2154](https://github.com/ThinkInAIXYZ/deepchat/issues/2154).
+Implemented. This specification is the normative contract for the session-level Tape Trace
+Inspector requested by [#2154](https://github.com/ThinkInAIXYZ/deepchat/issues/2154).
 
 ## Problem
 
@@ -35,7 +35,8 @@ rows, or treat its grouping and status projections as durable state.
 ## Goals
 
 - Open a session-level inspector from the active session header.
-- Open the same inspector from a message with its message/request selection applied.
+- Open the same inspector from a message with its authoritative message/request selection applied
+  without guessing a request identity.
 - Present every committed Tape row in canonical `entryId` order.
 - Correlate runs, provider attempts, tool operations, views, contracts, and trace evidence through
   authoritative identities.
@@ -436,9 +437,10 @@ sanitized raw representation rather than the unfiltered database JSON.
 | Context/Skill | Hash and approved references only |
 | Unknown/no-message fact | Identity, provenance, hash, size, and timestamp only |
 
-The detail pane exposes Summary, Payload, Timing, Provenance, Integrity, and Raw tabs only when the
-selected capability supports them. Empty states state why content is unavailable rather than
-silently omitting a selected row.
+The detail pane exposes Summary, Payload, Timing, Provenance, Integrity, and sanitized Raw sections
+only when the selected capability supports them. Selections carrying a `messageId` can open the
+existing message diagnostics, preserving an authoritative `requestSeq` when one is present. Empty
+states state why content is unavailable rather than silently omitting a selected row.
 
 ## Support Export Contract
 
@@ -556,16 +558,20 @@ After:
 +------------------------------------------------------------------------+
 ```
 
-P1 provides a full-height in-session panel, sticky headers, keyboard navigation, fixed columns, and
-sequence plus available-actual waterfall rendering. P3 adds column resizing, horizontal pan/zoom,
-range brushing, and timing tooltips.
+The implementation provides a full-height in-session panel, sticky headers, keyboard navigation,
+resizable columns, sequence plus available-actual waterfall rendering, horizontal pan/zoom, range
+brushing, and timing tooltips.
 
 All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points.
 
 ## Entry Points and ACP
 
 - The active session header opens the whole-session Inspector.
-- The message toolbar opens it with `messageId/requestSeq` filters and a stable preselection.
+- The message toolbar always scopes the Inspector to the authoritative `messageId` available on the
+  action. If an authoritative `requestSeq` is also supplied, that request is selected exactly. If
+  it is absent and the loaded message scope contains exactly one request group, that group is
+  selected. Multiple request groups remain visibly unselected so the user can choose; the
+  Inspector never guesses latest/max from timing or provider-round metadata.
 - The existing Trace dialog remains available during migration.
 - ACP sessions may have a nearly empty Tape spine; this is expected.
 - Session trace evidence that cannot bind to a current Tape group remains available through the
@@ -631,10 +637,17 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
 22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
 23. Live evidence refresh uses its own bounded newer cursor and active-panel lifecycle.
+24. Group keys include the Tape incarnation, and run/request bridges are independent of page load
+    order.
+25. Explicit request selection and diagnostics never fall back to another request when evidence is
+    absent.
+26. Message-only preselection selects a request only when the visible identity is unambiguous.
 
 ## Acceptance Criteria
 
-- The Inspector opens for a session and from a message with the requested message/request selected.
+- The Inspector opens for a session and from a message with the message scope selected. A request is
+  preselected only when its authoritative `requestSeq` is supplied or the message has one request
+  group.
 - Every committed Tape kind, nullable name, and unknown fact remains represented exactly once.
 - Tape facts, execution journal facts, provider attempts, view facts, and request evidence appear in
   one correlated view when available.
@@ -653,5 +666,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 
 ## Open Questions
 
-None for P1. P2 and P3 implementation details may be refined only within the resolved decisions and
-acceptance criteria above.
+None in the Inspector architecture.
+
+The current message action owns a `messageId` but no authoritative `requestSeq`. Closing #2154 must
+either accept message-scoped, no-guess behavior for messages with multiple request groups or first
+add an authoritative request identity to that upstream action. This is an acceptance-scope choice,
+not permission for the Inspector to infer identity.

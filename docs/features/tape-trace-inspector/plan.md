@@ -2,10 +2,10 @@
 
 ## Status
 
-Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes,
-renderer projection store, historical panel, gated entry points, and committed-head following are
-complete. P2 and P3 timeline navigation, sanitized export, and large-session regression closure are
-complete; whole-change review and final validation are next.
+Implementation is complete on `feat/tape-trace-inspector`. The P1 read model and UI, P2 committed
+follow, and P3 timeline, export, and large-session work have landed. Whole-change review and
+automated final validation are complete. A manual desktop presentation pass and the documented
+multi-request message-entry acceptance decision remain before closing #2154.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -104,7 +104,8 @@ from timestamps or adjacency.
   tail cursor; automatic follow remains a P2 watcher responsibility.
 - [x] Add the active-session header entry point behind `traceDebugEnabled`.
 - [x] Add the message toolbar Inspector entry point with message/request preselection while retaining
-  the existing Trace dialog action.
+  the existing Trace dialog action. Message-only actions select a request only when the identity is
+  unambiguous; an explicit `requestSeq` is never guessed or replaced.
 - [x] Add vue-i18n copy for every supported locale.
 - [x] Provide explicit sparse-Tape and unbound-evidence states for ACP sessions.
 
@@ -113,11 +114,11 @@ virtualized.
 
 ## 7. P1 Contract Verification
 
-- [ ] Add the smallest durable projection tests covering every physical kind, nullable/unknown
+- [x] Add the smallest durable projection tests covering every physical kind, nullable/unknown
   names, `other` fallback, `N -> N` totality, and context/Skill body withholding.
-- [ ] Add page contract tests for tail/older/newer boundaries, filtered empty pages, last-scanned
+- [x] Add page contract tests for tail/older/newer boundaries, filtered empty pages, last-scanned
   cursors, snapshot consistency, and incarnation mismatch.
-- [ ] Add detail disclosure tests for allowlist order, unknown fail-closed behavior, and stored-string
+- [x] Add detail disclosure tests for allowlist order, unknown fail-closed behavior, and stored-string
   hashes.
 - [x] Add renderer model tests for equal timestamps, retries, nested identities, legacy evidence,
   delayed endpoint pairing, reset, prepend anchoring, and stale response rejection.
@@ -162,34 +163,53 @@ payloads.
 - [x] Add bounded session-level sanitized support export composition.
 - [x] Add a representative high-entry-count fixture and responsive query/render regression.
 
-Completion condition: every remaining #2154 acceptance criterion is implemented or the issue text
-has been explicitly updated to an agreed narrower contract.
+Completion condition: every remaining implementation criterion is complete within the no-inference
+contract. Issue closure additionally requires the multi-request message-entry acceptance decision
+recorded in `spec.md`.
 
 ## 11. Whole-change Review
 
-- [ ] Compare the implementation against every invariant and acceptance criterion in `spec.md`.
-- [ ] Verify no new authority, table, write action, raw payload path, or timestamp identity exists.
-- [ ] Review all unknown-schema and malformed-data paths for fail-closed behavior.
-- [ ] Review query plans, scan budgets, watcher lifecycle, renderer memory growth, and subscription
+- [x] Compare the implementation against every invariant and acceptance criterion in `spec.md`.
+- [x] Verify no new authority, table, write action, raw payload path, or timestamp identity exists.
+- [x] Review all unknown-schema and malformed-data paths for fail-closed behavior.
+- [x] Review query plans, scan budgets, watcher lifecycle, renderer memory growth, and subscription
   cleanup.
-- [ ] Review route and event naming for accurate authority and scope.
-- [ ] Remove obsolete implementation code and temporary probes created during development.
+- [x] Review route and event naming for accurate authority and scope.
+- [x] Remove obsolete implementation code and temporary probes created during development.
 
 ## 12. Final Validation
 
-- [ ] Run the smallest relevant main and renderer suites after each slice.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run focused Tape, session route/query, renderer model, and component suites.
+- [x] Run the smallest relevant main and renderer suites after each slice.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run focused Tape, session route/query, renderer model, and component suites.
 - [ ] Manually verify light/dark presentation, keyboard navigation, session/message entry points,
   legacy/unbound evidence, sparse ACP Tape, reset, pause/resume, and large-session scrolling.
 
 Completion condition: all selected checks pass, or any unrelated pre-existing failure is recorded
 with evidence before handoff.
 
-## Commit Slices
+Automated final validation passed with 161 focused main-process tests and 249 focused renderer
+tests. The main-process migration suite emitted its existing ignored duplicate-column diagnostics;
+all selected tests still passed. The remaining manual presentation pass requires an interactive
+desktop session and does not change the read, identity, or security contracts above.
+
+## Delivery Notes
+
+- Legacy evidence remains request-scoped when `physicalAttempt` is null; null is never treated as
+  zero.
+- Group identities include the Tape incarnation, and run/request bridges remain stable regardless
+  of pagination traversal order.
+- Pause and resume preserve the durable Tape cursor and the independent evidence cursor;
+  evidence-only appends follow without advancing Tape.
+- The detail pane exposes correlation, timing, sanitized Raw data, and the existing message
+  diagnostics. Explicit request diagnostics never fall back to a different request.
+- Message toolbar actions currently provide only `messageId`. A single request group can be selected
+  unambiguously; multiple request groups remain for explicit user selection rather than guessing.
+
+## Original Commit Plan
 
 1. `docs(tape): specify trace inspector`
 2. `feat(tape): add inspector read model`
