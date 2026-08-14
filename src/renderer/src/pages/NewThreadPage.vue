@@ -1028,6 +1028,7 @@ async function submitText(
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
   const draftOrchestrationPolicy = draftStore.orchestrationPolicy
+  const draftToolModeOverride = draftStore.toolModeOverride
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
@@ -1090,6 +1091,7 @@ async function submitText(
       permissionMode: draftPermissionMode,
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
       orchestrationPolicy: isAcp ? DEFAULT_ORCHESTRATION_POLICY : draftOrchestrationPolicy,
+      toolModeOverride: isAcp ? undefined : draftToolModeOverride,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
     }

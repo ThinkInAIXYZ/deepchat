@@ -5,6 +5,8 @@
       "title": "מעטפת הפקודות של הסוכן",
       "auto": "אוטומטי",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "קובץ ההפעלה של Git Bash",
       "autoDetect": "זיהוי אוטומטי",

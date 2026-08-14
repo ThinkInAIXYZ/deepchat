@@ -587,9 +587,9 @@ describe('CommandShellService', () => {
     })
   })
 
-  it('wraps the current non-Windows shell without applying Windows preferences', async () => {
+  it('wraps the current non-Windows shell for Auto', async () => {
     const { service, runCommand } = createHarness({
-      config: { preference: 'git-bash' },
+      config: { preference: 'auto' },
       platform: 'darwin',
       resolvePosixShell: () => ({ shell: '/opt/homebrew/bin/fish', args: ['-c'] })
     })
@@ -607,6 +607,53 @@ describe('CommandShellService', () => {
     expect(Object.isFrozen(resolved)).toBe(true)
     expect(Object.isFrozen(resolved.args)).toBe(true)
     expect(runCommand).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['bash', '/bin/bash', 'Bash'],
+    ['zsh', '/bin/zsh', 'Zsh'],
+    ['fish', '/bin/fish', 'Fish']
+  ] as const)(
+    'resolves an explicit %s profile on POSIX platforms',
+    async (preference, executable, displayName) => {
+      const { service, runCommand } = createHarness({
+        config: { preference },
+        platform: 'linux',
+        files: { [executable]: fileStat() },
+        resolvePosixShell: () => ({ shell: '/bin/sh', args: ['-c'] })
+      })
+
+      await expect(service.resolveForTurn()).resolves.toEqual({
+        profile: preference,
+        dialect: 'posix',
+        pathStyle: 'native',
+        executable,
+        args: ['-c'],
+        displayName
+      })
+      expect(runCommand).not.toHaveBeenCalled()
+    }
+  )
+
+  it('validates PowerShell 7 once and keeps Command Prompt probe-free', async () => {
+    const powershell = createHarness({
+      config: { preference: 'powershell-core' },
+      runCommand: async () => ({ stdout: 'deepchat-pwsh:7.5.2', stderr: '' })
+    })
+    const cmd = createHarness({ config: { preference: 'cmd' } })
+
+    await expect(powershell.service.resolveForTurn()).resolves.toMatchObject({
+      profile: 'powershell-core',
+      executable: 'pwsh.exe',
+      displayName: 'PowerShell 7'
+    })
+    await powershell.service.resolveForTurn()
+    expect(powershell.runCommand).toHaveBeenCalledOnce()
+    await expect(cmd.service.resolveForTurn()).resolves.toMatchObject({
+      profile: 'cmd',
+      executable: 'cmd.exe'
+    })
+    expect(cmd.runCommand).not.toHaveBeenCalled()
   })
 })
 

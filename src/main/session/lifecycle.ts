@@ -35,6 +35,7 @@ import {
   normalizeOrchestrationPolicy
 } from '@shared/orchestration/policy'
 import type { SessionDeletionGatePort } from './deletionGate'
+import { normalizeToolModeOverride } from '@shared/toolMode'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -111,7 +112,11 @@ export class SessionLifecycle implements SessionLifecyclePort {
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
-      orchestrationPolicy
+      orchestrationPolicy,
+      toolModeOverride:
+        assignment.agentType === 'deepchat'
+          ? normalizeToolModeOverride(input.toolModeOverride)
+          : null
     })
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
@@ -154,6 +159,10 @@ export class SessionLifecycle implements SessionLifecyclePort {
         parentSessionId: null,
         subagentMeta: null,
         orchestrationPolicy,
+        toolModeOverride:
+          assignment.agentType === 'deepchat'
+            ? normalizeToolModeOverride(input.toolModeOverride)
+            : null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         status: state?.status ?? 'idle',
@@ -219,6 +228,10 @@ export class SessionLifecycle implements SessionLifecyclePort {
       isDraft: false,
       disabledAgentTools,
       orchestrationPolicy,
+      toolModeOverride:
+        assignment.agentType === 'deepchat'
+          ? normalizeToolModeOverride(input.toolModeOverride)
+          : null,
       metadata: input.metadata ?? null
     })
     try {
@@ -252,6 +265,10 @@ export class SessionLifecycle implements SessionLifecyclePort {
       parentSessionId: null,
       subagentMeta: null,
       orchestrationPolicy,
+      toolModeOverride:
+        assignment.agentType === 'deepchat'
+          ? normalizeToolModeOverride(input.toolModeOverride)
+          : null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -475,7 +492,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       {
         isDraft: false,
         disabledAgentTools,
-        orchestrationPolicy: sourceSession.orchestrationPolicy
+        orchestrationPolicy: sourceSession.orchestrationPolicy,
+        toolModeOverride: sourceSession.toolModeOverride
       }
     )
 

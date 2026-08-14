@@ -16,6 +16,7 @@ import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -62,6 +63,7 @@ export class AppSessionService implements AppSessionReadPort {
       isDraft?: boolean
       disabledAgentTools?: string[]
       orchestrationPolicy?: OrchestrationPolicy
+      toolModeOverride?: ToolModeOverride
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -73,6 +75,7 @@ export class AppSessionService implements AppSessionReadPort {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
       orchestrationPolicy: options?.orchestrationPolicy,
+      toolModeOverride: options?.toolModeOverride,
       sessionKind: options?.sessionKind,
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
@@ -155,6 +158,7 @@ export class AppSessionService implements AppSessionReadPort {
         | 'parentSessionId'
         | 'subagentMeta'
         | 'orchestrationPolicy'
+        | 'toolModeOverride'
       >
     >
   ): void {
@@ -174,6 +178,7 @@ export class AppSessionService implements AppSessionReadPort {
       parent_session_id?: string | null
       subagent_meta_json?: string | null
       orchestration_policy?: OrchestrationPolicy
+      tool_mode_override?: ToolModeOverride
     } = {}
     if (fields.title !== undefined) dbFields.title = fields.title
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
@@ -188,6 +193,9 @@ export class AppSessionService implements AppSessionReadPort {
     }
     if (fields.orchestrationPolicy !== undefined) {
       dbFields.orchestration_policy = normalizeOrchestrationPolicy(fields.orchestrationPolicy)
+    }
+    if (fields.toolModeOverride !== undefined) {
+      dbFields.tool_mode_override = normalizeToolModeOverride(fields.toolModeOverride)
     }
     this.sessionDatabase.newSessionsTable.update(id, dbFields)
     if (fields.title !== undefined) {
@@ -235,6 +243,12 @@ export class AppSessionService implements AppSessionReadPort {
     this.notifyEnvironmentProjectionChanged()
   }
 
+  updateToolModeOverride(id: string, override: ToolModeOverride): void {
+    this.sessionDatabase.newSessionsTable.updateToolModeOverride(id, override)
+    this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+    this.notifyEnvironmentProjectionChanged()
+  }
+
   updateAgentId(id: string, agentId: string): void {
     const current = this.sessionDatabase.newSessionsTable.get(id)
     if (!current || current.agent_id === agentId) {
@@ -257,6 +271,7 @@ export class AppSessionService implements AppSessionReadPort {
     parent_session_id: string | null
     subagent_meta_json: string | null
     orchestration_policy: string
+    tool_mode_override: unknown
     created_at: number
     updated_at: number
     revision: number
@@ -273,6 +288,7 @@ export class AppSessionService implements AppSessionReadPort {
       parentSessionId: row.parent_session_id ?? null,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
       orchestrationPolicy: normalizeOrchestrationPolicy(row.orchestration_policy),
+      toolModeOverride: normalizeToolModeOverride(row.tool_mode_override),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       revision: row.revision,

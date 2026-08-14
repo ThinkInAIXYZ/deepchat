@@ -5,6 +5,8 @@
       "title": "پوستهٔ فرمان عامل",
       "auto": "خودکار",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "فایل اجرایی Git Bash",
       "autoDetect": "تشخیص خودکار",

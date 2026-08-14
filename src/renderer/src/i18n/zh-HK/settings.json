@@ -5,6 +5,8 @@
       "title": "Agent 命令 Shell",
       "auto": "自動",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "命令提示字元",
       "gitBash": "Git Bash",
       "executable": "Git Bash 可執行檔",
       "autoDetect": "自動偵測",

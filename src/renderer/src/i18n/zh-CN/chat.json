@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "模式",
+      "modelDefault": "模型默认",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "使用标准 Agent 工具集。",
+        "code": "通过代码编排当前启用的工具。",
+        "minimal": "仅使用命令和文件编辑工具。"
+      },
+      "useModelDefault": "使用模型默认",
+      "saving": "正在保存模式...",
+      "locked": "本次回复结束后可切换模式。",
+      "updateFailed": "无法更新工具模式。",
+      "codeEntry": "代码入口",
+      "codeCallable": "Code 可调用",
+      "minimalTools": "编码工具"
+    },
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
     "fileUploadFailedMore": " 等 {count} 个",

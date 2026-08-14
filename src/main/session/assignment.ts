@@ -29,6 +29,7 @@ import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -324,6 +325,34 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     }
     this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
     return updated
+  }
+
+  async setSessionToolMode(
+    sessionId: string,
+    override: ToolModeOverride
+  ): Promise<SessionWithState> {
+    return await this.runWithSessionOperationGate(sessionId, async () => {
+      this.requireSession(sessionId)
+      const { handle } = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      if (handle.kind !== 'deepchat') {
+        throw new Error('Tool mode is only available for DeepChat sessions.')
+      }
+      const state = await handle.snapshot()
+      if (state?.status === 'generating') {
+        throw new Error('Tool mode cannot be changed while a turn is running.')
+      }
+
+      this.dependencies.sessions.updateToolModeOverride(
+        sessionId,
+        normalizeToolModeOverride(override)
+      )
+      const materialized = await this.dependencies.projection.materialize(sessionId)
+      if (!materialized) {
+        throw new Error(`Failed to build session state after tool mode update: ${sessionId}`)
+      }
+      this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+      return materialized
+    })
   }
 
   async setSessionProjectDir(

@@ -251,4 +251,35 @@ describe('AgentFileSystemHandler path authorization', () => {
     expect(handler.isPathAllowedAbsolute('/workspace/Project/src/file.ts')).toBe(true)
     expect(handler.isPathAllowedAbsolute('/workspace/project/src/file.ts')).toBe(false)
   })
+
+  it('allows create targets below missing directories inside the allowed root', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-create-'))
+    try {
+      const handler = new AgentFileSystemHandler([root])
+      const target = path.join(root, 'new', 'nested', 'file.ts')
+
+      await expect(handler.resolveValidatedCreatePath(target)).resolves.toBe(target)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'rejects create targets whose existing ancestor escapes through a symlink',
+    async () => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-create-root-'))
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-create-outside-'))
+      try {
+        await fs.symlink(outside, path.join(root, 'linked'))
+        const handler = new AgentFileSystemHandler([root])
+
+        await expect(
+          handler.resolveValidatedCreatePath(path.join(root, 'linked', 'nested', 'file.ts'))
+        ).rejects.toThrow('Access denied - symlink target outside allowed directories')
+      } finally {
+        await fs.rm(root, { recursive: true, force: true })
+        await fs.rm(outside, { recursive: true, force: true })
+      }
+    }
+  )
 })

@@ -14,6 +14,7 @@ import {
   normalizeModelIdText
 } from '@shared/modelId'
 import { isKimiK3ModelId } from '@shared/modelRequestPolicy'
+import type { ToolMode } from '@shared/toolMode'
 
 export type ThinkingBudgetRange = {
   min?: number
@@ -49,6 +50,7 @@ export type CapabilityModelMatch = {
 
 export type CatalogCapabilitySnapshot = {
   modelMatched: boolean
+  defaultToolMode?: ToolMode
   reasoningPortrait: ReasoningPortrait | null
   supportsReasoning: boolean
   thinkingBudgetRange: ThinkingBudgetRange
@@ -71,6 +73,24 @@ const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['minimal', 'low', '
 const BINARY_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['low', 'high']
 const KIMI_K3_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['low', 'high', 'max']
 const DEFAULT_VERBOSITY_OPTIONS: Verbosity[] = ['low', 'medium', 'high']
+const OPENAI_CODE_MODE_MODEL_IDS = new Set([
+  'gpt-5.6',
+  'gpt-5.6-luna',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra'
+])
+
+function resolveCatalogDefaultToolMode(
+  providerId: string,
+  modelId: string,
+  model: ProviderModel | undefined
+): ToolMode | undefined {
+  if (model?.default_tool_mode) return model.default_tool_mode
+  if (model?.tool_call !== true) return undefined
+  if (providerId === 'deepseek') return 'code'
+  if (providerId === 'openai' && OPENAI_CODE_MODE_MODEL_IDS.has(modelId)) return 'code'
+  return undefined
+}
 
 const normalizeCapabilityProviderId = (providerId: string): string => {
   return resolveProviderIdAlias(providerId.toLowerCase())?.toLowerCase() ?? providerId.toLowerCase()
@@ -799,9 +819,15 @@ export class ModelCapabilities {
     if (typeof reasoningPortrait?.budget?.max === 'number') {
       thinkingBudgetRange.max = reasoningPortrait.budget.max
     }
+    const defaultToolMode = resolveCatalogDefaultToolMode(
+      resolvedProviderId,
+      resolvedModelId,
+      model
+    )
 
     return {
       modelMatched: Boolean(model),
+      ...(defaultToolMode ? { defaultToolMode } : {}),
       reasoningPortrait: reasoningPortrait ? clonePortrait(reasoningPortrait) : null,
       supportsReasoning: reasoningPortrait?.supported === true,
       thinkingBudgetRange,

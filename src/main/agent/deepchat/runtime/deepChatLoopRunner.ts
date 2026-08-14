@@ -29,6 +29,7 @@ import { nanoid } from 'nanoid'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedToolMode } from '@shared/toolMode'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
@@ -222,6 +223,7 @@ export type DeepChatLoopRunInput = {
   taskContractContext: DeepChatTaskContractContext | null
   tools?: MCPToolDefinition[]
   toolCatalogSnapshot?: DeepChatToolCatalogSnapshot
+  toolMode?: ResolvedToolMode
   commandShell: ResolvedCommandShell
   baseSystemPrompt?: string
   basePromptAssembly?: DeepChatPromptAssembly
@@ -454,6 +456,7 @@ export class DeepChatLoopRunner {
       taskContractContext,
       tools: providedTools,
       toolCatalogSnapshot: providedToolCatalogSnapshot,
+      toolMode: providedToolMode,
       commandShell,
       baseSystemPrompt,
       basePromptAssembly,
@@ -516,6 +519,12 @@ export class DeepChatLoopRunner {
     )
     const baseModelConfig = providerModelFacts.modelConfig
     const capabilitySnapshot = providerModelFacts.capabilitySnapshot
+    const toolMode =
+      providedToolMode ??
+      this.ports.toolResolver.resolveToolMode(
+        sessionId,
+        capabilitySnapshot.defaultToolMode
+      )
     const interleavedReasoning =
       providedInterleavedReasoning ??
       resolveInterleavedReasoningConfig(
@@ -653,7 +662,18 @@ export class DeepChatLoopRunner {
     const toolCatalog = {
       resolve: async (request?: { activeSkillNames?: string[]; failClosed?: boolean }) => {
         const resolved = await unconstrainedToolCatalog.resolve(request)
-        return meetTaskContractToolDefinitions(sessionId, resolved, taskContractContext)
+        const executionCatalog = meetTaskContractToolDefinitions(
+          sessionId,
+          resolved,
+          taskContractContext
+        )
+        return this.ports.toolResolver.configureToolMode({
+          conversationId: sessionId,
+          mode: toolMode.mode,
+          providerId: state.providerId,
+          commandShell,
+          executionCatalog
+        })
       }
     }
     const tools =
@@ -686,7 +706,8 @@ export class DeepChatLoopRunner {
         toolDefinitions: tools,
         activeSkillNames: [...catalogActiveSkillNames],
         promptAssembly: initialPromptAssembly,
-        commandShell
+        commandShell,
+        toolMode
       },
       initialRequestSeq
     })

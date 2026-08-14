@@ -5,6 +5,8 @@
       "title": "Agent のコマンドシェル",
       "auto": "自動",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Git Bash の実行ファイル",
       "autoDetect": "自動検出",

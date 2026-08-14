@@ -5,6 +5,8 @@
       "title": "Agent 명령 셸",
       "auto": "자동",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Git Bash 실행 파일",
       "autoDetect": "자동 감지",

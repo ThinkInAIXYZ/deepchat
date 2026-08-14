@@ -13,6 +13,7 @@ import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '..
 import type { AgentPlanSnapshot } from '../agent-plan'
 import type { DeepChatExecutionContract } from './execution-contract'
 import type { CommandShellProfile, ResolvedCommandShell } from '../commandShell'
+import type { ToolMode } from '../toolMode'
 
 export type AgentToolProgressUpdate =
   | {
@@ -40,6 +41,14 @@ export interface ToolDefinitionContext {
   sessionKind?: SessionKind
   activeSkillNames?: string[]
   subagentCapability?: DeepChatSubagentCapability
+}
+
+export interface ToolModeConfiguration {
+  conversationId: string
+  mode: ToolMode
+  providerId: string
+  commandShell: ResolvedCommandShell
+  executionCatalog: readonly MCPToolDefinition[]
 }
 
 export interface ToolCallOptions {
@@ -143,6 +152,10 @@ export interface ToolServicePort {
    * Reset only the per-turn agent plan state for a conversation.
    */
   clearAgentPlanState(conversationId: string): void
+
+  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[]
+
+  shutdownCodeRuntime(): Promise<void>
 
   /**
    * Build system prompt section for tool-related behavior.

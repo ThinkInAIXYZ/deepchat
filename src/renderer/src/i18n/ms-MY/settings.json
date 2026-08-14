@@ -5,6 +5,8 @@
       "title": "Shell perintah Agent",
       "auto": "Automatik",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Fail boleh laku Git Bash",
       "autoDetect": "Kesan secara automatik",

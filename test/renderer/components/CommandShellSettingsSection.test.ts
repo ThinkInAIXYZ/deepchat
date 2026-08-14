@@ -146,10 +146,26 @@ async function setup(options: {
 }
 
 describe('CommandShellSettingsSection', () => {
-  it('does not expose Windows command shell controls on other platforms', async () => {
+  it('offers native POSIX shell choices without Windows-only profiles', async () => {
     const { wrapper, settingsClient } = await setup({ platform: 'darwin' })
 
-    expect(wrapper.find('[data-testid="command-shell-settings"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="command-shell-settings"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-value]').map((item) => item.attributes('data-value'))).toEqual([
+      'auto',
+      'bash',
+      'zsh',
+      'fish'
+    ])
+    expect(settingsClient.checkCommandShell).not.toHaveBeenCalled()
+  })
+
+  it('persists an explicit POSIX shell selection', async () => {
+    const { wrapper, settingsClient } = await setup({ platform: 'linux' })
+
+    await wrapper.get('[data-value="fish"]').trigger('click')
+    await flushPromises()
+
+    expect(settingsClient.updateCommandShell).toHaveBeenCalledWith({ preference: 'fish' })
     expect(settingsClient.checkCommandShell).not.toHaveBeenCalled()
   })
 

@@ -144,9 +144,17 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;',
       orchestration_policy:
         "ALTER TABLE new_sessions ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'));",
+      tool_mode_override:
+        "ALTER TABLE new_sessions ADD COLUMN tool_mode_override TEXT CHECK (tool_mode_override IS NULL OR tool_mode_override IN ('agent', 'code', 'minimal'));",
       revision: 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
     },
-    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'orchestration_policy', 'revision']
+    typeCheckedColumns: [
+      'subagent_enabled',
+      'session_kind',
+      'orchestration_policy',
+      'tool_mode_override',
+      'revision'
+    ]
   },
   {
     name: 'new_projects',

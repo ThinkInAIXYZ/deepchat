@@ -10,6 +10,7 @@ import type {
   DeepChatTapeSkillMaterializationRef
 } from '@shared/types/tape-view-manifest'
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedToolMode } from '@shared/toolMode'
 import {
   hashSkillEffectiveContent,
   type TapeSkillIdentity
@@ -44,6 +45,7 @@ export interface LoopRunResources {
   activeSkillNames: string[]
   promptAssembly?: DeepChatPromptAssembly
   commandShell: ResolvedCommandShell
+  readonly toolMode: Readonly<ResolvedToolMode>
   tapeIncarnationId?: string
   materializedSkillContexts: MaterializedSkillContextBinding[]
   runtimeSkillContexts: RuntimeSkillContextBinding[]
@@ -95,6 +97,7 @@ export interface CreateLoopRunInput<TStreamState> {
     activeSkillNames: readonly string[]
     promptAssembly?: DeepChatPromptAssembly
     commandShell: ResolvedCommandShell
+    toolMode: ResolvedToolMode
   }
   initialRequestSeq?: number
   initialLogicalRound?: number
@@ -114,6 +117,7 @@ export function createLoopRun<TStreamState>(
     ...parsedCommandShell,
     args: Object.freeze([...parsedCommandShell.args])
   }) as ResolvedCommandShell
+  const toolMode = Object.freeze({ ...input.resources.toolMode })
   return {
     runId: input.runId,
     sessionId: input.sessionId,
@@ -131,6 +135,7 @@ export function createLoopRun<TStreamState>(
       activeSkillNames: [...input.resources.activeSkillNames],
       ...(input.resources.promptAssembly ? { promptAssembly: input.resources.promptAssembly } : {}),
       commandShell,
+      toolMode,
       materializedSkillContexts: [],
       runtimeSkillContexts: []
     },

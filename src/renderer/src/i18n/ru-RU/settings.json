@@ -5,6 +5,8 @@
       "title": "Командная оболочка агента",
       "auto": "Авто",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Исполняемый файл Git Bash",
       "autoDetect": "Определять автоматически",

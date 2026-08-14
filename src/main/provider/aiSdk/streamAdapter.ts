@@ -238,7 +238,8 @@ export async function* adaptAiSdkStream(
           break
         }
         if (!endedToolCalls.has(part.toolCallId)) {
-          const serializedInput = JSON.stringify(part.input ?? {})
+          const serializedInput =
+            typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {})
           const providerOptions = toProviderOptions((part as any).providerMetadata)
           yield createStreamEvent.toolCallStart(
             part.toolCallId,

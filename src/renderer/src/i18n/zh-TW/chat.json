@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "模式",
+      "modelDefault": "模型預設",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "使用標準 Agent 工具集。",
+        "code": "透過程式碼編排目前啟用的工具。",
+        "minimal": "僅使用命令與檔案編輯工具。"
+      },
+      "useModelDefault": "使用模型預設",
+      "saving": "正在儲存模式...",
+      "locked": "本次回覆結束後可切換模式。",
+      "updateFailed": "無法更新工具模式。",
+      "codeEntry": "程式碼入口",
+      "codeCallable": "Code 可呼叫",
+      "minimalTools": "編碼工具"
+    },
     "fileUploadFailed": "附件處理失敗",
     "fileUploadFailedDesc": "無法處理 {count} 個檔案：{names}",
     "fileUploadFailedMore": " 等 {count} 個",

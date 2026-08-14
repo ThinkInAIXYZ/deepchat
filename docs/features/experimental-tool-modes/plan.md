@@ -1,320 +1,216 @@
 # 实验性工具模式实施方案
 
-## 状态
+状态：实现与自动化验证已完成。
 
-调研与架构设计已完成，尚未开始实施。
+## 实施范围
 
-## 目标
+本功能只增加一个 `ToolMode = agent | code | minimal`，入口只位于现有高级配置 Popover。
+实现继续使用现有 session、model capability、ToolService、AgentToolManager、permission、Shell
+和 Provider adapter 所有权，不建立第二套 registry 或设置系统。
 
-实现一个单一 `ToolMode = agent | code | minimal` 会话配置，并把唯一入口放进现有高级配置
-Popover。模式选择直接驱动下方工具区域与 LoopRun 工具方案，不增加第二组配置、footer chip、
-Agent 设置页或新工具 registry。
-
-## 现有所有权
+## 最终数据流
 
 ```text
-McpIndicator.vue
-  -> advanced settings popover
-  -> grouped Agent tools / disabledAgentTools
-
-ChatStatusBar.vue
-  -> generation settings
-  -> permission mode
-
-draftStore / NewThreadPage
-  -> first-message draft
-  -> session create input
-
-TurnCoordinator
-  -> resolveForTurn(command shell)
-  -> prompt + provider request
-  -> LoopRun
-
-AgentToolManager / ToolService
-  -> executable tool catalog
-  -> permission + dispatch + output guard + journal
+draft/session toolModeOverride
+          + model capability default
+          + current enabled tools
+          + ResolvedCommandShell
+                     |
+                     v
+              TurnCoordinator
+                     |
+          +----------+-----------+
+          |          |           |
+        Agent       Code       Minimal
+          |          |           |
+   direct tools   wrapper    two direct tools
+                     |
+             RunCodeRuntimeManager
+                     |
+          utilityProcess per code cell
+                     |
+          opaque nested-call IPC
+                     |
+                ToolService
+                     |
+       existing authority / permission / handlers
 ```
 
-新功能必须进入这些 owner，不另建平行设置系统或执行通道。现有
-`ChatMode = 'agent' | 'acp agent'` 继续只选择 backend；ToolMode 只属于 DeepChat Agent。
+## 已完成切片
 
-## 工程约束
+### 1. ToolMode 契约、默认值与持久化
 
-- 一个共享枚举、一个 nullable session 字段、一个 resolver、一个高级配置控件。
-- Agent Mode 是现有行为的兼容基线。
-- Code Mode 保留当前 enabled catalog，只改变 Provider presentation。
-- Minimal Mode 使用严格双工具目录，不保留 MCP 或其他 Agent 工具。
-- 内部 Code 协议只叫 `run_code`，不增加 `transport` 字段。
-- 命令工具始终叫 `exec`，Shell 选择只写入描述、环境提示和执行快照。
-- 生产工具描述与 schema 使用固定上游 fixture，禁止近似改写。
-- 模型代码只在每 cell 独立的 `utilityProcess.fork()` 中运行。
-- 嵌套调用必须回到现有 permission、dispatch、output guard 与 journal。
-- 不新增 runtime dependency，除非 Electron `41.10.4` canary 证明内置能力无法满足固定协议。
+- [x] 增加共享 `ToolMode`、nullable override 和三层 resolver。
+- [x] 在 schema v68 为 `new_sessions` 增加带 CHECK 的 `tool_mode_override`。
+- [x] 打通 session create/read/update、draft 提升、fork 和 renderer store。
+- [x] 增加 typed `sessions.setToolMode` route；DeepChat 运行中拒绝更新。
+- [x] LoopRun 冻结 resolved mode，避免同一回复中切换 Provider schema。
+- [x] 精确登记 GPT-5.6 型号与 DeepSeek 工具模型默认 Code；其他模型回退 Agent。
+- [x] 支持模型目录显式 `default_tool_mode`。
 
-## 实施切片
+主要所有者：
 
-### 1. 固定上游契约
+- `src/shared/toolMode.ts`
+- `src/main/session/data/tables/newSessions.ts`
+- `src/main/session/assignment.ts`
+- `src/renderer/src/stores/ui/draft.ts`
+- `src/renderer/src/stores/ui/session.ts`
+- `src/main/provider/modelCapabilities.ts`
 
-- [ ] 增加 Codex `exec`、`wait`、helpers、名称规范化与 raw JavaScript fixture。
-- [ ] 增加 Codex freeform `apply_patch` 描述、V4A parser 和 partial-delta fixture。
-- [ ] 增加 harness `run_code` 名称、参数、SDK 声明、result envelope fixture。
-- [ ] 增加 harness `str_replace_editor` 名称、描述、schema 与错误 fixture。
-- [ ] 每组 fixture 记录源码 path、固定 commit 与 license metadata。
-- [ ] 明确区分 Codex 顶层 Code-cell `exec` 与 SDK 中命令工具 `tools.exec` 的内部类型。
+### 2. 三种工具 projection
 
-完成条件：任一生产描述、schema、声明布局或结果 envelope 漂移都会触发 contract failure。
+- [x] Agent Mode 继续使用当前完整目录。
+- [x] Code Mode 把完整执行目录隐藏在一个 code wrapper 后面。
+- [x] Codex frontend 只显示 raw `exec` 和 `wait`。
+- [x] function-tool frontend 只显示 `run_code` 和生成的 TypeScript SDK。
+- [x] SDK 嵌套工具统一称为 subtools，并声明只能在 code 入口内部调用。
+- [x] Minimal Mode 为 `openai-codex` 投影 `exec + apply_patch`。
+- [x] Minimal Mode 为其他 Provider 投影 `exec + str_replace_editor`。
+- [x] direct call、unsafe name、保留名和规范化冲突 fail closed。
+- [x] 从 Code Mode 排除无法安全挂起 code cell 的 `deepchat_question`。
+- [x] freeform input 在 AI SDK stream 中保持 raw string。
 
-### 2. 增加单一 ToolMode 契约
+主要所有者：
 
-在共享 contract 中增加：
+- `src/main/tool/index.ts`
+- `src/main/tool/codeMode/toolModeTools.ts`
+- `src/main/provider/aiSdk/toolMapper.ts`
+- `src/main/provider/aiSdk/streamAdapter.ts`
+- `src/main/agent/deepchat/runtime/turnCoordinator.ts`
 
-```ts
-type ToolMode = 'agent' | 'code' | 'minimal'
-type ToolModeOverride = ToolMode | null
-type ToolModeResolutionSource = 'session' | 'model-catalog' | 'fallback'
-```
+### 3. Minimal 编辑工具
 
-- [ ] 把 nullable override 加入 session create/read/update/export/import contract。
-- [ ] 在 `new_sessions` 增加一个 nullable `tool_mode_override` CHECK 字段。
-- [ ] 给 draft store 增加 nullable override，并在 `NewThreadPage` 创建会话时复制。
-- [ ] 增加原子 session route，活跃 LoopRun 时拒绝更新。
-- [ ] 不改动现有 `ChatMode`、`useChatMode()` 或 ACP route。
+- [x] 实现 V4A `apply_patch` parser 与 add/delete/update/move 执行。
+- [x] 实现 `str_replace_editor` 的 view/create/str_replace/insert。
+- [x] 保留绝对路径、唯一 literal match、view range 和输出截断语义。
+- [x] 复用现有 workspace、protected Skill、session path 和 symlink 校验。
+- [x] 新建多层目录文件时验证最近现存祖先，拒绝 symlink escape。
+- [x] 写入前接入现有 effect/journal commit callback。
 
-模型目录：
+主要所有者：
 
-- [ ] 给精确登记的 GPT-5.6 Codex-compatible 条目增加 `defaultToolMode: 'code'`。
-- [ ] 给精确登记且支持工具调用的 DeepSeek 条目增加 `defaultToolMode: 'code'`。
-- [ ] 把 recommendation 带入一次 `ResolvedModelCapabilitySnapshot`，UI 和 adapter 不重复模型
-  家族判断。
-- [ ] 身份缺失、歧义或无建议时回退 Agent Mode。
-- [ ] Minimal Mode 不增加自动推荐。
+- `src/main/tool/agentTools/minimalEditorAdapter.ts`
+- `src/main/tool/agentTools/agentToolManager.ts`
+- `src/main/tool/agentTools/agentFileSystemHandler.ts`
 
-完成条件：解析优先级只有 session override、model catalog、fallback 三层，用户界面不存在
-Auto 模式。
+### 4. UtilityProcess Code runtime
 
-### 3. 建立不可变 ToolMode plan
+- [x] 增加独立 Vite entry，并用 `utilityProcess.fork()` 为每个 cell 新建进程。
+- [x] 增加版本化 READY/START/NESTED_CALL/NESTED_RESULT/YIELDED/RESULT/ERROR/STOP 协议。
+- [x] context 内生成 `tools` 和 helpers，不直接暴露 outer-realm tool function。
+- [x] 参数、结果、store 通过 JSON 边界；结构化 MCP output 优先返回给代码。
+- [x] 禁止 string code generation、WASM、Node/Electron globals 和 import linking。
+- [x] 实现 TypeScript erasable syntax、Codex raw JavaScript、yield/wait 和 session store。
+- [x] 实现 source/output/call/concurrency/heap/RSS/heartbeat/yield lease 限制。
+- [x] cleanup 取消嵌套调用，清 timer/listener/map，并在 grace 后 `kill()`。
+- [x] app teardown 在 MCP/plugin 等执行 owner 销毁前关闭 Code runtime。
 
-增加主进程纯 resolver：
+主要所有者：
 
-```ts
-type ResolvedToolModePlan = {
-  mode: ToolMode
-  source: ToolModeResolutionSource
-  commandShell: ResolvedCommandShell
-  executionCatalog: readonly ExecutableToolBinding[]
-  providerPresentation: readonly ProviderToolSpec[]
-}
-```
+- `src/shared/codeModeProtocol.ts`
+- `src/main/codeModeUtilityHostEntry.ts`
+- `src/main/tool/codeMode/codeModeUtilityHost.ts`
+- `src/main/tool/codeMode/runCodeRuntimeManager.ts`
+- `electron.vite.config.ts`
+- `src/main/app/composition.ts`
 
-- [ ] `TurnCoordinator` 在 Provider I/O 前解析模型能力、ToolMode、enabled tools 与命令 Shell。
-- [ ] 把 plan 冻结到 LoopRun，prompt、Provider adapter、dispatcher 与 renderer status 只消费
-  该 snapshot。
-- [ ] active run 中禁止修改 mode，避免中途替换 Provider schema。
-- [ ] 在 preflight 校验 Provider frontend、UtilityProcess capability、权限、Shell 与工具名冲突。
-- [ ] 不兼容时 fail closed，不修改已存 override，也不静默进入 Agent Mode。
+### 5. Shell 统一
 
-完成条件：一次 LoopRun 内的模式、工具目录、Provider presentation 与 Shell 完全一致。
+- [x] `exec` 在所有模式中保持同名。
+- [x] 从 resolved Shell 生成工具描述和系统环境提示。
+- [x] macOS/Linux 增加 Bash、Zsh、Fish 显式选择。
+- [x] Windows 增加 PowerShell 7 和 Command Prompt，并保留 Windows PowerShell、Git Bash。
+- [x] 显式不可用 Shell fail closed；PowerShell 7 和 Git Bash 做可用性检查。
+- [x] background exec 和 skill script 接受新增 profile。
 
-### 4. 实现三种目录 projection
+WSL 不在本次范围内；需要先完成 distribution、cwd 映射和 scoped process-group cleanup。
 
-继续使用 `ToolService` 和 `AgentToolManager` 作为唯一 registry。
+主要所有者：
 
-Agent Mode：
+- `src/shared/commandShell.ts`
+- `src/main/agent/shared/process/commandShellService.ts`
+- `src/main/agent/deepchat/resources/systemEnvPromptBuilder.ts`
+- `src/renderer/settings/components/common/CommandShellSettingsSection.vue`
 
-- [ ] 直接复用当前 enabled tool catalog 与 Provider mapper。
-- [ ] 除 `exec` 动态 Shell 描述外保持 request snapshot 不变。
+### 6. 高级配置 UI
 
-Code Mode：
-
-- [ ] 以当前 Agent Mode enabled catalog 建立 execution bindings。
-- [ ] disabled tools 不进入 SDK，也不能通过 stale/伪造 binding 调用。
-- [ ] 生成稳定、可缓存的 SDK 声明与 opaque binding ID。
-- [ ] 规范化名称冲突在 Provider 请求前失败。
-
-Minimal Mode：
-
-- [ ] 完全绕过其他 Agent/MCP/plugin 目录，只建立两个 execution bindings。
-- [ ] Codex-compatible 路由建立 `exec + apply_patch`。
-- [ ] function-tool/harness 路由建立 `exec + str_replace_editor`。
-- [ ] 切换模式不改写原有 `disabledAgentTools`；返回 Agent/Code 后恢复。
-
-完成条件：Minimal Mode 的 model-visible 与 executable 名称集合都严格等于两个工具。
-
-### 5. 拆分 execution catalog 与 Provider presentation
-
-- [ ] 增加 `ProviderToolSpec = function | freeform`，不改变 `MCPToolDefinition` 的执行职责。
-- [ ] Agent/Minimal Mode 继续使用 direct function/freeform presentation。
-- [ ] Codex Code Mode 只展示固定 `exec`/`wait`，保留 raw input，不 JSON stringify。
-- [ ] function-tool Code Mode 只展示固定 `run_code` schema。
-- [ ] 两种 frontend 在 adapter 边界后归一化为同一个内部 `run_code` request/result channel。
-- [ ] Provider replay 只保存外层 wrapper call/result；nested calls 只进入 DeepChat transcript 与
-  journal。
-- [ ] 不增加 protocol/transport 持久化字段。
-
-完成条件：Code Mode 的 Provider request 不泄漏任何 SDK nested tool schema。
-
-### 6. 实现编辑工具 adapter
-
-`apply_patch`：
-
-- [ ] 使用固定 Codex freeform 描述与 V4A parser。
-- [ ] 覆盖 add/delete/update/move、顺序应用和 partial-delta error。
-- [ ] 复用现有 workspace canonicalization、symlink protection、permission 与 journal。
-
-`str_replace_editor`：
-
-- [ ] 保留 `view | create | str_replace | insert` schema。
-- [ ] 强制绝对路径、唯一 literal match 与 view range 语义。
-- [ ] 复用同一安全文件 primitive，不复用不兼容的现有 `edit` 外部 schema。
-
-完成条件：两种工具的模型可见契约与固定 fixture 一致，内部文件边界与现有 Agent 工具一致。
-
-### 7. 构建 UtilityProcess `run_code` runtime
-
-增加 `RunCodeRuntimeManager` 与随应用打包的 utility-host entrypoint；每个 code cell 新建一个
-进程，不增加 pool 或 daemon。
-
-主进程 manager：
-
-- [ ] 首次 Code 请求前运行一次可缓存 capability probe。
-- [ ] `app.ready` 后 fork，并等待 5 秒内带版本的 `READY` handshake。
-- [ ] 每个 LoopRun 只登记一个活跃外层 cell；串行下一 cell 使用新进程。
-- [ ] 用版本化、带 cell/session/run identity 的 IPC 路由嵌套请求。
-- [ ] 嵌套请求只通过现有 execution port 调度。
-- [ ] 管理 Codex yield/wait 与按 session 隔离、有上限的 store/load snapshot。
-- [ ] 在所有终态执行同一幂等 cleanup；500 ms 后用 `kill()` 回收。
-- [ ] 永不自动重启或重放失败 cell。
-- [ ] active map 为空后不保留 heartbeat、RSS timer、listener、port 或 pending request。
-- [ ] 在 app teardown 中先于 MCP/plugin/tool/background-exec/Provider/database owner shutdown。
-
-Utility host：
-
-- [ ] 每个进程只创建一个全新 `vm.Context` 并执行一个 cell。
-- [ ] Codex frontend 使用 `vm.SourceTextModule`，拒绝 import linking，保留 top-level await。
-- [ ] function frontend 使用 harness wrapping 与 Node erasable TypeScript，不增加 TypeScript
-  runtime dependency。
-- [ ] 只暴露固定 helpers 与生成 SDK，不暴露 Node/Electron globals、parent IPC、filesystem、
-  network、subprocess、worker、native addon、WASI 或 inspector。
-- [ ] 强制 source 256 KiB、output 1 MiB、nested concurrency 8、V8 old-space 64 MiB、
-  heartbeat、VM slice、yield lease 与 RSS 限制。
-- [ ] 只发送一个 terminal message，随后停止接收调用并退出。
-
-完成条件：成功、异常、取消、超时、OOM、崩溃和 app shutdown 后，进程及全部附属资源归零。
-
-### 8. 复用现有嵌套工具执行路径
-
-- [ ] 把 host nested-call message 转换为普通 DeepChat tool execution request。
-- [ ] 复用 execution contract、permission precheck/prompt、handler、`ToolOutputGuard`、取消与
-  journal。
-- [ ] 给内部 metadata 增加 parent cell ID 与 nested sequence ID。
-- [ ] direct 与 nested calls 共用现有 128 次 LoopRun 预算。
-- [ ] 等待 permission、用户输入、process 或 MCP 时支持父 cell cancel。
-- [ ] Provider history 不展开 nested calls，DeepChat UI 保留层级。
-
-完成条件：Code runtime 没有可以绕过现有权限、authority、输出限制或会话隔离的 handler
-入口。
-
-### 9. 扩展 Shell 选择并统一 `exec` 描述
-
-复用 `commandShell.ts`、`CommandShellService`、`AgentBashHandler`、background execution
-manager 和 `CommandShellSettingsSection.vue`。
-
-- [ ] 扩展 preference：macOS/Linux 为 Auto、Bash、Zsh、Fish；Windows 为 Auto、Windows
-  PowerShell、PowerShell 7、Command Prompt、Git Bash、WSL。
-- [ ] 接入已有 `cmd` profile，新增 `powershell-core` 与受控 `wsl` profile。
-- [ ] Windows Auto 不选择 Git Bash 或 WSL；显式不可用项 fail closed。
-- [ ] 被动 WSL 探测只用 `--list --quiet`；显式选择后再验证 distribution、内部 Shell 与 cwd。
-- [ ] WSL 使用 nonce 绑定 process group scoped cleanup，禁止 `wsl.exe --terminate`。
-- [ ] 抽取一个 Shell facts formatter，同时供 `buildCommandShellPromptLine()` 与 `exec` 描述使用。
-- [ ] `exec` 名称、schema、disabled-tool、permission、dispatch、journal 和 replay 始终保持稳定。
-- [ ] Shell 切换只影响下一次 LoopRun；已有 process handle 绑定创建时 snapshot。
-
-完成条件：模型看到的 Shell、实际 executable/args 和 permission signature 来自同一个
-`ResolvedCommandShell`。
-
-### 10. 修改现有高级配置 UI
-
-只修改现有 `McpIndicator.vue` 所有权边界，并复用当前 Popover、button、switch 与工具分组：
-
-- [ ] 在「模型设置」与 `TOOLS` 之间增加 MODE radio group。
-- [ ] 三项固定为 Agent Mode、Code Mode、Minimal Mode；不显示 Auto。
-- [ ] 增加低强调「使用模型默认」动作，清除 nullable override。
-- [ ] 点击后立即更新本地工具 projection，持久化失败时回滚。
-- [ ] Agent Mode 保持当前工具分组 UI。
-- [ ] Code Mode 显示实际 code 入口，并把现有 enabled groups 标记为「Code 可调用工具」。
-- [ ] Minimal Mode 只渲染两个固定工具，隐藏 MCP/plugin 与其他 Agent groups。
-- [ ] active LoopRun、permission prompt 或 code cell 期间禁用切换。
-- [ ] unavailable mode 显示具体原因，但不暴露 protocol、transport 或 runtime 常规配置。
-- [ ] 所有文案进入 `vue-i18n`，radio、焦点返回与 screen-reader 状态完整。
-
-ASCII 目标：
+- [x] 在模型设置与 `TOOLS` 之间增加三项 `RadioGroup`。
+- [x] 使用现有 `DcPopover`、`DcButton`、`RadioGroup`、`Switch` 和 design token。
+- [x] 显示模型默认来源和「使用模型默认」操作。
+- [x] 选择后立即投影工具，持久化失败时回滚。
+- [x] Agent、Code、Minimal 分别显示原目录、code-callable 目录和严格双工具目录。
+- [x] session 工作中禁用切换。
+- [x] 文案进入 20 个 locale，并保留 aria/radio/disabled 语义。
 
 ```text
+BEFORE
 高级配置
-+-------------------------------------------+
-| 系统提示词                                |
-| 模型设置                                  |
-+-------------------------------------------+
-| MODE                                      |
-| [ Agent Mode ][ Code Mode ][Minimal Mode] |
-|                              ^ selected   |
-+-------------------------------------------+
-| TOOLS                                     |
-| 编码工具  [ exec ] [ apply_patch ]        |
-+-------------------------------------------+
+├─ 系统提示词
+├─ 模型设置
+└─ TOOLS
+
+AFTER
+高级配置
+├─ 系统提示词
+├─ 模型设置
+├─ MODE  [Agent] [Code] [Minimal]
+│         模型默认                  使用模型默认
+└─ TOOLS  （随模式立即投影）
 ```
 
-不增加 footer chip、独立设置页或 Agent 模型覆盖编辑器。
+主要所有者：
 
-完成条件：模式选择与下方工具投影是一个面板内的直接因果关系，用户不需要理解 Tool set、
-Calling、Provider frontend 或 UtilityProcess。
+- `src/renderer/src/components/chat-input/McpIndicator.vue`
+- `src/renderer/src/i18n/*/chat.json`
+- `src/renderer/src/i18n/*/settings.json`
 
-### 11. Runtime transcript 与错误投影
+## 自动化验证
 
-- [ ] Code Mode 外层 card 显示 code cell 状态与 nested call 数量。
-- [ ] nested calls 复用现有工具 card、权限按钮、输出、取消和错误 UI。
-- [ ] source 与 SDK 声明只放在展开详情，不成为常驻 transcript 噪声。
-- [ ] UtilityProcess 启动、协议、超时、OOM、崩溃与 cleanup 错误使用稳定错误码。
-- [ ] Minimal/Code 不兼容、权限不足、Shell 不可用时在发送前给出可操作错误。
-
-完成条件：用户能定位失败和恢复，但高级配置正常状态不显示底层协议详情。
-
-### 12. 全量审查与验证
-
-实现完成后再决定最小耐久测试集，优先保留这些跨边界契约：
-
-- [ ] 单字段 migration、draft 提升、session 重启记忆与清除 override。
-- [ ] 精确模型 recommendation、身份歧义和 fallback。
-- [ ] 三种 mode 的 model-visible/executable tool name snapshot。
-- [ ] Agent Mode request regression；除 `exec` 描述外无变化。
-- [ ] Codex/harness fixture、freeform streaming 与 Provider replay。
-- [ ] Minimal Mode 无法通过 stale binding 调用第三个工具。
-- [ ] nested permission、cancel、output guard、journal 与共享预算。
-- [ ] UtilityProcess capability、malformed IPC、constructor escape、import、无限循环、OOM、
-  timeout、cancel、crash 与 teardown soak。
-- [ ] Shell profile、描述/prompt/execution 同源、WSL scoped cleanup。
-- [ ] 高级配置 radio、即时 projection、回滚、disabled state、键盘与焦点。
-
-质量门：
+已通过：
 
 ```text
 pnpm format
 pnpm i18n
 pnpm lint
 pnpm typecheck
-pnpm test:main -- <相关测试>
-pnpm test:renderer -- <相关测试>
+pnpm build
 ```
 
-只提交能保护用户可见行为、持久化、协议、安全边界、生命周期与已证实回归的测试；不保留
-实现耦合的临时 probe。
+完整 Vitest 结果：
 
-## 完成定义
+```text
+main:     565 files passed, 29 skipped
+          7197 tests passed, 418 skipped
+renderer: 254 files passed
+          2126 tests passed
+```
 
-- [ ] UI 只有一个三态 Tool Mode 控件，且只位于高级配置。
-- [ ] GPT-5.6/DeepSeek 目录默认 Code，其他默认 Agent，Minimal 只由用户选择。
-- [ ] Agent、Code、Minimal 的工具目录和 Provider presentation 与规范一致。
-- [ ] 内部只有一个 `run_code` runtime，没有 transport/protocol 用户配置。
-- [ ] `exec` 名称稳定，Shell 信息与执行同源。
-- [ ] 每条 UtilityProcess 终态都可证明没有进程、timer、listener、port 或 pending request 泄漏。
-- [ ] 文档、ASCII、视觉稿、实现和测试使用同一套三模式术语。
+耐久测试覆盖：
+
+- ToolMode 精确默认值、override、schema CHECK 和三种 projection；
+- Codex/function wrapper、freeform editor 和 SDK 契约；
+- Utility context constructor escape、结果/store 序列化、取消和 listener cleanup；
+- nested structured output、调用调度和 active call abort；
+- apply patch、literal replacement、view range、missing-parent 与 symlink escape；
+- POSIX/Windows Shell profile 和设置 UI；
+- 高级配置即时 projection、持久化和 working disabled state。
+
+`newSessionsTable` 的 7 个用例在当前测试进程中因 native SQLite binding 不可用而按仓库既有
+规则跳过；对应 schema、route 和类型检查均已通过，生产构建成功生成 v68 migration。
+
+## 人工验收路径
+
+1. 新建 GPT-5.6 或 DeepSeek 工具模型会话，打开高级配置，确认默认选中 Code Mode。
+2. 切换 Minimal Mode，确认工具区只剩 `exec` 与 `apply_patch` 或
+   `str_replace_editor`，MCP/插件列表消失。
+3. 切回 Agent Mode，确认原 disabled-tool 开关仍保持。
+4. 点击「使用模型默认」，重开会话，确认 override 已清除并按模型重新解析。
+5. 发送 Code Mode 请求，确认 Provider 只收到 `exec`/`wait` 或 `run_code`。
+6. 运行长 cell 后用 `wait` 续跑或终止，确认 UtilityProcess 最终退出。
+7. 在通用设置切换 Shell，确认 `exec` 名称不变，描述与实际 executable 同步。
+
+## 后续边界
+
+- WSL 只有在 scoped cleanup 与 cwd translation 完成后才能加入。
+- `deepchat_question` 只有在 code cell 可持久挂起并安全恢复后才能进入 nested SDK。
+- Code Mode transcript 的嵌套层级可作为独立 UI 增强，不改变当前协议与执行边界。

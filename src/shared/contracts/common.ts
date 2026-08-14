@@ -30,6 +30,7 @@ import {
 } from '../types/attachment'
 import { isValidDocumentOcrTextPageSpans } from '../utils/documentOcrText'
 import { LiveDelegationSubagentContextSchema } from '../orchestration/liveDelegation'
+import { ToolModeSchema } from '../toolMode'
 import { JsonValueSchema, TimestampMsSchema } from './json'
 
 export {
@@ -392,6 +393,7 @@ export const SessionWithStateSchema = z.object({
   parentSessionId: EntityIdSchema.nullable().optional(),
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   orchestrationPolicy: OrchestrationPolicySchema,
+  toolModeOverride: ToolModeSchema.nullable().default(null),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
   revision: RevisionSchema.optional(),

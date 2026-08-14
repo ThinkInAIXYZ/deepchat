@@ -54,6 +54,14 @@ export const TOOL_EXECUTION = Object.freeze({
 export interface MCPToolDefinitionBase {
   type: string
   source?: 'mcp' | 'agent'
+  providerPresentation?:
+    | { type: 'function' }
+    | {
+        type: 'freeform'
+        format?:
+          | { type: 'text' }
+          | { type: 'grammar'; syntax: 'lark' | 'regex'; definition: string }
+      }
   function: {
     name: string
     description: string

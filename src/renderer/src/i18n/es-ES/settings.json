@@ -5,6 +5,8 @@
       "title": "Shell de comandos del agente",
       "auto": "Automático",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Ejecutable de Git Bash",
       "autoDetect": "Detectar automáticamente",

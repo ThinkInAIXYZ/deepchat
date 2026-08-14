@@ -179,6 +179,145 @@ const cronJobRunFixture = {
 } as any
 
 describe('ToolService', () => {
+  it('projects one execution catalog into Agent, Code, and Minimal modes', async () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const exec = { ...buildToolDefinition('exec', 'agent-filesystem'), source: 'agent' as const }
+    const read = { ...buildToolDefinition('read', 'agent-filesystem'), source: 'agent' as const }
+    const question = {
+      ...buildToolDefinition(QUESTION_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
+    const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
+    const commandShell = {
+      profile: 'zsh',
+      dialect: 'posix',
+      pathStyle: 'native',
+      executable: '/bin/zsh',
+      args: ['-c'],
+      displayName: 'Zsh'
+    } as const
+
+    const agent = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'agent',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: [exec, read, question, remote]
+    })
+    expect(agent.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'read',
+      QUESTION_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
+    expect(agent.map((definition) => definition.function.description).join('\n')).not.toContain(
+      'Code Mode subtools'
+    )
+
+    const code = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'code',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: [exec, read, question, remote]
+    })
+    expect(code.map((definition) => definition.function.name)).toEqual(['run_code'])
+    await expect(
+      toolService.callTool({
+        id: 'direct-read',
+        type: 'function',
+        function: { name: 'read', arguments: '{}' },
+        conversationId: 'session-1'
+      })
+    ).rejects.toThrow("Direct tool 'read' is unavailable in Code Mode")
+
+    const restoredAgent = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'agent',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: [exec, read, question, remote]
+    })
+    expect(restoredAgent.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'read',
+      QUESTION_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(
+      restoredAgent.map((definition) => definition.function.description).join('\n')
+    ).not.toContain('Code Mode subtools')
+
+    const minimal = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: [exec, read, question, remote]
+    })
+    expect(minimal.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'str_replace_editor'
+    ])
+    expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
+      'Code Mode subtools'
+    )
+
+    const codexMinimal = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'openai-codex',
+      commandShell,
+      executionCatalog: [exec, read, question, remote]
+    })
+    expect(codexMinimal.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'apply_patch'
+    ])
+    await toolService.shutdownCodeRuntime()
+  })
+
+  it('fails Code Mode before provider I/O when normalized tool names collide', () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const commandShell = {
+      profile: 'bash',
+      dialect: 'posix',
+      pathStyle: 'native',
+      executable: '/bin/bash',
+      args: ['-c'],
+      displayName: 'Bash'
+    } as const
+    const left = { ...buildToolDefinition('mcp/read', 'left'), source: 'mcp' as const }
+    const right = { ...buildToolDefinition('mcp-read', 'right'), source: 'mcp' as const }
+
+    expect(() =>
+      toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'code',
+        providerId: 'openai-codex',
+        commandShell,
+        executionCatalog: [left, right]
+      })
+    ).toThrow("both map to 'mcp_read'")
+  })
+
   it('meets the frozen execution contract with current authority at dispatch', async () => {
     const definition = buildContractMcpDefinition()
     const resolveConversationExecutionAuthority = vi.fn(async (sessionId: string) => ({

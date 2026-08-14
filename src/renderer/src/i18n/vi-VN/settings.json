@@ -5,6 +5,8 @@
       "title": "Shell lệnh của tác nhân",
       "auto": "Tự động",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Tệp thực thi Git Bash",
       "autoDetect": "Tự động phát hiện",

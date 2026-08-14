@@ -22,6 +22,8 @@ describe('ModelCapabilities reasoning portraits', () => {
           models: [
             { id: 'gpt-5', reasoning: { supported: true, default: true } },
             { id: 'o3', reasoning: { supported: true, default: true } },
+            { id: 'gpt-5.6-sol', tool_call: true },
+            { id: 'gpt-5.6-sol-preview', tool_call: true },
             { id: 'legacy-reasoning-only', reasoning: { supported: true, default: false } },
             { id: 'plain-model' }
           ]
@@ -31,6 +33,7 @@ describe('ModelCapabilities reasoning portraits', () => {
           models: [
             {
               id: 'gemini-3.5-flash',
+              default_tool_mode: 'minimal',
               reasoning: { supported: true, default: true }
             }
           ]
@@ -50,8 +53,10 @@ describe('ModelCapabilities reasoning portraits', () => {
           models: [
             {
               id: 'deepseek-v4-pro',
+              tool_call: true,
               reasoning: { supported: true, default: true }
-            }
+            },
+            { id: 'deepseek-v4-chat', tool_call: false }
           ]
         },
         openrouter: {
@@ -502,5 +507,25 @@ describe('ModelCapabilities reasoning portraits', () => {
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-6')).toBe(true)
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-sonnet-4-5')).toBe(true)
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-9')).toBe(true)
+  })
+
+  it('recommends Tool Mode only from explicit catalog identities', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('openai-codex', 'gpt-5.6-sol').defaultToolMode
+    ).toBe('code')
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('openai', 'gpt-5.6-sol-preview').defaultToolMode
+    ).toBeUndefined()
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('deepseek', 'deepseek-v4-pro').defaultToolMode
+    ).toBe('code')
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('deepseek', 'deepseek-v4-chat').defaultToolMode
+    ).toBeUndefined()
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('google', 'gemini-3.5-flash').defaultToolMode
+    ).toBe('minimal')
   })
 })
