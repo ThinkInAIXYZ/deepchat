@@ -68,6 +68,10 @@ const sessionClient = vi.hoisted(() => ({
 }))
 
 const downloadBlob = vi.hoisted(() => vi.fn())
+const scrollerMethods = vi.hoisted(() => ({
+  scrollToItem: vi.fn(),
+  scrollToPosition: vi.fn()
+}))
 
 vi.mock('@/components/tape-inspector/store', () => ({
   useTapeInspectorStore: () => inspectorStore
@@ -97,10 +101,14 @@ vi.mock('vue-virtual-scroller', () => ({
     name: 'RecycleScroller',
     props: ['items', 'itemSize', 'keyField'],
     template:
-      '<div data-testid="recycle-scroller" :data-item-size="itemSize" :data-key-field="keyField"><slot v-for="item in items" :item="item" /></div>',
+      '<div data-testid="recycle-scroller" :data-item-size="itemSize" :data-key-field="keyField"><slot v-for="item in items.slice(0, 16)" :item="item" /></div>',
     methods: {
-      scrollToItem: vi.fn(),
-      scrollToPosition: vi.fn()
+      scrollToItem(index: number) {
+        scrollerMethods.scrollToItem(index)
+      },
+      scrollToPosition(position: number) {
+        scrollerMethods.scrollToPosition(position)
+      }
     }
   })
 }))
@@ -143,7 +151,7 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    template: '<div />'
+    template: '<div data-testid="tape-inspector-row" />'
   })
 }))
 
@@ -161,6 +169,12 @@ describe('TapeInspectorPanel', () => {
     vi.clearAllMocks()
     inspectorStore.sessionId = null
     inspectorStore.tapeIncarnationId = 'incarnation-1'
+    inspectorStore.records = []
+    inspectorStore.evidence = []
+    inspectorStore.rows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
+    inspectorStore.hasOlder = false
+    inspectorStore.loadingOlder = false
+    inspectorStore.liveSyncing = false
     inspectorStore.livePaused = false
     inspectorStore.serverSort = { column: 'entryId', direction: 'asc' }
     inspectorStore.canonicalSort = true
@@ -183,6 +197,7 @@ describe('TapeInspectorPanel', () => {
         truncated: { facts: false, evidence: false, detailData: false }
       }
     })
+    inspectorStore.loadOlderPage.mockResolvedValue(false)
   })
 
   it('initializes a matching message request without inventing a request sequence', async () => {
@@ -367,6 +382,65 @@ describe('TapeInspectorPanel', () => {
 
     await wrapper.get('button[title="common.reset"]').trigger('click')
     expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
+  })
+
+  it('restores the same visible key and pixel offset after prepending older rows', async () => {
+    inspectorStore.hasOlder = true
+    inspectorStore.rows = [
+      { key: 'fact:incarnation:entry:10', recordType: 'fact' },
+      { key: 'fact:incarnation:entry:11', recordType: 'fact' },
+      { key: 'fact:incarnation:entry:12', recordType: 'fact' }
+    ]
+    inspectorStore.loadOlderPage.mockImplementationOnce(async () => {
+      inspectorStore.rows = [
+        { key: 'fact:incarnation:entry:8', recordType: 'fact' },
+        { key: 'fact:incarnation:entry:9', recordType: 'fact' },
+        { key: 'fact:incarnation:entry:10', recordType: 'fact' },
+        { key: 'fact:incarnation:entry:11', recordType: 'fact' },
+        { key: 'fact:incarnation:entry:12', recordType: 'fact' }
+      ]
+      return true
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const scroller = wrapper.findComponent({ name: 'RecycleScroller' })
+    ;(scroller.element as HTMLElement).scrollTop = 48
+    const loadOlder = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'tapeInspector.actions.loadOlder')
+    if (!loadOlder) throw new Error('Expected the load-older action')
+
+    await loadOlder.trigger('click')
+    await flushPromises()
+
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenNthCalledWith(1, {
+      key: 'fact:incarnation:entry:11',
+      offset: 12
+    })
+    expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(120)
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
+  })
+
+  it('keeps a high-entry fixture inside the virtualized render window', async () => {
+    inspectorStore.rows = Array.from({ length: 10_000 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'RecycleScroller' }).props('items')).toHaveLength(10_000)
+    expect(wrapper.findAll('[data-testid="tape-inspector-row"]')).toHaveLength(16)
   })
 
   it('forwards live pulses and pauses only automatic following', async () => {
