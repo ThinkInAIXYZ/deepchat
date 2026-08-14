@@ -96,6 +96,10 @@ function groupKey(kind: TapeInspectorGroupKind, identity: unknown[]): string {
   return `group:${kind}:${JSON.stringify(identity)}`
 }
 
+export function getTapeInspectorRowDomId(key: string): string {
+  return `tape-inspector-row-${encodeURIComponent(key)}`
+}
+
 export function getFactGroupDescriptors(
   record: TapeInspectorFactRecord
 ): TapeInspectorGroupDescriptor[] {
@@ -599,7 +603,7 @@ export function findTapeInspectorPreselection(input: {
       row.group.messageId === input.messageId &&
       (input.requestSeq === undefined || row.group.requestSeq === input.requestSeq)
   )
-  requestGroups.sort((left, right) => (right.group.requestSeq ?? 0) - (left.group.requestSeq ?? 0))
+  if (input.requestSeq === undefined && requestGroups.length > 1) return null
   if (requestGroups[0]) return requestGroups[0].key
 
   const matchingRows = input.rows.filter((row) => {
@@ -617,6 +621,19 @@ export function findTapeInspectorPreselection(input: {
     }
     return false
   })
+  if (
+    input.requestSeq === undefined &&
+    new Set(
+      matchingRows.flatMap((row) =>
+        (row.recordType === 'fact' || row.recordType === 'evidence') &&
+        row.record.requestSeq !== undefined
+          ? [row.record.requestSeq]
+          : []
+      )
+    ).size > 1
+  ) {
+    return null
+  }
   return matchingRows.at(-1)?.key ?? null
 }
 

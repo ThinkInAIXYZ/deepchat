@@ -5,6 +5,7 @@ import type {
 } from '@shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
+  findTapeInspectorPreselection,
   getEvidenceParentGroupKey,
   getFactGroupDescriptors,
   UNBOUND_EVIDENCE_LANE_KEY
@@ -45,6 +46,60 @@ function evidence(
 }
 
 describe('Tape Inspector renderer projection', () => {
+  it('preselects a request only when its identity is unambiguous', () => {
+    const oneRequest = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, {
+          messageId: 'message-1',
+          requestSeq: 1,
+          physicalAttempt: 0
+        })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    })
+    expect(findTapeInspectorPreselection({ rows: oneRequest, messageId: 'message-1' })).toContain(
+      'group:request:'
+    )
+
+    const twoRequests = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, { messageId: 'message-1', requestSeq: 1 }),
+        fact(2, { messageId: 'message-1', requestSeq: 2 })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    })
+    expect(findTapeInspectorPreselection({ rows: twoRequests, messageId: 'message-1' })).toBeNull()
+    const requestTwo = twoRequests.find(
+      (row) =>
+        row.recordType === 'group' && row.group.kind === 'request' && row.group.requestSeq === 2
+    )
+    expect(
+      findTapeInspectorPreselection({
+        rows: twoRequests,
+        messageId: 'message-1',
+        requestSeq: 2
+      })
+    ).toBe(requestTwo?.key)
+  })
+
+  it('does not guess a request identity when only fallback rows are available', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, { messageId: 'message-1', requestSeq: 1 }),
+        fact(2, { messageId: 'message-1', requestSeq: 2 })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    }).filter((row) => row.recordType !== 'group')
+
+    expect(findTapeInspectorPreselection({ rows, messageId: 'message-1' })).toBeNull()
+  })
+
   it('projects every Tape fact exactly once, including unrecognized rows', () => {
     const records = [
       fact(1, { name: 'known', family: 'journal', runId: 'run-1' }),

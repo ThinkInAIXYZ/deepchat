@@ -11,9 +11,10 @@
     :data-row-key="row.key"
     :data-row-type="row.recordType"
     role="row"
+    :id="rowDomId"
+    :aria-rowindex="ariaRowIndex"
     :aria-selected="selected"
     :style="rowGridStyle"
-    tabindex="-1"
     @click="emit('select', row.key)"
     @dblclick="toggleIfCollapsible"
   >
@@ -89,7 +90,7 @@
 import { computed, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import type { TapeInspectorDisplayRow } from './model'
+import { getTapeInspectorRowDomId, type TapeInspectorDisplayRow } from './model'
 
 const props = withDefaults(
   defineProps<{
@@ -99,6 +100,7 @@ const props = withDefaults(
     tableMinWidth?: number
     waterfallStart?: number
     waterfallEnd?: number
+    ariaRowIndex?: number
   }>(),
   {
     gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px minmax(180px, 1fr)',
@@ -115,6 +117,7 @@ const emit = defineEmits<{
 
 const { t, d } = useI18n()
 
+const rowDomId = computed(() => getTapeInspectorRowDomId(props.row.key))
 const rowGridStyle = computed<CSSProperties>(() => ({
   gridTemplateColumns: props.gridTemplateColumns,
   minWidth: `${props.tableMinWidth}px`

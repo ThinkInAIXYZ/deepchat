@@ -1,10 +1,5 @@
 <template>
-  <div
-    class="flex min-h-0 flex-1 flex-col bg-background outline-none"
-    data-testid="tape-inspector-panel"
-    tabindex="0"
-    @keydown="handleKeydown"
-  >
+  <div class="flex min-h-0 flex-1 flex-col bg-background" data-testid="tape-inspector-panel">
     <div class="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
       <div class="relative min-w-[160px] flex-1">
         <Icon
@@ -182,11 +177,22 @@
           <span class="text-xs text-muted-foreground">{{ t('tapeInspector.states.empty') }}</span>
         </div>
         <div v-else class="min-h-0 flex-1 overflow-x-auto">
-          <div class="flex h-full flex-col" :style="{ minWidth: `${tableMinWidth}px` }" role="grid">
+          <div
+            ref="gridRef"
+            class="flex h-full flex-col outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+            :style="{ minWidth: `${tableMinWidth}px` }"
+            role="grid"
+            tabindex="0"
+            :aria-label="t('tapeInspector.title')"
+            :aria-activedescendant="activeDescendantId"
+            :aria-rowcount="store.rows.length + 1"
+            @keydown="handleKeydown"
+          >
             <div
               class="grid h-8 shrink-0 items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
               :style="{ gridTemplateColumns }"
               role="row"
+              aria-rowindex="1"
             >
               <div class="relative flex h-full min-w-0 items-center">
                 <button
@@ -367,6 +373,7 @@
             </div>
             <RecycleScroller
               ref="scrollerRef"
+              role="rowgroup"
               class="min-h-0 flex-1"
               :items="store.rows"
               :item-size="ROW_HEIGHT"
@@ -374,10 +381,11 @@
               :buffer="ROW_HEIGHT * 12"
               :prerender="16"
             >
-              <template #default="{ item }">
+              <template #default="{ item, index }">
                 <TapeInspectorRow
                   :row="item"
                   :selected="store.selectedKey === item.key"
+                  :aria-row-index="index + 2"
                   :grid-template-columns="gridTemplateColumns"
                   :table-min-width="tableMinWidth"
                   :waterfall-start="waterfallViewport.start"
@@ -461,6 +469,7 @@ import type {
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'
 import { createSessionClient } from '../../../api/SessionClient'
+import { getTapeInspectorRowDomId } from './model'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
@@ -516,6 +525,7 @@ const familyOptions: TapeInspectorFactFamily[] = [
 const { t } = useI18n()
 const store = useTapeInspectorStore()
 const sessionClient = createSessionClient()
+const gridRef = ref<HTMLElement | null>(null)
 const scrollerRef = ref<RecycleScrollerHandle | null>(null)
 const filterOpen = ref(false)
 const liveConnected = ref(false)
@@ -553,6 +563,11 @@ const tableMinWidth = computed(() =>
     (width, column) => width + columnWidths[column],
     0
   )
+)
+const activeDescendantId = computed(() =>
+  store.rows.some((row) => row.key === store.selectedKey) && store.selectedKey
+    ? getTapeInspectorRowDomId(store.selectedKey)
+    : undefined
 )
 
 const MIN_WATERFALL_VIEWPORT = 0.04
@@ -1011,6 +1026,7 @@ async function clearFilters(): Promise<void> {
 
 async function selectRow(key: string): Promise<void> {
   store.selectRow(key)
+  gridRef.value?.focus({ preventScroll: true })
   await store.loadSelectedDetail()
 }
 

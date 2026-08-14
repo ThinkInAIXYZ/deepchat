@@ -46,6 +46,21 @@ function factRow(overrides: Partial<TapeInspectorFactRow> = {}): TapeInspectorFa
 }
 
 describe('TapeInspectorRow', () => {
+  it('exposes a stable row identity and table position', () => {
+    const wrapper = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({ key: 'fact:incarnation-1:entry:10' }),
+        selected: true,
+        ariaRowIndex: 12
+      }
+    })
+
+    expect(wrapper.attributes('id')).toBe('tape-inspector-row-fact%3Aincarnation-1%3Aentry%3A10')
+    expect(wrapper.attributes('aria-selected')).toBe('true')
+    expect(wrapper.attributes('aria-rowindex')).toBe('12')
+    expect(wrapper.attributes('tabindex')).toBeUndefined()
+  })
+
   it('clips canonical and actual timing markers to the selected viewport', () => {
     const wrapper = mount(TapeInspectorRow, {
       props: {

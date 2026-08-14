@@ -103,7 +103,7 @@ vi.mock('vue-virtual-scroller', () => ({
     name: 'RecycleScroller',
     props: ['items', 'itemSize', 'keyField'],
     template:
-      '<div data-testid="recycle-scroller" :data-item-size="itemSize" :data-key-field="keyField"><slot v-for="item in items.slice(0, 16)" :item="item" /></div>',
+      '<div data-testid="recycle-scroller" :data-item-size="itemSize" :data-key-field="keyField"><slot v-for="(item, index) in items.slice(0, 16)" :item="item" :index="index" /></div>',
     methods: {
       scrollToItem(index: number) {
         scrollerMethods.scrollToItem(index)
@@ -153,7 +153,15 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    template: '<div data-testid="tape-inspector-row" />'
+    props: ['row', 'selected', 'ariaRowIndex'],
+    emits: ['select'],
+    computed: {
+      rowDomId() {
+        return `tape-inspector-row-${encodeURIComponent(this.row.key)}`
+      }
+    },
+    template:
+      '<div :id="rowDomId" data-testid="tape-inspector-row" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
   })
 }))
 
@@ -174,6 +182,7 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.records = []
     inspectorStore.evidence = []
     inspectorStore.rows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
+    inspectorStore.selectedKey = null
     inspectorStore.hasOlder = false
     inspectorStore.loadingOlder = false
     inspectorStore.liveSyncing = false
@@ -277,12 +286,61 @@ describe('TapeInspectorPanel', () => {
     })
     await flushPromises()
 
-    await wrapper.get('[data-testid="tape-inspector-panel"]').trigger('keydown', {
+    await wrapper.get('[role="grid"]').trigger('keydown', {
       key: 'ArrowDown'
     })
 
     expect(inspectorStore.moveSelection).toHaveBeenCalledWith(1)
     expect(inspectorStore.loadSelectedDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes virtual row selection through the focused grid', async () => {
+    inspectorStore.rows = [
+      { key: 'fact:incarnation:entry:1', recordType: 'fact' },
+      { key: 'group:request:["message-1",2]', recordType: 'group' }
+    ]
+    inspectorStore.selectedKey = 'fact:incarnation:entry:1'
+    inspectorStore.moveSelection.mockImplementationOnce(() => {
+      inspectorStore.selectedKey = 'group:request:["message-1",2]'
+      return inspectorStore.selectedKey
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      },
+      attachTo: document.body
+    })
+    await flushPromises()
+    const grid = wrapper.get('[role="grid"]')
+
+    expect(grid.attributes('aria-rowcount')).toBe('3')
+    expect(grid.attributes('aria-activedescendant')).toBe(
+      'tape-inspector-row-fact%3Aincarnation%3Aentry%3A1'
+    )
+    expect(
+      wrapper.findAll('[data-testid="tape-inspector-row"]')[1].attributes('aria-rowindex')
+    ).toBe('3')
+
+    grid.element.focus()
+    await grid.trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+
+    expect(grid.attributes('aria-activedescendant')).toBe(
+      'tape-inspector-row-group%3Arequest%3A%5B%22message-1%22%2C2%5D'
+    )
+    expect(scrollerMethods.scrollToItem).toHaveBeenCalledWith(1)
+    expect(document.activeElement).toBe(grid.element)
+
+    inspectorStore.selectRow.mockImplementationOnce((key: string) => {
+      inspectorStore.selectedKey = key
+    })
+    await wrapper.findAll('[data-testid="tape-inspector-row"]')[0].trigger('click')
+    expect(document.activeElement).toBe(grid.element)
+    expect(grid.attributes('aria-activedescendant')).toBe(
+      'tape-inspector-row-fact%3Aincarnation%3Aentry%3A1'
+    )
+    wrapper.unmount()
   })
 
   it('does not hijack arrow keys from interactive controls', async () => {
