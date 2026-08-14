@@ -101,6 +101,8 @@ draft/session toolModeOverride
 - [x] 参数、结果、store 通过 JSON 边界；结构化 MCP output 优先返回给代码。
 - [x] 禁止 string code generation、WASM、Node/Electron globals 和 import linking。
 - [x] 实现 TypeScript erasable syntax、Codex raw JavaScript、yield/wait 和 session store。
+- [x] 嵌套命令权限在同一 cell 内按调用签发 one-shot grant 并原地恢复，不重放已完成代码。
+- [x] 同一外层 code/wait operation 的 nested mutation 只提交一次 execution-journal dispatch。
 - [x] 实现 source/output/call/concurrency/heap/RSS/heartbeat/yield lease 限制。
 - [x] cleanup 取消嵌套调用，清 timer/listener/map，并在 grace 后 `kill()`。
 - [x] app teardown 在 MCP/plugin 等执行 owner 销毁前关闭 Code runtime。
@@ -180,7 +182,7 @@ pnpm build
 
 ```text
 main:     565 files passed, 29 skipped
-          7197 tests passed, 418 skipped
+          7201 tests passed, 418 skipped
 renderer: 254 files passed
           2126 tests passed
 ```

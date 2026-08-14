@@ -1,4 +1,5 @@
 export const RUN_CODE_PROTOCOL_VERSION = 1 as const
+export const CODE_MODE_TOOL_SERVER_NAME = 'agent-code-mode'
 export const RUN_CODE_SOURCE_MAX_BYTES = 256 * 1024
 export const RUN_CODE_OUTPUT_MAX_BYTES = 1024 * 1024
 export const RUN_CODE_MAX_NESTED_CALLS = 128
