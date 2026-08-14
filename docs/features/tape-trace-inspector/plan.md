@@ -2,8 +2,8 @@
 
 ## Status
 
-Implementation approved on `feat/tape-trace-inspector`. The P1 read model and typed session routes
-are complete; renderer work is next.
+Implementation approved on `feat/tape-trace-inspector`. The P1 read model, typed session routes, and
+renderer projection store are complete; the Inspector panel and entry points are next.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -76,15 +76,15 @@ IPC path.
 
 ## 5. P1 Renderer Model
 
-- [ ] Add a focused `tape-inspector` feature directory.
-- [ ] Implement stable fact/evidence maps, canonical keys, request generations, cursors, and
+- [x] Add a focused `tape-inspector` feature directory.
+- [x] Implement stable fact/evidence maps, canonical keys, request generations, cursors, and
   incarnation reset.
-- [ ] Implement total identity grouping and renderer-only group rows.
-- [ ] Bind non-legacy evidence exactly; keep legacy evidence at request level; expose unbound
+- [x] Implement total identity grouping and renderer-only group rows.
+- [x] Bind non-legacy evidence exactly; keep legacy evidence at request level; expose unbound
   evidence separately.
-- [ ] Pair run and tool timing by full identity; render attempts/evidence as points.
-- [ ] Implement loaded-scope text search and documented server filters.
-- [ ] Preserve selection during upsert, collapse, filter, and timing upgrades.
+- [x] Pair run and tool timing by full identity; render attempts/evidence as points.
+- [x] Implement loaded-scope text search and documented server filters.
+- [x] Preserve selection during upsert, collapse, filter, and timing upgrades.
 
 Completion condition: one pure snapshot drives all Inspector presentation without deriving facts
 from timestamps or adjacency.
@@ -112,7 +112,7 @@ virtualized.
   cursors, snapshot consistency, and incarnation mismatch.
 - [ ] Add detail disclosure tests for allowlist order, unknown fail-closed behavior, and stored-string
   hashes.
-- [ ] Add renderer model tests for equal timestamps, retries, nested identities, legacy evidence,
+- [x] Add renderer model tests for equal timestamps, retries, nested identities, legacy evidence,
   delayed endpoint pairing, reset, prepend anchoring, and stale response rejection.
 - [ ] Add focused component tests for entry points, virtualization contract, keyboard selection, and
   retained Trace dialog access.
