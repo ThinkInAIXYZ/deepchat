@@ -92,8 +92,12 @@ export interface TapeInspectorDetailCapabilities {
 
 const UNBOUND_EVIDENCE_LANE_KEY = 'lane:unbound-evidence'
 
-function groupKey(kind: TapeInspectorGroupKind, identity: unknown[]): string {
-  return `group:${kind}:${JSON.stringify(identity)}`
+function groupKey(
+  kind: TapeInspectorGroupKind,
+  identity: unknown[],
+  tapeIncarnationId: string
+): string {
+  return `group:${kind}:${tapeIncarnationId}:${JSON.stringify(identity)}`
 }
 
 export function getTapeInspectorRowDomId(key: string): string {
@@ -101,26 +105,31 @@ export function getTapeInspectorRowDomId(key: string): string {
 }
 
 export function getFactGroupDescriptors(
-  record: TapeInspectorFactRecord
+  record: TapeInspectorFactRecord,
+  tapeIncarnationId: string
 ): TapeInspectorGroupDescriptor[] {
   const groups: TapeInspectorGroupDescriptor[] = []
   if (record.runId) {
     groups.push({
-      key: groupKey('run', [record.runId]),
+      key: groupKey('run', [record.runId], tapeIncarnationId),
       kind: 'run',
       runId: record.runId
     })
   }
   if (record.messageId && record.requestSeq !== undefined) {
     groups.push({
-      key: groupKey('request', [record.messageId, record.requestSeq]),
+      key: groupKey('request', [record.messageId, record.requestSeq], tapeIncarnationId),
       kind: 'request',
       messageId: record.messageId,
       requestSeq: record.requestSeq
     })
     if (record.physicalAttempt !== undefined) {
       groups.push({
-        key: groupKey('attempt', [record.messageId, record.requestSeq, record.physicalAttempt]),
+        key: groupKey(
+          'attempt',
+          [record.messageId, record.requestSeq, record.physicalAttempt],
+          tapeIncarnationId
+        ),
         kind: 'attempt',
         messageId: record.messageId,
         requestSeq: record.requestSeq,
@@ -130,12 +139,11 @@ export function getFactGroupDescriptors(
   }
   if (record.runId && record.requestSeq !== undefined && record.providerToolCallId !== undefined) {
     groups.push({
-      key: groupKey('tool', [
-        record.runId,
-        record.requestSeq,
-        record.providerToolCallId,
-        record.childOrdinal ?? null
-      ]),
+      key: groupKey(
+        'tool',
+        [record.runId, record.requestSeq, record.providerToolCallId, record.childOrdinal ?? null],
+        tapeIncarnationId
+      ),
       kind: 'tool',
       runId: record.runId,
       requestSeq: record.requestSeq,
@@ -148,13 +156,57 @@ export function getFactGroupDescriptors(
 
 export function getEvidenceParentGroupKey(
   evidence: TapeInspectorEvidenceRecord,
-  availableGroupKeys: ReadonlySet<string>
+  availableGroupKeys: ReadonlySet<string>,
+  tapeIncarnationId: string
 ): string | null {
   const key =
     evidence.physicalAttempt === undefined
-      ? groupKey('request', [evidence.messageId, evidence.requestSeq])
-      : groupKey('attempt', [evidence.messageId, evidence.requestSeq, evidence.physicalAttempt])
+      ? groupKey('request', [evidence.messageId, evidence.requestSeq], tapeIncarnationId)
+      : groupKey(
+          'attempt',
+          [evidence.messageId, evidence.requestSeq, evidence.physicalAttempt],
+          tapeIncarnationId
+        )
   return availableGroupKeys.has(key) ? key : null
+}
+
+const GROUP_PARENT_PRIORITY: Record<TapeInspectorGroupKind, number> = {
+  run: 0,
+  request: 1,
+  attempt: 2,
+  tool: 3
+}
+
+function resolveGroupParents(
+  candidates: ReadonlyMap<string, ReadonlyMap<string, TapeInspectorGroupDescriptor>>
+): Map<string, TapeInspectorGroupDescriptor> {
+  const parents = new Map<string, TapeInspectorGroupDescriptor>()
+  for (const [childKey, values] of candidates) {
+    const highestPriority = Math.max(
+      ...[...values.values()].map((candidate) => GROUP_PARENT_PRIORITY[candidate.kind])
+    )
+    const strongest = [...values.values()].filter(
+      (candidate) => GROUP_PARENT_PRIORITY[candidate.kind] === highestPriority
+    )
+    if (strongest.length === 1) parents.set(childKey, strongest[0])
+  }
+  return parents
+}
+
+function expandGroupAncestors(
+  leaf: TapeInspectorGroupDescriptor | undefined,
+  parents: ReadonlyMap<string, TapeInspectorGroupDescriptor>
+): TapeInspectorGroupDescriptor[] {
+  if (!leaf) return []
+  const path: TapeInspectorGroupDescriptor[] = []
+  const seen = new Set<string>()
+  let current: TapeInspectorGroupDescriptor | undefined = leaf
+  while (current && !seen.has(current.key)) {
+    path.push(current)
+    seen.add(current.key)
+    current = parents.get(current.key)
+  }
+  return path.reverse()
 }
 
 function factStatus(record: TapeInspectorFactRecord): string | null {
@@ -284,24 +336,42 @@ export function buildTapeInspectorRows(input: {
     : [...input.records].sort((left, right) => left.entryId - right.entryId)
   const normalizedSearch = input.search?.trim().toLocaleLowerCase() ?? ''
   const descriptors = new Map<string, TapeInspectorGroupDescriptor>()
+  const directGroupsByEntryId = new Map<number, TapeInspectorGroupDescriptor[]>()
   const groupsByEntryId = new Map<number, TapeInspectorGroupDescriptor[]>()
   const recordsByGroup = new Map<string, TapeInspectorFactRecord[]>()
+  const parentCandidates = new Map<string, Map<string, TapeInspectorGroupDescriptor>>()
   for (const record of records) {
-    const groups = getFactGroupDescriptors(record)
-    groupsByEntryId.set(record.entryId, groups)
+    const groups = getFactGroupDescriptors(record, input.tapeIncarnationId ?? 'unknown')
+    directGroupsByEntryId.set(record.entryId, groups)
     for (const descriptor of groups) {
       descriptors.set(descriptor.key, descriptor)
       const matching = recordsByGroup.get(descriptor.key) ?? []
       matching.push(record)
       recordsByGroup.set(descriptor.key, matching)
     }
+    for (let index = 1; index < groups.length; index += 1) {
+      const parent = groups[index - 1]
+      const child = groups[index]
+      const candidates = parentCandidates.get(child.key) ?? new Map()
+      candidates.set(parent.key, parent)
+      parentCandidates.set(child.key, candidates)
+    }
+  }
+  const groupParents = resolveGroupParents(parentCandidates)
+  for (const record of records) {
+    const directGroups = directGroupsByEntryId.get(record.entryId) ?? []
+    groupsByEntryId.set(record.entryId, expandGroupAncestors(directGroups.at(-1), groupParents))
   }
   const groupKeys = new Set(descriptors.keys())
   const evidenceByParent = new Map<string, TapeInspectorEvidenceRecord[]>()
   const searchMatchingEvidenceParents = new Set<string>()
   const unboundEvidence: TapeInspectorEvidenceRecord[] = []
   for (const evidence of input.evidence) {
-    const parentKey = getEvidenceParentGroupKey(evidence, groupKeys)
+    const parentKey = getEvidenceParentGroupKey(
+      evidence,
+      groupKeys,
+      input.tapeIncarnationId ?? 'unknown'
+    )
     if (!parentKey) {
       if (matchesEvidenceSearch(evidence, normalizedSearch)) unboundEvidence.push(evidence)
       continue

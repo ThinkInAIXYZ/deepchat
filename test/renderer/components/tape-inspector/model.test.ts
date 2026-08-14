@@ -135,19 +135,26 @@ describe('Tape Inspector renderer projection', () => {
       requestSeq: 4,
       physicalAttempt: 1
     })
-    const groups = [...getFactGroupDescriptors(attemptZero), ...getFactGroupDescriptors(attemptOne)]
+    const groups = [
+      ...getFactGroupDescriptors(attemptZero, 'incarnation-1'),
+      ...getFactGroupDescriptors(attemptOne, 'incarnation-1')
+    ]
     const groupKeys = new Set(groups.map((group) => group.key))
     const exact = evidence('exact-zero', { physicalAttempt: 0 })
     const legacy = evidence('legacy')
 
-    expect(getEvidenceParentGroupKey(exact, groupKeys)).toBe(
+    expect(getEvidenceParentGroupKey(exact, groupKeys, 'incarnation-1')).toBe(
       groups.find((group) => group.kind === 'attempt' && group.physicalAttempt === 0)?.key
     )
-    expect(getEvidenceParentGroupKey(legacy, groupKeys)).toBe(
+    expect(getEvidenceParentGroupKey(legacy, groupKeys, 'incarnation-1')).toBe(
       groups.find((group) => group.kind === 'request')?.key
     )
     expect(
-      getEvidenceParentGroupKey(evidence('missing', { physicalAttempt: 2 }), groupKeys)
+      getEvidenceParentGroupKey(
+        evidence('missing', { physicalAttempt: 2 }),
+        groupKeys,
+        'incarnation-1'
+      )
     ).toBeNull()
 
     const rows = buildTapeInspectorRows({
@@ -177,7 +184,9 @@ describe('Tape Inspector renderer projection', () => {
       requestSeq: 4,
       physicalAttempt: 0
     })
-    const attemptGroup = getFactGroupDescriptors(record).find((group) => group.kind === 'attempt')
+    const attemptGroup = getFactGroupDescriptors(record, 'incarnation-1').find(
+      (group) => group.kind === 'attempt'
+    )
 
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
@@ -188,6 +197,52 @@ describe('Tape Inspector renderer projection', () => {
 
     expect(rows.some((row) => row.key === 'trace:legacy')).toBe(true)
     expect(rows.some((row) => row.recordType === 'fact')).toBe(false)
+  })
+
+  it('uses loaded authoritative bridges regardless of their canonical position', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, { messageId: 'message-1', requestSeq: 4 }),
+        fact(2, { runId: 'run-1' }),
+        fact(3, { runId: 'run-1', messageId: 'message-1', requestSeq: 4 })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    })
+    const runGroup = rows.find((row) => row.recordType === 'group' && row.group.kind === 'run')
+    const requestGroup = rows.find(
+      (row) => row.recordType === 'group' && row.group.kind === 'request'
+    )
+    const firstFact = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 1)
+
+    expect(runGroup?.key).toContain('incarnation-1')
+    expect(requestGroup?.key).toContain('incarnation-1')
+    expect(runGroup?.depth).toBe(0)
+    expect(requestGroup?.depth).toBe(1)
+    expect(firstFact?.depth).toBe(2)
+    expect(rows.indexOf(runGroup!)).toBeLessThan(rows.indexOf(requestGroup!))
+    expect(rows.indexOf(requestGroup!)).toBeLessThan(rows.indexOf(firstFact!))
+  })
+
+  it('does not choose between conflicting run bridges', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, { messageId: 'message-1', requestSeq: 4 }),
+        fact(2, { runId: 'run-1', messageId: 'message-1', requestSeq: 4 }),
+        fact(3, { runId: 'run-2', messageId: 'message-1', requestSeq: 4 })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    })
+    const requestGroup = rows.find(
+      (row) => row.recordType === 'group' && row.group.kind === 'request'
+    )
+    const firstFact = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 1)
+
+    expect(requestGroup?.depth).toBe(0)
+    expect(firstFact?.depth).toBe(1)
   })
 
   it('pairs duration only for authoritative endpoints with the same identity', () => {
