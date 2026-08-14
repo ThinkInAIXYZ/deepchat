@@ -77,6 +77,11 @@ export interface ContextPressureRecovery<TSummary> {
     reserveTokens: number
     minimumProtectedTailCount: number
   }): ChatMessage[]
+  rebuildAfterCompaction?(input: {
+    summary: TSummary
+    requestMessages: ChatMessage[]
+  }): ChatMessage[]
+  measure(messages: ChatMessage[]): number
   assertCurrent(): void
 }
 
@@ -570,19 +575,42 @@ export class DeepChatContextCoordinator {
 
     const checkpoint = await input.assembleCheckpoint(compaction.summary)
     input.assertCurrent()
-    const messages = this.replaceCheckpointMessage(
-      input.requestMessages,
-      input.contextContributions.checkpoint.message,
-      checkpoint.message
-    )
+    const previousCheckpoint = input.contextContributions.checkpoint
+    const previousMemoryIncluded = input.contextContributions.memoryIncluded
+    const previousDirectivesIncluded = input.contextContributions.directivesIncluded
     input.contextContributions.checkpoint = checkpoint
-
-    return {
-      messages: input.fit({
+    let fittedMessages: ChatMessage[]
+    try {
+      const messages = input.rebuildAfterCompaction
+        ? input.rebuildAfterCompaction({
+            summary: compaction.summary,
+            requestMessages: input.requestMessages
+          })
+        : this.replaceCheckpointMessage(
+            input.requestMessages,
+            previousCheckpoint.message,
+            checkpoint.message
+          )
+      fittedMessages = input.fit({
         messages,
         reserveTokens: input.requestedMaxTokens + input.toolReserveTokens,
         minimumProtectedTailCount: input.minimumProtectedTailCount
-      }),
+      })
+    } catch (error) {
+      input.contextContributions.checkpoint = previousCheckpoint
+      input.contextContributions.memoryIncluded = previousMemoryIncluded
+      input.contextContributions.directivesIncluded = previousDirectivesIncluded
+      throw error
+    }
+    if (input.measure(fittedMessages) >= input.measure(input.requestMessages)) {
+      input.contextContributions.checkpoint = previousCheckpoint
+      input.contextContributions.memoryIncluded = previousMemoryIncluded
+      input.contextContributions.directivesIncluded = previousDirectivesIncluded
+      return { messages: input.requestMessages }
+    }
+
+    return {
+      messages: fittedMessages,
       summaryCursorOrderSeq: input.getSummaryCursorOrderSeq(compaction.summary),
       syntheticContributions: getContextSyntheticContributions(input.contextContributions)
     }
@@ -654,7 +682,10 @@ export class DeepChatContextCoordinator {
           if (!input.run.providerRecovery.contextOverflowHandoffAttempted) {
             input.run.providerRecovery.contextOverflowHandoffAttempted = true
             const recovered = await input.recovery.recover({
-              requestMessages: requestPreflight.messages,
+              requestMessages: this.withActiveTurnFrom(
+                input.requestMessages,
+                requestPreflight.messages
+              ),
               requestedMaxTokens: requestPreflight.requestedMaxTokens,
               tools: input.tools
             })
@@ -837,7 +868,7 @@ export class DeepChatContextCoordinator {
       input.run.providerRecovery.contextOverflowHandoffAttempted = true
       providerOverflowRecoveryAttempted = true
       const recovered = await input.recovery.recover({
-        requestMessages: providerMessages,
+        requestMessages: this.withActiveTurnFrom(input.requestMessages, providerMessages),
         requestedMaxTokens: providerMaxTokens,
         tools: input.tools
       })
@@ -1235,6 +1266,21 @@ export class DeepChatContextCoordinator {
     } finally {
       input.rateGate.clearWaiting()
     }
+  }
+
+  private withActiveTurnFrom(
+    historySource: ChatMessage[],
+    activeTurnSource: ChatMessage[]
+  ): ChatMessage[] {
+    const historyActiveTurnStart = historySource.findLastIndex((message) => message.role === 'user')
+    const activeTurnStart = activeTurnSource.findLastIndex((message) => message.role === 'user')
+    if (historyActiveTurnStart < 0 || activeTurnStart < 0) {
+      return historySource
+    }
+    return [
+      ...historySource.slice(0, historyActiveTurnStart),
+      ...activeTurnSource.slice(activeTurnStart)
+    ]
   }
 
   private getLeadingSystemPrompt(messages: ChatMessage[]): string | null {

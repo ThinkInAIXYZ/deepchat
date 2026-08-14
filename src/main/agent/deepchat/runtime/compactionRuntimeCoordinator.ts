@@ -1,7 +1,11 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionCompactionState } from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type { CompactionIntent, CompactionService } from './compactionService'
+import {
+  hasCompactionBoundaryAdvanced,
+  type CompactionIntent,
+  type CompactionService
+} from './compactionService'
 import type { DeepChatEventPublisher } from './types'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
@@ -273,7 +277,7 @@ export class CompactionRuntimeCoordinator {
       )
       throwIfAbortRequested(compactionAbortSignal)
       this.assertCurrent(sessionId, instance)
-      const compacted = summaryState.summaryUpdatedAt !== intent.previousState.summaryUpdatedAt
+      const compacted = hasCompactionBoundaryAdvanced(intent.previousState, summaryState)
       return {
         compacted,
         state: await this.getState(sessionId, instance)
@@ -346,7 +350,7 @@ export class CompactionRuntimeCoordinator {
     }
 
     this.assertCurrent(sessionId, expectedInstance)
-    if (result.succeeded) {
+    if (result.outcome !== 'unchanged') {
       this.deps.messageStore.updateCompactionMessage(
         compactionMessageId,
         'compacted',
@@ -358,7 +362,7 @@ export class CompactionRuntimeCoordinator {
     this.deps.messageProjection.refresh(sessionId, compactionMessageId)
     this.emit(
       sessionId,
-      result.succeeded
+      result.outcome !== 'unchanged'
         ? this.fromSummary(result.summaryState, 'compacted')
         : this.fromSummary(result.summaryState),
       expectedInstance
@@ -376,7 +380,8 @@ export class CompactionRuntimeCoordinator {
   ): SessionCompactionState {
     const hasPersistedSummary =
       Boolean(summaryState.summaryText?.trim()) && summaryState.summaryUpdatedAt !== null
-    return preferredStatus === 'compacted' || hasPersistedSummary
+    const hasPersistedBoundary = summaryState.summaryCursorOrderSeq > 1
+    return preferredStatus === 'compacted' || hasPersistedSummary || hasPersistedBoundary
       ? {
           status: 'compacted',
           cursorOrderSeq: Math.max(1, summaryState.summaryCursorOrderSeq),

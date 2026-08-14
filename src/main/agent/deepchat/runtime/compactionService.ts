@@ -77,9 +77,11 @@ export type CompactionIntent = {
 }
 
 export type CompactionExecutionResult = {
-  succeeded: boolean
+  outcome: 'summarized' | 'boundary_only' | 'unchanged'
   summaryState: SessionSummaryState
 }
+
+type OrderSeqRange = NonNullable<CompactionIntent['summaryRange']>
 
 type CompactionSettings = {
   enabled: boolean
@@ -98,6 +100,42 @@ function floorNonNegative(value: number): number {
   if (value === Number.POSITIVE_INFINITY) return Number.MAX_SAFE_INTEGER
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.floor(value))
+}
+
+function normalizeOrderSeqRange(value: unknown): OrderSeqRange | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const fromOrderSeq = (value as Record<string, unknown>).fromOrderSeq
+  const toOrderSeq = (value as Record<string, unknown>).toOrderSeq
+  if (
+    typeof fromOrderSeq !== 'number' ||
+    !Number.isSafeInteger(fromOrderSeq) ||
+    fromOrderSeq < 1 ||
+    typeof toOrderSeq !== 'number' ||
+    !Number.isSafeInteger(toOrderSeq) ||
+    toOrderSeq < fromOrderSeq
+  ) {
+    return null
+  }
+  return { fromOrderSeq, toOrderSeq }
+}
+
+function mergeOrderSeqRanges(
+  previous: OrderSeqRange | null,
+  current: OrderSeqRange | null
+): OrderSeqRange | null {
+  if (!previous) return current
+  if (!current) return previous
+  return {
+    fromOrderSeq: Math.min(previous.fromOrderSeq, current.fromOrderSeq),
+    toOrderSeq: Math.max(previous.toOrderSeq, current.toOrderSeq)
+  }
+}
+
+export function hasCompactionBoundaryAdvanced(
+  previous: SessionSummaryState,
+  current: SessionSummaryState
+): boolean {
+  return current.summaryCursorOrderSeq > previous.summaryCursorOrderSeq
 }
 
 function calculateRetainedTailTokenTarget(params: {
@@ -492,9 +530,10 @@ export class CompactionService {
     intent: CompactionIntent,
     signal?: AbortSignal
   ): Promise<CompactionExecutionResult> {
+    let nextSummary: string | null = null
     try {
       throwIfAbortRequested(signal)
-      const nextSummary = await this.generateRollingSummary({
+      nextSummary = await this.generateRollingSummary({
         sessionId: intent.sessionId,
         previousSummary: intent.previousState.summaryText,
         summaryBlocks: intent.summaryBlocks,
@@ -503,60 +542,125 @@ export class CompactionService {
         signal
       })
       throwIfAbortRequested(signal)
-      const summaryUpdatedAt = Date.now()
-
-      const updatedState: SessionSummaryState = {
-        summaryText: nextSummary,
-        summaryCursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
-        summaryUpdatedAt
-      }
-
-      const compareAndSet = this.sessionStore.compareAndSetSummaryState(
-        intent.sessionId,
-        intent.previousState,
-        updatedState,
-        {
-          name: intent.anchorName ?? 'compaction/auto',
-          state: {
-            summary: nextSummary,
-            cursorOrderSeq: updatedState.summaryCursorOrderSeq,
-            range: intent.summaryRange ?? null,
-            sourceMessageIds: intent.sourceMessageIds ?? [],
-            summaryableTurnCount: intent.summaryableTurnCount ?? intent.summaryBlocks.length,
-            retainedTurnCount: floorNonNegative(intent.retainedTurnCount),
-            retainedTokenEstimate: floorNonNegative(intent.retainedTokenEstimate),
-            retainedTokenTarget: floorNonNegative(intent.retainedTokenTarget),
-            previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
-          },
-          meta: {
-            providerId: intent.currentModel.providerId,
-            modelId: intent.currentModel.modelId,
-            reserveTokens: intent.reserveTokens
-          }
-        }
-      )
-      if (compareAndSet.applied) {
-        return {
-          succeeded: true,
-          summaryState: compareAndSet.currentState
-        }
-      }
-
-      const hasCurrentSummary = Boolean(compareAndSet.currentState.summaryText?.trim())
-      return {
-        succeeded: hasCurrentSummary,
-        summaryState: compareAndSet.currentState
-      }
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) {
         throw error
       }
-      console.warn(`[CompactionService] Failed to compact session ${intent.sessionId}:`, error)
-      return {
-        succeeded: false,
-        summaryState: intent.previousState
+      console.warn(
+        `[CompactionService] Summary generation failed for session ${intent.sessionId}; advancing a boundary-only reconstruction anchor.`
+      )
+    }
+
+    throwIfAbortRequested(signal)
+    return nextSummary
+      ? this.commitSummaryBoundary(intent, nextSummary)
+      : this.commitBoundaryOnly(intent)
+  }
+
+  private commitSummaryBoundary(
+    intent: CompactionIntent,
+    nextSummary: string
+  ): CompactionExecutionResult {
+    const summaryUpdatedAt = Date.now()
+    const updatedState: SessionSummaryState = {
+      summaryText: nextSummary,
+      summaryCursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+      summaryUpdatedAt
+    }
+    const compareAndSet = this.sessionStore.compareAndSetSummaryState(
+      intent.sessionId,
+      intent.previousState,
+      updatedState,
+      this.buildAnchor(intent, {
+        summary: nextSummary,
+        cursorOrderSeq: updatedState.summaryCursorOrderSeq,
+        range: intent.summaryRange ?? null
+      })
+    )
+    return {
+      outcome: this.resolveStoredOutcome(intent.previousState, compareAndSet.currentState),
+      summaryState: compareAndSet.currentState
+    }
+  }
+
+  private commitBoundaryOnly(intent: CompactionIntent): CompactionExecutionResult {
+    const previousAnchor = this.sessionStore.getReconstructionAnchorPromptState(intent.sessionId)
+    const previousCursor =
+      typeof previousAnchor?.state.cursorOrderSeq === 'number' &&
+      Number.isSafeInteger(previousAnchor.state.cursorOrderSeq)
+        ? Math.max(1, previousAnchor.state.cursorOrderSeq)
+        : null
+    const previousGap =
+      previousCursor === intent.previousState.summaryCursorOrderSeq &&
+      previousAnchor?.state.reason === 'summary_unavailable'
+        ? normalizeOrderSeqRange(previousAnchor.state.summaryGap)
+        : null
+    const currentGap =
+      intent.summaryRange ??
+      (intent.targetCursorOrderSeq > intent.previousState.summaryCursorOrderSeq
+        ? {
+            fromOrderSeq: intent.previousState.summaryCursorOrderSeq,
+            toOrderSeq: intent.targetCursorOrderSeq - 1
+          }
+        : null)
+    const summaryGap = mergeOrderSeqRanges(previousGap, currentGap)
+    const updatedState: SessionSummaryState = {
+      summaryText: intent.previousState.summaryText,
+      summaryCursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+      summaryUpdatedAt: null
+    }
+    const compareAndSet = this.sessionStore.compareAndSetSummaryState(
+      intent.sessionId,
+      intent.previousState,
+      updatedState,
+      this.buildAnchor(intent, {
+        cursorOrderSeq: updatedState.summaryCursorOrderSeq,
+        reason: 'summary_unavailable',
+        summaryGap,
+        ...(intent.previousState.summaryText
+          ? { priorSummary: intent.previousState.summaryText }
+          : {})
+      })
+    )
+    return {
+      outcome: this.resolveStoredOutcome(intent.previousState, compareAndSet.currentState),
+      summaryState: compareAndSet.currentState
+    }
+  }
+
+  private buildAnchor(
+    intent: CompactionIntent,
+    reconstructionState: Record<string, unknown>
+  ): {
+    name: string
+    state: Record<string, unknown>
+    meta: Record<string, unknown>
+  } {
+    return {
+      name: intent.anchorName ?? 'compaction/auto',
+      state: {
+        ...reconstructionState,
+        sourceMessageIds: intent.sourceMessageIds ?? [],
+        summaryableTurnCount: intent.summaryableTurnCount ?? intent.summaryBlocks.length,
+        retainedTurnCount: floorNonNegative(intent.retainedTurnCount),
+        retainedTokenEstimate: floorNonNegative(intent.retainedTokenEstimate),
+        retainedTokenTarget: floorNonNegative(intent.retainedTokenTarget),
+        previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
+      },
+      meta: {
+        providerId: intent.currentModel.providerId,
+        modelId: intent.currentModel.modelId,
+        reserveTokens: intent.reserveTokens
       }
     }
+  }
+
+  private resolveStoredOutcome(
+    previous: SessionSummaryState,
+    current: SessionSummaryState
+  ): CompactionExecutionResult['outcome'] {
+    if (!hasCompactionBoundaryAdvanced(previous, current)) return 'unchanged'
+    return current.summaryUpdatedAt === null ? 'boundary_only' : 'summarized'
   }
 
   private prepareCompaction(params: {
@@ -580,6 +684,21 @@ export class CompactionService {
     anchorName?: string
   }): CompactionIntent | null {
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
+    const reconstructionAnchor =
+      this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+    const pendingSummaryGap =
+      reconstructionAnchor?.state.reason === 'summary_unavailable' &&
+      reconstructionAnchor.state.cursorOrderSeq === summaryState.summaryCursorOrderSeq
+        ? normalizeOrderSeqRange(reconstructionAnchor.state.summaryGap)
+        : null
+    const pendingGapRecords = pendingSummaryGap
+      ? params.records.filter(
+          (record) =>
+            record.orderSeq >= pendingSummaryGap.fromOrderSeq &&
+            record.orderSeq <= pendingSummaryGap.toOrderSeq &&
+            record.orderSeq < summaryState.summaryCursorOrderSeq
+        )
+      : []
     const scopedRecords = params.records.filter(
       (record) => record.orderSeq >= summaryState.summaryCursorOrderSeq
     )
@@ -642,10 +761,20 @@ export class CompactionService {
 
     const summaryableTurns = retainedTail.summaryableTurns
     const rawTailTurns = retainedTail.retainedTurns
-    const summaryBlocks = summaryableTurns.map((turn) =>
-      turn.records.map((record) => serializeRecord(record)).join('\n\n')
+    const newlySummaryableRecords = summaryableTurns.flatMap((turn) => turn.records)
+    const summaryableRecords = [...pendingGapRecords, ...newlySummaryableRecords]
+    const pendingGapTurnCount = pendingGapRecords.reduce(
+      (count, record) => count + (record.role === 'user' ? 1 : 0),
+      0
     )
-    const summaryableRecords = summaryableTurns.flatMap((turn) => turn.records)
+    const summaryBlocks = [
+      ...(pendingGapRecords.length > 0
+        ? [pendingGapRecords.map((record) => serializeRecord(record)).join('\n\n')]
+        : []),
+      ...summaryableTurns.map((turn) =>
+        turn.records.map((record) => serializeRecord(record)).join('\n\n')
+      )
+    ]
     const summaryRange =
       summaryableRecords.length > 0
         ? {
@@ -672,7 +801,9 @@ export class CompactionService {
       anchorName: params.anchorName ?? 'compaction/auto',
       summaryRange,
       sourceMessageIds: summaryableRecords.map((record) => record.id),
-      summaryableTurnCount: summaryableTurns.length,
+      summaryableTurnCount:
+        summaryableTurns.length +
+        (pendingGapRecords.length > 0 ? Math.max(1, pendingGapTurnCount) : 0),
       retainedTurnCount: rawTailTurns.length,
       retainedTokenEstimate: retainedTail.retainedTokenEstimate,
       retainedTokenTarget: retainedTail.retainedTokenTarget

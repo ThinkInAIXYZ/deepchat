@@ -354,6 +354,7 @@ describe('DeepChatContextCoordinator', () => {
       assembleCheckpoint,
       getSummaryCursorOrderSeq: () => 1,
       fit,
+      measure: (candidate) => JSON.stringify(candidate).length,
       assertCurrent: vi.fn()
     })
 
@@ -376,6 +377,7 @@ describe('DeepChatContextCoordinator', () => {
       requestMessages: [
         { role: 'system', content: 'old system' },
         oldCheckpoint,
+        { role: 'assistant', content: 'old history' },
         { role: 'user', content: 'latest' }
       ],
       requestedMaxTokens: 100,
@@ -396,8 +398,11 @@ describe('DeepChatContextCoordinator', () => {
       getSummaryCursorOrderSeq: (summary) => summary.cursor,
       fit: ({ messages, reserveTokens, minimumProtectedTailCount }) => {
         order.push(`fit:${reserveTokens}:${minimumProtectedTailCount}`)
-        return messages
+        return messages.filter(
+          (message) => !(message.role === 'assistant' && message.content === 'old history')
+        )
       },
+      measure: (candidate) => JSON.stringify(candidate).length,
       assertCurrent: () => order.push('check')
     })
 
@@ -418,6 +423,41 @@ describe('DeepChatContextCoordinator', () => {
       summaryCursorOrderSeq: 9,
       syntheticContributions: []
     })
+  })
+
+  it('does not report recovery when the derived view is not smaller', async () => {
+    const oldCheckpoint = { role: 'user' as const, content: 'old checkpoint' }
+    const messages: ChatMessage[] = [oldCheckpoint, { role: 'user', content: 'latest' }]
+    const contextContributions = {
+      checkpoint: { message: oldCheckpoint, contributions: [] },
+      memory: { content: null, manifest: null, anchorEntryId: null },
+      directives: { content: null, manifest: null, anchorEntryId: null },
+      memoryIncluded: false,
+      directivesIncluded: false
+    }
+
+    const recovered = await new DeepChatContextCoordinator().recoverFromPressure({
+      requestMessages: messages,
+      requestedMaxTokens: 100,
+      toolReserveTokens: 20,
+      minimumProtectedTailCount: 1,
+      contextContributions,
+      prepareCompaction: async () => ({
+        applied: true as const,
+        summary: { cursor: 9 }
+      }),
+      assembleCheckpoint: async () => ({
+        message: { role: 'user', content: 'new checkpoint with no reduction' },
+        contributions: []
+      }),
+      getSummaryCursorOrderSeq: (summary) => summary.cursor,
+      fit: ({ messages: candidate }) => candidate,
+      measure: (candidate) => JSON.stringify(candidate).length,
+      assertCurrent: vi.fn()
+    })
+
+    expect(recovered).toEqual({ messages })
+    expect(contextContributions.checkpoint.message).toBe(oldCheckpoint)
   })
 
   it('attempts the ViewManifest before rate admission and sends the exact manifested request', async () => {

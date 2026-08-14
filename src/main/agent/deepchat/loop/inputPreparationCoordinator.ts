@@ -14,7 +14,7 @@ export interface InitialInputPreparation<TIntent, TSummary, THistory, TProjectio
   beginCompaction(intent: TIntent, projection: TProjection): void
   applyCompaction(intent: TIntent, projection: TProjection): Promise<TSummary>
   readSummary(): TSummary
-  afterCompactionApplyReturned(intent: TIntent): void
+  afterCompactionApplyReturned(intent: TIntent, summary: TSummary): void
   checkpoints: InputPreparationCheckpoints
 }
 
@@ -31,7 +31,7 @@ export interface ExistingInputPreparation<TIntent, TSummary, THistory> {
   prepareIntent(history: THistory): Promise<TIntent | null>
   applyCompaction(intent: TIntent): Promise<TSummary>
   readSummary(): TSummary
-  afterCompactionApplyReturned?(intent: TIntent): void
+  afterCompactionApplyReturned?(intent: TIntent, summary: TSummary): void
   checkpoints: ExistingInputPreparationCheckpoints
 }
 
@@ -61,7 +61,7 @@ export class InputPreparationCoordinator {
     input.beginCompaction(intent, projection)
     const summary = await input.applyCompaction(intent, projection)
     input.checkpoints.assertCurrent()
-    input.afterCompactionApplyReturned(intent)
+    input.afterCompactionApplyReturned(intent, summary)
 
     return { history, intent, summary, userMessageId }
   }
@@ -86,7 +86,7 @@ export class InputPreparationCoordinator {
 
     const summary = await input.applyCompaction(intent)
     input.checkpoints.assertCurrent()
-    input.afterCompactionApplyReturned?.(intent)
+    input.afterCompactionApplyReturned?.(intent, summary)
 
     return {
       history: this.refreshExistingHistory(input, history),

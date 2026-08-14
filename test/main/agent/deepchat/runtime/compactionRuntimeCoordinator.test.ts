@@ -214,7 +214,7 @@ function createHarness(options?: {
         summaryUpdatedAt: (intent.previousState.summaryUpdatedAt ?? 0) + 1
       }
       return {
-        succeeded: true as const,
+        outcome: 'summarized' as const,
         summaryState: { ...summaryState }
       }
     }
@@ -333,6 +333,21 @@ describe('CompactionRuntimeCoordinator', () => {
       status: 'compacted',
       cursorOrderSeq: 7,
       summaryUpdatedAt: 200
+    })
+  })
+
+  it('projects a cursor-only reconstruction boundary as compacted', async () => {
+    const { coordinator, setSummaryState } = createHarness()
+    setSummaryState({
+      summaryText: null,
+      summaryCursorOrderSeq: 7,
+      summaryUpdatedAt: null
+    })
+
+    await expect(coordinator.getState(SESSION_ID)).resolves.toEqual({
+      status: 'compacted',
+      cursorOrderSeq: 7,
+      summaryUpdatedAt: null
     })
   })
 

@@ -48,7 +48,7 @@ import {
   getUsableContextLength
 } from './contextBudget'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
-import type { CompactionService } from './compactionService'
+import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService'
 import { isContextWindowErrorLike } from './contextWindowError'
 import { resolveInterleavedReasoningConfig } from './generationSettings'
 import {
@@ -750,12 +750,14 @@ export class TurnCoordinator {
                 )
             ),
           readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
-          afterCompactionApplyReturned: (intent) =>
+          afterCompactionApplyReturned: (intent, summary) => {
+            if (!hasCompactionBoundaryAdvanced(intent.previousState, summary)) return
             this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
               session: instance.getMemorySessionHandle(),
               origin: 'initial',
               targetCursorOrderSeq: intent.targetCursorOrderSeq
-            }),
+            })
+          },
           checkpoints: {
             assertCurrent: () => scope.assertCurrent(),
             beforeHistoryRefresh: () => {
@@ -841,12 +843,14 @@ export class TurnCoordinator {
                 )
             ),
           readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
-          afterCompactionApplyReturned: (intent) =>
+          afterCompactionApplyReturned: (intent, summary) => {
+            if (!hasCompactionBoundaryAdvanced(intent.previousState, summary)) return
             this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
               session: instance.getMemorySessionHandle(),
               origin: 'initial',
               targetCursorOrderSeq: intent.targetCursorOrderSeq
-            }),
+            })
+          },
           checkpoints: {
             assertCurrent: () => scope.assertCurrent()
           }

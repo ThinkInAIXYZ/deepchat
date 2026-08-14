@@ -182,6 +182,31 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     connection.close()
   })
 
+  it('retains a prior summary hint without claiming a new summary timestamp', () => {
+    const { connection, database, store } = createStore()
+
+    store.create('s1', 'openai', 'gpt-4o', 'full_access')
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's1',
+      name: 'auto_handoff/context_overflow',
+      state: {
+        priorSummary: 'last valid summary',
+        cursorOrderSeq: 8,
+        reason: 'summary_unavailable',
+        summaryGap: { fromOrderSeq: 5, toOrderSeq: 7 }
+      },
+      createdAt: 120
+    })
+
+    expect(store.getSummaryState('s1')).toEqual({
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 8,
+      summaryUpdatedAt: null
+    })
+
+    connection.close()
+  })
+
   it('compares summary state against tape reconstruction anchors before writing compaction anchors', () => {
     const { connection, database, store } = createStore()
 

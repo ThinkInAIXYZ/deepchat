@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as contextBuilderModule from '@/agent/deepchat/runtime/contextBuilder'
 import { CompactionService, type ModelSpec } from '@/agent/deepchat/runtime/compactionService'
 import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContributions'
-import type { SessionSummaryState } from '@/session/data/settings'
+import type {
+  ReconstructionAnchorPromptState,
+  SessionSummaryState
+} from '@/session/data/settings'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
@@ -141,6 +144,7 @@ function makeCompleteTurns(turnCount: number, contentLength: number) {
 function createService(options?: {
   summaryState?: SessionSummaryState
   compareAndSetResult?: { applied: boolean; currentState: SessionSummaryState }
+  reconstructionAnchor?: ReconstructionAnchorPromptState | null
   sessionConfig?: DeepChatAgentConfig
 }) {
   const summaryState =
@@ -153,6 +157,9 @@ function createService(options?: {
 
   const sessionStore = {
     getSummaryState: vi.fn().mockReturnValue(summaryState),
+    getReconstructionAnchorPromptState: vi
+      .fn()
+      .mockReturnValue(options?.reconstructionAnchor ?? null),
     compareAndSetSummaryState: vi.fn().mockReturnValue(
       options?.compareAndSetResult ?? {
         applied: true,
@@ -866,7 +873,7 @@ describe('CompactionService', () => {
     })
 
     expect(result).toEqual({
-      succeeded: true,
+      outcome: 'summarized',
       summaryState: newerState
     })
     expect(sessionStore.compareAndSetSummaryState).toHaveBeenCalledWith(
@@ -893,6 +900,206 @@ describe('CompactionService', () => {
     )
     const anchorState = sessionStore.compareAndSetSummaryState.mock.calls[0]?.[3]?.state
     expect(anchorState).not.toHaveProperty('retainedTail')
+  })
+
+  it('advances a boundary-only anchor when summary generation fails', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 3,
+      summaryUpdatedAt: 100
+    }
+    const boundaryState: SessionSummaryState = {
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 7,
+      summaryUpdatedAt: null
+    }
+    const { service, sessionStore, providerRuntime } = createService({
+      summaryState: previousState,
+      compareAndSetResult: { applied: true, currentState: boundaryState }
+    })
+    providerRuntime.generateText.mockRejectedValueOnce(
+      new Error('provider request id must not be persisted')
+    )
+
+    const result = await service.applyCompaction({
+      sessionId: 's1',
+      previousState,
+      targetCursorOrderSeq: 7,
+      summaryBlocks: ['span to summarize'],
+      currentModel: {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        contextLength: 4096
+      },
+      reserveTokens: 512,
+      anchorName: 'auto_handoff/context_overflow',
+      summaryRange: { fromOrderSeq: 3, toOrderSeq: 6 },
+      sourceMessageIds: ['m3', 'm4'],
+      retainedTurnCount: 1,
+      retainedTokenEstimate: 300,
+      retainedTokenTarget: 256
+    })
+
+    expect(result).toEqual({ outcome: 'boundary_only', summaryState: boundaryState })
+    expect(sessionStore.compareAndSetSummaryState).toHaveBeenCalledWith(
+      's1',
+      previousState,
+      boundaryState,
+      expect.objectContaining({
+        name: 'auto_handoff/context_overflow',
+        state: expect.objectContaining({
+          cursorOrderSeq: 7,
+          reason: 'summary_unavailable',
+          priorSummary: 'last valid summary',
+          summaryGap: { fromOrderSeq: 3, toOrderSeq: 6 },
+          sourceMessageIds: ['m3', 'm4']
+        })
+      })
+    )
+    const anchorState = sessionStore.compareAndSetSummaryState.mock.calls[0]?.[3]?.state
+    expect(anchorState).not.toHaveProperty('summary')
+    expect(JSON.stringify(anchorState)).not.toContain('provider request id')
+
+    const anchor = {
+      entryId: 11,
+      name: 'auto_handoff/context_overflow',
+      createdAt: 999,
+      state: anchorState
+    }
+    expect(buildContextCheckpoint(boundaryState.summaryText, anchor)).toEqual(
+      buildContextCheckpoint(boundaryState.summaryText, anchor)
+    )
+    expect(String(buildContextCheckpoint(boundaryState.summaryText, anchor).message?.content)).toContain(
+      '"summaryGap":'
+    )
+  })
+
+  it('merges consecutive summary gaps into the latest boundary', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: null,
+      summaryCursorOrderSeq: 5,
+      summaryUpdatedAt: null
+    }
+    const boundaryState: SessionSummaryState = {
+      summaryText: null,
+      summaryCursorOrderSeq: 9,
+      summaryUpdatedAt: null
+    }
+    const { service, sessionStore, providerRuntime } = createService({
+      summaryState: previousState,
+      compareAndSetResult: { applied: true, currentState: boundaryState },
+      reconstructionAnchor: {
+        entryId: 10,
+        name: 'auto_handoff/context_overflow',
+        createdAt: 100,
+        state: {
+          cursorOrderSeq: 5,
+          reason: 'summary_unavailable',
+          summaryGap: { fromOrderSeq: 1, toOrderSeq: 4 }
+        }
+      }
+    })
+    providerRuntime.generateText.mockRejectedValueOnce(new Error('summary unavailable'))
+
+    await service.applyCompaction({
+      sessionId: 's1',
+      previousState,
+      targetCursorOrderSeq: 9,
+      summaryBlocks: ['next span'],
+      currentModel: {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        contextLength: 4096
+      },
+      reserveTokens: 512,
+      anchorName: 'auto_handoff/context_overflow',
+      summaryRange: { fromOrderSeq: 5, toOrderSeq: 8 },
+      retainedTurnCount: 0,
+      retainedTokenEstimate: 0,
+      retainedTokenTarget: 0
+    })
+
+    expect(sessionStore.compareAndSetSummaryState.mock.calls[0]?.[3]?.state).toMatchObject({
+      cursorOrderSeq: 9,
+      reason: 'summary_unavailable',
+      summaryGap: { fromOrderSeq: 1, toOrderSeq: 8 }
+    })
+  })
+
+  it('includes a pending summary gap in the next semantic summary intent', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: 'summary before the gap',
+      summaryCursorOrderSeq: 5,
+      summaryUpdatedAt: null
+    }
+    const { service } = createService({
+      summaryState: previousState,
+      reconstructionAnchor: {
+        entryId: 10,
+        name: 'auto_handoff/context_overflow',
+        createdAt: 100,
+        state: {
+          priorSummary: 'summary before the gap',
+          cursorOrderSeq: 5,
+          reason: 'summary_unavailable',
+          summaryGap: { fromOrderSeq: 1, toOrderSeq: 4 }
+        }
+      },
+      sessionConfig: {
+        autoCompactionRetainRecentPairs: 1
+      }
+    })
+    const historyRecords = makeCompleteTurns(5, 30)
+
+    const intent = await service.prepareForContextPressureRecovery({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      projectedMessages: [],
+      historyRecords
+    })
+
+    expect(intent?.summaryRange).toEqual({ fromOrderSeq: 1, toOrderSeq: 6 })
+    expect(intent?.sourceMessageIds).toEqual(historyRecords.slice(0, 6).map((record) => record.id))
+    expect(intent?.summaryBlocks.join('\n')).toContain('U0:')
+    expect(intent?.summaryBlocks.join('\n')).toContain('U2:')
+    expect(intent?.summaryBlocks.join('\n')).not.toContain('U3:')
+    expect(intent?.summaryBlocks.join('\n')).not.toContain('U4:')
+  })
+
+  it('reports unchanged when a CAS winner does not advance the reconstruction cursor', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: 'existing summary',
+      summaryCursorOrderSeq: 3,
+      summaryUpdatedAt: 100
+    }
+    const { service } = createService({
+      summaryState: previousState,
+      compareAndSetResult: { applied: false, currentState: previousState }
+    })
+
+    await expect(
+      service.applyCompaction({
+        sessionId: 's1',
+        previousState,
+        targetCursorOrderSeq: 5,
+        summaryBlocks: ['span'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          contextLength: 4096
+        },
+        reserveTokens: 512,
+        retainedTurnCount: 0,
+        retainedTokenEstimate: 0,
+        retainedTokenTarget: 0
+      })
+    ).resolves.toEqual({ outcome: 'unchanged', summaryState: previousState })
   })
 
   it('passes abort signals into rate-limited compaction waits and rethrows cancellation', async () => {
@@ -1116,6 +1323,30 @@ describe('CompactionService', () => {
     const prompt = String(checkpoint.message?.content ?? '')
 
     expect(prompt).toContain('"reason": "context_length_exceeded"')
+    expect(prompt).not.toContain('provider raw error')
+  })
+
+  it('exposes a bounded compaction gap without anchor bookkeeping', () => {
+    const checkpoint = buildContextCheckpoint('last valid summary', {
+      entryId: 12,
+      name: 'compaction/auto',
+      createdAt: 100,
+      state: {
+        priorSummary: 'last valid summary',
+        cursorOrderSeq: 7,
+        reason: 'summary_unavailable',
+        summaryGap: { fromOrderSeq: 3, toOrderSeq: 6 },
+        sourceMessageIds: ['m3', 'm4'],
+        error: 'provider raw error'
+      }
+    })
+    const prompt = String(checkpoint.message?.content ?? '')
+
+    expect(prompt).toContain('Persisted Rolling Summary')
+    expect(prompt).toContain('Persisted Tape Compaction Gap')
+    expect(prompt).toContain('"summaryGap":')
+    expect(prompt).toContain('tape_search or tape_context')
+    expect(prompt).not.toContain('sourceMessageIds')
     expect(prompt).not.toContain('provider raw error')
   })
 

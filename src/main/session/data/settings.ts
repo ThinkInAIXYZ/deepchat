@@ -83,26 +83,27 @@ function summaryStateFromTapeAnchor(
   }
 
   const state = resolveAnchorState(row)
-  const summary =
+  const generatedSummary =
     typeof state?.summary === 'string'
       ? state.summary
       : typeof state?.summaryText === 'string'
         ? state.summaryText
         : null
+  const priorSummary = typeof state?.priorSummary === 'string' ? state.priorSummary : null
   const cursorOrderSeq = normalizeCursorOrderSeq(
     state?.cursorOrderSeq ?? state?.summaryCursorOrderSeq
   )
 
-  if (!summary?.trim()) {
+  if (!generatedSummary?.trim()) {
     return {
-      summaryText: null,
+      summaryText: priorSummary?.trim() ? priorSummary : null,
       summaryCursorOrderSeq: cursorOrderSeq,
       summaryUpdatedAt: null
     }
   }
 
   return {
-    summaryText: summary,
+    summaryText: generatedSummary,
     summaryCursorOrderSeq: cursorOrderSeq,
     summaryUpdatedAt: row.created_at
   }
