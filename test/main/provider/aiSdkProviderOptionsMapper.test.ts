@@ -568,32 +568,40 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
-  it('maps MiniMax-M3 reasoning to Anthropic-compatible adaptive thinking', () => {
-    mockGetReasoningPortrait.mockReturnValue({
-      supported: true,
-      defaultEnabled: true
-    })
+  it.each([
+    ['minimax', 'minimax', 'MiniMax-M3'],
+    ['minimax-cn', 'minimax-cn', 'MiniMax-M3'],
+    ['minimax-global', 'minimax', 'minimax-m3'],
+    ['minimax', 'minimax', 'MiniMaxAI/MiniMax-M3']
+  ])(
+    'maps MiniMax-M3 reasoning to Anthropic-compatible adaptive thinking for %s/%s/%s',
+    (providerId, capabilityProviderId, modelId) => {
+      mockGetReasoningPortrait.mockReturnValue({
+        supported: true,
+        defaultEnabled: true
+      })
 
-    const result = buildProviderOptions({
-      providerId: 'minimax',
-      capabilityProviderId: 'minimax',
-      providerOptionsKey: 'anthropic',
-      apiType: 'anthropic',
-      modelId: 'MiniMax-M3',
-      modelConfig: {
-        reasoning: true
-      } as any,
-      tools: [],
-      messages: []
-    })
+      const result = buildProviderOptions({
+        providerId,
+        capabilityProviderId,
+        providerOptionsKey: 'anthropic',
+        apiType: 'anthropic',
+        modelId,
+        modelConfig: {
+          reasoning: true
+        } as any,
+        tools: [],
+        messages: []
+      })
 
-    expect(result.providerOptions?.anthropic).toEqual({
-      toolStreaming: false,
-      thinking: {
-        type: 'adaptive'
-      }
-    })
-  })
+      expect(result.providerOptions?.anthropic).toEqual({
+        toolStreaming: false,
+        thinking: {
+          type: 'adaptive'
+        }
+      })
+    }
+  )
 
   it('does not send MiniMax-M3 adaptive thinking when reasoning is disabled', () => {
     mockGetReasoningPortrait.mockReturnValue({

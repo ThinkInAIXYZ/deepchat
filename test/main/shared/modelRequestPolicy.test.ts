@@ -8,6 +8,7 @@ import {
 import {
   applyModelRequestPolicy,
   isKimiK3ModelId,
+  isMiniMaxM3AdaptiveThinkingModel,
   resolveCapabilityAwareRequestParameterPolicy,
   resolveModelRequestPolicy
 } from '../../../src/shared/modelRequestPolicy'
@@ -129,6 +130,82 @@ describe('moonshot Kimi temperature policy', () => {
     expect(resolveCapabilityAwareRequestParameterPolicy(fixed, false)).toEqual({
       mode: 'fixed',
       value: 1
+    })
+
+    const miniMaxOmit = resolveModelRequestPolicy('minimax', 'MiniMax-M3', true).temperature
+    expect(resolveCapabilityAwareRequestParameterPolicy(miniMaxOmit, true)).toEqual({
+      mode: 'omit'
+    })
+  })
+})
+
+describe('MiniMax-M3 thinking temperature policy', () => {
+  const omitTemperaturePolicy = {
+    temperature: { mode: 'omit' },
+    topP: { mode: 'passthrough' },
+    reasoning: { mode: 'passthrough' },
+    legacyThinking: { mode: 'passthrough' }
+  }
+  const passthroughPolicy = {
+    temperature: { mode: 'passthrough' },
+    topP: { mode: 'passthrough' },
+    reasoning: { mode: 'passthrough' },
+    legacyThinking: { mode: 'passthrough' }
+  }
+
+  it.each([
+    ['minimax', 'MiniMax-M3'],
+    ['minimax', 'minimax-m3'],
+    ['minimax', 'MiniMaxAI/MiniMax-M3'],
+    ['minimax-cn', 'MiniMax-M3'],
+    ['minimax-global', 'minimax-m3']
+  ])('omits temperature for %s/%s when thinking is enabled', (providerId, modelId) => {
+    expect(isMiniMaxM3AdaptiveThinkingModel(providerId, modelId)).toBe(true)
+    expect(resolveModelRequestPolicy(providerId, modelId, true)).toEqual(omitTemperaturePolicy)
+  })
+
+  it.each([
+    ['minimax', 'MiniMax-M3'],
+    ['minimax-cn', 'minimax-m3'],
+    ['minimax-global', 'MiniMaxAI/MiniMax-M3']
+  ])('keeps temperature for %s/%s when thinking is disabled', (providerId, modelId) => {
+    expect(resolveModelRequestPolicy(providerId, modelId, false)).toEqual(passthroughPolicy)
+    expect(resolveModelRequestPolicy(providerId, modelId, undefined)).toEqual(passthroughPolicy)
+  })
+
+  it.each([
+    ['minimax', 'MiniMax-M2.5'],
+    ['minimax', 'minimax-m2.7'],
+    ['minimax', 'minimax-m3-free'],
+    ['minimax', 'minimax-m3:thinking'],
+    ['openrouter', 'minimax/minimax-m3'],
+    ['openai', 'MiniMax-M3'],
+    ['anthropic', 'claude-opus-4-7']
+  ])('does not apply MiniMax-M3 thinking policy to %s/%s', (providerId, modelId) => {
+    expect(isMiniMaxM3AdaptiveThinkingModel(providerId, modelId)).toBe(false)
+    expect(resolveModelRequestPolicy(providerId, modelId, true)).toEqual(passthroughPolicy)
+  })
+
+  it('applies MiniMax-M3 omit without mutating stored generation settings', () => {
+    const stored = {
+      reasoning: true,
+      temperature: 0.6,
+      topP: 0.8
+    }
+    const effective = applyModelRequestPolicy(
+      stored,
+      resolveModelRequestPolicy('minimax', 'MiniMax-M3', stored.reasoning)
+    )
+
+    expect(effective).toEqual({
+      reasoning: true,
+      temperature: undefined,
+      topP: 0.8
+    })
+    expect(stored).toEqual({
+      reasoning: true,
+      temperature: 0.6,
+      topP: 0.8
     })
   })
 })

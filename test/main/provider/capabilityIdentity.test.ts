@@ -139,6 +139,11 @@ const state = vi.hoisted(() => ({
             id: 'MiniMax-M2',
             temperature: true,
             reasoning: { supported: true, default: true }
+          },
+          {
+            id: 'MiniMax-M3',
+            temperature: true,
+            reasoning: { supported: true, default: true }
           }
         ]
       },
@@ -541,6 +546,67 @@ describe('capability identity resolution', () => {
       endpointType: 'openai',
       reasoning: false
     })
+    expect(getModelConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits MiniMax-M3 temperature when thinking is enabled without rewriting catalog support', () => {
+    const identity = resolveCapabilityIdentity({
+      providerId: 'minimax',
+      modelId: 'MiniMax-M3'
+    })
+
+    expect(identity).toEqual({
+      providerId: 'minimax',
+      requestModelId: 'MiniMax-M3',
+      catalogMatched: true,
+      catalogModelId: 'minimax-m3'
+    })
+    expect(buildResolvedCapabilitySnapshot(identity, { reasoningEnabled: true })).toMatchObject({
+      temperatureCapability: true,
+      requestPolicy: {
+        temperature: { mode: 'omit' },
+        topP: { mode: 'passthrough' }
+      }
+    })
+    expect(buildResolvedCapabilitySnapshot(identity, { reasoningEnabled: false })).toMatchObject({
+      temperatureCapability: true,
+      requestPolicy: {
+        temperature: { mode: 'passthrough' }
+      }
+    })
+  })
+
+  it('uses stored MiniMax-M3 reasoning for temperature omit unless a draft overrides it', () => {
+    const providerSettings = Object.create(ProviderSettings.prototype) as ProviderSettings
+    const identity = {
+      providerId: 'minimax',
+      requestModelId: 'MiniMax-M3',
+      catalogMatched: true as const,
+      catalogModelId: 'minimax-m3'
+    }
+    const resolveIdentity = vi.fn(() => identity)
+    const getModelConfig = vi.fn(() => ({ reasoning: true, temperature: 0.6 }))
+
+    Object.assign(providerSettings as object, {
+      resolveCapabilityIdentityForModel: resolveIdentity,
+      getModelConfig
+    })
+
+    expect(
+      providerSettings.getCapabilitySnapshot({
+        providerId: 'minimax',
+        modelId: 'MiniMax-M3'
+      }).requestPolicy.temperature
+    ).toEqual({ mode: 'omit' })
+    expect(getModelConfig).toHaveBeenCalledWith('MiniMax-M3', 'minimax', identity)
+
+    expect(
+      providerSettings.getCapabilitySnapshot({
+        providerId: 'minimax',
+        modelId: 'MiniMax-M3',
+        reasoningEnabled: false
+      }).requestPolicy.temperature
+    ).toEqual({ mode: 'passthrough' })
     expect(getModelConfig).toHaveBeenCalledTimes(1)
   })
 
