@@ -636,12 +636,12 @@ export function getTapeInspectorTraceBinding(
   record: TapeInspectorFactRecord
 ): TapeInspectorTraceBinding | null {
   if (!record.messageId || record.requestSeq === undefined) return null
-  return record.physicalAttempt !== undefined || record.family === 'attempt'
+  return record.physicalAttempt !== undefined
     ? {
         scope: 'attempt',
         messageId: record.messageId,
         requestSeq: record.requestSeq,
-        physicalAttempt: record.physicalAttempt ?? null
+        physicalAttempt: record.physicalAttempt
       }
     : {
         scope: 'request',

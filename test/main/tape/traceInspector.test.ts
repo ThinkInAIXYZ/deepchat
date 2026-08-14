@@ -148,6 +148,44 @@ describe('Tape Trace Inspector projection', () => {
     })
   })
 
+  it('keeps legacy provider attempts at request scope', () => {
+    const legacyAttempt = {
+      schemaVersion: 1,
+      messageId: 'message-1',
+      requestSeq: 3,
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      status: 'completed',
+      stopReason: 'complete',
+      usage: null,
+      cacheHitRate: null
+    }
+    const record = projectTapeInspectorFact(
+      row(8, {
+        name: TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
+        source_type: 'runtime_event',
+        source_id: 'message-1',
+        source_seq: 3,
+        payload_json: JSON.stringify({
+          name: TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
+          data: legacyAttempt
+        })
+      })
+    )
+
+    expect(record).toMatchObject({
+      family: 'attempt',
+      messageId: 'message-1',
+      requestSeq: 3
+    })
+    expect(record.physicalAttempt).toBeUndefined()
+    expect(getTapeInspectorTraceBinding(record)).toEqual({
+      scope: 'request',
+      messageId: 'message-1',
+      requestSeq: 3
+    })
+  })
+
   it('discloses only recognized anchor fields after exact schema validation', () => {
     const summary = 'private summary text'
     const validState = {
