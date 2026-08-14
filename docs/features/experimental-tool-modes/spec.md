@@ -128,6 +128,7 @@ session override + model capability + enabled tools + resolved shell
 - Agent Mode：执行目录和 Provider tools 相同；
 - Code Mode：执行目录保留嵌套工具，Provider tools 只保留 code wrapper；
 - Minimal Mode：执行目录先裁成严格双工具，再直接投影给 Provider；
+- Code Mode 与 Minimal Mode 不叠加 Tool Surface 虚拟化；只有 Agent Mode 参与该能力；
 - direct call 不能绕过 Code Mode wrapper；stale 或伪造 binding ID 会被拒绝；
 - MCP 有 `structuredContent` 时，code cell 得到结构化结果，否则得到常规 content。
 

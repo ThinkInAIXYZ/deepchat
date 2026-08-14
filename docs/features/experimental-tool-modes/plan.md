@@ -69,6 +69,7 @@ draft/session toolModeOverride
 - [x] direct call、unsafe name、保留名和规范化冲突 fail closed。
 - [x] 从 Code Mode 排除无法安全挂起 code cell 的 `deepchat_question`。
 - [x] freeform input 在 AI SDK stream 中保持 raw string。
+- [x] Code 与 Minimal 不叠加 Tool Surface 虚拟化，Agent 保持原有 Tool Surface 行为。
 
 主要所有者：
 
@@ -181,8 +182,8 @@ pnpm build
 完整 Vitest 结果：
 
 ```text
-main:     565 files passed, 29 skipped
-          7201 tests passed, 418 skipped
+main:     578 files passed, 29 skipped
+          7870 tests passed, 433 skipped
 renderer: 254 files passed
           2126 tests passed
 ```

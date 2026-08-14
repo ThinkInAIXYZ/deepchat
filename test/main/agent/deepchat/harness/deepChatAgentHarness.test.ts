@@ -3249,6 +3249,40 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
+    it('keeps Code Mode outside Tool Surface virtualization', async () => {
+      const definitions = createAutomaticAdapterDefinitions(40)
+      const runCodeDefinition = {
+        ...definitions[0],
+        function: {
+          ...definitions[0].function,
+          name: 'run_code',
+          description: 'Run JavaScript against Code Mode subtools'
+        }
+      }
+      const resolveRunMode = vi.fn(() => ({
+        mode: 'automatic' as const,
+        cliProgrammaticCapability: 'proven' as const
+      }))
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.configureToolMode = vi.fn(() => [runCodeDefinition])
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({ tool_mode_override: 'code' })
+      recreateAgentWithToolSurfaceRunMode(resolveRunMode)
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        expect(params.run.resources.toolMode.mode).toBe('code')
+        expect(params.run.resources.toolSurfaceMode).toBe('legacy')
+        expect(
+          params.run.resources.toolDefinitions.map((definition) => definition.function.name)
+        ).toEqual(['run_code'])
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(resolveRunMode).not.toHaveBeenCalled()
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+    })
+
     it('does not let canary diagnostics change a committed Run result', async () => {
       const definitions = createAutomaticAdapterDefinitions(1)
       providerSettings.getModelConfig.mockReturnValue({
