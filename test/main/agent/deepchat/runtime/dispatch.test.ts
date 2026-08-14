@@ -5,6 +5,7 @@ import path from 'path'
 import type {
   InterleavedReasoningConfig,
   IoParams,
+  PendingToolInteraction,
   ProcessControlCollaborators,
   ProcessInternalDiagnostics,
   StreamState
@@ -73,6 +74,7 @@ import type {
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
 import { ProgrammaticCommandLaunchError } from '@/tool/agentTools/agentBashHandler'
 import { prepareProgrammaticExecParent } from '@/agent/deepchat/runtime/programmaticExecParent'
+import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const PROGRAMMATIC_EXEC_ARGUMENTS = JSON.stringify({
@@ -3988,6 +3990,114 @@ describe('dispatch', () => {
       // Permission payload must not be committed as a successful tool response body.
       expect(state.blocks[0].tool_call?.response ?? '').not.toContain('permission required')
       expect(result.executionState.committedResultCallIds).not.toContain('tc-write')
+    })
+
+    it('auto-grants repeated Code Mode command permissions in one outer call', async () => {
+      const codeTool = {
+        ...makeAgentTool('run_code'),
+        server: {
+          name: CODE_MODE_TOOL_SERVER_NAME,
+          icons: 'icon',
+          description: 'Code Mode runtime'
+        }
+      }
+      const permissionResponse = (command: string, commandSignature: string) => ({
+        content: 'permission required',
+        rawData: {
+          toolCallId: 'tc-code',
+          content: 'permission required',
+          requiresPermission: true,
+          permissionRequest: {
+            toolName: 'exec',
+            serverName: 'agent-filesystem',
+            permissionType: 'command' as const,
+            description: 'Need command permission',
+            command,
+            commandSignature,
+            shellProfile: 'posix' as const
+          }
+        }
+      })
+      const toolService = createMockToolService()
+      vi.mocked(toolService.callTool)
+        .mockResolvedValueOnce(permissionResponse('git log -1', 'posix:git log'))
+        .mockImplementationOnce(async (request, options) => {
+          expect(options?.oneShotCommandGrantId).toBe('grant-1')
+          options?.commitDispatch?.({
+            toolName: 'exec',
+            toolSource: 'agent',
+            normalizedArguments: { command: 'git log -1' },
+            target: { serverName: 'agent-filesystem', originalName: 'exec' }
+          })
+          return permissionResponse('git log -1 --stat', 'posix:git log')
+        })
+        .mockImplementationOnce(async (_request, options) => {
+          expect(options?.oneShotCommandGrantId).toBe('grant-2')
+          return {
+            content: 'done',
+            rawData: { toolCallId: 'tc-code', content: 'done', isError: false }
+          }
+        })
+      let grantSequence = 0
+      const autoGrantPermission = vi.fn(
+        async (permission: NonNullable<PendingToolInteraction['permission']>) => ({
+          kind: 'command' as const,
+          signature: permission.commandSignature!,
+          oneShotGrantId: `grant-${++grantSequence}`
+        })
+      )
+      const revokeOneShotCommandPermission = vi.fn()
+      const commitDispatch = vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true }))
+      const commitToolOutcome = vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-code',
+          name: 'run_code',
+          params: '{"code":"...","description":"Inspect git"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-code',
+          name: 'run_code',
+          arguments: '{"code":"...","description":"Inspect git"}'
+        }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        [codeTool],
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        {
+          autoGrantPermission,
+          revokeOneShotCommandPermission,
+          executionJournal: { commitDispatch, commitToolOutcome }
+        }
+      )
+
+      expect(result.type).toBe('completed')
+      expect(toolService.callTool).toHaveBeenCalledTimes(3)
+      expect(autoGrantPermission).toHaveBeenCalledTimes(2)
+      expect(revokeOneShotCommandPermission).toHaveBeenCalledTimes(2)
+      expect(commitDispatch).toHaveBeenCalledOnce()
+      expect(commitToolOutcome).toHaveBeenCalledOnce()
+      expect(state.blocks[0]).toMatchObject({
+        status: 'success',
+        tool_call: { response: 'done' }
+      })
     })
 
     it('does not reuse a permission response when the approved dispatch is cancelled', async () => {

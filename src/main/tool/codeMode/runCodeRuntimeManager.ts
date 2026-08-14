@@ -102,6 +102,7 @@ type ActiveCell = {
   pendingError: Error | null
   deliveredOutputCount: number
   pendingPermission: PendingPermissionCall | null
+  committedDispatchToolCallId: string | null
   lastHeartbeatAt: number
   startupRssBytes: number | null
   heartbeatTimer: NodeJS.Timeout | null
@@ -408,6 +409,7 @@ export class RunCodeRuntimeManager {
       pendingError: null,
       deliveredOutputCount: 0,
       pendingPermission: null,
+      committedDispatchToolCallId: null,
       lastHeartbeatAt: Date.now(),
       startupRssBytes: null,
       heartbeatTimer: null,
@@ -763,9 +765,19 @@ export class RunCodeRuntimeManager {
   }
 
   private createNestedOptions(cell: ActiveCell): ToolCallOptions {
+    const commitDispatch = cell.options.commitDispatch
     return {
       ...cell.options,
-      signal: cell.runtimeAbortController.signal
+      signal: cell.runtimeAbortController.signal,
+      ...(commitDispatch
+        ? {
+            commitDispatch: (input) => {
+              if (cell.committedDispatchToolCallId === cell.outerToolCallId) return
+              commitDispatch(input)
+              cell.committedDispatchToolCallId = cell.outerToolCallId
+            }
+          }
+        : {})
     }
   }
 

@@ -227,6 +227,70 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
+  it('commits one outer dispatch across nested mutations', async () => {
+    const host = new FakeUtilityProcess(false)
+    const commitDispatch = vi.fn()
+    const executeNested = vi.fn(async (input: RunCodeNestedExecutionInput) => {
+      input.options.commitDispatch?.({
+        toolName: input.definition.function.name,
+        toolSource: 'agent',
+        normalizedArguments: input.arguments as Record<string, unknown>,
+        target: { serverName: 'test', originalName: input.definition.function.name }
+      })
+      return {
+        content: 'done',
+        rawData: { toolCallId: input.callId, content: 'done' }
+      }
+    })
+    const manager = createManager(host, executeNested)
+    const execution = manager.execute({
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function',
+      source: 'await tools.exec({ command: "first" }); await tools.exec({ command: "second" })',
+      executionCatalog: [tool('exec')],
+      options: { commitDispatch }
+    })
+    await vi.waitFor(() =>
+      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+    )
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+
+    for (const [index, command] of ['first', 'second'].entries()) {
+      host.emit('message', {
+        type: 'NESTED_CALL',
+        version: RUN_CODE_PROTOCOL_VERSION,
+        cellId: start.cellId,
+        callId: `nested-${index + 1}`,
+        bindingId: start.bindings[0].id,
+        arguments: { command }
+      })
+      await vi.waitFor(() =>
+        expect(host.messages.filter((message) => message.type === 'NESTED_RESULT')).toHaveLength(
+          index + 1
+        )
+      )
+    }
+
+    host.emit('message', {
+      type: 'RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      output: [],
+      store: {}
+    })
+
+    await expect(execution).resolves.toEqual({
+      content: '(run_code completed with no output)'
+    })
+    expect(executeNested).toHaveBeenCalledTimes(2)
+    expect(commitDispatch).toHaveBeenCalledOnce()
+    await manager.shutdown()
+  })
+
   it('retries a nested permission request in the same code cell', async () => {
     const host = new FakeUtilityProcess(false)
     const executeNested = vi

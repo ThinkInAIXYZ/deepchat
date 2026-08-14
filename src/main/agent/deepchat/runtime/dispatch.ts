@@ -110,6 +110,10 @@ import {
 import { recordToolSurfaceCanarySettledToolResult } from './toolSurfaceCanaryDiagnostics'
 import { prepareProgrammaticExecParent } from './programmaticExecParent'
 import { preflightRequestContext } from './contextBudget'
+import {
+  CODE_MODE_TOOL_SERVER_NAME,
+  RUN_CODE_MAX_NESTED_CALLS
+} from '@shared/codeModeProtocol'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -2224,8 +2228,11 @@ async function runToolCall(params: {
 
     let toolCallResult = await callTool()
     let toolRawData = toolCallResult.rawData
+    const allowsCodePermissionContinuation =
+      permissionMode === 'full_access' && toolContext.serverName === CODE_MODE_TOOL_SERVER_NAME
+    let codePermissionRetries = 0
 
-    if (toolRawData?.requiresPermission) {
+    while (toolRawData?.requiresPermission) {
       io.abortSignal.throwIfAborted()
       assertToolSurfaceAuthority()
       const pendingPermission = normalizePermissionRequest(
@@ -2237,17 +2244,48 @@ async function runToolCall(params: {
         }
       )
 
-      if (pendingPermission) {
+      if (!pendingPermission) break
+      if (pendingPermission.requiresUserConfirmation) {
         failPostDispatchPermission()
-        if (pendingPermission.requiresUserConfirmation) {
-          cancelProgrammaticParentBeforeDispatch()
-          return {
-            kind: 'permission',
-            permission: pendingPermission,
-            toolContext
-          }
+        cancelProgrammaticParentBeforeDispatch()
+        return {
+          kind: 'permission',
+          permission: pendingPermission,
+          toolContext
         }
-        if (permissionMode === 'full_access') {
+      }
+      if (!allowsCodePermissionContinuation) failPostDispatchPermission()
+      if (permissionMode === 'full_access') {
+        if (
+          allowsCodePermissionContinuation &&
+          codePermissionRetries >= RUN_CODE_MAX_NESTED_CALLS
+        ) {
+          throw new Error('Code Mode exceeded the nested permission retry limit.')
+        }
+        toolCallResult = await runWithAutoGrantedPermission(
+          controls,
+          pendingPermission,
+          callTool,
+          assertToolSurfaceAuthority
+        )
+        toolRawData = toolCallResult.rawData
+        if (allowsCodePermissionContinuation) {
+          codePermissionRetries += 1
+          continue
+        }
+      } else if (permissionMode === 'auto_approve') {
+        const review = await reviewAutoApproveAction({
+          controls,
+          io,
+          state,
+          batchToolCallBlocks,
+          rendererFlushHandle,
+          execution,
+          permission: pendingPermission,
+          reason: 'requires_permission'
+        })
+        assertToolSurfaceAuthority()
+        if (review === 'auto_allow') {
           toolCallResult = await runWithAutoGrantedPermission(
             controls,
             pendingPermission,
@@ -2255,34 +2293,6 @@ async function runToolCall(params: {
             assertToolSurfaceAuthority
           )
           toolRawData = toolCallResult.rawData
-        } else if (permissionMode === 'auto_approve') {
-          const review = await reviewAutoApproveAction({
-            controls,
-            io,
-            state,
-            batchToolCallBlocks,
-            rendererFlushHandle,
-            execution,
-            permission: pendingPermission,
-            reason: 'requires_permission'
-          })
-          assertToolSurfaceAuthority()
-          if (review === 'auto_allow') {
-            toolCallResult = await runWithAutoGrantedPermission(
-              controls,
-              pendingPermission,
-              callTool,
-              assertToolSurfaceAuthority
-            )
-            toolRawData = toolCallResult.rawData
-          } else {
-            cancelProgrammaticParentBeforeDispatch()
-            return {
-              kind: 'permission',
-              permission: pendingPermission,
-              toolContext
-            }
-          }
         } else {
           cancelProgrammaticParentBeforeDispatch()
           return {
@@ -2291,7 +2301,15 @@ async function runToolCall(params: {
             toolContext
           }
         }
+      } else {
+        cancelProgrammaticParentBeforeDispatch()
+        return {
+          kind: 'permission',
+          permission: pendingPermission,
+          toolContext
+        }
       }
+      break
     }
 
     // Never stage a permission payload as a successful tool result after auto-grant retry.

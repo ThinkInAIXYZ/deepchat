@@ -1,5 +1,6 @@
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { formatCommandShellForModel, type ResolvedCommandShell } from '@shared/commandShell'
+import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'
@@ -145,7 +146,7 @@ export function createRunCodeToolDefinition(): MCPToolDefinition {
       }
     },
     server: {
-      name: 'agent-code-mode',
+      name: CODE_MODE_TOOL_SERVER_NAME,
       icons: '⌘',
       description: 'Code Mode runtime'
     }
@@ -171,7 +172,7 @@ export function createCodexCodeModeToolDefinitions(
         parameters: { type: 'object', properties: {} }
       },
       server: {
-        name: 'agent-code-mode',
+        name: CODE_MODE_TOOL_SERVER_NAME,
         icons: '⌘',
         description: 'Code Mode runtime'
       }
@@ -204,7 +205,7 @@ export function createCodexCodeModeToolDefinitions(
         }
       },
       server: {
-        name: 'agent-code-mode',
+        name: CODE_MODE_TOOL_SERVER_NAME,
         icons: '⌛',
         description: 'Code Mode runtime'
       }

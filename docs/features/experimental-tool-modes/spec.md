@@ -56,6 +56,12 @@ Code Mode 当前要求 `full_access`。这不是把 UtilityProcess 当成安全�
 检查、permission broker、effect observer、handler、输出限制和取消信号执行，UtilityProcess
 不能直接访问工具 handler。
 
+需要 command lease 的嵌套 `exec` 不绕过现有权限服务。外层 `full_access` 调度为每次命令调用
+签发精确的一次性 grant，并在同一个 code cell 内恢复对应调用；此前已经完成的 JavaScript 和
+subtool 不会重放。同一个外层 `run_code`、`exec` 或 `wait` 调用中的多个 mutation 只提交一次
+外层 execution-journal dispatch，后续 nested mutation 复用该 operation；新的 `wait` 调用使用
+新的外层 operation。
+
 ### Minimal Mode
 
 Minimal Mode 不保留 MCP、插件、skills、plan、question、memory、browser、image、cron 或
