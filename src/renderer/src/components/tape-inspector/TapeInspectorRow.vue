@@ -1,6 +1,6 @@
 <template>
   <div
-    class="tape-inspector-row grid h-9 min-w-[860px] cursor-default grid-cols-[minmax(220px,2fr)_100px_100px_110px_100px_minmax(180px,1fr)] items-center border-b border-border/50 text-xs outline-none"
+    class="tape-inspector-row grid h-9 cursor-default items-center border-b border-border/50 text-xs outline-none"
     :class="[
       selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/40',
       row.recordType === 'group' || row.recordType === 'evidence_lane'
@@ -12,6 +12,7 @@
     :data-row-type="row.recordType"
     role="row"
     :aria-selected="selected"
+    :style="rowGridStyle"
     tabindex="-1"
     @click="emit('select', row.key)"
     @dblclick="toggleIfCollapsible"
@@ -59,24 +60,25 @@
     <div class="px-3" role="gridcell">
       <div class="relative h-4 overflow-hidden rounded-sm bg-muted/50">
         <span
+          v-if="sequenceMarkerStyle"
+          data-testid="tape-inspector-sequence-marker"
           class="absolute inset-y-0 w-px bg-muted-foreground/45"
-          :style="{ left: `${row.sequenceStart * 100}%` }"
-          :title="t('tapeInspector.waterfall.sequence')"
+          :style="sequenceMarkerStyle"
+          :title="sequenceTooltip"
         />
         <span
-          v-if="row.durationMs !== null"
+          v-if="row.durationMs !== null && actualSpanStyle"
+          data-testid="tape-inspector-actual-span"
           class="absolute inset-y-1 rounded-sm bg-foreground/55"
-          :style="{
-            left: `${row.actualStart * 100}%`,
-            width: `${Math.max(row.actualWidth * 100, 0.75)}%`
-          }"
-          :title="durationLabel"
+          :style="actualSpanStyle"
+          :title="timingTooltip"
         />
         <span
-          v-else
+          v-else-if="actualPointStyle"
+          data-testid="tape-inspector-actual-point"
           class="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-foreground/60"
-          :style="{ left: `${row.actualStart * 100}%` }"
-          :title="t('tapeInspector.waterfall.point')"
+          :style="actualPointStyle"
+          :title="timingTooltip"
         />
       </div>
     </div>
@@ -84,15 +86,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import type { TapeInspectorDisplayRow } from './model'
 
-const props = defineProps<{
-  row: TapeInspectorDisplayRow
-  selected: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    row: TapeInspectorDisplayRow
+    selected: boolean
+    gridTemplateColumns?: string
+    tableMinWidth?: number
+    waterfallStart?: number
+    waterfallEnd?: number
+  }>(),
+  {
+    gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px minmax(180px, 1fr)',
+    tableMinWidth: 860,
+    waterfallStart: 0,
+    waterfallEnd: 1
+  }
+)
 
 const emit = defineEmits<{
   select: [key: string]
@@ -100,6 +114,38 @@ const emit = defineEmits<{
 }>()
 
 const { t, d } = useI18n()
+
+const rowGridStyle = computed<CSSProperties>(() => ({
+  gridTemplateColumns: props.gridTemplateColumns,
+  minWidth: `${props.tableMinWidth}px`
+}))
+const waterfallSpan = computed(() => Math.max(0.0001, props.waterfallEnd - props.waterfallStart))
+
+function viewportPosition(position: number): number | null {
+  if (position < props.waterfallStart || position > props.waterfallEnd) return null
+  return (position - props.waterfallStart) / waterfallSpan.value
+}
+
+const sequenceMarkerStyle = computed<CSSProperties | null>(() => {
+  if (props.row.sequenceEntryId === null) return null
+  const position = viewportPosition(props.row.sequenceStart)
+  return position === null ? null : { left: `${position * 100}%` }
+})
+const actualPointStyle = computed<CSSProperties | null>(() => {
+  if (props.row.actualStartAt === null) return null
+  const position = viewportPosition(props.row.actualStart)
+  return position === null ? null : { left: `${position * 100}%` }
+})
+const actualSpanStyle = computed<CSSProperties | null>(() => {
+  if (props.row.durationMs === null) return null
+  const visibleStart = Math.max(props.row.actualStart, props.waterfallStart)
+  const visibleEnd = Math.min(props.row.actualStart + props.row.actualWidth, props.waterfallEnd)
+  if (visibleEnd < visibleStart) return null
+  return {
+    left: `${((visibleStart - props.waterfallStart) / waterfallSpan.value) * 100}%`,
+    width: `max(${((visibleEnd - visibleStart) / waterfallSpan.value) * 100}%, 3px)`
+  }
+})
 
 const isCollapsible = computed(
   () => props.row.recordType === 'group' || props.row.recordType === 'evidence_lane'
@@ -169,6 +215,27 @@ const durationLabel = computed(() => {
   if (duration === null) return t('tapeInspector.states.unknown')
   if (duration < 1_000) return `${duration} ms`
   return `${(duration / 1_000).toFixed(2)} s`
+})
+const sequenceTooltip = computed(() => {
+  const entryId = props.row.sequenceEntryId
+  return entryId === null
+    ? t('tapeInspector.waterfall.sequence')
+    : `${t('tapeInspector.waterfall.sequence')} · #${entryId}`
+})
+const timingTooltip = computed(() => {
+  const startAt = props.row.actualStartAt
+  if (startAt === null) return t('tapeInspector.states.unknown')
+  const endAt = props.row.actualEndAt
+  const range = `${new Date(startAt).toISOString()}${
+    endAt === null ? '' : ` → ${new Date(endAt).toISOString()}`
+  }`
+  const lines = [`${t('tapeInspector.columns.start')}: ${range}`]
+  if (props.row.durationMs !== null) {
+    lines.push(`${t('tapeInspector.columns.duration')}: ${durationLabel.value}`)
+  } else {
+    lines.push(t('tapeInspector.waterfall.point'))
+  }
+  return lines.join('\n')
 })
 const rowIcon = computed(() => {
   if (props.row.recordType === 'evidence') return 'lucide:radio'

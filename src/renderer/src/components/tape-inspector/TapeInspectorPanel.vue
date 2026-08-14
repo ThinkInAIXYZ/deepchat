@@ -163,44 +163,188 @@
           <span class="text-xs text-muted-foreground">{{ t('tapeInspector.states.empty') }}</span>
         </div>
         <div v-else class="min-h-0 flex-1 overflow-x-auto">
-          <div class="flex h-full min-w-[860px] flex-col" role="grid">
+          <div class="flex h-full flex-col" :style="{ minWidth: `${tableMinWidth}px` }" role="grid">
             <div
-              class="grid h-8 shrink-0 grid-cols-[minmax(220px,2fr)_100px_100px_110px_100px_minmax(180px,1fr)] items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+              class="grid h-8 shrink-0 items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+              :style="{ gridTemplateColumns }"
               role="row"
             >
-              <button
-                type="button"
-                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
+              <div class="relative flex h-full min-w-0 items-center">
+                <button
+                  type="button"
+                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                  role="columnheader"
+                  :aria-sort="ariaSort('name')"
+                  @click="toggleSort('name')"
+                >
+                  <span class="truncate">{{ t('tapeInspector.columns.name') }}</span>
+                  <Icon :icon="sortIcon('name')" class="size-3 shrink-0" />
+                </button>
+                <TapeInspectorColumnResizeHandle
+                  column="name"
+                  :label="t('tapeInspector.columns.name')"
+                  :min="columnLimits.name.min"
+                  :max="columnLimits.name.max"
+                  :value="columnWidths.name"
+                  @resize-start="startColumnResize('name', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('name', $event)"
+                />
+              </div>
+              <div class="relative flex h-full min-w-0 items-center">
+                <button
+                  type="button"
+                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                  role="columnheader"
+                  :aria-sort="ariaSort('kind')"
+                  @click="toggleSort('kind')"
+                >
+                  <span class="truncate">{{ t('tapeInspector.columns.kind') }}</span>
+                  <Icon :icon="sortIcon('kind')" class="size-3 shrink-0" />
+                </button>
+                <TapeInspectorColumnResizeHandle
+                  column="kind"
+                  :label="t('tapeInspector.columns.kind')"
+                  :min="columnLimits.kind.min"
+                  :max="columnLimits.kind.max"
+                  :value="columnWidths.kind"
+                  @resize-start="startColumnResize('kind', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('kind', $event)"
+                />
+              </div>
+              <div class="relative flex h-full min-w-0 items-center px-2" role="columnheader">
+                <span class="truncate">{{ t('tapeInspector.columns.status') }}</span>
+                <TapeInspectorColumnResizeHandle
+                  column="status"
+                  :label="t('tapeInspector.columns.status')"
+                  :min="columnLimits.status.min"
+                  :max="columnLimits.status.max"
+                  :value="columnWidths.status"
+                  @resize-start="startColumnResize('status', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('status', $event)"
+                />
+              </div>
+              <div class="relative flex h-full min-w-0 items-center">
+                <button
+                  type="button"
+                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                  role="columnheader"
+                  :aria-sort="ariaSort('createdAt')"
+                  @click="toggleSort('createdAt')"
+                >
+                  <span class="truncate">{{ t('tapeInspector.columns.start') }}</span>
+                  <Icon :icon="sortIcon('createdAt')" class="size-3 shrink-0" />
+                </button>
+                <TapeInspectorColumnResizeHandle
+                  column="start"
+                  :label="t('tapeInspector.columns.start')"
+                  :min="columnLimits.start.min"
+                  :max="columnLimits.start.max"
+                  :value="columnWidths.start"
+                  @resize-start="startColumnResize('start', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('start', $event)"
+                />
+              </div>
+              <div class="relative flex h-full min-w-0 items-center px-2" role="columnheader">
+                <span class="truncate">{{ t('tapeInspector.columns.duration') }}</span>
+                <TapeInspectorColumnResizeHandle
+                  column="duration"
+                  :label="t('tapeInspector.columns.duration')"
+                  :min="columnLimits.duration.min"
+                  :max="columnLimits.duration.max"
+                  :value="columnWidths.duration"
+                  @resize-start="startColumnResize('duration', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('duration', $event)"
+                />
+              </div>
+              <div
+                class="relative flex h-full min-w-0 items-center gap-1 px-2 normal-case tracking-normal"
                 role="columnheader"
-                :aria-sort="ariaSort('name')"
-                @click="toggleSort('name')"
               >
-                {{ t('tapeInspector.columns.name') }}
-                <Icon :icon="sortIcon('name')" class="size-3" />
-              </button>
-              <button
-                type="button"
-                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
-                role="columnheader"
-                :aria-sort="ariaSort('kind')"
-                @click="toggleSort('kind')"
-              >
-                {{ t('tapeInspector.columns.kind') }}
-                <Icon :icon="sortIcon('kind')" class="size-3" />
-              </button>
-              <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.status') }}</div>
-              <button
-                type="button"
-                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
-                role="columnheader"
-                :aria-sort="ariaSort('createdAt')"
-                @click="toggleSort('createdAt')"
-              >
-                {{ t('tapeInspector.columns.start') }}
-                <Icon :icon="sortIcon('createdAt')" class="size-3" />
-              </button>
-              <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.duration') }}</div>
-              <div class="px-3" role="columnheader">{{ t('tapeInspector.columns.waterfall') }}</div>
+                <span class="shrink-0 uppercase tracking-wide">
+                  {{ t('tapeInspector.columns.waterfall') }}
+                </span>
+                <div
+                  data-testid="tape-inspector-waterfall-brush"
+                  class="relative h-4 min-w-12 flex-1 touch-none overflow-hidden rounded-sm bg-muted-foreground/15 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  role="slider"
+                  :aria-label="t('tapeInspector.columns.waterfall')"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  :aria-valuenow="waterfallViewportPercent"
+                  :aria-valuetext="waterfallViewportLabel"
+                  tabindex="0"
+                  @pointerdown="startWaterfallBrush"
+                  @pointermove="continueWaterfallBrush"
+                  @pointerup="finishWaterfallBrush"
+                  @pointercancel="cancelWaterfallBrush"
+                  @wheel.prevent="handleWaterfallWheel"
+                  @keydown="handleWaterfallKeydown"
+                >
+                  <span
+                    class="absolute inset-y-0 rounded-sm border border-foreground/35 bg-foreground/10"
+                    :style="waterfallViewportStyle"
+                  />
+                  <span
+                    v-if="waterfallBrushStyle"
+                    class="absolute inset-y-0 rounded-sm bg-ring/35"
+                    :style="waterfallBrushStyle"
+                  />
+                </div>
+                <button
+                  type="button"
+                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
+                  :aria-label="t('common.zoomOut')"
+                  :title="t('common.zoomOut')"
+                  @click="zoomWaterfall(1.4)"
+                >
+                  <Icon icon="lucide:zoom-out" class="size-3" />
+                </button>
+                <button
+                  type="button"
+                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
+                  :aria-label="t('common.zoomIn')"
+                  :title="t('common.zoomIn')"
+                  @click="zoomWaterfall(0.7)"
+                >
+                  <Icon icon="lucide:zoom-in" class="size-3" />
+                </button>
+                <button
+                  type="button"
+                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
+                  :aria-label="t('common.reset')"
+                  :title="t('common.reset')"
+                  @click="resetWaterfall"
+                >
+                  <Icon icon="lucide:rotate-ccw" class="size-3" />
+                </button>
+                <TapeInspectorColumnResizeHandle
+                  column="waterfall"
+                  :label="t('tapeInspector.columns.waterfall')"
+                  :min="columnLimits.waterfall.min"
+                  :max="columnLimits.waterfall.max"
+                  :value="columnWidths.waterfall"
+                  @resize-start="startColumnResize('waterfall', $event)"
+                  @resize-move="continueColumnResize"
+                  @resize-end="finishColumnResize"
+                  @resize-cancel="cancelColumnResize"
+                  @resize-by="resizeColumnBy('waterfall', $event)"
+                />
+              </div>
             </div>
             <RecycleScroller
               ref="scrollerRef"
@@ -215,6 +359,10 @@
                 <TapeInspectorRow
                   :row="item"
                   :selected="store.selectedKey === item.key"
+                  :grid-template-columns="gridTemplateColumns"
+                  :table-min-width="tableMinWidth"
+                  :waterfall-start="waterfallViewport.start"
+                  :waterfall-end="waterfallViewport.end"
                   @select="selectRow"
                   @toggle="store.toggleCollapsed"
                 />
@@ -276,7 +424,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import type { CSSProperties } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
@@ -293,6 +442,7 @@ import type {
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { createSessionClient } from '../../../api/SessionClient'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
+import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
 import TapeInspectorRow from './TapeInspectorRow.vue'
 
@@ -300,6 +450,23 @@ interface RecycleScrollerHandle {
   $el: HTMLElement
   scrollToItem: (index: number) => void
   scrollToPosition: (position: number) => void
+}
+
+type InspectorColumn = 'name' | 'kind' | 'status' | 'start' | 'duration' | 'waterfall'
+
+interface ColumnResizeState {
+  column: InspectorColumn
+  pointerId: number
+  startWidth: number
+  startX: number
+  target: HTMLElement
+}
+
+interface WaterfallBrushState {
+  current: number
+  pointerId: number
+  start: number
+  target: HTMLElement
 }
 
 const props = defineProps<{
@@ -332,6 +499,61 @@ const draftName = ref('')
 const draftStatus = ref('')
 const draftMessageId = ref('')
 const draftErrorsOnly = ref(false)
+const columnLimits: Record<InspectorColumn, { min: number; max: number }> = {
+  name: { min: 180, max: 560 },
+  kind: { min: 80, max: 240 },
+  status: { min: 80, max: 240 },
+  start: { min: 110, max: 240 },
+  duration: { min: 90, max: 220 },
+  waterfall: { min: 260, max: 720 }
+}
+const columnWidths = reactive<Record<InspectorColumn, number>>({
+  name: 280,
+  kind: 110,
+  status: 110,
+  start: 140,
+  duration: 110,
+  waterfall: 360
+})
+const columnResize = ref<ColumnResizeState | null>(null)
+const gridTemplateColumns = computed(() =>
+  (Object.keys(columnWidths) as InspectorColumn[])
+    .map((column) => `${columnWidths[column]}px`)
+    .join(' ')
+)
+const tableMinWidth = computed(() =>
+  (Object.keys(columnWidths) as InspectorColumn[]).reduce(
+    (width, column) => width + columnWidths[column],
+    0
+  )
+)
+
+const MIN_WATERFALL_VIEWPORT = 0.04
+const MIN_WATERFALL_BRUSH = 0.015
+const waterfallViewport = ref({ start: 0, end: 1 })
+const waterfallBrush = ref<WaterfallBrushState | null>(null)
+const waterfallViewportPercent = computed(() =>
+  Math.round((waterfallViewport.value.end - waterfallViewport.value.start) * 100)
+)
+const waterfallViewportLabel = computed(
+  () =>
+    `${Math.round(waterfallViewport.value.start * 100)}%–${Math.round(
+      waterfallViewport.value.end * 100
+    )}%`
+)
+const waterfallViewportStyle = computed<CSSProperties>(() => ({
+  left: `${waterfallViewport.value.start * 100}%`,
+  width: `${(waterfallViewport.value.end - waterfallViewport.value.start) * 100}%`
+}))
+const waterfallBrushStyle = computed<CSSProperties | null>(() => {
+  if (!waterfallBrush.value) return null
+  const start = Math.min(waterfallBrush.value.start, waterfallBrush.value.current)
+  const end = Math.max(waterfallBrush.value.start, waterfallBrush.value.current)
+  return {
+    left: `${start * 100}%`,
+    width: `${(end - start) * 100}%`
+  }
+})
 let liveLifecycleGeneration = 0
 let liveSubscription: { sessionId: string; subscriptionId: string } | null = null
 
@@ -369,6 +591,179 @@ const detailErrorCode = computed<TapeInspectorErrorCode>(() => {
 
 function matchingRequest(): TapeInspectorOpenRequest | null {
   return props.openRequest?.sessionId === props.sessionId ? props.openRequest : null
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+function setColumnWidth(column: InspectorColumn, width: number): void {
+  const limits = columnLimits[column]
+  columnWidths[column] = clamp(Math.round(width), limits.min, limits.max)
+}
+
+function resizeColumnBy(column: InspectorColumn, delta: number): void {
+  setColumnWidth(column, columnWidths[column] + delta)
+}
+
+function startColumnResize(column: InspectorColumn, event: PointerEvent): void {
+  if (event.button !== 0) return
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  event.preventDefault()
+  cancelColumnResize()
+  target.setPointerCapture?.(event.pointerId)
+  columnResize.value = {
+    column,
+    pointerId: event.pointerId,
+    startWidth: columnWidths[column],
+    startX: event.clientX,
+    target
+  }
+}
+
+function continueColumnResize(event: PointerEvent): void {
+  const resize = columnResize.value
+  if (!resize || resize.pointerId !== event.pointerId) return
+  setColumnWidth(resize.column, resize.startWidth + event.clientX - resize.startX)
+}
+
+function releasePointerCapture(target: HTMLElement, pointerId: number): void {
+  try {
+    if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId)
+  } catch {
+    // Pointer capture can already be released when the browser cancels a gesture.
+  }
+}
+
+function cancelColumnResize(): void {
+  const resize = columnResize.value
+  if (!resize) return
+  releasePointerCapture(resize.target, resize.pointerId)
+  columnResize.value = null
+}
+
+function finishColumnResize(event: PointerEvent): void {
+  const resize = columnResize.value
+  if (!resize || resize.pointerId !== event.pointerId) return
+  continueColumnResize(event)
+  cancelColumnResize()
+}
+
+function setWaterfallViewport(start: number, end: number): void {
+  const span = clamp(end - start, MIN_WATERFALL_VIEWPORT, 1)
+  const nextStart = clamp(start, 0, 1 - span)
+  waterfallViewport.value = { start: nextStart, end: nextStart + span }
+}
+
+function resetWaterfall(): void {
+  waterfallViewport.value = { start: 0, end: 1 }
+}
+
+function zoomWaterfall(factor: number, anchor = 0.5): void {
+  const viewport = waterfallViewport.value
+  const currentSpan = viewport.end - viewport.start
+  const nextSpan = clamp(currentSpan * factor, MIN_WATERFALL_VIEWPORT, 1)
+  const boundedAnchor = clamp(anchor, 0, 1)
+  const anchorPosition = viewport.start + currentSpan * boundedAnchor
+  setWaterfallViewport(
+    anchorPosition - nextSpan * boundedAnchor,
+    anchorPosition + nextSpan * (1 - boundedAnchor)
+  )
+}
+
+function panWaterfall(delta: number): void {
+  const viewport = waterfallViewport.value
+  const span = viewport.end - viewport.start
+  setWaterfallViewport(viewport.start + delta, viewport.start + delta + span)
+}
+
+function waterfallPosition(target: HTMLElement, clientX: number): number | null {
+  const rect = target.getBoundingClientRect()
+  if (rect.width <= 0) return null
+  return clamp((clientX - rect.left) / rect.width, 0, 1)
+}
+
+function startWaterfallBrush(event: PointerEvent): void {
+  if (event.button !== 0) return
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  const position = waterfallPosition(target, event.clientX)
+  if (position === null) return
+  event.preventDefault()
+  cancelWaterfallBrush()
+  target.setPointerCapture?.(event.pointerId)
+  waterfallBrush.value = {
+    current: position,
+    pointerId: event.pointerId,
+    start: position,
+    target
+  }
+}
+
+function continueWaterfallBrush(event: PointerEvent): void {
+  const brush = waterfallBrush.value
+  if (!brush || brush.pointerId !== event.pointerId) return
+  const position = waterfallPosition(brush.target, event.clientX)
+  if (position !== null) brush.current = position
+}
+
+function cancelWaterfallBrush(event?: PointerEvent): void {
+  const brush = waterfallBrush.value
+  if (!brush || (event && brush.pointerId !== event.pointerId)) return
+  releasePointerCapture(brush.target, brush.pointerId)
+  waterfallBrush.value = null
+}
+
+function finishWaterfallBrush(event: PointerEvent): void {
+  const brush = waterfallBrush.value
+  if (!brush || brush.pointerId !== event.pointerId) return
+  continueWaterfallBrush(event)
+  const start = Math.min(brush.start, brush.current)
+  const end = Math.max(brush.start, brush.current)
+  cancelWaterfallBrush(event)
+  if (end - start >= MIN_WATERFALL_BRUSH) setWaterfallViewport(start, end)
+}
+
+function handleWaterfallWheel(event: WheelEvent): void {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  const width = target.getBoundingClientRect().width
+  if (width <= 0) return
+  const viewport = waterfallViewport.value
+  const span = viewport.end - viewport.start
+  if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    const pixelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    panWaterfall((pixelDelta / width) * span)
+    return
+  }
+  const position = waterfallPosition(target, event.clientX)
+  const anchor = position === null ? 0.5 : clamp((position - viewport.start) / span, 0, 1)
+  zoomWaterfall(Math.exp(event.deltaY * 0.002), anchor)
+}
+
+function handleWaterfallKeydown(event: KeyboardEvent): void {
+  const span = waterfallViewport.value.end - waterfallViewport.value.start
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault()
+    panWaterfall(span * (event.key === 'ArrowLeft' ? -0.1 : 0.1))
+    return
+  }
+  if (event.key === '+' || event.key === '=') {
+    event.preventDefault()
+    zoomWaterfall(0.7)
+    return
+  }
+  if (event.key === '-' || event.key === '_') {
+    event.preventDefault()
+    zoomWaterfall(1.4)
+    return
+  }
+  if (event.key === 'Home' || event.key === 'Escape') {
+    event.preventDefault()
+    cancelWaterfallBrush()
+    resetWaterfall()
+  }
 }
 
 async function initialize(): Promise<void> {
@@ -562,6 +957,15 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 watch(
+  () => props.sessionId,
+  () => {
+    cancelColumnResize()
+    cancelWaterfallBrush()
+    resetWaterfall()
+  }
+)
+
+watch(
   () => [props.sessionId, props.openRequest?.token] as const,
   () => void initialize(),
   { immediate: true }
@@ -584,6 +988,8 @@ const stopHeadListener = sessionClient.onTapeInspectorHeadChanged((pulse) => {
 
 onBeforeUnmount(() => {
   liveLifecycleGeneration += 1
+  cancelColumnResize()
+  cancelWaterfallBrush()
   stopHeadListener()
   void releaseLiveSubscription()
   store.clear()

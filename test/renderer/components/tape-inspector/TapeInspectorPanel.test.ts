@@ -279,6 +279,76 @@ describe('TapeInspectorPanel', () => {
     })
   })
 
+  it('resizes columns with pointer and keyboard input within bounded widths', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const resize = wrapper.get('[data-testid="tape-inspector-resize-name"]')
+
+    expect(resize.attributes('aria-valuenow')).toBe('280')
+    await resize.trigger('keydown', { key: 'ArrowRight' })
+    expect(resize.attributes('aria-valuenow')).toBe('296')
+
+    await resize.trigger('pointerdown', { button: 0, pointerId: 7, clientX: 100 })
+    await resize.trigger('pointermove', { pointerId: 7, clientX: 500 })
+    expect(resize.attributes('aria-valuenow')).toBe('560')
+    await resize.trigger('pointercancel', { pointerId: 7 })
+    await resize.trigger('pointermove', { pointerId: 7, clientX: 0 })
+    expect(resize.attributes('aria-valuenow')).toBe('560')
+  })
+
+  it('zooms, pans, brushes, and resets the waterfall viewport', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 200,
+      bottom: 16,
+      width: 200,
+      height: 16,
+      toJSON: () => ({})
+    })
+
+    expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
+    await viewport.trigger('keydown', { key: '+' })
+    expect(viewport.attributes('aria-valuetext')).toBe('15%–85%')
+    await viewport.trigger('keydown', { key: 'ArrowRight' })
+    expect(viewport.attributes('aria-valuetext')).toBe('22%–92%')
+
+    await viewport.trigger('pointerdown', { button: 0, pointerId: 11, clientX: 40 })
+    await viewport.trigger('pointermove', { pointerId: 11, clientX: 120 })
+    await viewport.trigger('pointerup', { pointerId: 11, clientX: 120 })
+    expect(viewport.attributes('aria-valuetext')).toBe('20%–60%')
+
+    viewport.element.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 100,
+        deltaX: 20,
+        deltaY: 0
+      })
+    )
+    await flushPromises()
+    expect(viewport.attributes('aria-valuetext')).toBe('24%–64%')
+
+    await wrapper.get('button[title="common.reset"]').trigger('click')
+    expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
+  })
+
   it('forwards live pulses and pauses only automatic following', async () => {
     const wrapper = mount(TapeInspectorPanel, {
       props: {

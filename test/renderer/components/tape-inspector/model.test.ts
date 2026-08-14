@@ -107,6 +107,8 @@ describe('Tape Inspector renderer projection', () => {
 
     expect(exactRow?.recordType).toBe('evidence')
     expect(exactRow?.recordType === 'evidence' && exactRow.legacyUnattributed).toBe(false)
+    expect(exactRow?.sequenceEntryId).toBeNull()
+    expect(exactRow?.actualStartAt).toBe(100)
     expect(legacyRow?.recordType === 'evidence' && legacyRow.legacyUnattributed).toBe(true)
     expect(missingRow?.recordType === 'evidence' && missingRow.parentGroupKey).toBeNull()
     expect(rows.some((row) => row.key === UNBOUND_EVIDENCE_LANE_KEY)).toBe(true)
@@ -180,12 +182,19 @@ describe('Tape Inspector renderer projection', () => {
 
     expect(runOne?.durationMs).toBeNull()
     expect(runOne?.status).toBeNull()
+    expect(runOne?.actualStartAt).toBeNull()
+    expect(runOne?.actualEndAt).toBeNull()
     expect(runTwo?.durationMs).toBeNull()
     expect(runThree?.durationMs).toBeNull()
     expect(tool?.durationMs).toBe(60)
-    expect(
-      rows.find((row) => row.recordType === 'fact' && row.record.entryId === 3)?.durationMs
-    ).toBe(60)
+    expect(tool?.actualStartAt).toBe(200)
+    expect(tool?.actualEndAt).toBe(260)
+    expect(tool?.sequenceEntryId).toBe(3)
+    const dispatch = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 3)
+    expect(dispatch?.durationMs).toBe(60)
+    expect(dispatch?.actualStartAt).toBe(200)
+    expect(dispatch?.actualEndAt).toBe(260)
+    expect(dispatch?.sequenceEntryId).toBe(3)
   })
 
   it('upgrades delayed timing without pairing nested operations across identities', () => {

@@ -23,7 +23,10 @@ interface TapeInspectorRowBase {
   depth: number
   status: string | null
   durationMs: number | null
+  sequenceEntryId: number | null
   sequenceStart: number
+  actualStartAt: number | null
+  actualEndAt: number | null
   actualStart: number
   actualWidth: number
 }
@@ -362,7 +365,10 @@ export function buildTapeInspectorRows(input: {
         depth: 0,
         status: factStatus(record),
         durationMs: timing?.durationMs ?? null,
+        sequenceEntryId: record.entryId,
         sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+        actualStartAt: record.createdAt,
+        actualEndAt: timing?.endAt ?? null,
         actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
         actualWidth: timing
           ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
@@ -383,7 +389,10 @@ export function buildTapeInspectorRows(input: {
       depth: 0,
       status: null,
       durationMs: null,
+      sequenceEntryId: null,
       sequenceStart: 1,
+      actualStartAt: null,
+      actualEndAt: null,
       actualStart: 1,
       actualWidth: 0
     })
@@ -398,7 +407,10 @@ export function buildTapeInspectorRows(input: {
           depth: 1,
           status: null,
           durationMs: null,
+          sequenceEntryId: null,
           sequenceStart: 1,
+          actualStartAt: evidence.createdAt,
+          actualEndAt: null,
           actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
           actualWidth: 0
         })
@@ -427,12 +439,11 @@ export function buildTapeInspectorRows(input: {
           collapsed: input.collapsedKeys.has(group.key),
           status: groupStatus(group, recordsByGroup.get(group.key) ?? []),
           durationMs: timing?.durationMs ?? null,
+          sequenceEntryId: record.entryId,
           sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
-          actualStart: normalizePosition(
-            timing?.startAt ?? record.createdAt,
-            minCreatedAt,
-            maxCreatedAt
-          ),
+          actualStartAt: timing?.startAt ?? null,
+          actualEndAt: timing?.endAt ?? null,
+          actualStart: timing ? normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt) : 0.5,
           actualWidth: timing
             ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
               normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
@@ -453,7 +464,10 @@ export function buildTapeInspectorRows(input: {
         depth: groups.length,
         status: factStatus(record),
         durationMs: timing?.durationMs ?? null,
+        sequenceEntryId: record.entryId,
         sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+        actualStartAt: record.createdAt,
+        actualEndAt: timing?.endAt ?? null,
         actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
         actualWidth: timing
           ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
@@ -481,7 +495,10 @@ export function buildTapeInspectorRows(input: {
           depth: groupIndex + 1,
           status: null,
           durationMs: null,
+          sequenceEntryId: null,
           sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+          actualStartAt: evidence.createdAt,
+          actualEndAt: null,
           actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
           actualWidth: 0
         })
@@ -499,7 +516,10 @@ export function buildTapeInspectorRows(input: {
       depth: 0,
       status: null,
       durationMs: null,
+      sequenceEntryId: null,
       sequenceStart: 1,
+      actualStartAt: null,
+      actualEndAt: null,
       actualStart: 1,
       actualWidth: 0
     })
@@ -514,7 +534,10 @@ export function buildTapeInspectorRows(input: {
           depth: 1,
           status: null,
           durationMs: null,
+          sequenceEntryId: null,
           sequenceStart: 1,
+          actualStartAt: evidence.createdAt,
+          actualEndAt: null,
           actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
           actualWidth: 0
         })
