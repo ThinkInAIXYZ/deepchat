@@ -728,6 +728,7 @@ export interface SessionRecord {
   parentSessionId?: string | null
   subagentMeta?: DeepChatSubagentMeta | null
   orchestrationPolicy: OrchestrationPolicy
+  toolModeOverride: import('../toolMode').ToolModeOverride
   createdAt: number
   updatedAt: number
   /** Monotonic durable revision for ordering snapshots of one session. */
@@ -825,6 +826,7 @@ export interface CreateSessionInput {
   activeSkills?: string[]
   disabledAgentTools?: string[]
   orchestrationPolicy?: OrchestrationPolicy
+  toolModeOverride?: import('../toolMode').ToolModeOverride
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -838,6 +840,7 @@ export interface CreateDetachedSessionInput {
   activeSkills?: string[]
   disabledAgentTools?: string[]
   orchestrationPolicy?: OrchestrationPolicy
+  toolModeOverride?: import('../toolMode').ToolModeOverride
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }

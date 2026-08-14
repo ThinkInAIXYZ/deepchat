@@ -16,6 +16,7 @@ import type {
   ResolvedSubagentFacet,
   ResolvedTransferSource
 } from '@/agent/manager/agentManager'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type {
   AgentTransferImpact,
   AttachmentFallbackPolicy,
@@ -440,6 +441,7 @@ export interface SessionAssignmentStorePort {
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
   getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
   updateOrchestrationPolicy(sessionId: string, policy: OrchestrationPolicy): void
+  updateToolModeOverride(sessionId: string, override: ToolModeOverride): void
 }
 
 export interface SessionAssignmentRuntimePort {
@@ -485,6 +487,7 @@ export interface SessionLifecycleStorePort {
       isDraft?: boolean
       disabledAgentTools?: string[]
       orchestrationPolicy?: OrchestrationPolicy
+      toolModeOverride?: ToolModeOverride
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -600,6 +603,7 @@ export interface SessionAgentAssignmentPort {
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
+  setSessionToolMode(sessionId: string, override: ToolModeOverride): Promise<SessionWithState>
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>

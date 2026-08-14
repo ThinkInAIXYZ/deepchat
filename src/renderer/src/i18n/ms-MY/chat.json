@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Model default",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Use the standard Agent tool set.",
+        "code": "Compose enabled tools through code.",
+        "minimal": "Use only command and file editing tools."
+      },
+      "useModelDefault": "Use model default",
+      "saving": "Saving mode...",
+      "locked": "You can switch modes after this response finishes.",
+      "updateFailed": "The tool mode could not be updated.",
+      "codeEntry": "Code entry",
+      "codeCallable": "Code-callable",
+      "minimalTools": "Coding tools"
+    },
     "fileUploadFailed": "Pemprosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses fail {count}: {names}",
     "fileUploadFailedMore": "Tunggu {count}",

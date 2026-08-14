@@ -5,6 +5,8 @@
       "title": "Agentens kommandoskal",
       "auto": "Automatisk",
       "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
       "gitBash": "Git Bash",
       "executable": "Kørbar Git Bash-fil",
       "autoDetect": "Registrer automatisk",

@@ -263,10 +263,11 @@ export class BackgroundExecSessionManager {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
     const commandShell = ResolvedCommandShellSchema.parse(options.commandShell)
+    const posixProfiles = new Set(['posix', 'bash', 'zsh', 'fish'])
     const profileMatchesPlatform =
       process.platform === 'win32'
-        ? commandShell.profile !== 'posix'
-        : commandShell.profile === 'posix'
+        ? !posixProfiles.has(commandShell.profile)
+        : posixProfiles.has(commandShell.profile)
     if (!profileMatchesPlatform) {
       throw new Error(
         `Command shell profile "${commandShell.profile}" is unavailable on ${process.platform}.`

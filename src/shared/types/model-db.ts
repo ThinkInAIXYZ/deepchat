@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ToolModeSchema } from '../toolMode'
 
 // ---------- Zod Schemas ----------
 
@@ -120,6 +121,7 @@ export const ModelSchema = z.object({
     .optional(),
   temperature: z.boolean().optional(),
   tool_call: z.boolean().optional(),
+  default_tool_mode: ToolModeSchema.optional(),
   reasoning: ReasoningSchema,
   extra_capabilities: ExtraCapabilitiesSchema,
   search: SearchSchema,

@@ -108,6 +108,12 @@ import {
   type MaterializedSkillProjection,
   type SkillProjectionBodies
 } from './skillContextMaterializer'
+import type { ResolvedToolMode } from '@shared/toolMode'
+import {
+  decorateExecForShell,
+  isCodexToolFrontend,
+  renderCodeModeSdk
+} from '@/tool/codeMode/toolModeTools'
 
 type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -313,13 +319,28 @@ export class TurnCoordinator {
     const taskContractContext = strictDeepChatChild
       ? this.ports.taskContractContext.prepare(sessionId)
       : null
-    const tools = meetTaskContractToolDefinitions(sessionId, resolvedTools, taskContractContext)
-    const toolReserveTokens = estimateToolReserveTokens(tools)
+    const executionTools = meetTaskContractToolDefinitions(
+      sessionId,
+      resolvedTools,
+      taskContractContext
+    )
     throwIfAbortRequested(signal)
     const commandShell = await this.runPreStreamStep(
       { sessionId, messageId, step: 'command-shell', signal },
       () => awaitWithAbort(this.ports.commandShell.resolveForTurn(), signal)
     )
+    const toolMode = this.ports.toolResolver.resolveToolMode(
+      sessionId,
+      providerModelFacts.capabilitySnapshot.defaultToolMode
+    )
+    const tools = this.ports.toolResolver.configureToolMode({
+      conversationId: sessionId,
+      mode: toolMode.mode,
+      providerId: state.providerId,
+      commandShell,
+      executionCatalog: executionTools
+    })
+    const toolReserveTokens = estimateToolReserveTokens(tools)
     throwIfAbortRequested(signal)
     const basePromptAssembler = this.ports.promptAssembly.createBasePromptAssembler(instance)
 
@@ -334,7 +355,9 @@ export class TurnCoordinator {
       sessionActiveSkillNames: effectiveSessionActiveSkillNames,
       toolCatalogSnapshot,
       taskContractContext,
+      executionTools,
       tools,
+      toolMode,
       toolReserveTokens,
       commandShell,
       basePromptAssembler,
@@ -350,13 +373,16 @@ export class TurnCoordinator {
     basePromptAssembler: ReturnType<PromptAssemblyService['createBasePromptAssembler']>
     configuredPrompt: string
     tools: MCPToolDefinition[]
+    executionTools: MCPToolDefinition[]
+    toolMode: ResolvedToolMode
+    providerId: string
     activeSkillNames: string[]
     sessionActiveSkillNames: string[]
     sessionSkillBodies: SkillProjectionBodies['sessionSkillBodies']
     contextLength: number
     commandShell: Awaited<ReturnType<CommandShellService['resolveForTurn']>>
   }): Promise<DeepChatPromptAssembly> {
-    return await this.runPreStreamStep(
+    const assembly = await this.runPreStreamStep(
       {
         sessionId: input.sessionId,
         messageId: input.messageId,
@@ -377,6 +403,19 @@ export class TurnCoordinator {
           }),
           input.signal
         )
+    )
+    if (input.toolMode.mode !== 'code' || isCodexToolFrontend(input.providerId)) return assembly
+
+    return appendPromptAssemblySection(
+      assembly,
+      createPromptAssemblySection({
+        kind: 'tooling',
+        sourceRef: 'runtime:code-mode-sdk',
+        content: renderCodeModeSdk(
+          'function',
+          input.executionTools.map((tool) => decorateExecForShell(tool, input.commandShell))
+        )
+      })
     )
   }
 
@@ -606,7 +645,9 @@ export class TurnCoordinator {
         messageActiveSkillNames,
         sessionActiveSkillNames,
         taskContractContext,
+        executionTools,
         tools,
+        toolMode,
         toolCatalogSnapshot,
         toolReserveTokens,
         commandShell,
@@ -649,7 +690,10 @@ export class TurnCoordinator {
         signal: preStreamAbortSignal,
         basePromptAssembler,
         configuredPrompt,
+        providerId: state.providerId,
+        executionTools,
         tools,
+        toolMode,
         activeSkillNames,
         sessionActiveSkillNames,
         sessionSkillBodies: candidateSkillBodies.sessionSkillBodies,
@@ -1007,6 +1051,7 @@ export class TurnCoordinator {
           projectDir,
           promptPreview: content.text,
           search,
+          toolMode,
           tools,
           toolCatalogSnapshot,
           commandShell,
@@ -1443,7 +1488,9 @@ export class TurnCoordinator {
         messageActiveSkillNames,
         sessionActiveSkillNames,
         taskContractContext,
+        executionTools,
         tools,
+        toolMode,
         toolCatalogSnapshot,
         toolReserveTokens,
         commandShell,
@@ -1489,7 +1536,10 @@ export class TurnCoordinator {
         signal: preStreamAbortSignal,
         basePromptAssembler,
         configuredPrompt,
+        providerId: state.providerId,
+        executionTools,
         tools,
+        toolMode,
         activeSkillNames,
         sessionActiveSkillNames,
         sessionSkillBodies: recoveredSkillBodies.sessionSkillBodies,
@@ -1743,6 +1793,7 @@ export class TurnCoordinator {
           resourceInstance: instance,
           providerModelFacts,
           taskContractContext,
+          toolMode,
           abortController: preStreamAbortController,
           tools,
           toolCatalogSnapshot,

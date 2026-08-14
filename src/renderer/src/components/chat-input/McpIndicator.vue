@@ -74,6 +74,66 @@
 
         <slot name="generation-settings" />
 
+        <div class="border-b px-3 py-3" data-testid="tool-mode-section">
+          <div
+            class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            <span>{{ t('chat.input.toolMode.title') }}</span>
+            <span v-if="toolModeOverride === null" class="normal-case tracking-normal">
+              {{ t('chat.input.toolMode.modelDefault') }}
+            </span>
+          </div>
+
+          <RadioGroup
+            :model-value="resolvedToolMode"
+            class="grid grid-cols-3 gap-1.5"
+            :disabled="toolModeDisabled"
+            :aria-label="t('chat.input.toolMode.title')"
+            @update:model-value="setToolMode"
+          >
+            <label
+              v-for="mode in toolModeOptions"
+              :key="mode"
+              class="flex h-8 min-w-0 cursor-pointer items-center justify-center rounded-md border px-2 text-xs transition-colors"
+              :class="[
+                resolvedToolMode === mode
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+                toolModeDisabled ? 'cursor-not-allowed opacity-50' : ''
+              ]"
+            >
+              <RadioGroupItem :value="mode" class="sr-only" />
+              <span class="truncate">{{ getToolModeLabel(mode) }}</span>
+            </label>
+          </RadioGroup>
+
+          <div class="mt-2 flex items-start justify-between gap-2">
+            <span class="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
+              {{ toolModeDescription }}
+            </span>
+            <DcButton
+              variant="ghost"
+              size="sm"
+              class="h-6 shrink-0 px-1.5 text-[11px] text-muted-foreground"
+              :disabled="toolModeDisabled || toolModeOverride === null"
+              data-testid="tool-mode-use-default"
+              @click="useModelDefaultToolMode"
+            >
+              {{ t('chat.input.toolMode.useModelDefault') }}
+            </DcButton>
+          </div>
+
+          <div v-if="toolModeSaving" class="mt-1 text-xs text-muted-foreground">
+            {{ t('chat.input.toolMode.saving') }}
+          </div>
+          <div v-else-if="toolModeLocked" class="mt-1 text-xs text-muted-foreground">
+            {{ t('chat.input.toolMode.locked') }}
+          </div>
+          <div v-else-if="toolModeError" class="mt-1 text-xs text-destructive">
+            {{ toolModeError }}
+          </div>
+        </div>
+
         <div class="border-b px-3 py-3">
           <div
             class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
@@ -81,25 +141,29 @@
             <span>{{ t('chat.input.tools.title') }}</span>
           </div>
 
-          <div v-if="toolsLoading" class="text-xs text-muted-foreground">
+          <div
+            v-if="toolsLoading && resolvedToolMode !== 'minimal'"
+            class="text-xs text-muted-foreground"
+          >
             {{ t('chat.input.tools.loading') }}
           </div>
 
           <div
-            v-else-if="groupedAgentTools.length === 0"
+            v-else-if="visibleToolGroups.length === 0"
             class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
           >
             {{ t('chat.input.tools.builtinEmpty') }}
           </div>
 
           <div v-else class="space-y-4">
-            <div v-for="group in groupedAgentTools" :key="group.name" class="space-y-2">
+            <div v-for="group in visibleToolGroups" :key="group.name" class="space-y-2">
               <div class="flex items-center justify-between gap-3">
                 <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {{ group.label }}
                 </div>
 
                 <Switch
+                  v-if="group.configurable"
                   :model-value="isGroupEnabled(group)"
                   :disabled="isGroupPending(group)"
                   :aria-label="group.label"
@@ -115,11 +179,11 @@
                   size="sm"
                   class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
                   :class="
-                    isGroupItemEnabled(item)
+                    !group.configurable || isGroupItemEnabled(item)
                       ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                       : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
                   "
-                  :disabled="isGroupItemPending(item)"
+                  :disabled="!group.configurable || isGroupItemPending(item)"
                   @click="toggleGroupItem(item)"
                 >
                   {{ item.label }}
@@ -129,7 +193,10 @@
           </div>
         </div>
 
-        <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
+        <div
+          v-if="resolvedToolMode !== 'minimal'"
+          :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'"
+        >
           <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {{ t('chat.input.tools.mcpSection') }}
           </div>
@@ -158,7 +225,10 @@
           </div>
         </div>
 
-        <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
+        <div
+          v-if="resolvedToolMode !== 'minimal' && enabledPluginServers.length > 0"
+          class="px-3 py-3"
+        >
           <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {{ t('chat.input.tools.pluginSection') }}
           </div>
@@ -281,6 +351,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { createSessionClient } from '@api/SessionClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createToolClient } from '@api/ToolClient'
@@ -290,6 +361,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
+import { useModelCapabilities } from '@/composables/useModelCapabilities'
+import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@shared/toolMode'
 
 type ToolGroupItem = {
   id: string
@@ -301,6 +374,7 @@ type ToolGroup = {
   name: string
   label: string
   items: ToolGroupItem[]
+  configurable: boolean
 }
 
 type SystemPromptMenuOption = {
@@ -316,6 +390,7 @@ const GROUP_ORDER = [
   'deepchat-settings',
   'yobrowser'
 ]
+const TOOL_MODE_OPTIONS: readonly ToolMode[] = ['agent', 'code', 'minimal']
 
 const props = withDefaults(
   defineProps<{
@@ -353,6 +428,9 @@ const toolsLoading = ref(false)
 const agentTools = ref<MCPToolDefinition[]>([])
 const disabledToolNames = ref<string[]>([])
 const pendingToolNames = ref<string[]>([])
+const optimisticToolModeOverride = ref<ToolModeOverride | undefined>(undefined)
+const toolModeSaving = ref(false)
+const toolModeError = ref('')
 let latestLoadToken = 0
 let unsubscribeSkillSessionChanged: (() => void) | null = null
 
@@ -415,6 +493,40 @@ const workspacePath = computed(() => {
   const selectedProjectPath = projectStore.selectedProject?.path?.trim()
   return selectedProjectPath ? selectedProjectPath : null
 })
+const currentProviderId = computed(() =>
+  sessionStore.hasActiveSession ? sessionStore.activeSession?.providerId : draftStore.providerId
+)
+const currentModelId = computed(() =>
+  sessionStore.hasActiveSession ? sessionStore.activeSession?.modelId : draftStore.modelId
+)
+const modelCapabilities = useModelCapabilities({
+  providerId: currentProviderId,
+  modelId: currentModelId
+})
+const persistedToolModeOverride = computed<ToolModeOverride>(() =>
+  sessionStore.hasActiveSession
+    ? (sessionStore.activeSession?.toolModeOverride ?? null)
+    : draftStore.toolModeOverride
+)
+const toolModeOverride = computed<ToolModeOverride>(() =>
+  optimisticToolModeOverride.value === undefined
+    ? persistedToolModeOverride.value
+    : optimisticToolModeOverride.value
+)
+const modelDefaultToolMode = computed<ToolMode>(
+  () => modelCapabilities.snapshot.value?.defaultToolMode ?? 'agent'
+)
+const resolvedToolMode = computed<ToolMode>(
+  () => toolModeOverride.value ?? modelDefaultToolMode.value
+)
+const toolModeLocked = computed(
+  () => sessionStore.hasActiveSession && sessionStore.activeSession?.status === 'working'
+)
+const toolModeDisabled = computed(() => toolModeSaving.value || toolModeLocked.value)
+const toolModeOptions = TOOL_MODE_OPTIONS
+const toolModeDescription = computed(() =>
+  t(`chat.input.toolMode.descriptions.${resolvedToolMode.value}`)
+)
 
 const triggerTitle = computed(() =>
   isDeepchatContext.value ? t('chat.advancedSettings.title') : t('chat.input.mcp.title')
@@ -470,6 +582,7 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
     .map(([name, items]) => ({
       name,
       label: getGroupLabel(name),
+      configurable: true,
       items: [...items].sort((left, right) => left.label.localeCompare(right.label))
     }))
     .sort((left, right) => {
@@ -487,6 +600,38 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
       }
       return left.name.localeCompare(right.name)
     })
+})
+
+const fixedToolGroup = (name: string, label: string, toolNames: string[]): ToolGroup => ({
+  name,
+  label,
+  configurable: false,
+  items: toolNames.map((toolName) => ({ id: toolName, label: toolName, toolName }))
+})
+
+const visibleToolGroups = computed<ToolGroup[]>(() => {
+  if (resolvedToolMode.value === 'minimal') {
+    const editor = currentProviderId.value === 'openai-codex' ? 'apply_patch' : 'str_replace_editor'
+    return [
+      fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), ['exec', editor])
+    ]
+  }
+
+  if (resolvedToolMode.value === 'code') {
+    const entries = currentProviderId.value === 'openai-codex' ? ['exec', 'wait'] : ['run_code']
+    return [
+      fixedToolGroup('tool-mode-code-entry', t('chat.input.toolMode.codeEntry'), entries),
+      ...groupedAgentTools.value
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => item.toolName !== 'deepchat_question'),
+          label: `${t('chat.input.toolMode.codeCallable')} · ${group.label}`
+        }))
+        .filter((group) => group.items.length > 0)
+    ]
+  }
+
+  return groupedAgentTools.value
 })
 
 const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
@@ -511,6 +656,42 @@ const getPluginServerLabel = (server: { name: string; descriptions?: string }) =
 
 const getPluginServerToolsCount = (serverName: string) => {
   return mcpStore.pluginTools.filter((tool) => tool.server.name === serverName).length
+}
+
+const getToolModeLabel = (mode: ToolMode) => t(`chat.input.toolMode.options.${mode}`)
+
+const persistToolModeOverride = async (override: ToolModeOverride) => {
+  if (!isDeepchatContext.value || toolModeDisabled.value) return
+
+  const previous = persistedToolModeOverride.value
+  optimisticToolModeOverride.value = override
+  toolModeSaving.value = true
+  toolModeError.value = ''
+  try {
+    if (deepchatSessionId.value) {
+      await sessionStore.setSessionToolMode(override)
+    } else {
+      draftStore.toolModeOverride = override
+    }
+  } catch (error) {
+    console.warn('[McpIndicator] Failed to update tool mode:', error)
+    optimisticToolModeOverride.value = previous
+    toolModeError.value = t('chat.input.toolMode.updateFailed')
+  } finally {
+    toolModeSaving.value = false
+    if (!toolModeError.value) optimisticToolModeOverride.value = undefined
+  }
+}
+
+const setToolMode = (value: unknown) => {
+  const parsed = ToolModeSchema.safeParse(value)
+  if (!parsed.success || parsed.data === toolModeOverride.value) return
+  void persistToolModeOverride(parsed.data)
+}
+
+const useModelDefaultToolMode = () => {
+  if (toolModeOverride.value === null) return
+  void persistToolModeOverride(null)
 }
 
 const setToolsPending = (toolNames: string[], pending: boolean) => {
@@ -668,6 +849,8 @@ const handleSkillRuntimeChange = (payload: {
 watch(
   () => [isDeepchatContext.value, deepchatSessionId.value, workspacePath.value] as const,
   () => {
+    optimisticToolModeOverride.value = undefined
+    toolModeError.value = ''
     void loadDeepchatTools()
   },
   { immediate: true }

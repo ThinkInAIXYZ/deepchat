@@ -1,5 +1,6 @@
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { jsonSchema, tool, type ToolSet } from 'ai'
+import { openai } from '@ai-sdk/openai'
 
 type JsonSchema = Record<string, unknown>
 const UNSAFE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
@@ -241,6 +242,16 @@ export function mcpToolsToAISDKTools(tools: MCPToolDefinition[]): ToolSet {
     (acc, toolDef) => {
       const name = toolDef.function.name
       if (!name || UNSAFE_TOOL_NAMES.has(name)) {
+        return acc
+      }
+
+      if (toolDef.providerPresentation?.type === 'freeform') {
+        acc[name] = openai.tools.customTool({
+          description: toolDef.function.description,
+          ...(toolDef.providerPresentation.format
+            ? { format: toolDef.providerPresentation.format }
+            : {})
+        })
         return acc
       }
 

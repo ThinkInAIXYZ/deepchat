@@ -126,11 +126,16 @@ export function buildCommandShellPromptLine(commandShell: ResolvedCommandShell):
   switch (commandShell.profile) {
     case 'windows-powershell':
       return 'Shell: Windows PowerShell. It does not support && or ||; use ; for unconditional sequential execution.'
+    case 'powershell-core':
+      return 'Shell: PowerShell 7. It does not support && or || for unconditional sequencing; use ; instead.'
     case 'cmd':
       return 'Shell: Command Prompt. It supports && and ||.'
     case 'git-bash':
       return 'Shell: Git Bash using POSIX syntax. Use Windows-native paths with file tools; MSYS drive paths such as /c/... are for shell commands.'
-    case 'posix': {
+    case 'posix':
+    case 'bash':
+    case 'zsh':
+    case 'fish': {
       const displayName = sanitizeShellDisplayName(commandShell.displayName) || 'POSIX shell'
       return `Shell: ${displayName}.`
     }

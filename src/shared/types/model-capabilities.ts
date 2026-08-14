@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { ReasoningEffort, ReasoningPortrait, Verbosity } from './model-db'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { ModelRequestPolicy } from '../modelRequestPolicy'
+import type { ToolMode } from '../toolMode'
 
 export type ResolvedCapabilityIdentity =
   | {
@@ -37,6 +38,7 @@ export type CapabilitySnapshotQuery = z.infer<typeof CapabilitySnapshotQuerySche
 
 export type ResolvedModelCapabilitySnapshot = {
   identity: ResolvedCapabilityIdentity
+  defaultToolMode?: ToolMode
   requestPolicy: ModelRequestPolicy
   supportsAudioInput: boolean
   supportsReasoning: boolean

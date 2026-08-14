@@ -1,6 +1,15 @@
 import { z } from 'zod'
 
-export const AgentCommandShellPreferenceSchema = z.enum(['auto', 'windows-powershell', 'git-bash'])
+export const AgentCommandShellPreferenceSchema = z.enum([
+  'auto',
+  'bash',
+  'zsh',
+  'fish',
+  'windows-powershell',
+  'powershell-core',
+  'cmd',
+  'git-bash'
+])
 
 export const AgentCommandShellConfigSchema = z
   .object({
@@ -9,7 +18,16 @@ export const AgentCommandShellConfigSchema = z
   })
   .strict()
 
-export const CommandShellProfileSchema = z.enum(['posix', 'cmd', 'windows-powershell', 'git-bash'])
+export const CommandShellProfileSchema = z.enum([
+  'posix',
+  'bash',
+  'zsh',
+  'fish',
+  'cmd',
+  'windows-powershell',
+  'powershell-core',
+  'git-bash'
+])
 
 export const CommandShellDialectSchema = z.enum(['posix', 'cmd', 'powershell'])
 export const CommandShellPathStyleSchema = z.enum(['native', 'win32', 'msys'])
@@ -21,6 +39,33 @@ const ResolvedPosixCommandShellSchema = z.object({
   executable: z.string().min(1),
   args: z.tuple([z.literal('-c')]),
   displayName: z.string().min(1)
+})
+
+const ResolvedBashCommandShellSchema = z.object({
+  profile: z.literal('bash'),
+  dialect: z.literal('posix'),
+  pathStyle: z.literal('native'),
+  executable: z.string().min(1),
+  args: z.tuple([z.literal('-c')]),
+  displayName: z.literal('Bash')
+})
+
+const ResolvedZshCommandShellSchema = z.object({
+  profile: z.literal('zsh'),
+  dialect: z.literal('posix'),
+  pathStyle: z.literal('native'),
+  executable: z.string().min(1),
+  args: z.tuple([z.literal('-c')]),
+  displayName: z.literal('Zsh')
+})
+
+const ResolvedFishCommandShellSchema = z.object({
+  profile: z.literal('fish'),
+  dialect: z.literal('posix'),
+  pathStyle: z.literal('native'),
+  executable: z.string().min(1),
+  args: z.tuple([z.literal('-c')]),
+  displayName: z.literal('Fish')
 })
 
 const ResolvedCmdCommandShellSchema = z.object({
@@ -41,6 +86,15 @@ const ResolvedWindowsPowerShellSchema = z.object({
   displayName: z.literal('Windows PowerShell')
 })
 
+const ResolvedPowerShellCoreSchema = z.object({
+  profile: z.literal('powershell-core'),
+  dialect: z.literal('powershell'),
+  pathStyle: z.literal('win32'),
+  executable: z.literal('pwsh.exe'),
+  args: z.tuple([z.literal('-NoProfile'), z.literal('-Command')]),
+  displayName: z.literal('PowerShell 7')
+})
+
 const ResolvedGitBashCommandShellSchema = z.object({
   profile: z.literal('git-bash'),
   dialect: z.literal('posix'),
@@ -52,8 +106,12 @@ const ResolvedGitBashCommandShellSchema = z.object({
 
 export const ResolvedCommandShellSchema = z.discriminatedUnion('profile', [
   ResolvedPosixCommandShellSchema,
+  ResolvedBashCommandShellSchema,
+  ResolvedZshCommandShellSchema,
+  ResolvedFishCommandShellSchema,
   ResolvedCmdCommandShellSchema,
   ResolvedWindowsPowerShellSchema,
+  ResolvedPowerShellCoreSchema,
   ResolvedGitBashCommandShellSchema
 ])
 
@@ -107,4 +165,21 @@ export const DEFAULT_AGENT_COMMAND_SHELL_CONFIG: AgentCommandShellConfig = Objec
 export function normalizeAgentCommandShellConfig(value: unknown): AgentCommandShellConfig {
   const parsed = AgentCommandShellConfigSchema.safeParse(value)
   return parsed.success ? parsed.data : DEFAULT_AGENT_COMMAND_SHELL_CONFIG
+}
+
+function executableBasename(executable: string): string {
+  return executable.split(/[\\/]/).filter(Boolean).at(-1) ?? executable
+}
+
+export function formatCommandShellForModel(shell: ResolvedCommandShell): string {
+  const cwdSemantics =
+    shell.pathStyle === 'msys'
+      ? 'cwd accepts Windows paths and is translated for the MSYS shell.'
+      : shell.pathStyle === 'win32'
+        ? 'cwd uses Windows paths.'
+        : 'cwd uses native POSIX paths.'
+  return [
+    `Selected shell: ${shell.displayName} (${executableBasename(shell.executable)}).`,
+    `Dialect: ${shell.dialect}; path style: ${shell.pathStyle}; ${cwdSemantics}`
+  ].join(' ')
 }

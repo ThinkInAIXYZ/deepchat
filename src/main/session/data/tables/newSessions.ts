@@ -4,11 +4,13 @@ import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
 import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =
   'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
 export const SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION = 59
+export const SESSION_TOOL_MODE_SCHEMA_VERSION = 68
 
 export interface NewSessionRow {
   id: string
@@ -24,6 +26,7 @@ export interface NewSessionRow {
   parent_session_id: string | null
   subagent_meta_json: string | null
   orchestration_policy: OrchestrationPolicy
+  tool_mode_override: ToolModeOverride
   created_at: number
   updated_at: number
   revision: number
@@ -82,6 +85,11 @@ export class NewSessionsTable extends BaseTable {
         "orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'))"
       )
     }
+    if (version >= SESSION_TOOL_MODE_SCHEMA_VERSION) {
+      columns.push(
+        "tool_mode_override TEXT CHECK (tool_mode_override IS NULL OR tool_mode_override IN ('agent', 'code', 'minimal'))"
+      )
+    }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
 
@@ -127,11 +135,18 @@ export class NewSessionsTable extends BaseTable {
           CHECK (orchestration_policy IN ('explicit', 'proactive'));
       `
     }
+    if (version === SESSION_TOOL_MODE_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE new_sessions
+          ADD COLUMN tool_mode_override TEXT
+          CHECK (tool_mode_override IS NULL OR tool_mode_override IN ('agent', 'code', 'minimal'));
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION
+    return SESSION_TOOL_MODE_SCHEMA_VERSION
   }
 
   create(
@@ -145,6 +160,7 @@ export class NewSessionsTable extends BaseTable {
       activeSkills?: string[]
       disabledAgentTools?: string[]
       orchestrationPolicy?: OrchestrationPolicy
+      toolModeOverride?: ToolModeOverride
       sessionKind?: 'regular' | 'subagent'
       parentSessionId?: string | null
       subagentMetaJson?: string | null
@@ -170,9 +186,10 @@ export class NewSessionsTable extends BaseTable {
           parent_session_id,
           subagent_meta_json,
           orchestration_policy,
+          tool_mode_override,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -187,6 +204,7 @@ export class NewSessionsTable extends BaseTable {
         options?.parentSessionId ?? null,
         options?.subagentMetaJson ?? null,
         normalizeOrchestrationPolicy(options?.orchestrationPolicy),
+        normalizeToolModeOverride(options?.toolModeOverride),
         createdAt,
         updatedAt
       )
@@ -311,6 +329,7 @@ export class NewSessionsTable extends BaseTable {
         | 'parent_session_id'
         | 'subagent_meta_json'
         | 'orchestration_policy'
+        | 'tool_mode_override'
       >
     >
   ): void {
@@ -356,6 +375,10 @@ export class NewSessionsTable extends BaseTable {
     if (fields.orchestration_policy !== undefined) {
       setClauses.push('orchestration_policy = ?')
       params.push(normalizeOrchestrationPolicy(fields.orchestration_policy))
+    }
+    if (fields.tool_mode_override !== undefined) {
+      setClauses.push('tool_mode_override = ?')
+      params.push(normalizeToolModeOverride(fields.tool_mode_override))
     }
 
     if (setClauses.length === 0) return
@@ -436,6 +459,10 @@ export class NewSessionsTable extends BaseTable {
 
   updateOrchestrationPolicy(id: string, policy: OrchestrationPolicy): void {
     this.update(id, { orchestration_policy: normalizeOrchestrationPolicy(policy) })
+  }
+
+  updateToolModeOverride(id: string, override: ToolModeOverride): void {
+    this.update(id, { tool_mode_override: normalizeToolModeOverride(override) })
   }
 
   updateAgentId(id: string, agentId: string): void {

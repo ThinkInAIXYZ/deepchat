@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
@@ -55,6 +55,11 @@ const setup = async (options?: {
   disabledAgentTools?: string[]
   pluginEnabled?: boolean
   regularMcpEnabled?: boolean
+  providerId?: string
+  modelId?: string
+  defaultToolMode?: 'agent' | 'code' | 'minimal'
+  toolModeOverride?: 'agent' | 'code' | 'minimal' | null
+  sessionStatus?: 'completed' | 'working' | 'error' | 'none'
 }) => {
   vi.resetModules()
   let skillSessionChangedHandler:
@@ -102,12 +107,22 @@ const setup = async (options?: {
         : {
             id: 's1',
             agentId: options?.activeAgentId ?? 'deepchat',
-            projectDir: '/tmp/workspace'
-          }
+            projectDir: '/tmp/workspace',
+            providerId: options?.providerId ?? 'deepseek',
+            modelId: options?.modelId ?? 'deepseek-chat',
+            toolModeOverride: options?.toolModeOverride ?? null,
+            status: options?.sessionStatus ?? 'none'
+          },
+    setSessionToolMode: vi.fn(async (override: 'agent' | 'code' | 'minimal' | null) => {
+      if (sessionStore.activeSession) sessionStore.activeSession.toolModeOverride = override
+    })
   })
 
   const draftStore = reactive({
-    disabledAgentTools: [...(options?.disabledAgentTools ?? [])]
+    disabledAgentTools: [...(options?.disabledAgentTools ?? [])],
+    providerId: options?.providerId ?? 'deepseek',
+    modelId: options?.modelId ?? 'deepseek-chat',
+    toolModeOverride: options?.toolModeOverride ?? null
   })
 
   const agentStore = reactive({
@@ -163,6 +178,11 @@ const setup = async (options?: {
   }))
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
+  }))
+  vi.doMock('@/composables/useModelCapabilities', () => ({
+    useModelCapabilities: () => ({
+      snapshot: ref(options?.defaultToolMode ? { defaultToolMode: options.defaultToolMode } : null)
+    })
   }))
   vi.doMock('@api/ToolClient', () => ({
     createToolClient: vi.fn(() => ({
@@ -225,7 +245,22 @@ const setup = async (options?: {
           'chat.input.tools.groups.agentCore': 'Agent Core',
           'chat.input.tools.groups.agentSkills': 'Agent Skills',
           'chat.input.tools.groups.deepchatSettings': 'DeepChat Settings',
-          'chat.input.tools.groups.yobrowser': 'YoBrowser'
+          'chat.input.tools.groups.yobrowser': 'YoBrowser',
+          'chat.input.toolMode.title': 'Mode',
+          'chat.input.toolMode.modelDefault': 'Model default',
+          'chat.input.toolMode.useModelDefault': 'Use model default',
+          'chat.input.toolMode.options.agent': 'Agent',
+          'chat.input.toolMode.options.code': 'Code',
+          'chat.input.toolMode.options.minimal': 'Minimal',
+          'chat.input.toolMode.descriptions.agent': 'Direct tool calls',
+          'chat.input.toolMode.descriptions.code': 'Compose calls with code',
+          'chat.input.toolMode.descriptions.minimal': 'Command and editor only',
+          'chat.input.toolMode.codeEntry': 'Code entry',
+          'chat.input.toolMode.codeCallable': 'Code callable',
+          'chat.input.toolMode.minimalTools': 'Minimal tools',
+          'chat.input.toolMode.saving': 'Saving',
+          'chat.input.toolMode.locked': 'Available after this response',
+          'chat.input.toolMode.updateFailed': 'Update failed'
         }
 
         return translations[key] ?? key
@@ -266,6 +301,7 @@ const setup = async (options?: {
   return {
     wrapper,
     draftStore,
+    sessionStore,
     toolService,
     agentSessionPresenter,
     skillEvents
@@ -452,5 +488,48 @@ describe('McpIndicator', () => {
       conversationId: 's1',
       agentWorkspacePath: '/tmp/workspace'
     })
+  })
+
+  it('shows the model-recommended Code Mode and its projected tools', async () => {
+    const { wrapper } = await setup({
+      providerId: 'deepseek',
+      defaultToolMode: 'code'
+    })
+
+    expect(wrapper.text()).toContain('Model default')
+    expect(
+      wrapper.findAll('[role="radio"]').map((radio) => radio.element.parentElement?.textContent)
+    ).toEqual(['Agent', 'Code', 'Minimal'])
+    expect(wrapper.text()).toContain('run_code')
+    expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
+    expect(wrapper.text()).not.toContain('deepchat_question')
+    expect(wrapper.text()).toContain('demo-server')
+  })
+
+  it('persists Minimal Mode and immediately hides every non-minimal tool group', async () => {
+    const { wrapper, sessionStore } = await setup({ defaultToolMode: 'code' })
+    const minimalRadio = wrapper.findAll('[role="radio"]')[2]
+
+    await minimalRadio.trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.setSessionToolMode).toHaveBeenCalledWith('minimal')
+    expect(wrapper.text()).toContain('exec')
+    expect(wrapper.text()).toContain('str_replace_editor')
+    expect(wrapper.text()).not.toContain('update_plan')
+    expect(wrapper.text()).not.toContain('demo-server')
+  })
+
+  it('disables Tool Mode changes while the session is working', async () => {
+    const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
+    const radios = wrapper.findAll('[role="radio"]')
+
+    expect(radios).toHaveLength(3)
+    expect(radios.every((radio) => radio.attributes('disabled') !== undefined)).toBe(true)
+    await radios[1].trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.setSessionToolMode).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Available after this response')
   })
 })

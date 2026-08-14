@@ -411,6 +411,7 @@ export const buildResolvedCapabilitySnapshot = (
 
   return {
     identity,
+    ...(catalog.defaultToolMode ? { defaultToolMode: catalog.defaultToolMode } : {}),
     requestPolicy,
     supportsAudioInput: catalog.supportsAudioInput,
     supportsReasoning: catalog.supportsReasoning,

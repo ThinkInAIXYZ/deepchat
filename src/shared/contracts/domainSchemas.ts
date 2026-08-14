@@ -22,6 +22,7 @@ import {
   AGENT_OUTPUT_LIMIT_MAX_CHARS,
   AGENT_OUTPUT_LIMIT_MIN_CHARS
 } from '../lib/agentOutputLimits'
+import { ToolModeSchema } from '../toolMode'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -529,6 +530,7 @@ export const ModelCapabilitiesSchema = z.object({
       catalogModelId: z.null()
     })
   ]),
+  defaultToolMode: ToolModeSchema.optional(),
   requestPolicy: z.object({
     temperature: NumberRequestParameterPolicySchema,
     topP: NumberRequestParameterPolicySchema,

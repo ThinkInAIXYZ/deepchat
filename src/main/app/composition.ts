@@ -2537,6 +2537,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
+    await runDestroyStep('toolService.shutdownCodeRuntime', () => toolService.shutdownCodeRuntime())
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
       await runDestroyStep('skillInitialization.drain', async () => {

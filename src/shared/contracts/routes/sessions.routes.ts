@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { OrchestrationPolicySchema } from '../../orchestration/policy'
+import { ToolModeSchema } from '../../toolMode'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
@@ -144,6 +145,7 @@ export const CreateSessionInputSchema = z.object({
   activeSkills: z.array(z.string()).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
   orchestrationPolicy: OrchestrationPolicySchema.optional(),
+  toolModeOverride: ToolModeSchema.nullable().optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 
@@ -737,6 +739,17 @@ export const sessionsGetDisabledAgentToolsRoute = defineRouteContract({
   }),
   output: z.object({
     disabledAgentTools: z.array(z.string())
+  })
+})
+
+export const sessionsSetToolModeRoute = defineRouteContract({
+  name: 'sessions.setToolMode',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    override: ToolModeSchema.nullable()
+  }),
+  output: z.object({
+    session: SessionWithStateSchema
   })
 })
 
