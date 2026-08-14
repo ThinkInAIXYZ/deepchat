@@ -58,25 +58,34 @@
           @update:model-value="onSingleSelect"
         />
 
-        <div v-if="isMultiple || allowOther" class="mt-3 flex items-center gap-2">
+        <div v-if="allowOther" class="mt-3 flex items-center gap-2">
+          <input
+            v-model="customAnswer"
+            type="text"
+            :disabled="processing"
+            :placeholder="t('components.messageBlockQuestionRequest.customPlaceholder')"
+            class="h-8 min-w-0 flex-1 rounded-md border border-input bg-background/60 px-2.5 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            @keydown.enter.prevent="onCustomSubmit"
+          />
           <DcButton
-            v-if="isMultiple"
+            :disabled="processing || !customAnswer.trim()"
+            variant="outline"
+            size="sm"
+            class="h-8 shrink-0 px-3 text-xs"
+            @click="onCustomSubmit"
+          >
+            {{ t('components.messageBlockQuestionRequest.send') }}
+          </DcButton>
+        </div>
+
+        <div v-if="isMultiple" class="mt-3 flex items-center gap-2">
+          <DcButton
             :disabled="processing || multiSelected.length === 0"
             size="sm"
             class="h-8 px-4 text-xs"
             @click="onMultiConfirm"
           >
             {{ t('common.confirm') }}
-          </DcButton>
-          <DcButton
-            v-if="allowOther"
-            :disabled="processing"
-            variant="outline"
-            size="sm"
-            class="h-8 px-3 text-xs"
-            @click="onQuestionOther"
-          >
-            Other
           </DcButton>
         </div>
       </div>
@@ -231,12 +240,14 @@ const choiceOptions = computed<DcChoiceOption[]>(() =>
 
 const singleSelected = ref<string | null>(null)
 const multiSelected = ref<string[]>([])
+const customAnswer = ref('')
 
 watch(
   () => props.interaction.toolCallId,
   () => {
     singleSelected.value = null
     multiSelected.value = []
+    customAnswer.value = ''
   }
 )
 
@@ -310,8 +321,10 @@ const onPermission = (granted: boolean) => {
   emit('respond', { kind: 'permission', granted })
 }
 
-const onQuestionOther = () => {
-  emit('respond', { kind: 'question_other' })
+const onCustomSubmit = () => {
+  const answer = customAnswer.value.trim()
+  if (!answer || props.processing) return
+  emit('respond', { kind: 'question_custom', answerText: answer })
 }
 </script>
 

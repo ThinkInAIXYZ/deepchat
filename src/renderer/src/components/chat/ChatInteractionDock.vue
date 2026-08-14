@@ -1,5 +1,61 @@
 <template>
-  <div class="flex w-full flex-col items-center gap-2" data-testid="agent-interaction-dock">
+  <!-- The bar comes first in DOM (flex-col-reverse keeps it visually below the
+       panel) so Tab moves forward from a chip into the panel it just opened. -->
+  <div class="flex w-full flex-col-reverse items-center gap-2" data-testid="agent-interaction-dock">
+    <div
+      v-if="hasDockChips"
+      class="interaction-dock-bar pointer-events-auto flex h-10 w-full max-w-2xl shrink-0 items-center gap-1.5 rounded-full px-2"
+      data-testid="agent-interaction-dock-bar"
+    >
+      <button
+        v-if="planChipVisible"
+        ref="planChipRef"
+        type="button"
+        class="interaction-dock-chip"
+        aria-expanded="false"
+        aria-controls="agent-interaction-dock-panel"
+        data-testid="agent-interaction-dock-plan-chip"
+        @click="expandPlan"
+      >
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon
+            icon="lucide:chevron-right"
+            class="interaction-dock-chip__caret h-3.5 w-3.5"
+            aria-hidden="true"
+          />
+        </span>
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+          <Icon icon="lucide:list-checks" class="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span class="truncate text-xs font-medium">{{ t('chat.workspace.plan.section') }}</span>
+        <span class="interaction-dock-chip__badge">{{ planBadgeText }}</span>
+      </button>
+
+      <button
+        v-if="questionChipVisible"
+        ref="questionChipRef"
+        type="button"
+        class="interaction-dock-chip"
+        aria-expanded="false"
+        aria-controls="agent-interaction-dock-panel"
+        data-testid="agent-interaction-dock-question-chip"
+        @click="expandQuestion"
+      >
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon
+            icon="lucide:chevron-right"
+            class="interaction-dock-chip__caret h-3.5 w-3.5"
+            aria-hidden="true"
+          />
+        </span>
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+          <Icon :icon="questionChipIcon" class="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span class="truncate text-xs font-medium">{{ questionChipText }}</span>
+        <span class="interaction-dock-chip__pulse" aria-hidden="true" />
+      </button>
+    </div>
+
     <Transition name="interaction-dock-panel">
       <div
         v-if="expandedPanel"
@@ -13,6 +69,7 @@
              collapsing swaps the panel for a chip in the same columns. -->
         <div class="flex items-center gap-1.5 px-2 pb-1 pt-2">
           <button
+            ref="panelHeaderRef"
             type="button"
             class="interaction-dock-chip min-w-0 flex-1"
             aria-expanded="true"
@@ -69,63 +126,11 @@
         </div>
       </div>
     </Transition>
-
-    <div
-      v-if="hasDockChips"
-      class="interaction-dock-bar pointer-events-auto flex h-10 w-full max-w-2xl shrink-0 items-center gap-1.5 rounded-full px-2"
-      data-testid="agent-interaction-dock-bar"
-    >
-      <button
-        v-if="planChipVisible"
-        type="button"
-        class="interaction-dock-chip"
-        aria-expanded="false"
-        aria-controls="agent-interaction-dock-panel"
-        data-testid="agent-interaction-dock-plan-chip"
-        @click="expandPlan"
-      >
-        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
-          <Icon
-            icon="lucide:chevron-right"
-            class="interaction-dock-chip__caret h-3.5 w-3.5"
-            aria-hidden="true"
-          />
-        </span>
-        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
-          <Icon icon="lucide:list-checks" class="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        <span class="truncate text-xs font-medium">{{ t('chat.workspace.plan.section') }}</span>
-        <span class="interaction-dock-chip__badge">{{ planBadgeText }}</span>
-      </button>
-
-      <button
-        v-if="questionChipVisible"
-        type="button"
-        class="interaction-dock-chip"
-        aria-expanded="false"
-        aria-controls="agent-interaction-dock-panel"
-        data-testid="agent-interaction-dock-question-chip"
-        @click="expandQuestion"
-      >
-        <span class="flex h-5 w-5 shrink-0 items-center justify-center">
-          <Icon
-            icon="lucide:chevron-right"
-            class="interaction-dock-chip__caret h-3.5 w-3.5"
-            aria-hidden="true"
-          />
-        </span>
-        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
-          <Icon :icon="questionChipIcon" class="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        <span class="truncate text-xs font-medium">{{ questionChipText }}</span>
-        <span class="interaction-dock-chip__pulse" aria-hidden="true" />
-      </button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
@@ -210,28 +215,47 @@ watch(
 
 // A plan arriving while the question is open stays docked instead of
 // hijacking the panel (expandedPanel prefers the plan when both are open).
+// A plan leaving re-expands a pending question so the blocking interaction
+// never sits collapsed with nothing else on screen.
 watch(hasPlan, (now, before) => {
   if (now && !before && questionExpanded.value) {
     collapsePlanIfExpanded()
   }
+  if (!now && before && props.interaction) {
+    questionExpanded.value = true
+  }
 })
+
+// Expanding/collapsing unmounts the previously focused control, so move focus
+// to its replacement explicitly instead of letting it fall to the document.
+const panelHeaderRef = ref<HTMLButtonElement | null>(null)
+const planChipRef = ref<HTMLButtonElement | null>(null)
+const questionChipRef = ref<HTMLButtonElement | null>(null)
+
+const focusSoon = (target: () => HTMLButtonElement | null) => {
+  void nextTick(() => target()?.focus())
+}
 
 const expandPlan = () => {
   questionExpanded.value = false
   emit('set-plan-collapsed', false)
+  focusSoon(() => panelHeaderRef.value)
 }
 
 const expandQuestion = () => {
   questionExpanded.value = true
   collapsePlanIfExpanded()
+  focusSoon(() => panelHeaderRef.value)
 }
 
 const collapseExpandedPanel = () => {
   if (expandedPanel.value === 'plan') {
     emit('set-plan-collapsed', true)
+    focusSoon(() => planChipRef.value)
     return
   }
   questionExpanded.value = false
+  focusSoon(() => questionChipRef.value)
 }
 
 const planEntries = computed(() =>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { Label } from '@shadcn/components/ui/label'
 import { cn } from '@shadcn/lib/utils'
 import type { DcChoiceOption } from './types'
 
@@ -22,14 +21,14 @@ const emit = defineEmits<{
 
 const uid = useId()
 
-const optionId = (option: DcChoiceOption) => `${uid}-${option.value}`
+const labelId = (option: DcChoiceOption) => `${uid}-${option.value}`
 
 const isChecked = (option: DcChoiceOption): boolean => props.modelValue.includes(option.value)
 
 // Emit in options order (not click order) so submitted answers read naturally.
-const toggle = (option: DcChoiceOption, checked: boolean | 'indeterminate') => {
+const setChecked = (option: DcChoiceOption, checked: boolean) => {
   const selected = new Set(props.modelValue)
-  if (checked === true) {
+  if (checked) {
     selected.add(option.value)
   } else {
     selected.delete(option.value)
@@ -39,35 +38,48 @@ const toggle = (option: DcChoiceOption, checked: boolean | 'indeterminate') => {
     props.options.filter((entry) => selected.has(entry.value)).map((entry) => entry.value)
   )
 }
+
+// The row handles mouse toggling itself instead of relying on native label
+// forwarding, which misfires against reka-ui's button-based checkbox. Clicks
+// that land on the checkbox are ignored here and handled by its own emit.
+const onRowClick = (option: DcChoiceOption, event: MouseEvent) => {
+  if ((event.target as HTMLElement).closest('[data-slot="checkbox"]')) return
+  setChecked(option, !isChecked(option))
+}
+
+const onCheckboxUpdate = (option: DcChoiceOption, checked: boolean | 'indeterminate') => {
+  setChecked(option, checked === true)
+}
 </script>
 
 <template>
   <div role="group" class="flex w-full flex-col gap-0.5">
-    <Label
+    <div
       v-for="option in props.options"
       :key="option.value"
-      :for="optionId(option)"
+      data-testid="dc-choice-option"
       :class="
         cn(
-          'flex w-full cursor-pointer items-start gap-1.5 rounded-lg px-1 py-1.5 font-normal transition-colors hover:bg-foreground/[0.04]',
+          'flex w-full cursor-pointer select-none items-start gap-1.5 rounded-lg px-1 py-1.5 transition-colors hover:bg-foreground/[0.04]',
           (props.disabled || option.disabled) && 'pointer-events-none opacity-60'
         )
       "
+      @click="onRowClick(option, $event)"
     >
       <span class="flex h-5 w-5 shrink-0 items-center justify-center">
         <Checkbox
-          :id="optionId(option)"
           :model-value="isChecked(option)"
           :disabled="props.disabled || option.disabled"
-          @update:model-value="toggle(option, $event)"
+          :aria-labelledby="labelId(option)"
+          @update:model-value="onCheckboxUpdate(option, $event)"
         />
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block text-[13px] leading-5">{{ option.label }}</span>
+        <span :id="labelId(option)" class="block text-[13px] leading-5">{{ option.label }}</span>
         <span v-if="option.description" class="block text-xs leading-4 text-muted-foreground">
           {{ option.description }}
         </span>
       </span>
-    </Label>
+    </div>
   </div>
 </template>

@@ -222,12 +222,12 @@ const setup = async (options: SetupOptions = {}) => {
     dismiss: vi.fn(),
     purge: vi.fn(),
     isVisible: vi.fn((sessionId: string) => Boolean(agentPlanSnapshots[sessionId]?.plan?.length)),
-    isCollapsed: vi.fn((sessionId: string) => agentPlanCollapsedBySession[sessionId] === true),
+    isCollapsed: vi.fn((sessionId: string) => agentPlanCollapsedBySession[sessionId] !== false),
     setCollapsed: vi.fn((sessionId: string, collapsed: boolean) => {
       agentPlanCollapsedBySession[sessionId] = collapsed
     }),
     toggleCollapsed: vi.fn((sessionId: string) => {
-      agentPlanCollapsedBySession[sessionId] = agentPlanCollapsedBySession[sessionId] !== true
+      agentPlanCollapsedBySession[sessionId] = agentPlanCollapsedBySession[sessionId] === false
     })
   })
 
@@ -958,6 +958,10 @@ describe('ChatPage', () => {
     expect(layer.classes()).toContain('pointer-events-none')
     expect(composer.element.contains(layer.element)).toBe(true)
     expect(viewport.element.contains(layer.element)).toBe(false)
+
+    // Plans start collapsed on the dock bar; expanding docks the panel in the
+    // same composer-region layer.
+    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
   })
 
@@ -996,10 +1000,11 @@ describe('ChatPage', () => {
 
     await flushPromises()
 
-    // A plan arriving mid-question stays docked: the question keeps the panel
-    // (its chip folds into the panel header) and the plan lands on the bar.
-    expect(agentPlanStore.setCollapsed).toHaveBeenCalledWith('s1', true)
+    // A plan arriving mid-question stays docked: it starts collapsed (the
+    // production default), the question keeps the panel (its chip folds into
+    // the panel header) and the plan lands on the bar.
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
     const bar = wrapper.get('[data-testid="agent-interaction-dock-bar"]')
     expect(bar.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(true)
     expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(false)
@@ -1055,6 +1060,7 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(Object.keys(agentPlanStore.snapshots).sort()).toEqual(['s1', 's2', 's3'])
+    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
     expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
     expect(wrapper.findAll('.agent-progress-float-stub')).toHaveLength(1)
 
@@ -1067,6 +1073,8 @@ describe('ChatPage', () => {
     await wrapper.setProps({ sessionId: 's2' })
     await flushPromises()
 
+    // Collapse state is per session, so the new session docks collapsed first.
+    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
     expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s2')
     expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('A plan')
 
@@ -1114,6 +1122,7 @@ describe('ChatPage', () => {
     ]
     await flushPromises()
 
+    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
     expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
   })
 
