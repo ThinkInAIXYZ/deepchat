@@ -12,7 +12,13 @@ type ExtendedCheckboxProps = CheckboxRootProps & {
   checked?: boolean
 }
 
-const props = defineProps<ExtendedCheckboxProps>()
+// Explicit undefined defaults opt out of Vue's boolean-prop casting: an
+// absent `checked` must stay undefined so `checked ?? modelValue` can fall
+// through to the v-model value instead of pinning the state to false.
+const props = withDefaults(defineProps<ExtendedCheckboxProps>(), {
+  checked: undefined,
+  modelValue: undefined
+})
 const emits = defineEmits<CheckboxRootEmits & { 'update:checked': [boolean] }>()
 
 const resolvedModelValue = computed<CheckboxRootProps["modelValue"]>(() => props.checked ?? props.modelValue)
