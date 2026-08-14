@@ -55,8 +55,14 @@ interface PrepareToolOutputParams {
   rawContent: string
 }
 
-interface ContextFallbackParams extends PrepareToolOutputParams {
+interface ToolOutputArtifactOwnership {
+  /** Guard-created artifact backing the current response projection. */
+  offloadPath?: string
+  /** Tool-created artifact that the guard may reference but never overwrite or delete. */
   existingOffloadPath?: string
+}
+
+interface ContextFallbackParams extends PrepareToolOutputParams, ToolOutputArtifactOwnership {
   signal?: AbortSignal
 }
 
@@ -65,6 +71,10 @@ interface GuardToolOutputParams extends PrepareToolOutputParams {
   toolDefinitions: MCPToolDefinition[]
   contextLength: number
   maxTokens: number
+}
+
+interface FitExistingToolOutputParams extends GuardToolOutputParams, ToolOutputArtifactOwnership {
+  signal?: AbortSignal
 }
 
 interface ContextBudgetParams {
@@ -255,6 +265,7 @@ export class ToolOutputGuard {
   ): Promise<PreparedToolOutput | null> {
     if (!CONTEXT_FALLBACK_OFFLOAD_TOOLS.has(params.toolName)) return null
     if (!params.rawContent) return null
+    if (params.offloadPath) return null
 
     if (params.existingOffloadPath) {
       return {
@@ -305,7 +316,7 @@ export class ToolOutputGuard {
   }
 
   async fitExistingToolOutput(
-    params: GuardToolOutputParams & { existingOffloadPath?: string; signal?: AbortSignal }
+    params: FitExistingToolOutputParams
   ): Promise<ToolOutputGuardResult | null> {
     throwIfAbortRequested(params.signal)
     if (
@@ -402,11 +413,7 @@ export class ToolOutputGuard {
 
     for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
       const current = fittedResults[index]
-      if (
-        current.isError ||
-        current.requiresInline ||
-        current.offloadPath
-      ) {
+      if (current.isError || current.requiresInline) {
         continue
       }
 
@@ -415,6 +422,7 @@ export class ToolOutputGuard {
         toolCallId: current.toolCallId,
         toolName: current.toolName,
         rawContent: current.responseText,
+        offloadPath: current.offloadPath,
         existingOffloadPath: current.existingOffloadPath
       })
       if (!fallback || fallback.kind === 'tool_error') continue

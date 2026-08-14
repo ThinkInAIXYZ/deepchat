@@ -1,3 +1,4 @@
+import fs from 'fs/promises'
 import { describe, expect, it, vi } from 'vitest'
 import {
   TOOL_EXECUTION,
@@ -365,6 +366,50 @@ describe('ToolOutputGuard', () => {
       offloadPath: undefined
     })
     expect(result?.kind === 'ok' ? result.content : '').toContain(existingOffloadPath)
+  })
+
+  it('does not refit a guard-owned offload projection during deferred fitting', async () => {
+    const guard = new ToolOutputGuard()
+    const rawContent = `guard projection:${'z'.repeat(5_000)}`
+    const writeFileSpy = vi.spyOn(fs, 'writeFile').mockResolvedValue()
+    const cleanupSpy = vi.spyOn(guard, 'cleanupOffloadedOutput').mockResolvedValue()
+
+    const result = await guard.fitExistingToolOutput({
+      sessionId: 's1',
+      conversationMessages: [
+        { role: 'user', content: 'run command' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call-3',
+              type: 'function',
+              function: { name: 'exec', arguments: '{}' }
+            }
+          ]
+        },
+        { role: 'tool', tool_call_id: 'call-3', content: rawContent }
+      ],
+      toolDefinitions: [],
+      contextLength: 5_000,
+      maxTokens: 1_000,
+      toolCallId: 'call-3',
+      toolName: 'exec',
+      rawContent,
+      offloadPath: '/session/tool_call-3.offload',
+      existingOffloadPath: '/session/exec_bg_3.log'
+    })
+
+    expect(result).toMatchObject({
+      kind: 'tool_error',
+      message: expect.stringContaining('remaining context window is insufficient')
+    })
+    expect(writeFileSpy).not.toHaveBeenCalled()
+    expect(cleanupSpy).not.toHaveBeenCalled()
+
+    writeFileSpy.mockRestore()
+    cleanupSpy.mockRestore()
   })
 
   it('stops fitting deferred tool output when the resume is already cancelled', async () => {

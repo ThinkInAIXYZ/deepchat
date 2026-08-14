@@ -2,8 +2,8 @@
 
 ## Status
 
-Implementation complete on `fix/tape-context-compaction`. All work stays local; no branch push,
-GitHub issue, or pull request is part of this plan.
+Implementation complete on `fix/tape-context-compaction`. Repository delivery follows the normal
+review workflow; this plan records only the implementation and validation contract.
 
 ## Implementation Slices
 

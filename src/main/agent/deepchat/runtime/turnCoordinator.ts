@@ -1648,10 +1648,7 @@ export class TurnCoordinator {
             toolDefinitions: tools,
             contextLength: contextBudgetLength,
             maxTokens,
-            toolCallId: budgetToolCall.id,
-            toolName: budgetToolCall.name,
-            rawContent: budgetToolCall.responseText ?? '',
-            existingOffloadPath: budgetToolCall.existingOffloadPath,
+            budgetToolCall,
             signal: preStreamAbortSignal
           })
           throwIfAbortRequested(preStreamAbortSignal)
@@ -1931,22 +1928,21 @@ export class TurnCoordinator {
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
     maxTokens: number
-    toolCallId: string
-    toolName: string
-    rawContent: string
-    existingOffloadPath?: string
+    budgetToolCall: ResumeBudgetToolCall
     signal?: AbortSignal
   }) {
+    const { budgetToolCall } = params
     return await this.ports.toolOutputGuard.fitExistingToolOutput({
       sessionId: params.sessionId,
       conversationMessages: params.resumeContext,
       toolDefinitions: params.toolDefinitions,
       contextLength: params.contextLength,
       maxTokens: params.maxTokens,
-      toolCallId: params.toolCallId,
-      toolName: params.toolName,
-      rawContent: params.rawContent,
-      existingOffloadPath: params.existingOffloadPath,
+      toolCallId: budgetToolCall.id,
+      toolName: budgetToolCall.name,
+      rawContent: budgetToolCall.responseText ?? '',
+      offloadPath: budgetToolCall.offloadPath,
+      existingOffloadPath: budgetToolCall.existingOffloadPath,
       signal: params.signal
     })
   }

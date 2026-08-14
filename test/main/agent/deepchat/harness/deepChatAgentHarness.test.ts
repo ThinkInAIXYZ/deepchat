@@ -15390,9 +15390,18 @@ describe('DeepChatAgentHarness', () => {
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 
-    it('cleans deferred offload files when resume budget downgrades the tool result', async () => {
-      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-cleanup-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+    it('does not rewrite a guard-owned deferred artifact before a budget downgrade', async () => {
+      const originalOffloadPath = '/tmp/original-tool-output.offload'
+      vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+        kind: 'ok',
+        content: 'guard-owned projection',
+        offloaded: true,
+        offloadPath: originalOffloadPath
+      })
+      const fitSpy = vi.spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+      const cleanupSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+        .mockResolvedValue()
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
@@ -15487,9 +15496,11 @@ describe('DeepChatAgentHarness', () => {
             })
           })
         )
-        await expect(
-          fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-        ).rejects.toThrow()
+        expect(fitSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ offloadPath: originalOffloadPath })
+        )
+        expect(cleanupSpy).toHaveBeenCalledOnce()
+        expect(cleanupSpy).toHaveBeenCalledWith(originalOffloadPath)
         expect(processStream).toHaveBeenCalledTimes(1)
       } finally {
         hasContextBudgetSpy.mockRestore()
@@ -15537,6 +15548,9 @@ describe('DeepChatAgentHarness', () => {
 
       const resume = approvePendingTool()
       await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+      expect(fitSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ offloadPath: '/tmp/original-tool-output.offload' })
+      )
       const persistedUpdateCount =
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
 

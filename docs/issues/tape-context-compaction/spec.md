@@ -181,8 +181,8 @@ may run the state machine again until the Run-level recovery ceiling is reached.
   model-tool contract.
 - No persisted table or route migration is required for boundary-only compaction or usage
   anchoring. Any later diagnostic field must be additive and backward compatible.
-- Legacy isolated and recursive summary requests remain the fallback for unsupported provider
-  replay paths and histories that cannot fit a prefix-preserving summary request.
+- Existing isolated and recursive summary requests remain the semantic-summary path.
+  Prefix-preserving summary generation is outside this change.
 
 ## Security And Privacy
 
@@ -218,11 +218,10 @@ may run the state machine again until the Run-level recovery ceiling is reached.
     anchor reads remain backward compatible.
 12. Focused runtime, Session/Tape, provider-loop, ToolOutputGuard, and harness tests pass, followed by
     formatting, i18n validation, lint, type checking, and the relevant broader main-process suite.
-13. No remote Git operation is performed.
 
 ## Implementation Record
 
-Implemented on `fix/tape-context-compaction` as one local branch. The durable behavior is split into
+Implemented on `fix/tape-context-compaction`. The durable behavior is split into
 reviewable commits for boundary/summary decoupling, bounded recovery, usage anchoring, closed tool
 result View compaction, and canonical documentation. No persisted schema or public route migration
 was required.
