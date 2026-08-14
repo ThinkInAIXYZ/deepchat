@@ -8,7 +8,8 @@ import type {
   TapeInspectorEvidenceRecord,
   TapeInspectorFactFilters,
   TapeInspectorFactRecord,
-  TapeInspectorHeadPulse
+  TapeInspectorHeadPulse,
+  TapeInspectorSort
 } from '@shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
@@ -24,6 +25,7 @@ const EVIDENCE_PAGE_LIMIT = 100
 const LIVE_RETRY_DELAY_MS = 1_000
 const SEARCH_FILL_DEBOUNCE_MS = 250
 const SEARCH_FILL_MAX_PAGES = 6
+const CANONICAL_SORT = { column: 'entryId', direction: 'asc' } as const
 
 export type TapeInspectorErrorCode = 'load_failed' | 'detail_failed' | 'record_not_found' | null
 
@@ -50,6 +52,10 @@ function copyFilters(filters: TapeInspectorFactFilters): TapeInspectorFactFilter
   }
 }
 
+function sameSort(left: TapeInspectorSort, right: TapeInspectorSort): boolean {
+  return left.column === right.column && left.direction === right.direction
+}
+
 export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const sessionClient = createSessionClient()
   const sessionId = ref<string | null>(null)
@@ -60,6 +66,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const evidenceByTraceId = shallowRef(new Map<string, TapeInspectorEvidenceRecord>())
   const evidenceTraceIds = ref<string[]>([])
   const serverFilters = shallowRef<TapeInspectorFactFilters>({})
+  const serverSort = shallowRef<TapeInspectorSort>(CANONICAL_SORT)
   const loadedSearch = ref('')
   const loadingSearchFill = ref(false)
   const livePaused = ref(false)
@@ -107,12 +114,14 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       records: records.value,
       evidence: evidence.value,
       collapsedKeys: collapsedKeys.value,
-      search: loadedSearch.value
+      search: loadedSearch.value,
+      flat: !canonicalSort.value
     })
   )
   const selectedRow = computed(
     () => rows.value.find((row) => row.key === selectedKey.value) ?? null
   )
+  const canonicalSort = computed(() => serverSort.value.column === 'entryId')
   const hasOlder = computed(() => olderCursor.value !== null)
   const hasMoreEvidence = computed(() => evidenceCursor.value !== null)
   const canLoadNewer = computed(
@@ -234,17 +243,27 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     pendingLiveHead = null
   }
 
-  function upsertFacts(incoming: readonly TapeInspectorFactRecord[], replace = false): void {
+  function upsertFacts(
+    incoming: readonly TapeInspectorFactRecord[],
+    mode: 'tail' | 'older' | 'newer'
+  ): void {
+    const replace = mode === 'tail'
     const next = replace
       ? new Map<number, TapeInspectorFactRecord>()
       : new Map(factsByEntryId.value)
-    let hasNewKey = replace
+    const incomingIds: number[] = []
     for (const record of incoming) {
-      if (!next.has(record.entryId)) hasNewKey = true
+      if (!next.has(record.entryId)) incomingIds.push(record.entryId)
       next.set(record.entryId, record)
     }
     factsByEntryId.value = next
-    if (hasNewKey) factEntryIds.value = [...next.keys()].sort((left, right) => left - right)
+    if (replace) {
+      factEntryIds.value = incoming.map((record) => record.entryId)
+    } else if (incomingIds.length > 0) {
+      factEntryIds.value = canonicalSort.value
+        ? [...next.keys()].sort((left, right) => left - right)
+        : [...factEntryIds.value, ...incomingIds]
+    }
   }
 
   function upsertEvidence(incoming: readonly TapeInspectorEvidenceRecord[], replace = false): void {
@@ -288,10 +307,12 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   ): void {
     tapeIncarnationId.value = output.tapeIncarnationId
     snapshotMaxEntryId.value = Math.max(snapshotMaxEntryId.value, output.snapshotMaxEntryId)
-    upsertFacts(output.records, mode === 'tail')
+    upsertFacts(output.records, mode)
     if (mode === 'tail') {
       olderCursor.value = output.nextCursor
-      newerCursor.value = { sort: 'entryId', entryId: output.snapshotMaxEntryId }
+      newerCursor.value = canonicalSort.value
+        ? { sort: 'entryId', entryId: output.snapshotMaxEntryId }
+        : null
     } else if (mode === 'older') {
       olderCursor.value = output.nextCursor
     } else {
@@ -336,6 +357,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
           sessionId: normalizedSessionId,
           mode: 'tail',
           limit: PAGE_LIMIT,
+          sort: serverSort.value,
           filters: serverFilters.value
         }),
         sessionClient.listTapeInspectorEvidence({
@@ -397,6 +419,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         mode: 'older',
         cursor,
         limit: PAGE_LIMIT,
+        sort: serverSort.value,
         filters: serverFilters.value
       })
       if (!isCurrentRequest(generation, currentSessionId)) return false
@@ -418,7 +441,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     const currentSessionId = sessionId.value
     const incarnation = tapeIncarnationId.value
     const cursor = newerCursor.value
-    if (!currentSessionId || !incarnation || !cursor) return false
+    if (!currentSessionId || !incarnation || !cursor || !canonicalSort.value) return false
     const generation = requestGeneration
     if (newerPageRequest?.generation === generation) return await newerPageRequest.promise
 
@@ -432,6 +455,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
           mode: 'newer',
           cursor,
           limit: PAGE_LIMIT,
+          sort: CANONICAL_SORT,
           filters: serverFilters.value
         })
         if (!isCurrentRequest(generation, currentSessionId)) return false
@@ -532,7 +556,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   }
 
   async function drainLiveHead(): Promise<boolean> {
-    if (livePaused.value || liveSyncing.value) return false
+    if (livePaused.value || liveSyncing.value || !canonicalSort.value) return false
     clearLiveRetryTimer()
     liveSyncing.value = true
     let changed = false
@@ -615,6 +639,30 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     const loaded = await initialize(currentSessionId, {
       preselection: null,
       filters
+    })
+    if (loaded && tapeIncarnationId.value === previousIncarnation) {
+      selectedKey.value = previousSelection
+      selectedDetail.value = previousDetail
+      selectedCapabilities.value = previousCapabilities
+      collapsedKeys.value = previousCollapsedKeys
+    }
+    return loaded
+  }
+
+  async function applyServerSort(sort: TapeInspectorSort): Promise<boolean> {
+    if (sameSort(serverSort.value, sort)) return true
+    const currentSessionId = sessionId.value
+    serverSort.value = sort
+    cancelLoadedSearchFill()
+    if (!currentSessionId) return false
+    const previousIncarnation = tapeIncarnationId.value
+    const previousSelection = selectedKey.value
+    const previousDetail = selectedDetail.value
+    const previousCapabilities = selectedCapabilities.value
+    const previousCollapsedKeys = collapsedKeys.value
+    const loaded = await initialize(currentSessionId, {
+      preselection: preselection.value,
+      filters: serverFilters.value
     })
     if (loaded && tapeIncarnationId.value === previousIncarnation) {
       selectedKey.value = previousSelection
@@ -763,6 +811,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     preselection.value = null
     prependScrollAnchor.value = null
     serverFilters.value = {}
+    serverSort.value = CANONICAL_SORT
     loadedSearch.value = ''
     livePaused.value = false
     clearProjection()
@@ -775,6 +824,8 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     records,
     evidence,
     serverFilters,
+    serverSort,
+    canonicalSort,
     loadedSearch,
     loadingSearchFill,
     livePaused,
@@ -803,6 +854,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     setLivePaused,
     loadMoreEvidence,
     applyServerFilters,
+    applyServerSort,
     setLoadedSearch,
     toggleCollapsed,
     setPrependScrollAnchor,

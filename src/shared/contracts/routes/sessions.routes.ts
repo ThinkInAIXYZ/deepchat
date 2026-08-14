@@ -91,10 +91,43 @@ const TapeInspectorSourceTypeSchema = z.enum([
   'fork',
   'subagent'
 ])
-const TapeInspectorEntryCursorSchema = z.object({
-  sort: z.literal('entryId'),
-  entryId: z.number().int().positive()
-})
+const TapeInspectorEntryCursorSchema = z.discriminatedUnion('sort', [
+  z.object({
+    sort: z.literal('entryId'),
+    entryId: z.number().int().positive()
+  }),
+  z.object({
+    sort: z.literal('name'),
+    direction: z.enum(['asc', 'desc']),
+    name: TapeInspectorListTextSchema.nullable(),
+    entryId: z.number().int().positive(),
+    snapshotMaxEntryId: z.number().int().positive()
+  }),
+  z.object({
+    sort: z.literal('kind'),
+    direction: z.enum(['asc', 'desc']),
+    kind: TapeInspectorEntryKindSchema,
+    entryId: z.number().int().positive(),
+    snapshotMaxEntryId: z.number().int().positive()
+  }),
+  z.object({
+    sort: z.literal('createdAt'),
+    direction: z.enum(['asc', 'desc']),
+    createdAt: z.number().int().nonnegative(),
+    entryId: z.number().int().positive(),
+    snapshotMaxEntryId: z.number().int().positive()
+  })
+])
+const TapeInspectorSortSchema = z.discriminatedUnion('column', [
+  z.object({
+    column: z.literal('entryId'),
+    direction: z.literal('asc')
+  }),
+  z.object({
+    column: z.enum(['name', 'kind', 'createdAt']),
+    direction: z.enum(['asc', 'desc'])
+  })
+])
 const TapeInspectorFactsSchema = z.object({
   toolName: TapeInspectorListTextSchema.optional(),
   toolSource: z.enum(['agent', 'mcp']).optional(),
@@ -620,6 +653,7 @@ const TapeInspectorPageInputCommonShape = {
   sessionId: EntityIdSchema,
   expectedTapeIncarnationId: TapeInspectorIdentitySchema.optional(),
   limit: z.number().int().positive().max(200).optional(),
+  sort: TapeInspectorSortSchema.optional(),
   filters: z
     .object({
       kinds: z.array(TapeInspectorEntryKindSchema).max(6).optional(),

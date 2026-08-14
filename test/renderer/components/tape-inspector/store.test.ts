@@ -193,6 +193,38 @@ describe('Tape Inspector store', () => {
     expect(store.selectedRow).toBeNull()
   })
 
+  it('uses flat server order for global sorts and suspends live insertion', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20)]))
+      .mockResolvedValueOnce(
+        page([
+          fact(20, { name: 'alpha', runId: 'run-1' }),
+          fact(10, { name: 'beta', runId: 'run-1' })
+        ])
+      )
+    client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage())
+      .mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    await expect(store.applyServerSort({ column: 'name', direction: 'asc' })).resolves.toBe(true)
+
+    expect(client.listTapeInspectorPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: { column: 'name', direction: 'asc' } })
+    )
+    expect(store.records.map((record) => record.entryId)).toEqual([20, 10])
+    expect(store.rows.map((row) => row.recordType)).toEqual(['fact', 'fact'])
+    expect(store.canonicalSort).toBe(false)
+
+    await store.handleLiveHeadPulse({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 21
+    })
+    expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(2)
+  })
+
   it('fills bounded fact and evidence pages until the loaded search finds a match', async () => {
     vi.useFakeTimers()
     const store = useTapeInspectorStore()

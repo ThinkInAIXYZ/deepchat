@@ -14,6 +14,7 @@ import type {
 import type { ContractTapeEventName } from '../domain/contractFacts'
 import type { ToolSurfaceTapeEventName } from '../domain/toolSurfaceFacts'
 import type { TapeSkillMaterializationPayload } from '../domain/skillMaterialization'
+import type { TapeInspectorEntryCursor, TapeInspectorSort } from '@shared/types/tape-inspector'
 
 export interface TapeMutationProjection {
   applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
@@ -24,7 +25,8 @@ export interface TapeMutationProjection {
 export interface TapeInspectorEntryScanInput {
   sessionId: string
   mode: 'tail' | 'older' | 'newer'
-  cursorEntryId?: number
+  cursor?: TapeInspectorEntryCursor
+  sort: TapeInspectorSort
   snapshotMaxEntryId: number
   limit: number
 }

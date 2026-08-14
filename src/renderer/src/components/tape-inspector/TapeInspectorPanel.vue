@@ -100,7 +100,7 @@
         size="icon-sm"
         variant="ghost"
         :icon="store.livePaused ? 'lucide:play' : 'lucide:pause'"
-        :disabled="!liveConnected"
+        :disabled="!liveConnected || !store.canonicalSort"
         :label="
           store.livePaused ? t('tapeInspector.actions.resume') : t('tapeInspector.actions.pause')
         "
@@ -168,10 +168,37 @@
               class="grid h-8 shrink-0 grid-cols-[minmax(220px,2fr)_100px_100px_110px_100px_minmax(180px,1fr)] items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
               role="row"
             >
-              <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.name') }}</div>
-              <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.kind') }}</div>
+              <button
+                type="button"
+                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
+                role="columnheader"
+                :aria-sort="ariaSort('name')"
+                @click="toggleSort('name')"
+              >
+                {{ t('tapeInspector.columns.name') }}
+                <Icon :icon="sortIcon('name')" class="size-3" />
+              </button>
+              <button
+                type="button"
+                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
+                role="columnheader"
+                :aria-sort="ariaSort('kind')"
+                @click="toggleSort('kind')"
+              >
+                {{ t('tapeInspector.columns.kind') }}
+                <Icon :icon="sortIcon('kind')" class="size-3" />
+              </button>
               <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.status') }}</div>
-              <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.start') }}</div>
+              <button
+                type="button"
+                class="flex h-full items-center gap-1 px-2 text-left hover:text-foreground"
+                role="columnheader"
+                :aria-sort="ariaSort('createdAt')"
+                @click="toggleSort('createdAt')"
+              >
+                {{ t('tapeInspector.columns.start') }}
+                <Icon :icon="sortIcon('createdAt')" class="size-3" />
+              </button>
               <div class="px-2" role="columnheader">{{ t('tapeInspector.columns.duration') }}</div>
               <div class="px-3" role="columnheader">{{ t('tapeInspector.columns.waterfall') }}</div>
             </div>
@@ -205,11 +232,23 @@
             @click="loadOlder"
           >
             <Icon
-              :icon="store.loadingOlder ? 'lucide:loader-circle' : 'lucide:arrow-up-to-line'"
+              :icon="
+                store.loadingOlder
+                  ? 'lucide:loader-circle'
+                  : store.canonicalSort
+                    ? 'lucide:arrow-up-to-line'
+                    : 'lucide:list-plus'
+              "
               class="mr-1.5 size-3.5"
               :class="{ 'animate-spin': store.loadingOlder }"
             />
-            {{ t('tapeInspector.actions.loadOlder') }}
+            {{
+              t(
+                store.canonicalSort
+                  ? 'tapeInspector.actions.loadOlder'
+                  : 'tapeInspector.actions.loadMore'
+              )
+            }}
           </DcButton>
           <DcButton
             v-if="store.hasMoreEvidence"
@@ -248,7 +287,8 @@ import { DcPopover } from '@dc-ui/components/popover'
 import type {
   TapeInspectorFactFamily,
   TapeInspectorFactFilters,
-  TapeInspectorHeadPulse
+  TapeInspectorHeadPulse,
+  TapeInspectorSort
 } from '@shared/types/tape-inspector'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { createSessionClient } from '../../../api/SessionClient'
@@ -307,12 +347,16 @@ const activeFilterCount = computed(() => {
 })
 const liveStatusLabel = computed(() =>
   liveConnected.value
-    ? t(store.livePaused ? 'tapeInspector.states.paused' : 'tapeInspector.states.live')
+    ? t(
+        store.livePaused || !store.canonicalSort
+          ? 'tapeInspector.states.paused'
+          : 'tapeInspector.states.live'
+      )
     : t('tapeInspector.states.liveUnavailable')
 )
 const liveStatusIcon = computed(() =>
   liveConnected.value
-    ? store.livePaused
+    ? store.livePaused || !store.canonicalSort
       ? 'lucide:circle-pause'
       : 'lucide:radio'
     : 'lucide:radio-tower'
@@ -399,6 +443,33 @@ function filtersFromDrafts(): TapeInspectorFactFilters {
     ...(messageId ? { messageId } : {}),
     ...(draftErrorsOnly.value ? { errorsOnly: true } : {})
   }
+}
+
+type SortableColumn = Exclude<TapeInspectorSort['column'], 'entryId'>
+
+function ariaSort(column: SortableColumn): 'ascending' | 'descending' | 'none' {
+  return store.serverSort.column === column
+    ? store.serverSort.direction === 'asc'
+      ? 'ascending'
+      : 'descending'
+    : 'none'
+}
+
+function sortIcon(column: SortableColumn): string {
+  if (store.serverSort.column !== column) return 'lucide:arrow-up-down'
+  return store.serverSort.direction === 'asc' ? 'lucide:arrow-up' : 'lucide:arrow-down'
+}
+
+function toggleSort(column: SortableColumn): void {
+  if (store.serverSort.column === column && store.serverSort.direction === 'desc') {
+    void store.applyServerSort({ column: 'entryId', direction: 'asc' })
+    return
+  }
+  void store.applyServerSort({
+    column,
+    direction:
+      store.serverSort.column === column && store.serverSort.direction === 'asc' ? 'desc' : 'asc'
+  })
 }
 
 async function applyFilters(): Promise<void> {

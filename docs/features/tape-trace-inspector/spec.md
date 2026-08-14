@@ -298,10 +298,9 @@ type TapeInspectorPageMode = 'tail' | 'older' | 'newer'
 
 type TapeInspectorCursor =
   | { sort: 'entryId'; entryId: number }
-  | { sort: 'name'; name: string | null; entryId: number }
-  | { sort: 'kind'; kind: DeepChatTapeEntryKind; entryId: number }
-  | { sort: 'factStatus'; factStatus: string | null; entryId: number }
-  | { sort: 'createdAt'; createdAt: number; entryId: number }
+  | { sort: 'name'; direction: SortDirection; name: string | null; entryId: number; snapshotMaxEntryId: number }
+  | { sort: 'kind'; direction: SortDirection; kind: DeepChatTapeEntryKind; entryId: number; snapshotMaxEntryId: number }
+  | { sort: 'createdAt'; direction: SortDirection; createdAt: number; entryId: number; snapshotMaxEntryId: number }
 
 interface ListTapeInspectorPageInput {
   sessionId: string
@@ -317,8 +316,11 @@ interface ListTapeInspectorPageInput {
 - `tail`: scan backward from the page snapshot head; `cursor` is absent.
 - Canonical `older`: scan `entryId < cursor.entryId` backward.
 - Canonical `newer`: scan `entryId > cursor.entryId` forward up to the page snapshot head.
-- A non-canonical cursor carries its server sort value plus `entryId` as the deterministic unique
-  tie-breaker.
+- A non-canonical bootstrap returns the first page in the selected direction. `older` continues in
+  that order; `newer` is rejected because live follow is canonical-only.
+- A non-canonical cursor carries its direction, server sort value, `entryId` as the deterministic
+  unique tie-breaker, and the bootstrap `snapshotMaxEntryId`. Continuations retain that snapshot so
+  rows appended during navigation cannot enter or reorder the result set.
 - Records are returned in the selected server sort order; canonical pages return ascending
   `entryId` even when the storage scan ran backward.
 - `limit` has a server-owned upper bound.

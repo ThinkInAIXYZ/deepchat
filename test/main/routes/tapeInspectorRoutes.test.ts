@@ -40,6 +40,30 @@ describe('Tape Inspector route contracts', () => {
         limit: 200
       }).success
     ).toBe(true)
+    expect(
+      sessionsListTapeInspectorPageRoute.input.safeParse({
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        mode: 'older',
+        sort: { column: 'name', direction: 'desc' },
+        cursor: {
+          sort: 'name',
+          direction: 'desc',
+          name: null,
+          entryId: 10,
+          snapshotMaxEntryId: 20
+        }
+      }).success
+    ).toBe(true)
+    expect(
+      sessionsListTapeInspectorPageRoute.input.safeParse({
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        mode: 'older',
+        sort: { column: 'createdAt', direction: 'asc' },
+        cursor: { sort: 'createdAt', createdAt: 100, entryId: 10 }
+      }).success
+    ).toBe(false)
   })
 
   it('projects evidence metadata without request payload fields', () => {

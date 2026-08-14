@@ -2,9 +2,12 @@ import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
+  TapeInspectorEntryCursor,
   TapeInspectorFactRecord,
-  TapeInspectorHead
+  TapeInspectorHead,
+  TapeInspectorSort
 } from '@shared/types/tape-inspector'
+import type { DeepChatTapeEntryRow } from '../domain/entry'
 import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
 import {
   getTapeInspectorTraceBinding,
@@ -17,6 +20,7 @@ const DEFAULT_PAGE_LIMIT = 100
 const MAX_PAGE_LIMIT = 200
 const MAX_FILTER_SCAN_ROWS = 2_000
 const STORAGE_SCAN_CHUNK = 200
+const CANONICAL_SORT = { column: 'entryId', direction: 'asc' } as const
 
 type TraceInspectorProviders = Pick<
   TapeApplicationProviders,
@@ -34,6 +38,47 @@ function bindingKey(binding: TapeInspectorTraceBinding): string {
 
 function normalizedLimit(limit: number | undefined): number {
   return Math.min(Math.max(Math.floor(limit ?? DEFAULT_PAGE_LIMIT), 1), MAX_PAGE_LIMIT)
+}
+
+function cursorForRow(
+  row: DeepChatTapeEntryRow,
+  sort: TapeInspectorSort,
+  snapshotMaxEntryId: number
+): TapeInspectorEntryCursor {
+  if (sort.column === 'entryId') return { sort: 'entryId', entryId: row.entry_id }
+  if (sort.column === 'name') {
+    return {
+      sort: 'name',
+      direction: sort.direction,
+      name: row.name,
+      entryId: row.entry_id,
+      snapshotMaxEntryId
+    }
+  }
+  if (sort.column === 'kind') {
+    return {
+      sort: 'kind',
+      direction: sort.direction,
+      kind: row.kind,
+      entryId: row.entry_id,
+      snapshotMaxEntryId
+    }
+  }
+  return {
+    sort: 'createdAt',
+    direction: sort.direction,
+    createdAt: row.created_at,
+    entryId: row.entry_id,
+    snapshotMaxEntryId
+  }
+}
+
+function cursorMatchesRow(cursor: TapeInspectorEntryCursor, row: DeepChatTapeEntryRow): boolean {
+  if (cursor.entryId !== row.entry_id) return false
+  if (cursor.sort === 'entryId') return true
+  if (cursor.sort === 'name') return cursor.name === row.name
+  if (cursor.sort === 'kind') return cursor.kind === row.kind
+  return cursor.createdAt === row.created_at
 }
 
 export class TapeTraceInspectorService {
@@ -55,24 +100,53 @@ export class TapeTraceInspectorService {
     if ((input.mode === 'tail') === Boolean(input.cursor)) {
       throw new Error('Tail pages must omit a cursor; older and newer pages require one.')
     }
+    const sort = input.sort ?? CANONICAL_SORT
+    if (input.cursor && input.cursor.sort !== sort.column) {
+      throw new Error('Tape Inspector cursor does not match the requested sort.')
+    }
+    if (
+      input.cursor &&
+      input.cursor.sort !== 'entryId' &&
+      input.cursor.direction !== sort.direction
+    ) {
+      throw new Error('Tape Inspector cursor does not match the requested sort direction.')
+    }
+    if (sort.column !== 'entryId' && input.mode === 'newer') {
+      throw new Error('Live newer pages require canonical entryId ordering.')
+    }
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
       const tapeIncarnationId = table.getBootstrapIncarnation(input.sessionId)
       if (!tapeIncarnationId) {
         throw new Error('Session Tape bootstrap is missing or invalid.')
       }
-      const snapshotMaxEntryId = table.getMaxEntryId(input.sessionId)
+      const currentMaxEntryId = table.getMaxEntryId(input.sessionId)
       if (
         input.expectedTapeIncarnationId !== undefined &&
         input.expectedTapeIncarnationId !== tapeIncarnationId
       ) {
-        return { status: 'reset', tapeIncarnationId, snapshotMaxEntryId }
+        return { status: 'reset', tapeIncarnationId, snapshotMaxEntryId: currentMaxEntryId }
+      }
+      const snapshotMaxEntryId =
+        input.cursor && input.cursor.sort !== 'entryId'
+          ? input.cursor.snapshotMaxEntryId
+          : currentMaxEntryId
+      if (input.cursor) {
+        const cursorRow = table.getByEntryId(input.sessionId, input.cursor.entryId)
+        if (
+          input.cursor.entryId > snapshotMaxEntryId ||
+          snapshotMaxEntryId > currentMaxEntryId ||
+          !cursorRow ||
+          !cursorMatchesRow(input.cursor, cursorRow)
+        ) {
+          throw new Error('Tape Inspector cursor does not identify its durable snapshot row.')
+        }
       }
 
       const limit = normalizedLimit(input.limit)
       const records: TapeInspectorFactRecord[] = []
-      let cursorEntryId = input.cursor?.entryId
-      let lastScannedEntryId: number | undefined
+      let scanCursor = input.cursor
+      let lastScannedCursor: TapeInspectorEntryCursor | undefined
       let rowsRemaining = input.filters ? MAX_FILTER_SCAN_ROWS : limit
       let hasContinuation = false
       let done = false
@@ -81,7 +155,8 @@ export class TapeTraceInspectorService {
         const page = table.listInspectorRows({
           sessionId: input.sessionId,
           mode: input.mode,
-          cursorEntryId,
+          cursor: scanCursor,
+          sort,
           snapshotMaxEntryId,
           limit: Math.min(STORAGE_SCAN_CHUNK, rowsRemaining)
         })
@@ -89,7 +164,7 @@ export class TapeTraceInspectorService {
 
         for (let index = 0; index < page.rows.length; index += 1) {
           const row = page.rows[index]
-          lastScannedEntryId = row.entry_id
+          lastScannedCursor = cursorForRow(row, sort, snapshotMaxEntryId)
           rowsRemaining -= 1
           const record = projectTapeInspectorFact(row)
           if (matchesTapeInspectorFilters(record, input.filters)) records.push(record)
@@ -106,21 +181,20 @@ export class TapeTraceInspectorService {
         }
 
         if (done || !page.hasMore) break
-        cursorEntryId = lastScannedEntryId
+        scanCursor = lastScannedCursor
         hasContinuation = true
       }
 
       this.attachEvidenceCounts(input.sessionId, records)
-      if (input.mode !== 'newer') records.sort((left, right) => left.entryId - right.entryId)
+      if (sort.column === 'entryId' && input.mode !== 'newer') {
+        records.sort((left, right) => left.entryId - right.entryId)
+      }
       return {
         status: 'ok',
         tapeIncarnationId,
         snapshotMaxEntryId,
         records,
-        nextCursor:
-          hasContinuation && lastScannedEntryId !== undefined
-            ? { sort: 'entryId', entryId: lastScannedEntryId }
-            : null
+        nextCursor: hasContinuation && lastScannedCursor !== undefined ? lastScannedCursor : null
       }
     })
   }

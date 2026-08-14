@@ -85,10 +85,33 @@ export interface TapeInspectorFactRecord {
 
 export type TapeInspectorPageMode = 'tail' | 'older' | 'newer'
 
-export interface TapeInspectorEntryCursor {
-  sort: 'entryId'
-  entryId: number
-}
+export type TapeInspectorSort =
+  | { column: 'entryId'; direction: 'asc' }
+  | { column: 'name' | 'kind' | 'createdAt'; direction: 'asc' | 'desc' }
+
+export type TapeInspectorEntryCursor =
+  | { sort: 'entryId'; entryId: number }
+  | {
+      sort: 'name'
+      direction: 'asc' | 'desc'
+      name: string | null
+      entryId: number
+      snapshotMaxEntryId: number
+    }
+  | {
+      sort: 'kind'
+      direction: 'asc' | 'desc'
+      kind: TapeInspectorEntryKind
+      entryId: number
+      snapshotMaxEntryId: number
+    }
+  | {
+      sort: 'createdAt'
+      direction: 'asc' | 'desc'
+      createdAt: number
+      entryId: number
+      snapshotMaxEntryId: number
+    }
 
 export interface TapeInspectorHead {
   tapeIncarnationId: string
@@ -115,6 +138,7 @@ interface ListTapeInspectorPageInputBase {
   expectedTapeIncarnationId?: string
   limit?: number
   filters?: TapeInspectorFactFilters
+  sort?: TapeInspectorSort
 }
 
 export type ListTapeInspectorPageInput =

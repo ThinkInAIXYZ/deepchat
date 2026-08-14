@@ -7,6 +7,8 @@ const inspectorStore = vi.hoisted(() => ({
   loadedSearch: '',
   loadingSearchFill: false,
   serverFilters: {},
+  serverSort: { column: 'entryId' as const, direction: 'asc' as const },
+  canonicalSort: true,
   records: [],
   evidence: [],
   rows: [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }],
@@ -38,6 +40,7 @@ const inspectorStore = vi.hoisted(() => ({
   loadNewerPage: vi.fn(async () => true),
   loadMoreEvidence: vi.fn(async () => false),
   applyServerFilters: vi.fn(async () => true),
+  applyServerSort: vi.fn(async () => true),
   setLoadedSearch: vi.fn(),
   toggleCollapsed: vi.fn(),
   setPrependScrollAnchor: vi.fn(),
@@ -152,6 +155,8 @@ describe('TapeInspectorPanel', () => {
     vi.clearAllMocks()
     inspectorStore.sessionId = null
     inspectorStore.livePaused = false
+    inspectorStore.serverSort = { column: 'entryId', direction: 'asc' }
+    inspectorStore.canonicalSort = true
     sessionClient.headListener = null
     sessionClient.subscribeTapeInspectorHead.mockResolvedValue({
       subscribed: true,
@@ -255,6 +260,23 @@ describe('TapeInspectorPanel', () => {
     await wrapper.get('button').trigger('keydown', { key: 'ArrowDown' })
 
     expect(inspectorStore.moveSelection).not.toHaveBeenCalled()
+  })
+
+  it('requests a global server sort from sortable column headers', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    await wrapper.findAll('[aria-sort="none"]')[0].trigger('click')
+
+    expect(inspectorStore.applyServerSort).toHaveBeenCalledWith({
+      column: 'name',
+      direction: 'asc'
+    })
   })
 
   it('forwards live pulses and pauses only automatic following', async () => {

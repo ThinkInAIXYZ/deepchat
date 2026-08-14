@@ -270,8 +270,11 @@ export function buildTapeInspectorRows(input: {
   evidence: readonly TapeInspectorEvidenceRecord[]
   collapsedKeys: ReadonlySet<string>
   search?: string
+  flat?: boolean
 }): TapeInspectorDisplayRow[] {
-  const records = [...input.records].sort((left, right) => left.entryId - right.entryId)
+  const records = input.flat
+    ? [...input.records]
+    : [...input.records].sort((left, right) => left.entryId - right.entryId)
   const normalizedSearch = input.search?.trim().toLocaleLowerCase() ?? ''
   const descriptors = new Map<string, TapeInspectorGroupDescriptor>()
   const groupsByEntryId = new Map<number, TapeInspectorGroupDescriptor[]>()
@@ -320,11 +323,13 @@ export function buildTapeInspectorRows(input: {
       lastVisibleEntryByGroup.set(descriptor.key, record.entryId)
     }
   }
-  const minEntryId = records[0]?.entryId ?? 0
-  const maxEntryId = records.at(-1)?.entryId ?? minEntryId
+  let minEntryId = Number.POSITIVE_INFINITY
+  let maxEntryId = Number.NEGATIVE_INFINITY
   let minCreatedAt = Number.POSITIVE_INFINITY
   let maxCreatedAt = Number.NEGATIVE_INFINITY
   for (const record of records) {
+    minEntryId = Math.min(minEntryId, record.entryId)
+    maxEntryId = Math.max(maxEntryId, record.entryId)
     minCreatedAt = Math.min(minCreatedAt, record.createdAt)
     maxCreatedAt = Math.max(maxCreatedAt, record.createdAt)
   }
@@ -336,9 +341,70 @@ export function buildTapeInspectorRows(input: {
     minCreatedAt = 0
     maxCreatedAt = 0
   }
+  if (!Number.isFinite(minEntryId)) {
+    minEntryId = 0
+    maxEntryId = 0
+  }
   const timings = new Map<string, TimingPair | null>()
   for (const descriptor of descriptors.values()) {
     timings.set(descriptor.key, groupTiming(descriptor, recordsByGroup.get(descriptor.key) ?? []))
+  }
+
+  if (input.flat) {
+    const flatRows: TapeInspectorDisplayRow[] = visibleFacts.map((record) => {
+      const timing = (groupsByEntryId.get(record.entryId) ?? [])
+        .map((group) => timings.get(group.key) ?? null)
+        .find((candidate) => candidate?.startEntryId === record.entryId)
+      return {
+        recordType: 'fact',
+        key: `fact:${input.tapeIncarnationId ?? 'unknown'}:${record.key}`,
+        record,
+        depth: 0,
+        status: factStatus(record),
+        durationMs: timing?.durationMs ?? null,
+        sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+        actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
+        actualWidth: timing
+          ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
+            normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
+          : 0
+      }
+    })
+    const visibleEvidence = input.evidence
+      .filter((record) => matchesEvidenceSearch(record, normalizedSearch))
+      .sort(evidenceComparator)
+    if (visibleEvidence.length === 0) return flatRows
+    const collapsed = input.collapsedKeys.has(UNBOUND_EVIDENCE_LANE_KEY)
+    flatRows.push({
+      recordType: 'evidence_lane',
+      key: UNBOUND_EVIDENCE_LANE_KEY,
+      count: visibleEvidence.length,
+      collapsed,
+      depth: 0,
+      status: null,
+      durationMs: null,
+      sequenceStart: 1,
+      actualStart: 1,
+      actualWidth: 0
+    })
+    if (!collapsed) {
+      for (const evidence of visibleEvidence) {
+        flatRows.push({
+          recordType: 'evidence',
+          key: evidence.key,
+          record: evidence,
+          parentGroupKey: null,
+          legacyUnattributed: evidence.physicalAttempt === undefined,
+          depth: 1,
+          status: null,
+          durationMs: null,
+          sequenceStart: 1,
+          actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
+          actualWidth: 0
+        })
+      }
+    }
+    return flatRows
   }
 
   const result: TapeInspectorDisplayRow[] = []

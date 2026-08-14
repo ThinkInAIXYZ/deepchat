@@ -11,8 +11,12 @@ import {
   projectTapeInspectorFact
 } from '@/tape/application/traceInspectorProjection'
 import { TapeTraceInspectorService } from '@/tape/application/traceInspectorService'
-import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+import {
+  buildTapeInspectorRowsQuery,
+  DeepChatTapeEntriesTable
+} from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
+import type { TapeInspectorFactRecord, TapeInspectorSort } from '@shared/types/tape-inspector'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const Database = sqliteModule?.default
@@ -214,6 +218,196 @@ describe('Tape Trace Inspector storage contracts', () => {
           mode: 'tail'
         })
       ).toMatchObject({ status: 'reset', snapshotMaxEntryId: 6 })
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('uses stable composite keysets for global nullable-name sorting', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const tape = new DeepChatTapeEntriesTable(db)
+      const traces = new DeepChatMessageTracesTable(db)
+      tape.createTable()
+      traces.createTable()
+      tape.ensureBootstrapAnchor('session-1')
+      const insert = db.prepare(`
+        INSERT INTO deepchat_tape_entries (
+          session_id, entry_id, kind, name, payload_json, meta_json, created_at
+        ) VALUES (?, ?, ?, ?, '{}', '{}', ?)
+      `)
+      insert.run('session-1', 2, 'event', 'alpha', 300)
+      insert.run('session-1', 3, 'message', null, 100)
+      insert.run('session-1', 4, 'tool_result', 'alpha', 300)
+      insert.run('session-1', 5, 'event', 'beta', 200)
+      const inspector = new TapeTraceInspectorService({
+        getEntryStore: () => tape,
+        getMessageTraceReader: () => traces
+      })
+
+      const collectSortedEntryIds = (sort: TapeInspectorSort): number[] => {
+        let output = inspector.listPage({
+          sessionId: 'session-1',
+          mode: 'tail',
+          limit: 2,
+          sort
+        })
+        if (output.status !== 'ok') throw new Error('Expected a sorted page')
+        const incarnation = output.tapeIncarnationId
+        const records: TapeInspectorFactRecord[] = [...output.records]
+        while (output.nextCursor) {
+          output = inspector.listPage({
+            sessionId: 'session-1',
+            expectedTapeIncarnationId: incarnation,
+            mode: 'older',
+            cursor: output.nextCursor,
+            limit: 2,
+            sort
+          })
+          if (output.status !== 'ok') throw new Error('Expected a sorted continuation')
+          records.push(...output.records)
+        }
+        return records.map((record) => record.entryId)
+      }
+
+      expect(collectSortedEntryIds({ column: 'name', direction: 'asc' })).toEqual([3, 2, 4, 5, 1])
+      expect(collectSortedEntryIds({ column: 'name', direction: 'desc' })).toEqual([1, 5, 4, 2, 3])
+      expect(collectSortedEntryIds({ column: 'kind', direction: 'asc' })).toEqual([1, 2, 5, 3, 4])
+      expect(collectSortedEntryIds({ column: 'kind', direction: 'desc' })).toEqual([4, 3, 5, 2, 1])
+      expect(collectSortedEntryIds({ column: 'createdAt', direction: 'asc' })).toEqual([
+        3, 5, 2, 4, 1
+      ])
+      expect(collectSortedEntryIds({ column: 'createdAt', direction: 'desc' })).toEqual([
+        1, 4, 2, 5, 3
+      ])
+
+      const first = inspector.listPage({
+        sessionId: 'session-1',
+        mode: 'tail',
+        limit: 2,
+        sort: { column: 'name', direction: 'asc' }
+      })
+      expect(first).toMatchObject({
+        status: 'ok',
+        snapshotMaxEntryId: 5,
+        records: [
+          { entryId: 3, name: null },
+          { entryId: 2, name: 'alpha' }
+        ],
+        nextCursor: {
+          sort: 'name',
+          direction: 'asc',
+          name: 'alpha',
+          entryId: 2,
+          snapshotMaxEntryId: 5
+        }
+      })
+      if (first.status !== 'ok' || first.nextCursor?.sort !== 'name') {
+        throw new Error('Expected a sorted name page')
+      }
+
+      insert.run('session-1', 6, 'event', 'charlie', 600)
+      const second = inspector.listPage({
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: first.tapeIncarnationId,
+        mode: 'older',
+        cursor: first.nextCursor,
+        limit: 10,
+        sort: { column: 'name', direction: 'asc' }
+      })
+      expect(second).toMatchObject({
+        status: 'ok',
+        snapshotMaxEntryId: 5,
+        records: [
+          { entryId: 4, name: 'alpha' },
+          { entryId: 5, name: 'beta' },
+          { entryId: 1, name: 'session/start' }
+        ],
+        nextCursor: null
+      })
+      expect(second.status === 'ok' && second.records.some((record) => record.entryId === 6)).toBe(
+        false
+      )
+      expect(() =>
+        inspector.listPage({
+          sessionId: 'session-1',
+          expectedTapeIncarnationId: first.tapeIncarnationId,
+          mode: 'older',
+          cursor: first.nextCursor,
+          sort: { column: 'kind', direction: 'asc' }
+        })
+      ).toThrow('cursor does not match')
+      expect(() =>
+        inspector.listPage({
+          sessionId: 'session-1',
+          expectedTapeIncarnationId: first.tapeIncarnationId,
+          mode: 'older',
+          cursor: { ...first.nextCursor, direction: 'desc' },
+          sort: { column: 'name', direction: 'asc' }
+        })
+      ).toThrow('sort direction')
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('keeps advertised sort queries indexed on a high-entry session', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const tape = new DeepChatTapeEntriesTable(db)
+      const traces = new DeepChatMessageTracesTable(db)
+      tape.createTable()
+      traces.createTable()
+      tape.ensureBootstrapAnchor('large-session')
+      const insert = db.prepare(`
+        INSERT INTO deepchat_tape_entries (
+          session_id, entry_id, kind, name, payload_json, meta_json, created_at
+        ) VALUES (?, ?, 'event', ?, '{}', '{}', ?)
+      `)
+      db.transaction(() => {
+        for (let entryId = 2; entryId <= 10_001; entryId += 1) {
+          insert.run(
+            'large-session',
+            entryId,
+            `fixture/${String(entryId % 1_000).padStart(4, '0')}`,
+            entryId % 500
+          )
+        }
+      })()
+      const inspector = new TapeTraceInspectorService({
+        getEntryStore: () => tape,
+        getMessageTraceReader: () => traces
+      })
+
+      const page = inspector.listPage({
+        sessionId: 'large-session',
+        mode: 'tail',
+        limit: 100,
+        sort: { column: 'createdAt', direction: 'asc' }
+      })
+      expect(page.status).toBe('ok')
+      expect(page.status === 'ok' ? page.records : []).toHaveLength(100)
+
+      const expectedIndexes = {
+        name: 'idx_deepchat_tape_entries_session_name',
+        kind: 'idx_deepchat_tape_entries_session_kind',
+        createdAt: 'idx_deepchat_tape_entries_session_created'
+      } as const
+      for (const column of ['name', 'kind', 'createdAt'] as const) {
+        const query = buildTapeInspectorRowsQuery({
+          sessionId: 'large-session',
+          mode: 'tail',
+          sort: { column, direction: 'asc' },
+          snapshotMaxEntryId: 10_001,
+          limit: 100
+        })
+        const plan = db.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params) as Array<{
+          detail: string
+        }>
+        const details = plan.map((step) => step.detail).join('\n')
+        expect(details).toContain(expectedIndexes[column])
+        expect(details).not.toContain('USE TEMP B-TREE FOR ORDER BY')
+      }
     } finally {
       db.close()
     }
