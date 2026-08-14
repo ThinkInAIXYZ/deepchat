@@ -25,6 +25,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   errorCode: null,
   livePaused: false,
   liveSyncing: false,
+  liveEvidenceRevision: 0,
   canLoadNewer: true,
   hasOlder: false,
   hasMoreEvidence: false,
@@ -187,6 +188,7 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.loadingOlder = false
     inspectorStore.liveSyncing = false
     inspectorStore.livePaused = false
+    inspectorStore.liveEvidenceRevision = 0
     inspectorStore.serverSort = { column: 'entryId', direction: 'asc' }
     inspectorStore.canonicalSort = true
     sessionClient.headListener = null
@@ -605,6 +607,90 @@ describe('TapeInspectorPanel', () => {
     await wrapper.get('[data-testid="tape-inspector-live-toggle"]').trigger('click')
     expect(inspectorStore.setLivePaused).toHaveBeenCalledWith(true)
     expect(sessionClient.unsubscribeTapeInspectorHead).not.toHaveBeenCalled()
+  })
+
+  it('restores tail following when resume catches up paused rows', async () => {
+    inspectorStore.livePaused = true
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    scrollerMethods.scrollToItem.mockClear()
+    const scroller = wrapper.get('[data-testid="recycle-scroller"]').element as HTMLElement
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 72 },
+      scrollHeight: { configurable: true, value: 360 }
+    })
+    scroller.scrollTop = 288
+    await wrapper.get('[data-testid="recycle-scroller"]').trigger('scroll')
+    inspectorStore.setLivePaused.mockImplementationOnce(async () => {
+      inspectorStore.livePaused = false
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
+        key: `fact:incarnation:entry:${index + 1}`,
+        recordType: 'fact'
+      }))
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
+      return true
+    })
+
+    await wrapper.get('[data-testid="tape-inspector-live-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(inspectorStore.setLivePaused).toHaveBeenCalledWith(false)
+    expect(scrollerMethods.scrollToItem).toHaveBeenCalledWith(14)
+  })
+
+  it('follows evidence-only appends only while the viewport is at the tail', async () => {
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    scrollerMethods.scrollToItem.mockClear()
+    const scrollerWrapper = wrapper.get('[data-testid="recycle-scroller"]')
+    const scroller = scrollerWrapper.element as HTMLElement
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 72 },
+      scrollHeight: { configurable: true, value: 360 }
+    })
+    scroller.scrollTop = 288
+    await scrollerWrapper.trigger('scroll')
+
+    inspectorStore.rows = Array.from({ length: 11 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 396 })
+    inspectorStore.liveEvidenceRevision += 1
+    await flushPromises()
+
+    expect(scrollerMethods.scrollToItem).toHaveBeenLastCalledWith(10)
+
+    scrollerMethods.scrollToItem.mockClear()
+    scroller.scrollTop = 72
+    await scrollerWrapper.trigger('scroll')
+    inspectorStore.rows = Array.from({ length: 12 }, (_, index) => ({
+      key: `fact:incarnation:entry:${index + 1}`,
+      recordType: 'fact'
+    }))
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 432 })
+    inspectorStore.liveEvidenceRevision += 1
+    await flushPromises()
+
+    expect(scrollerMethods.scrollToItem).not.toHaveBeenCalled()
   })
 
   it('continues following after a live pulse appends multiple rows at the tail', async () => {

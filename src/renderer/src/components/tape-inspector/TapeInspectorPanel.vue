@@ -529,6 +529,7 @@ const gridRef = ref<HTMLElement | null>(null)
 const scrollerRef = ref<RecycleScrollerHandle | null>(null)
 const filterOpen = ref(false)
 const liveConnected = ref(false)
+const followingTail = ref(true)
 const draftFamily = ref<TapeInspectorFactFamily | ''>('')
 const draftName = ref('')
 const draftStatus = ref('')
@@ -907,6 +908,7 @@ function handleWaterfallKeydown(event: KeyboardEvent): void {
 
 async function initialize(): Promise<void> {
   const generation = ++liveLifecycleGeneration
+  followingTail.value = true
   exporting.value = false
   exportFailed.value = false
   await releaseLiveSubscription()
@@ -925,7 +927,10 @@ async function initialize(): Promise<void> {
   store.startEvidenceRefresh()
   syncFilterDrafts()
   await nextTick()
-  scrollToSelected()
+  if (store.selectedKey) scrollToSelected()
+  else await followTail()
+  await nextTick()
+  followingTail.value = isAtTail()
   if (store.selectedKey) await store.loadSelectedDetail()
   if (generation !== liveLifecycleGeneration) return
 
@@ -1041,14 +1046,20 @@ function isAtTail(): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= ROW_HEIGHT * 2
 }
 
+function updateTailFollowState(): void {
+  followingTail.value = isAtTail()
+}
+
 async function followTail(): Promise<void> {
   await nextTick()
   if (store.rows.length > 0) scrollerRef.value?.scrollToItem(store.rows.length - 1)
+  followingTail.value = true
 }
 
 async function handleLiveHeadPulse(pulse: TapeInspectorHeadPulse): Promise<void> {
   if (pulse.sessionId !== props.sessionId) return
   const wasAtTail = isAtTail()
+  followingTail.value = wasAtTail
   const changed = await store.handleLiveHeadPulse(pulse)
   if (changed && wasAtTail && liveConnected.value && !store.livePaused && store.canonicalSort) {
     await followTail()
@@ -1056,7 +1067,10 @@ async function handleLiveHeadPulse(pulse: TapeInspectorHeadPulse): Promise<void>
 }
 
 async function toggleLivePaused(): Promise<void> {
-  await store.setLivePaused(!store.livePaused)
+  const resuming = store.livePaused
+  const wasFollowing = resuming && isAtTail()
+  const changed = await store.setLivePaused(!store.livePaused)
+  if (resuming && changed && wasFollowing && store.canonicalSort) await followTail()
 }
 
 async function loadOlder(): Promise<void> {
@@ -1122,6 +1136,32 @@ watch(
   waterfallTimeRange,
   (nextRange, previousRange) => preserveWaterfallTimeWindow(previousRange, nextRange),
   { flush: 'sync' }
+)
+
+watch(
+  () => store.liveEvidenceRevision,
+  (revision, previousRevision) => {
+    if (
+      revision <= previousRevision ||
+      !followingTail.value ||
+      store.livePaused ||
+      !store.canonicalSort
+    ) {
+      return
+    }
+    void followTail()
+  }
+)
+
+watch(
+  scrollerRef,
+  (scroller, _previousScroller, onCleanup) => {
+    const element = scroller?.$el
+    if (!element) return
+    element.addEventListener('scroll', updateTailFollowState, { passive: true })
+    onCleanup(() => element.removeEventListener('scroll', updateTailFollowState))
+  },
+  { flush: 'post' }
 )
 
 const stopHeadListener = sessionClient.onTapeInspectorHeadChanged((pulse) => {

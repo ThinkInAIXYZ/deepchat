@@ -167,6 +167,7 @@ describe('Tape Inspector store', () => {
         limit: 100
       })
       expect(store.evidence.map((record) => record.traceId)).toEqual(['trace-a', 'trace-b'])
+      expect(store.liveEvidenceRevision).toBe(1)
 
       await vi.advanceTimersByTimeAsync(1_000)
 
@@ -181,6 +182,7 @@ describe('Tape Inspector store', () => {
         'trace-b',
         'trace-c'
       ])
+      expect(store.liveEvidenceRevision).toBe(2)
 
       await store.setLivePaused(true)
       await vi.advanceTimersByTimeAsync(2_000)
@@ -199,8 +201,10 @@ describe('Tape Inspector store', () => {
         limit: 100
       })
       expect(store.evidence.map((record) => record.traceId)).toContain('trace-d')
+      expect(store.liveEvidenceRevision).toBe(3)
 
       store.clear()
+      expect(store.liveEvidenceRevision).toBe(0)
       client.listTapeInspectorEvidence.mockResolvedValueOnce(
         evidencePage([evidence('trace-after-clear')])
       )

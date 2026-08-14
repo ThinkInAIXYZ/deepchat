@@ -88,6 +88,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const loadingEvidence = ref(false)
   const loadingDetail = ref(false)
   const errorCode = ref<TapeInspectorErrorCode>(null)
+  const liveEvidenceRevision = ref(0)
   let requestGeneration = 0
   let detailRequestGeneration = 0
   let pendingLiveHead: TapeInspectorHeadPulse | null = null
@@ -247,6 +248,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     newerCursor.value = null
     evidenceCursor.value = null
     evidenceNewerCursor.value = null
+    liveEvidenceRevision.value = 0
     errorCode.value = null
     pendingLiveHead = null
   }
@@ -696,6 +698,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         const changed = upsertEvidence(page.records)
         evidenceNewerCursor.value = page.newerCursor
         resolvePreselection()
+        if (changed) liveEvidenceRevision.value += 1
         return changed
       } catch {
         return false
@@ -916,6 +919,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadingSearchFill,
     livePaused,
     liveSyncing,
+    liveEvidenceRevision,
     collapsedKeys,
     selectedKey,
     selectedDetail,
