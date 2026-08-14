@@ -131,6 +131,54 @@ export interface TapeMessageTraceRow {
 
 export interface TapeMessageTraceReader {
   listByMessageId(messageId: string): TapeMessageTraceRow[]
+  listInspectorMetadata(input: TapeInspectorTraceMetadataPageInput): TapeInspectorTraceMetadataPage
+  countInspectorBindings(
+    sessionId: string,
+    bindings: readonly TapeInspectorTraceBinding[]
+  ): TapeInspectorTraceBindingCount[]
+}
+
+export type TapeInspectorTraceBinding =
+  | {
+      scope: 'request'
+      messageId: string
+      requestSeq: number
+    }
+  | {
+      scope: 'attempt'
+      messageId: string
+      requestSeq: number
+      physicalAttempt: number | null
+    }
+
+export type TapeInspectorTraceBindingCount = TapeInspectorTraceBinding & { count: number }
+
+export type TapeInspectorTraceMetadataRow = Pick<
+  TapeMessageTraceRow,
+  | 'id'
+  | 'message_id'
+  | 'session_id'
+  | 'provider_id'
+  | 'model_id'
+  | 'request_seq'
+  | 'logical_round'
+  | 'physical_attempt'
+  | 'truncated'
+  | 'created_at'
+>
+
+export interface TapeInspectorTraceMetadataPageInput {
+  sessionId: string
+  limit: number
+  cursor?: { createdAt: number; traceId: string }
+  messageId?: string
+  requestSeq?: number
+  physicalAttempt?: number | null
+}
+
+export interface TapeInspectorTraceMetadataPage {
+  rows: TapeInspectorTraceMetadataRow[]
+  hasMore: boolean
 }
 
 export interface TapeTerminalMessageRow {

@@ -35,6 +35,11 @@ import type {
   ExecutionRecoveryReport
 } from '../domain/executionJournal'
 import type {
+  GetTapeInspectorRecordDetailOutput,
+  ListTapeInspectorPageInput,
+  ListTapeInspectorPageOutput
+} from '@shared/types/tape-inspector'
+import type {
   CreateTapeProgrammaticToolSurfaceFactInput,
   CreateTapeToolCatalogFactInput,
   CreateTapeToolSurfaceFactInput,
@@ -316,6 +321,15 @@ export interface TapeInspectionReader {
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }
   ): TapeMemoryViewManifestInspection[]
+}
+
+export interface TapeSessionInspectionReader {
+  listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput
+  getTapeInspectorRecordDetail(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+    entryId: number
+  }): GetTapeInspectorRecordDetailOutput
 }
 
 export interface TapeEffectiveMessageSourceEntry {

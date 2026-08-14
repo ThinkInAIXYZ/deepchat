@@ -38,6 +38,8 @@ import type {
   ExecutionJournalPersistenceStore,
   TapeBootstrapStore,
   TapeEntryStore,
+  TapeInspectorEntryScanInput,
+  TapeInspectorEntryScanResult,
   TapeMutationProjection,
   ToolSurfacePersistenceStore,
   SkillMaterializationPersistenceStore,
@@ -920,6 +922,38 @@ export class DeepChatTapeEntriesTable
          ORDER BY entry_id ASC`
       )
       .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
+  listInspectorRows(input: TapeInspectorEntryScanInput): TapeInspectorEntryScanResult {
+    const limit = Math.min(Math.max(Math.floor(input.limit), 1), 500)
+    const cursorEntryId = input.cursorEntryId
+    const cursorPredicate =
+      input.mode === 'newer'
+        ? cursorEntryId === undefined
+          ? ''
+          : 'AND entry_id > ?'
+        : cursorEntryId === undefined
+          ? ''
+          : 'AND entry_id < ?'
+    const params: Array<string | number> = [input.sessionId, input.snapshotMaxEntryId]
+    if (cursorEntryId !== undefined) params.push(cursorEntryId)
+    params.push(limit + 1)
+    const rows = this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND entry_id <= ?
+           ${cursorPredicate}
+         ORDER BY entry_id ${input.mode === 'newer' ? 'ASC' : 'DESC'}
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeEntryRow[]
+
+    return {
+      rows: rows.slice(0, limit),
+      hasMore: rows.length > limit
+    }
   }
 
   getEventsBySource(

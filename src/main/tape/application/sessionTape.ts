@@ -19,6 +19,11 @@ import type {
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
+import type {
+  GetTapeInspectorRecordDetailOutput,
+  ListTapeInspectorPageInput,
+  ListTapeInspectorPageOutput
+} from '@shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeMessageReplacementOptions, TapeToolFactInput } from '../domain/facts'
 import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
@@ -49,6 +54,7 @@ import type {
   TapeExecutionViewManifestReader,
   TapeIncarnationReader,
   TapeInspectionReader,
+  TapeSessionInspectionReader,
   TapeLifecycleAdmin,
   TapeMessageFactWriter,
   TapeProviderAttemptReader,
@@ -106,6 +112,7 @@ import { TapeViewReplayService } from './viewReplayService'
 import { ExecutionJournalService } from './executionJournalService'
 import { ToolSurfaceProvenanceService } from './toolSurfaceProvenanceService'
 import { TapeSkillMaterializationService } from './skillMaterializationService'
+import { TapeTraceInspectorService } from './traceInspectorService'
 
 export type {
   AgentTapeViewErrorCode,
@@ -138,6 +145,7 @@ export class SessionTape
     TapeAnchorReader,
     TapeAnchorWriter,
     TapeInspectionReader,
+    TapeSessionInspectionReader,
     TapeLifecycleAdmin,
     ExecutionJournalWriter,
     ExecutionJournalAuditReader,
@@ -159,6 +167,7 @@ export class SessionTape
   private readonly toolSurfaceProvenance: ToolSurfaceProvenanceService
   private readonly forks: TapeForkService
   private readonly skillMaterializations: TapeSkillMaterializationService
+  private readonly traceInspector: TapeTraceInspectorService
 
   constructor(database: TapeApplicationDatabase) {
     this.providers = createTapeApplicationProviders(database)
@@ -174,6 +183,7 @@ export class SessionTape
     this.toolSurfaceProvenance = new ToolSurfaceProvenanceService(this.providers, this.viewReplay)
     this.forks = new TapeForkService(this.providers)
     this.skillMaterializations = new TapeSkillMaterializationService(this.providers)
+    this.traceInspector = new TapeTraceInspectorService(this.providers)
   }
 
   ensureSessionTapeReady(
@@ -451,6 +461,18 @@ export class SessionTape
 
   getBySession(sessionId: string): DeepChatTapeEntryRow[] {
     return this.providers.getEntryStore().getBySessionExcludingContext(sessionId)
+  }
+
+  listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput {
+    return this.traceInspector.listPage(input)
+  }
+
+  getTapeInspectorRecordDetail(input: {
+    sessionId: string
+    expectedTapeIncarnationId: string
+    entryId: number
+  }): GetTapeInspectorRecordDetailOutput {
+    return this.traceInspector.getDetail(input)
   }
 
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {

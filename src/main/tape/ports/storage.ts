@@ -21,6 +21,19 @@ export interface TapeMutationProjection {
   deleteBySession(sessionId: string): void
 }
 
+export interface TapeInspectorEntryScanInput {
+  sessionId: string
+  mode: 'tail' | 'older' | 'newer'
+  cursorEntryId?: number
+  snapshotMaxEntryId: number
+  limit: number
+}
+
+export interface TapeInspectorEntryScanResult {
+  rows: DeepChatTapeEntryRow[]
+  hasMore: boolean
+}
+
 /** Append/read/query persistence only. Physical deletion belongs to TapeEntryLifecycleStore. */
 export interface TapeEntryStore {
   append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow
@@ -28,6 +41,7 @@ export interface TapeEntryStore {
   appendEvent(input: TapeEventAppendInput): DeepChatTapeEntryRow
   getBySession(sessionId: string): DeepChatTapeEntryRow[]
   getByEntryId(sessionId: string, entryId: number): DeepChatTapeEntryRow | undefined
+  listInspectorRows(input: TapeInspectorEntryScanInput): TapeInspectorEntryScanResult
   getEventsBySource(
     sessionId: string,
     name: string,
