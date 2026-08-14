@@ -90,14 +90,24 @@ type AgentOutputLimitsResolver = (
   sessionId: string
 ) => AgentOutputLimits | Promise<AgentOutputLimits>
 
+interface ClosedToolResultCompactionOptions {
+  preserveMostRecentClosedUnit?: boolean
+}
+
+interface ClosedToolResultUnit {
+  assistantIndex: number
+  resultIndexes: ReadonlyMap<string, number>
+}
+
 export function compactClosedToolResultsForContext(
   messages: ChatMessage[],
-  protectedToolCallIds: ReadonlySet<string> = new Set()
+  protectedToolCallIds: ReadonlySet<string> = new Set(),
+  options: ClosedToolResultCompactionOptions = {}
 ): ChatMessage[] {
   const activeTurnStart = messages.findLastIndex((message) => message.role === 'user')
   if (activeTurnStart < 0) return messages
 
-  let compacted: ChatMessage[] | null = null
+  const closedUnits: ClosedToolResultUnit[] = []
   for (let index = activeTurnStart + 1; index < messages.length; index += 1) {
     const assistant = messages[index]
     if (
@@ -126,7 +136,19 @@ export function compactClosedToolResultsForContext(
     }
     if (resultIndexes.size !== expectedCallIds.size) continue
 
-    for (const [toolCallId, resultIndex] of resultIndexes) {
+    closedUnits.push({ assistantIndex: index, resultIndexes })
+    index = Math.max(index, cursor - 1)
+  }
+
+  const preservedAssistantIndex =
+    options.preserveMostRecentClosedUnit === false
+      ? null
+      : (closedUnits.at(-1)?.assistantIndex ?? null)
+  let compacted: ChatMessage[] | null = null
+  for (const unit of closedUnits) {
+    if (unit.assistantIndex === preservedAssistantIndex) continue
+
+    for (const [toolCallId, resultIndex] of unit.resultIndexes) {
       const toolMessage = messages[resultIndex]
       if (
         protectedToolCallIds.has(toolCallId) ||
@@ -153,7 +175,6 @@ export function compactClosedToolResultsForContext(
       compacted ??= [...messages]
       compacted[resultIndex] = { ...toolMessage, content: compactedContent }
     }
-    index = Math.max(index, cursor - 1)
   }
 
   return compacted ?? messages

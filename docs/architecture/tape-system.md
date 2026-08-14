@@ -254,7 +254,8 @@ Tape 自身不做物理 compact。运行时 compact 的对象是 provider-visibl
 ```text
 provider candidate
   -> usage anchor + suffix estimate（信封变化时回退全量估算）
-  -> compact 已闭合的超大 tool result View
+  -> compact 较旧的已闭合超大 tool result，保留最新闭合 unit 的完整证据
+  -> 仍有压力：允许 compact 最新闭合 unit
   -> 仍有压力：尝试 semantic summary
   -> summary 不可用：原子写 boundary-only reconstruction anchor
   -> 从 Tape 与当前内存 active turn 重建 View
@@ -269,13 +270,17 @@ provider error、stack、时间戳或 secret。连续 gap 合并为最新边界�
 
 active turn 不能通过重放原 user prompt 恢复，因为 tool 可能已经产生外部副作用。运行时只能压缩
 assistant tool-call 与其全部结果均已闭合的 unit，保留 call/result 配对，并保护 runtime Skill、provider
-replay 和 projection identity。原始 tool fact 仍在 Tape；stub 是当前 provider View 的非持久化派生投影，
-不推进 reconstruction cursor。
+replay 和 projection identity。第一阶段还保护最新闭合 unit，避免模型因丢失直接行动依据而重复有副作用的
+tool；只有较旧 unit 已不足以解除压力时才能压缩它。原始 tool fact 仍在 Tape；stub 是当前 provider View
+的非持久化派生投影，不推进 reconstruction cursor。
 
 每次成功 provider attempt 可以在当前 Run 内建立 prompt usage anchor。仅当 provider、model、generation
 config、provider-visible tools 和完整消息前缀 hash 全部一致时，下一次 preflight 才以 provider-reported
-prompt usage 为基线，只估新增 suffix；任一变化都回退保守全量估算。一次成功响应会重置当前 recovery
-sequence latch，使后续 tool step 可再次恢复；每个 Run 最多使用三条 recovery sequence，避免无限循环。
+prompt usage 为基线，只估新增 suffix。anchor 使用请求级 generation config，不把压力下临时缩小的有效输出
+上限误判为配置变化；实际发送的 fitted projection 与 continuation View 不一致、cache-read usage 超过 prompt
+usage 时不建立该 attempt 的新 anchor；任一信封/前缀无法匹配已有 anchor 时回退保守全量估算。一次成功
+响应会重置当前 recovery sequence latch，使后续 tool step 可再次恢复；每个 Run 最多使用三条 recovery
+sequence，避免无限循环。
 
 ## Contract lineage 与评价
 

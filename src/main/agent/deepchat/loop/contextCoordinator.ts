@@ -632,15 +632,27 @@ function updatePromptUsageAnchor(input: {
   maxTokens: number
   tools: MCPToolDefinition[]
   messages: ChatMessage[]
+  continuationMessages: ChatMessage[]
 }): void {
-  if (!input.usage || input.usage.inputTokens <= 0 || input.messages.length === 0) return
+  if (
+    !input.usage ||
+    input.usage.inputTokens <= 0 ||
+    (input.usage.cacheReadTokens !== undefined &&
+      input.usage.cacheReadTokens > input.usage.inputTokens) ||
+    input.messages.length === 0 ||
+    input.messages.length !== input.continuationMessages.length ||
+    !input.messages.every((message, index) => message === input.continuationMessages[index])
+  ) {
+    return
+  }
   const envelope = buildPromptUsageEnvelope(input)
   if (!envelope) return
   try {
+    const messagesHash = buildProviderMessagesHash(input.messages)
     input.run.promptUsageAnchor = {
       ...envelope,
       messageCount: input.messages.length,
-      messagesHash: buildProviderMessagesHash(input.messages),
+      messagesHash,
       promptTokens: input.usage.inputTokens,
       cacheReadTokens: input.usage.cacheReadTokens ?? null
     }
@@ -795,21 +807,33 @@ export class DeepChatContextCoordinator {
             beginContextRecoverySequence(input.run)
           ) {
             preflightContextRecoveryAttempted = true
-            const pressureCandidate = this.withActiveTurnFrom(
-              input.requestMessages,
-              requestPreflight.messages
+            const protectedToolCallIds = new Set(
+              input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
             )
-            const compactedToolResults = compactClosedToolResultsForContext(
-              pressureCandidate,
-              new Set(input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId))
-            )
-            if (compactedToolResults !== pressureCandidate) {
+            const compactToolResults = (preserveMostRecentClosedUnit: boolean): void => {
+              const pressureCandidate = this.withActiveTurnFrom(
+                input.requestMessages,
+                requestPreflight.messages
+              )
+              const compactedToolResults = compactClosedToolResultsForContext(
+                pressureCandidate,
+                protectedToolCallIds,
+                { preserveMostRecentClosedUnit }
+              )
+              if (compactedToolResults === pressureCandidate) return
               input.requestMessages.splice(0, input.requestMessages.length, ...compactedToolResults)
               requestPreflight = input.budget.preflight({
                 messages: input.requestMessages,
                 tools: input.tools,
                 requestedMaxTokens
               })
+            }
+            compactToolResults(true)
+            if (
+              requestPreflight.requiresContextPressureRecovery ||
+              !requestPreflight.fitsWithinContext
+            ) {
+              compactToolResults(false)
             }
             if (
               requestPreflight.requiresContextPressureRecovery ||
@@ -1004,10 +1028,21 @@ export class DeepChatContextCoordinator {
         throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
       }
       const recoveryCandidate = this.withActiveTurnFrom(input.requestMessages, providerMessages)
-      const compactedToolResults = compactClosedToolResultsForContext(
-        recoveryCandidate,
-        new Set(input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId))
+      const protectedToolCallIds = new Set(
+        input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
       )
+      let compactedToolResults = compactClosedToolResultsForContext(
+        recoveryCandidate,
+        protectedToolCallIds,
+        { preserveMostRecentClosedUnit: !providerToolResultCompactionAttempted }
+      )
+      if (compactedToolResults === recoveryCandidate && !providerToolResultCompactionAttempted) {
+        compactedToolResults = compactClosedToolResultsForContext(
+          recoveryCandidate,
+          protectedToolCallIds,
+          { preserveMostRecentClosedUnit: false }
+        )
+      }
       if (compactedToolResults !== recoveryCandidate) {
         providerToolResultCompactionAttempted = true
         providerContextOverflowRecoveryApplied = true
@@ -1285,9 +1320,10 @@ export class DeepChatContextCoordinator {
                 modelId: input.modelId,
                 modelConfig: input.modelConfig,
                 temperature: input.temperature,
-                maxTokens: providerMaxTokens,
+                maxTokens: input.maxTokens,
                 tools: input.tools,
-                messages: providerMessages
+                messages: providerMessages,
+                continuationMessages: input.requestMessages
               })
               resetContextRecoverySequence(input.run)
             }

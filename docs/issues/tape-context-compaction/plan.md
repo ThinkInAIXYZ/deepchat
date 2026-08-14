@@ -76,9 +76,11 @@ GitHub issue, or pull request is part of this plan.
   in-flight tool-result reduction instead requires a changed protocol-valid projection. Recovery
   resets after a successful provider response and is bounded to three sequences per Run.
 - Closed active-turn tool results are compacted before model-backed summary without replaying tool
-  side effects or changing raw Tape facts.
+  side effects or changing raw Tape facts. The newest closed unit remains intact when compacting
+  older evidence is sufficient and becomes eligible only as the next pressure fallback.
 - Prompt pressure uses provider usage plus exact-prefix suffix projection when the request envelope
-  is unchanged, with conservative full-estimate fallback.
+  is unchanged and the sent payload matches the continuation View, with conservative full-estimate
+  fallback for fitted projections and malformed cache usage.
 - Canonical behavior is documented in `docs/architecture/tape-system.md` and
   `docs/architecture/agent-system.md`.
 

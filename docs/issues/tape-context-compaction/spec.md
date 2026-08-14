@@ -108,6 +108,9 @@ the existing changed-projection guard before retry.
 - Existing ToolOutputGuard offload stubs remain intact. Eligible large inline results use a stable
   bounded head/tail projection that points back to Tape recall; it never invents a file path or
   marks unpersisted content as an offload artifact.
+- The newest closed tool unit remains intact while compacting older eligible units is enough to
+  relieve pressure. It becomes eligible only as the next bounded fallback, before semantic
+  recovery, so the model retains its most recent action evidence whenever possible.
 - Pruning changes provider-visible projections, not raw Transcript or Tape tool facts, unless the
   existing persistent replacement contract is explicitly used.
 - Recovery never blindly replays the original user request after tools may have produced external
@@ -121,8 +124,12 @@ the existing changed-projection guard before retry.
 - Delta projection is used only when provider, model, system prompt, provider-visible tool schema,
   relevant generation envelope, and the anchored message prefix are unchanged.
 - Envelope or prefix drift invalidates the anchor and falls back to a full conservative estimate.
+- A successful attempt establishes a new anchor only when its actual provider payload is identical
+  to the continuation View. A fitted historical projection must not anchor an untrimmed in-memory
+  prefix.
 - Provider usage is never trusted to reduce the estimate below known tool/schema/output reserves.
-- Malformed, negative, cumulative-only, or ambiguous usage data is ignored.
+- Malformed, negative, cumulative-only, ambiguous usage data, or cache-read usage greater than
+  total prompt usage is ignored.
 - Cache-read tokens are normalized according to the existing provider-attempt usage contract; they
   are not double-counted as additional prompt tokens.
 - Gap notices, offload stubs, and summary instructions are byte-stable when their semantic inputs
@@ -146,13 +153,14 @@ assemble candidate View
   -> estimate pressure
   -> fits: send provider request
   -> pressure:
-       1. compact eligible closed inline tool results while preserving offload projections
-       2. if the changed projection fits: send it as a new request
-       3. otherwise prepare a reconstruction boundary and try semantic summary
-       4. summary fails: commit deterministic boundary-only anchor
-       5. reassemble and require a strictly smaller View for semantic recovery
-       6. strict output-reserve retry when only output reduction can help
-       7. fail only when protected content cannot fit or recovery made no progress
+       1. compact older eligible closed inline tool results while preserving the newest closed unit
+       2. if pressure remains, compact the newest eligible closed unit as a bounded fallback
+       3. if the changed projection fits: send it as a new request
+       4. otherwise prepare a reconstruction boundary and try semantic summary
+       5. summary fails: commit deterministic boundary-only anchor
+       6. reassemble and require a strictly smaller View for semantic recovery
+       7. strict output-reserve retry when only output reduction can help
+       8. fail only when protected content cannot fit or recovery made no progress
 ```
 
 After a successful provider response, the sequence-level overflow latch resets. A later tool step

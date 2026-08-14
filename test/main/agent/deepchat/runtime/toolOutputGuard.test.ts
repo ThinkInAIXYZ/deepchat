@@ -35,7 +35,9 @@ describe('ToolOutputGuard', () => {
       { role: 'tool' as const, tool_call_id: 'call-1', content: rawOutput }
     ]
 
-    const compacted = compactClosedToolResultsForContext(messages)
+    const compacted = compactClosedToolResultsForContext(messages, new Set(), {
+      preserveMostRecentClosedUnit: false
+    })
 
     expect(compacted).not.toBe(messages)
     expect(compacted.map((message) => message.role)).toEqual(messages.map((message) => message.role))
@@ -45,6 +47,48 @@ describe('ToolOutputGuard', () => {
     expect(String(compacted[3].content)).toContain('head:')
     expect(String(compacted[3].content)).toContain(':tail')
     expect(messages[3].content).toBe(rawOutput)
+    expect(
+      compactClosedToolResultsForContext(compacted, new Set(), {
+        preserveMostRecentClosedUnit: false
+      })
+    ).toBe(compacted)
+  })
+
+  it('preserves the most recent closed tool unit while compacting older evidence', () => {
+    const olderOutput = `older:${'x'.repeat(9000)}`
+    const latestOutput = `latest:${'y'.repeat(9000)}`
+    const messages = [
+      { role: 'user' as const, content: 'Run the tools' },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-older',
+            type: 'function' as const,
+            function: { name: 'inspect', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'call-older', content: olderOutput },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-latest',
+            type: 'function' as const,
+            function: { name: 'write', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'call-latest', content: latestOutput }
+    ]
+
+    const compacted = compactClosedToolResultsForContext(messages)
+
+    expect(String(compacted[2].content)).toContain('[Tool output compacted from provider View]')
+    expect(compacted[4].content).toBe(latestOutput)
     expect(compactClosedToolResultsForContext(compacted)).toBe(compacted)
   })
 
@@ -91,7 +135,11 @@ describe('ToolOutputGuard', () => {
       authorityBound
     ]
 
-    expect(compactClosedToolResultsForContext(messages, new Set(['call-2']))).toBe(messages)
+    expect(
+      compactClosedToolResultsForContext(messages, new Set(['call-2']), {
+        preserveMostRecentClosedUnit: false
+      })
+    ).toBe(messages)
   })
 
   it('checks tool continuation budget against the safety-adjusted context window', () => {

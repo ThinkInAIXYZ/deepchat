@@ -25,6 +25,7 @@ import {
 } from './contextBuilder'
 import { buildContextCheckpoint } from './contextContributions'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
@@ -547,7 +548,8 @@ export class CompactionService {
         throw error
       }
       console.warn(
-        `[CompactionService] Summary generation failed for session ${intent.sessionId}; advancing a boundary-only reconstruction anchor.`
+        `[CompactionService] Summary generation failed for session ${intent.sessionId}; advancing a boundary-only reconstruction anchor.`,
+        redactRuntimeErrorForLog(error)
       )
     }
 
