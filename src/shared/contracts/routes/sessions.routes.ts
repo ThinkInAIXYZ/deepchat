@@ -204,7 +204,7 @@ const TapeInspectorEvidenceRecordSchema = z.object({
   ),
   traceId: TapeInspectorIdentitySchema,
   messageId: TapeInspectorIdentitySchema,
-  requestSeq: z.number().int().positive(),
+  requestSeq: z.number().int().nonnegative(),
   logicalRound: z.number().int().nonnegative().optional(),
   physicalAttempt: z.number().int().nonnegative().optional(),
   providerId: TapeInspectorIdentitySchema,

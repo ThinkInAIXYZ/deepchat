@@ -120,7 +120,7 @@ describe('Tape Inspector renderer projection', () => {
     expect(rows.find((row) => row.recordType === 'fact')?.key).toBe('fact:incarnation-1:entry:1')
   })
 
-  it('binds exact attempts and keeps null attempts at the request group', () => {
+  it('binds exact attempts, keeps null attempts at request scope, and leaves diagnostics unbound', () => {
     const attemptZero = fact(1, {
       family: 'attempt',
       name: 'provider/attempt_recorded',
@@ -142,6 +142,7 @@ describe('Tape Inspector renderer projection', () => {
     const groupKeys = new Set(groups.map((group) => group.key))
     const exact = evidence('exact-zero', { physicalAttempt: 0 })
     const legacy = evidence('legacy')
+    const diagnostic = evidence('diagnostic', { requestSeq: 0 })
 
     expect(getEvidenceParentGroupKey(exact, groupKeys, 'incarnation-1')).toBe(
       groups.find((group) => group.kind === 'attempt' && group.physicalAttempt === 0)?.key
@@ -156,15 +157,17 @@ describe('Tape Inspector renderer projection', () => {
         'incarnation-1'
       )
     ).toBeNull()
+    expect(getEvidenceParentGroupKey(diagnostic, groupKeys, 'incarnation-1')).toBeNull()
 
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
       records: [attemptZero, attemptOne],
-      evidence: [legacy, exact, evidence('missing', { physicalAttempt: 2 })],
+      evidence: [legacy, exact, diagnostic, evidence('missing', { physicalAttempt: 2 })],
       collapsedKeys: new Set()
     })
     const exactRow = rows.find((row) => row.key === exact.key)
     const legacyRow = rows.find((row) => row.key === legacy.key)
+    const diagnosticRow = rows.find((row) => row.key === diagnostic.key)
     const missingRow = rows.find((row) => row.key === 'trace:missing')
 
     expect(exactRow?.recordType).toBe('evidence')
@@ -173,6 +176,7 @@ describe('Tape Inspector renderer projection', () => {
     expect(exactRow?.actualStartAt).toBe(100)
     expect(legacyRow?.recordType === 'evidence' && legacyRow.legacyUnattributed).toBe(true)
     expect(missingRow?.recordType === 'evidence' && missingRow.parentGroupKey).toBeNull()
+    expect(diagnosticRow?.recordType === 'evidence' && diagnosticRow.parentGroupKey).toBeNull()
     expect(rows.some((row) => row.key === UNBOUND_EVIDENCE_LANE_KEY)).toBe(true)
   })
 

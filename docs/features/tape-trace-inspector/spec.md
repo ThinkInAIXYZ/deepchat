@@ -199,6 +199,8 @@ The list record never contains endpoint, headers, body, or another payload previ
 
 Evidence association follows exact identities:
 
+- `requestSeq = 0`: persisted diagnostic sentinel without request identity; keep it in the unbound
+  evidence lane;
 - non-null `physicalAttempt`: bind to `(messageId, requestSeq, physicalAttempt)`;
 - null `physicalAttempt`: bind only to `(messageId, requestSeq)` and label
   `legacy/unattributed`;

@@ -164,6 +164,7 @@ export function getEvidenceParentGroupKey(
   availableGroupKeys: ReadonlySet<string>,
   tapeIncarnationId: string
 ): string | null {
+  if (evidence.requestSeq === 0) return null
   const key =
     evidence.physicalAttempt === undefined
       ? groupKey('request', [evidence.messageId, evidence.requestSeq], tapeIncarnationId)

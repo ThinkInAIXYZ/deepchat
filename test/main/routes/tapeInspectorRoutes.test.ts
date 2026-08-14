@@ -85,6 +85,13 @@ describe('Tape Inspector route contracts', () => {
         cursor: { rowId: 10 }
       }).success
     ).toBe(true)
+    expect(
+      sessionsListTapeInspectorEvidenceRoute.input.safeParse({
+        sessionId: 'session-1',
+        mode: 'older',
+        requestSeq: 0
+      }).success
+    ).toBe(false)
     const parsed = sessionsListTapeInspectorEvidenceRoute.output.parse({
       records: [
         {
@@ -92,7 +99,7 @@ describe('Tape Inspector route contracts', () => {
           key: 'trace:trace-1',
           traceId: 'trace-1',
           messageId: 'message-1',
-          requestSeq: 1,
+          requestSeq: 0,
           providerId: 'provider-1',
           modelId: 'model-1',
           createdAt: 100,
@@ -105,13 +112,32 @@ describe('Tape Inspector route contracts', () => {
       nextCursor: null,
       newerCursor: { rowId: 10 }
     })
+    expect(
+      sessionsListTapeInspectorEvidenceRoute.output.safeParse({
+        records: [
+          {
+            recordType: 'evidence',
+            key: 'trace:invalid',
+            traceId: 'invalid',
+            messageId: 'message-1',
+            requestSeq: -1,
+            providerId: 'provider-1',
+            modelId: 'model-1',
+            createdAt: 100,
+            truncated: false
+          }
+        ],
+        nextCursor: null,
+        newerCursor: null
+      }).success
+    ).toBe(false)
 
     expect(parsed.records[0]).toEqual({
       recordType: 'evidence',
       key: 'trace:trace-1',
       traceId: 'trace-1',
       messageId: 'message-1',
-      requestSeq: 1,
+      requestSeq: 0,
       providerId: 'provider-1',
       modelId: 'model-1',
       createdAt: 100,

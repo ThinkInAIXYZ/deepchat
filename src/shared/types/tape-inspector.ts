@@ -171,6 +171,7 @@ export interface TapeInspectorEvidenceRecord {
   key: `trace:${string}`
   traceId: string
   messageId: string
+  /** Zero is the persisted sentinel for diagnostic evidence without a request identity. */
   requestSeq: number
   logicalRound?: number
   physicalAttempt?: number
