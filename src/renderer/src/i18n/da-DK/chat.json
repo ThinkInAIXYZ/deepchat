@@ -81,7 +81,7 @@
       "descriptions": {
         "agent": "Brug Agents standardværktøjssæt.",
         "code": "Sammensæt aktiverede værktøjer via kode. Kræver tilladelsestilstanden Fuld adgang.",
-        "minimal": "Brug kun kommando- og filredigeringsværktøjer."
+        "minimal": "Forenkler filhandlinger og bevarer andre aktiverede værktøjer."
       },
       "useModelDefault": "Brug modelstandard",
       "saving": "Gemmer tilstand...",

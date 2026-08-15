@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Użyj standardowego zestawu narzędzi agenta.",
         "code": "Łącz włączone narzędzia za pomocą kodu. Wymaga trybu uprawnień Pełny dostęp.",
-        "minimal": "Używaj tylko narzędzi poleceń i edycji plików."
+        "minimal": "Upraszcza operacje na plikach, zachowując pozostałe włączone narzędzia."
       },
       "useModelDefault": "Użyj domyślnego dla modelu",
       "saving": "Zapisywanie trybu...",

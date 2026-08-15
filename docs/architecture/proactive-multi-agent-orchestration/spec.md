@@ -5,13 +5,15 @@
 Active. DeepChat has one Subagent execution plane: durable live delegation through child Sessions.
 The unreleased QuickJS-based durable Workflow runtime is retired before merge.
 
-Last reviewed: 2026-08-09.
+Last reviewed: 2026-08-15.
 
 ## Decision
 
 DeepChat's user goal is adaptive multi-Agent collaboration: the parent Agent may decompose a task,
 start bounded child work, steer or follow up with those children, inspect durable results, and
-synthesize the answer. That goal does not require a second JavaScript program executor.
+synthesize the answer. That goal does not require a Subagent-specific JavaScript executor. The
+separate Code Mode may invoke the same host-owned Subagent plane as a subtool, but it does not own
+child lifecycle or create another orchestration runtime.
 
 The product therefore keeps:
 
@@ -58,6 +60,18 @@ The parent orchestrates direct child Sessions through `deepchat_subagents` opera
 - `read_result`: page through a referenced canonical child answer;
 - `wait`: receive bounded mailbox updates;
 - `interrupt`: explicitly stop active work.
+
+The same tool has two calling projections. Agent and Minimal modes may expose it as a direct model
+tool when it is enabled. Code Mode keeps it out of the top-level Provider tool list and includes it
+in the generated SDK as `tools.deepchat_subagents(...)`. Both projections dispatch the same native
+tool through `ToolService` and the live-delegation repository; the Code projection is not a second
+execution plane.
+
+A Code cell owns only its nested call and wait. Once `spawn` has durably created a child Session,
+cell completion, failure, cancellation, timeout, or cancellation of a nested `wait` must not roll
+back, delete, or automatically interrupt that child. Later cells can recover control through
+`list`, `inspect`, `wait`, and `read_result`. Child Sessions resolve their own model Tool Mode and do
+not inherit the parent's `toolModeOverride`.
 
 V1 keeps recursion disabled. A child cannot start another Subagent. Child Sessions remain hidden
 from ordinary top-level Session lists but are navigable from trusted parent projections.
@@ -155,6 +169,9 @@ Host enforcement, not prompt wording, owns delegation consent.
 - Under `explicit`, `spawn` and `follow_up` require native confirmation because they start model
   work and consume additional resources.
 - Under `proactive`, the Session-level control is standing authorization for those operations.
+- When Code Mode invokes `spawn` or `follow_up` under `explicit`, confirmation parks the original
+  Code cell and exact nested call. Approval resumes that call in place; the host must not replay the
+  program or any previously completed subtool.
 - `send`, `list`, `inspect`, `read_result`, `wait`, and `interrupt` do not start model work and do
   not require orchestration confirmation.
 - Every child tool call still follows the ordinary DeepChat permission broker. Proactive mode does
@@ -289,6 +306,10 @@ discovery. The activity surface revalidates from the durable repository when mou
 Session changes; IPC events are an optimization, not a second authority or the sole terminal-state
 delivery path.
 
+For a Code Mode caller, the durable activity surface remains authoritative. The outer code wrapper
+may show cell and nested-call summaries, but it is not rendered as a direct Subagent tool card and
+does not become a second progress authority.
+
 Workflow panels, saved Workflow commands, launch approvals, and `/workflow` are removed.
 
 ## Compatibility And Safety
@@ -307,6 +328,8 @@ Workflow panels, saved Workflow commands, launch approvals, and `/workflow` are 
   in-memory batch executor. The legacy name remains reserved only as a renderer trust tombstone.
 - Generic MCP tools remain reachable unless their names collide with an active native tool or an
   explicitly documented historical-renderer tombstone.
+- Code Mode exposes `deepchat_subagents` only through its generated subtool binding. Direct top-level
+  calls remain invalid, and cell cleanup never implies cleanup of already persisted child Sessions.
 - Session deletion fences new delegation and child creation before runtime cleanup, drains active
   work, and then removes the stable child tree.
 - V1 does not promise exactly-once external effects or automatic parallel-writer isolation.
@@ -342,10 +365,13 @@ Workflow panels, saved Workflow commands, launch approvals, and `/workflow` are 
     format status.
 16. `wait`, `inspect`, and `read_result` expose bounded structured evaluation metadata outside
     untrusted child text.
+17. Code Mode can orchestrate `deepchat_subagents` only through its generated subtool binding;
+    explicit confirmation resumes the same call without replay, and persisted children outlive the
+    caller cell.
 
 ## Non-Goals
 
-- Executing model-authored arbitrary JavaScript.
+- Adding a Subagent-specific JavaScript runtime or durable Workflow executor.
 - Deterministic script replay, saved Workflows, or programmatic pipeline persistence.
 - Binding proactive collaboration to maximum reasoning effort.
 - Requiring delegation for every substantive task.

@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Gunakan set alat Agent standard.",
         "code": "Gabungkan alat yang didayakan melalui kod. Memerlukan mod kebenaran Akses penuh.",
-        "minimal": "Gunakan hanya alat perintah dan penyuntingan fail."
+        "minimal": "Permudahkan operasi fail sambil mengekalkan alat lain yang didayakan."
       },
       "useModelDefault": "Gunakan lalai model",
       "saving": "Menyimpan mod...",

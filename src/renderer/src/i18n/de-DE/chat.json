@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Den Standardwerkzeugsatz des Agenten verwenden.",
         "code": "Aktivierte Werkzeuge über Code zusammenstellen. Erfordert den Berechtigungsmodus Vollzugriff.",
-        "minimal": "Nur Befehls- und Dateibearbeitungswerkzeuge verwenden."
+        "minimal": "Vereinfacht Dateioperationen und behält andere aktivierte Werkzeuge bei."
       },
       "useModelDefault": "Modellstandard verwenden",
       "saving": "Modus wird gespeichert...",

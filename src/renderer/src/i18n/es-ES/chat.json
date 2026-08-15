@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Usa el conjunto de herramientas estándar del agente.",
         "code": "Combina las herramientas activadas mediante código. Requiere el modo de permisos Acceso completo.",
-        "minimal": "Usa solo herramientas de comandos y edición de archivos."
+        "minimal": "Simplifica las operaciones de archivos y conserva las demás herramientas habilitadas."
       },
       "useModelDefault": "Usar predeterminado del modelo",
       "saving": "Guardando modo...",

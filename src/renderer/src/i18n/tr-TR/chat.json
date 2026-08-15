@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Standart Agent araç setini kullanır.",
         "code": "Etkin araçları kod aracılığıyla birleştirir. Tam Erişim izin modu gerekir.",
-        "minimal": "Yalnızca komut ve dosya düzenleme araçlarını kullanır."
+        "minimal": "Dosya işlemlerini sadeleştirir ve diğer etkin araçları korur."
       },
       "useModelDefault": "Model varsayılanını kullan",
       "saving": "Mod kaydediliyor...",

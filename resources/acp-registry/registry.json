@@ -108,7 +108,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.67.0",
+      "version": "0.68.0",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -119,7 +119,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.67.0"
+          "package": "@agentclientprotocol/claude-agent-acp@0.68.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -168,7 +168,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -179,7 +179,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@1.2.0"
+          "package": "@agentclientprotocol/codex-acp@1.3.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"
@@ -472,7 +472,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.3.12",
+      "version": "0.3.13",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -481,7 +481,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.3.12",
+          "package": "dimcode@0.3.13",
           "args": [
             "acp"
           ]
@@ -513,7 +513,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.196.0",
+      "version": "0.197.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -522,7 +522,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.196.0",
+          "package": "droid@0.197.0",
           "args": [
             "exec",
             "--output-format",
@@ -700,7 +700,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.93",
+      "version": "0.10.96",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -711,49 +711,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.93/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.96/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "debfbf20b13db60eec079e9fd663fd466e7100fc1e9a8e9038175d7f0a6ff087"
+            "sha256": "7446d6f4e3696cf1eaff7bc7c99d91cd1c0ed4950b56e446c82e7f1b8f58aec3"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.93/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.96/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "6a7468aa6b367cff964d6c3f978cca90f82a6989c7961fead09813c0a297e0fa"
+            "sha256": "edbf389624ce732de3833fd81f121aa3e65ba27b41a8874e85e4ad9a8b11c809"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.93/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.96/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "206826e0a2686ccd3618e84134aebac0991bf9bf172deb9bf1b21c6ea7ae191f"
+            "sha256": "2d444696fabc57e04cfa2fcf923d96516f70055c9bb8cee866b5293aae491a78"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.93/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.96/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "4632844e8b41af5ee0277121b7f5dc704edc84aca0418c9686ef60abbc3f0569"
+            "sha256": "1f6a4b7447190771718f927fc6e06bcb0993aebd9fd3670ba32e5916aec50f31"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.93/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.96/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "b183dbcbf4300053bad33a0f4489356ec841d05259a76c3c6c0758904a68aa41"
+            "sha256": "0de37ff4951f3d4a8797dadb988a1d150b772f3f938f068bca105b7e9e05355b"
           }
         }
       },
@@ -1003,7 +1003,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.34",
+      "version": "1.1.35",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -1014,7 +1014,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.34",
+          "package": "@compass-ai/nova@1.1.35",
           "args": [
             "acp"
           ]
@@ -1106,7 +1106,7 @@
     {
       "id": "poolside",
       "name": "Poolside",
-      "version": "1.0.15",
+      "version": "1.0.16",
       "description": "Poolside's coding agent",
       "repository": "https://github.com/poolsideai/pool",
       "website": "https://poolside.ai",
@@ -1117,52 +1117,52 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-darwin-arm64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-darwin-arm64.tar.gz",
             "cmd": "./pool-darwin-arm64",
             "args": [
               "acp"
             ],
-            "sha256": "42d971d91611ed22cf2023f05bae53a4d746c015203923b392fe9b170ccb0b71"
+            "sha256": "0932af3eb2b57a863acacb664ec8b2b1d3a76c2570a788b086001608cc585f74"
           },
           "darwin-x86_64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-darwin-amd64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-darwin-amd64.tar.gz",
             "cmd": "./pool-darwin-amd64",
             "args": [
               "acp"
             ],
-            "sha256": "508490724fb63a7ff846e9d6f303d9ab9da875f0b18b26308d85cb03c8f43d6b"
+            "sha256": "6d75fae2d7de6c35b6b467b5f682935e3ecde8ff611cb620c56b7bd607e0afde"
           },
           "linux-aarch64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-linux-arm64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-linux-arm64.tar.gz",
             "cmd": "./pool-linux-arm64",
             "args": [
               "acp"
             ],
-            "sha256": "df3ffd537d46943ae61513b7981df07bc5df79217fc5390b956d06bc81ac8198"
+            "sha256": "466343b66b03ee4e66476fcc69be1eb5bf8e9155a4ab73e0e72a232d1f8d2a12"
           },
           "linux-x86_64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-linux-amd64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-linux-amd64.tar.gz",
             "cmd": "./pool-linux-amd64",
             "args": [
               "acp"
             ],
-            "sha256": "d7d7194bfe0e1e62fc3daa1b6ede8f2d4371691c663bed980eea4f5a7a659e08"
+            "sha256": "e86aa8c9feef003540673ab494e91bfadc273218d531c43d662cafb69e464146"
           },
           "windows-aarch64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-windows-arm64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-windows-arm64.tar.gz",
             "cmd": "./pool-windows-arm64.exe",
             "args": [
               "acp"
             ],
-            "sha256": "b6e7b204ac6e928fb05a409bfe9327f74945d75f684e4a0e43568cc159647316"
+            "sha256": "8dc7d014ced3e9d3ced240bbc7dabaf696bf59f118bd271d9f4e8561e415d75b"
           },
           "windows-x86_64": {
-            "archive": "https://downloads.poolside.ai/pool/v1.0.15/pool-windows-amd64.tar.gz",
+            "archive": "https://downloads.poolside.ai/pool/v1.0.16/pool-windows-amd64.tar.gz",
             "cmd": "./pool-windows-amd64.exe",
             "args": [
               "acp"
             ],
-            "sha256": "296a828390cbc4ff6d6a61410cfd3e25d86ecdf6152b479ab26402ead2c78d4d"
+            "sha256": "3e324f1a4b5855ba5363232c06461ec9d6d2ae1a341c827221e79779f8f2bc6f"
           }
         }
       },
@@ -1191,7 +1191,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.21.11",
+      "version": "0.21.12",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1201,7 +1201,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.21.11",
+          "package": "@qwen-code/qwen-code@0.21.12",
           "args": [
             "--acp",
             "--experimental-skills"

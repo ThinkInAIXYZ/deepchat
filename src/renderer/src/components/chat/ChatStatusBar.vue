@@ -387,6 +387,7 @@
           :system-prompt-options="systemPromptMenuOptions"
           :selected-system-prompt-id="selectedSystemPromptId"
           :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          :subagents-available="orchestrationCapability?.available === true"
           @select-system-prompt="onSystemPromptSelect"
           @open-change="handleSessionPanelOpenChange"
         >

@@ -60,6 +60,7 @@ const setup = async (options?: {
   defaultToolMode?: 'agent' | 'code' | 'minimal'
   toolModeOverride?: 'agent' | 'code' | 'minimal' | null
   sessionStatus?: 'completed' | 'working' | 'error' | 'none'
+  subagentsAvailable?: boolean
 }) => {
   vi.resetModules()
   let skillSessionChangedHandler:
@@ -143,7 +144,6 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
-        buildTool('deepchat_subagents', 'agent-core'),
         buildTool('update_plan', 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
@@ -255,7 +255,8 @@ const setup = async (options?: {
           'chat.input.toolMode.options.minimal': 'Minimal',
           'chat.input.toolMode.descriptions.agent': 'Direct tool calls',
           'chat.input.toolMode.descriptions.code': 'Compose calls with code',
-          'chat.input.toolMode.descriptions.minimal': 'Command and editor only',
+          'chat.input.toolMode.descriptions.minimal':
+            'Simplified file operations with other enabled tools',
           'chat.input.toolMode.codeEntry': 'Code entry',
           'chat.input.toolMode.codeCallable': 'Code callable',
           'chat.input.toolMode.minimalTools': 'Minimal tools',
@@ -277,6 +278,9 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
+    props: {
+      subagentsAvailable: options?.subagentsAvailable ?? false
+    },
     slots: {
       'generation-settings': '<div data-testid="generation-settings-slot" />'
     },
@@ -364,7 +368,6 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Agent Core')
     expect(wrapper.text()).not.toContain('Progress')
     expect(wrapper.text()).toContain('update_plan')
-    expect(wrapper.text()).toContain('deepchat_subagents')
 
     const updatePlanButton = wrapper
       .findAll('button')
@@ -495,7 +498,8 @@ describe('McpIndicator', () => {
   it('shows the model-recommended Code Mode and its projected tools', async () => {
     const { wrapper } = await setup({
       providerId: 'deepseek',
-      defaultToolMode: 'code'
+      defaultToolMode: 'code',
+      subagentsAvailable: true
     })
 
     expect(wrapper.text()).toContain('Model default')
@@ -505,12 +509,22 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('run_code')
     expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).not.toContain('deepchat_question')
-    expect(wrapper.text()).not.toContain('deepchat_subagents')
+    expect(wrapper.text()).toContain('deepchat_subagents')
+    expect(
+      wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'deepchat_subagents')
+        ?.attributes('disabled')
+    ).toBeDefined()
     expect(wrapper.text()).toContain('demo-server')
   })
 
-  it('persists Minimal Mode and immediately hides every non-minimal tool group', async () => {
-    const { wrapper, sessionStore } = await setup({ defaultToolMode: 'code' })
+  it('persists Minimal Mode and only replaces the filesystem tool group', async () => {
+    const { wrapper, sessionStore } = await setup({
+      defaultToolMode: 'code',
+      pluginEnabled: true,
+      subagentsAvailable: true
+    })
     const minimalRadio = wrapper.findAll('[role="radio"]')[2]
 
     await minimalRadio.trigger('click')
@@ -518,9 +532,14 @@ describe('McpIndicator', () => {
 
     expect(sessionStore.setSessionToolMode).toHaveBeenCalledWith('minimal')
     expect(wrapper.text()).toContain('exec')
+    expect(wrapper.text()).toContain('process')
     expect(wrapper.text()).toContain('str_replace_editor')
-    expect(wrapper.text()).not.toContain('update_plan')
-    expect(wrapper.text()).not.toContain('demo-server')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'read')).toBe(false)
+    expect(wrapper.text()).toContain('update_plan')
+    expect(wrapper.text()).toContain('deepchat_question')
+    expect(wrapper.text()).toContain('deepchat_subagents')
+    expect(wrapper.text()).toContain('demo-server')
+    expect(wrapper.text()).toContain('CUA Driver')
   })
 
   it('disables Tool Mode changes while the session is working', async () => {

@@ -1,5 +1,6 @@
 import type {
   DeepChatLoopTapePort,
+  NestedExecutionJournalWriter,
   TapeEffectiveUserMessageSourceReader,
   TapeExecutionViewManifestReader,
   TapeIncarnationReader,
@@ -49,7 +50,10 @@ export function createSkillExecutionAuthorityTapePort(
   })
 }
 
-export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepChatLoopTapePort {
+export function createDeepChatLoopTapePort(
+  source: Omit<DeepChatLoopTapePort, keyof NestedExecutionJournalWriter>,
+  nestedExecutionJournal: NestedExecutionJournalWriter
+): DeepChatLoopTapePort {
   return Object.freeze({
     ensureSessionTapeReady: (...args: Parameters<DeepChatLoopTapePort['ensureSessionTapeReady']>) =>
       source.ensureSessionTapeReady(...args),
@@ -92,16 +96,11 @@ export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepCh
       source.commitDispatch(input),
     commitToolOutcome: (input: Parameters<DeepChatLoopTapePort['commitToolOutcome']>[0]) =>
       source.commitToolOutcome(input),
-    ...(source.commitNestedDispatch && source.commitNestedToolOutcome
-      ? {
-          commitNestedDispatch: (
-            input: Parameters<NonNullable<DeepChatLoopTapePort['commitNestedDispatch']>>[0]
-          ) => source.commitNestedDispatch!(input),
-          commitNestedToolOutcome: (
-            input: Parameters<NonNullable<DeepChatLoopTapePort['commitNestedToolOutcome']>>[0]
-          ) => source.commitNestedToolOutcome!(input)
-        }
-      : {}),
+    commitNestedDispatch: (input: Parameters<DeepChatLoopTapePort['commitNestedDispatch']>[0]) =>
+      nestedExecutionJournal.commitNestedDispatch(input),
+    commitNestedToolOutcome: (
+      input: Parameters<DeepChatLoopTapePort['commitNestedToolOutcome']>[0]
+    ) => nestedExecutionJournal.commitNestedToolOutcome(input),
     commitRunTerminal: (input: Parameters<DeepChatLoopTapePort['commitRunTerminal']>[0]) =>
       source.commitRunTerminal(input)
   })

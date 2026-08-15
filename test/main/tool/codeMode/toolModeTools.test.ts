@@ -129,7 +129,7 @@ describe('Tool Mode provider contracts', () => {
     expect(sdk).toContain('Independent read-only calls MAY overlap under `Promise.all`')
   })
 
-  it('omits interaction-only tools from generated SDK declarations', () => {
+  it('omits user questions but keeps Subagents in generated SDK declarations', () => {
     const question = {
       ...nestedTool,
       function: { ...nestedTool.function, name: 'deepchat_question' }
@@ -139,18 +139,17 @@ describe('Tool Mode provider contracts', () => {
       function: { ...nestedTool.function, name: 'deepchat_subagents' }
     }
 
-    expect(renderCodeModeSdk('function', [nestedTool, question, subagents])).not.toContain(
-      'deepchat_question'
-    )
-    expect(renderCodeModeSdk('function', [nestedTool, question, subagents])).not.toContain(
-      'deepchat_subagents'
-    )
-    expect(
-      createCodexCodeModeToolDefinitions([nestedTool, question, subagents])[0].function.description
-    ).not.toContain('deepchat_question')
-    expect(
-      createCodexCodeModeToolDefinitions([nestedTool, question, subagents])[0].function.description
-    ).not.toContain('deepchat_subagents')
+    const sdk = renderCodeModeSdk('function', [nestedTool, question, subagents])
+    const codexDescription = createCodexCodeModeToolDefinitions([
+      nestedTool,
+      question,
+      subagents
+    ])[0].function.description
+
+    expect(sdk).not.toContain('deepchat_question')
+    expect(sdk).toContain('deepchat_subagents')
+    expect(codexDescription).not.toContain('deepchat_question')
+    expect(codexDescription).toContain('deepchat_subagents')
   })
 
   it('uses trimmed names for both SDK declarations and runtime bindings', () => {

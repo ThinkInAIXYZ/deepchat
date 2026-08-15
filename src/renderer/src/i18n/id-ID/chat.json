@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Gunakan perangkat alat standar Agent.",
         "code": "Rangkai alat yang aktif melalui kode. Memerlukan mode izin Akses penuh.",
-        "minimal": "Gunakan hanya alat perintah dan penyuntingan file."
+        "minimal": "Sederhanakan operasi file sambil mempertahankan alat lain yang diaktifkan."
       },
       "useModelDefault": "Gunakan bawaan model",
       "saving": "Menyimpan mode...",

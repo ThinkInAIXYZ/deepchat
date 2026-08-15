@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "使用标准 Agent 工具集。",
         "code": "通过代码编排当前启用的工具，需要完全访问权限模式。",
-        "minimal": "仅使用命令和文件编辑工具。"
+        "minimal": "精简文件操作，同时保留其他已启用工具。"
       },
       "useModelDefault": "使用模型默认",
       "saving": "正在保存模式...",

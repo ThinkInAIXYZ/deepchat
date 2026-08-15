@@ -1,7 +1,6 @@
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { formatCommandShellForModel, type ResolvedCommandShell } from '@shared/commandShell'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'
@@ -9,17 +8,14 @@ export const CODE_MODE_WAIT_TOOL_NAME = 'wait'
 export const APPLY_PATCH_TOOL_NAME = 'apply_patch'
 export const STR_REPLACE_EDITOR_TOOL_NAME = 'str_replace_editor'
 
-const CODE_MODE_INTERACTION_TOOL_NAMES = new Set([
-  'deepchat_question',
-  LIVE_DELEGATION_AGENT_TOOL_NAME
-])
+const CODE_MODE_EXCLUDED_TOOL_NAMES = new Set(['deepchat_question'])
 
 export function filterCodeModeExecutionCatalog(
   executionCatalog: readonly MCPToolDefinition[]
 ): MCPToolDefinition[] {
   return executionCatalog.flatMap((tool) => {
     const name = tool.function.name.trim()
-    if (CODE_MODE_INTERACTION_TOOL_NAMES.has(name)) return []
+    if (CODE_MODE_EXCLUDED_TOOL_NAMES.has(name)) return []
     if (name === tool.function.name) return [tool]
     return [{ ...tool, function: { ...tool.function, name } }]
   })

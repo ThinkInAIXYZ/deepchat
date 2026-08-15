@@ -141,10 +141,7 @@
             <span>{{ t('chat.input.tools.title') }}</span>
           </div>
 
-          <div
-            v-if="toolsLoading && resolvedToolMode !== 'minimal'"
-            class="text-xs text-muted-foreground"
-          >
+          <div v-if="toolsLoading" class="text-xs text-muted-foreground">
             {{ t('chat.input.tools.loading') }}
           </div>
 
@@ -179,11 +176,11 @@
                   size="sm"
                   class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
                   :class="
-                    !group.configurable || isGroupItemEnabled(item)
+                    !item.configurable || isGroupItemEnabled(item)
                       ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                       : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
                   "
-                  :disabled="!group.configurable || isGroupItemPending(item)"
+                  :disabled="!item.configurable || isGroupItemPending(item)"
                   @click="toggleGroupItem(item)"
                 >
                   {{ item.label }}
@@ -193,10 +190,7 @@
           </div>
         </div>
 
-        <div
-          v-if="resolvedToolMode !== 'minimal'"
-          :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'"
-        >
+        <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
           <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {{ t('chat.input.tools.mcpSection') }}
           </div>
@@ -225,10 +219,7 @@
           </div>
         </div>
 
-        <div
-          v-if="resolvedToolMode !== 'minimal' && enabledPluginServers.length > 0"
-          class="px-3 py-3"
-        >
+        <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
           <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {{ t('chat.input.tools.pluginSection') }}
           </div>
@@ -363,12 +354,12 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@shared/toolMode'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 type ToolGroupItem = {
   id: string
   label: string
   toolName: string
+  configurable: boolean
 }
 
 type ToolGroup = {
@@ -392,6 +383,15 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const TOOL_MODE_OPTIONS: readonly ToolMode[] = ['agent', 'code', 'minimal']
+const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
+  'read',
+  'write',
+  'edit',
+  'glob',
+  'grep',
+  'exec',
+  'process'
+])
 
 const props = withDefaults(
   defineProps<{
@@ -399,12 +399,14 @@ const props = withDefaults(
     systemPromptOptions?: SystemPromptMenuOption[]
     selectedSystemPromptId?: string
     showCustomSystemPromptBadge?: boolean
+    subagentsAvailable?: boolean
   }>(),
   {
     showSystemPromptSection: false,
     systemPromptOptions: () => [],
     selectedSystemPromptId: 'empty',
-    showCustomSystemPromptBadge: false
+    showCustomSystemPromptBadge: false,
+    subagentsAvailable: false
   }
 )
 
@@ -574,7 +576,8 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
     existing.push({
       id: tool.function.name,
       label: tool.function.name,
-      toolName: tool.function.name
+      toolName: tool.function.name,
+      configurable: true
     })
     groups.set(tool.server.name, existing)
   }
@@ -607,32 +610,84 @@ const fixedToolGroup = (name: string, label: string, toolNames: string[]): ToolG
   name,
   label,
   configurable: false,
-  items: toolNames.map((toolName) => ({ id: toolName, label: toolName, toolName }))
+  items: toolNames.map((toolName) => ({
+    id: toolName,
+    label: toolName,
+    toolName,
+    configurable: false
+  }))
 })
+
+const includeSubagentTool = (groups: ToolGroup[], fallbackLabel: string): ToolGroup[] => {
+  if (
+    !props.subagentsAvailable ||
+    groups.some((group) => group.items.some((item) => item.toolName === 'deepchat_subagents'))
+  ) {
+    return groups
+  }
+
+  const subagentItem: ToolGroupItem = {
+    id: 'deepchat_subagents',
+    label: 'deepchat_subagents',
+    toolName: 'deepchat_subagents',
+    configurable: false
+  }
+  const coreGroupIndex = groups.findIndex((group) => group.name === 'agent-core')
+  if (coreGroupIndex < 0) {
+    return [
+      ...groups,
+      {
+        name: 'agent-core',
+        label: fallbackLabel,
+        configurable: false,
+        items: [subagentItem]
+      }
+    ]
+  }
+
+  return groups.map((group, index) =>
+    index === coreGroupIndex ? { ...group, items: [...group.items, subagentItem] } : group
+  )
+}
 
 const visibleToolGroups = computed<ToolGroup[]>(() => {
   if (resolvedToolMode.value === 'minimal') {
     const editor = currentProviderId.value === 'openai-codex' ? 'apply_patch' : 'str_replace_editor'
+    const retainedGroups = groupedAgentTools.value
+      .map((group) => ({
+        ...group,
+        items:
+          group.name === 'agent-filesystem'
+            ? group.items.filter((item) => !MINIMAL_AGENT_FILESYSTEM_TOOLS.has(item.toolName))
+            : group.items
+      }))
+      .filter((group) => group.items.length > 0)
     return [
-      fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), ['exec', editor])
+      fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), [
+        'exec',
+        'process',
+        editor
+      ]),
+      ...includeSubagentTool(retainedGroups, getGroupLabel('agent-core'))
     ]
   }
 
   if (resolvedToolMode.value === 'code') {
     const entries = currentProviderId.value === 'openai-codex' ? ['exec', 'wait'] : ['run_code']
+    const codeCallableLabel = t('chat.input.toolMode.codeCallable')
+    const codeCallableGroups = groupedAgentTools.value
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.toolName !== 'deepchat_question'),
+        label: `${codeCallableLabel} · ${group.label}`
+      }))
+      .filter((group) => group.items.length > 0)
     return [
       fixedToolGroup('tool-mode-code-entry', t('chat.input.toolMode.codeEntry'), entries),
-      ...groupedAgentTools.value
-        .map((group) => ({
-          ...group,
-          items: group.items.filter(
-            (item) =>
-              item.toolName !== 'deepchat_question' &&
-              item.toolName !== LIVE_DELEGATION_AGENT_TOOL_NAME
-          ),
-          label: `${t('chat.input.toolMode.codeCallable')} · ${group.label}`
-        }))
-        .filter((group) => group.items.length > 0)
+      ...includeSubagentTool(
+        codeCallableGroups,
+        `${codeCallableLabel} · ${getGroupLabel('agent-core')}`
+      )
     ]
   }
 
@@ -643,9 +698,10 @@ const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(to
 const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)
 const isGroupItemEnabled = (item: ToolGroupItem) => isToolEnabled(item.toolName)
 const isGroupItemPending = (item: ToolGroupItem) => isToolPending(item.toolName)
-const getGroupToolNames = (group: ToolGroup) => group.items.map((item) => item.toolName)
-const isGroupEnabled = (group: ToolGroup) => group.items.some((item) => isGroupItemEnabled(item))
-const isGroupPending = (group: ToolGroup) => group.items.some((item) => isGroupItemPending(item))
+const getGroupToolNames = (group: ToolGroup) =>
+  group.items.filter((item) => item.configurable).map((item) => item.toolName)
+const isGroupEnabled = (group: ToolGroup) => getGroupToolNames(group).some(isToolEnabled)
+const isGroupPending = (group: ToolGroup) => getGroupToolNames(group).some(isToolPending)
 
 const getServerLabel = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)

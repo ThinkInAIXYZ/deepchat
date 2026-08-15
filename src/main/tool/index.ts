@@ -129,6 +129,7 @@ import {
   CODE_MODE_EXEC_TOOL_NAME,
   CODE_MODE_WAIT_TOOL_NAME,
   RUN_CODE_TOOL_NAME,
+  STR_REPLACE_EDITOR_TOOL_NAME,
   createApplyPatchToolDefinition,
   createCodexCodeModeToolDefinitions,
   createRunCodeToolDefinition,
@@ -161,6 +162,7 @@ interface ToolServiceOptions {
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
+const MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS = new Set(['read', 'write', 'edit', 'glob', 'grep'])
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
@@ -565,18 +567,39 @@ export class ToolService implements ToolServicePort {
     }
 
     if (input.mode === 'minimal') {
-      const execDefinition = executionCatalog.find(
+      const retainedCatalog = executionCatalog.filter(
+        (definition) =>
+          !(
+            definition.source === 'agent' &&
+            definition.server.name === 'agent-filesystem' &&
+            MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS.has(definition.function.name)
+          )
+      )
+      const execDefinition = retainedCatalog.find(
         (definition) =>
           definition.source === 'agent' && definition.function.name === CODE_MODE_EXEC_TOOL_NAME
       )
       if (!execDefinition) {
         throw new Error('Minimal Mode requires the built-in exec tool.')
       }
+      const processDefinition = retainedCatalog.find(
+        (definition) => definition.source === 'agent' && definition.function.name === 'process'
+      )
+      if (!processDefinition) {
+        throw new Error('Minimal Mode requires the built-in process tool.')
+      }
       const editorDefinition =
         frontend === 'codex'
           ? createApplyPatchToolDefinition()
           : createStrReplaceEditorToolDefinition()
-      const minimalCatalog = [execDefinition, editorDefinition]
+      const minimalCatalog = [
+        execDefinition,
+        processDefinition,
+        editorDefinition,
+        ...retainedCatalog.filter(
+          (definition) => definition !== execDefinition && definition !== processDefinition
+        )
+      ]
       this.publishConfiguredCatalog(conversationId, minimalCatalog)
       this.conversationToolModes.set(conversationId, {
         mode: input.mode,
@@ -2113,7 +2136,11 @@ export class ToolService implements ToolServicePort {
   }
 
   private buildFilesystemPrompt(toolNames: Set<string>, offloadPath: string): string {
-    const filesystemTools = FILESYSTEM_TOOL_ORDER.filter((toolName) => toolNames.has(toolName))
+    const filesystemTools = [
+      ...FILESYSTEM_TOOL_ORDER,
+      APPLY_PATCH_TOOL_NAME,
+      STR_REPLACE_EDITOR_TOOL_NAME
+    ].filter((toolName) => toolNames.has(toolName))
     if (filesystemTools.length === 0) {
       return ''
     }

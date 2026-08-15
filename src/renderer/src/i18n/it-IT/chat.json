@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Usa il set di strumenti standard dell’agente.",
         "code": "Combina gli strumenti abilitati tramite codice. Richiede la modalità di autorizzazione Accesso completo.",
-        "minimal": "Usa solo strumenti di comando e modifica dei file."
+        "minimal": "Semplifica le operazioni sui file mantenendo gli altri strumenti abilitati."
       },
       "useModelDefault": "Usa predefinita del modello",
       "saving": "Salvataggio modalità...",

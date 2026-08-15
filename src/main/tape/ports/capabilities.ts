@@ -280,7 +280,7 @@ export interface DeepChatLoopTapePort
     TapeProviderAttemptWriter,
     TapeProviderAttemptReader,
     ExecutionJournalWriter,
-    Partial<NestedExecutionJournalWriter> {}
+    NestedExecutionJournalWriter {}
 
 export interface TapeMessageFactWriter {
   appendMessageRecord(record: ChatMessageRecord): number

@@ -1267,7 +1267,14 @@ describe('ToolService', () => {
       agentTools: buildAgentToolRuntimeMock()
     })
     const exec = { ...buildToolDefinition('exec', 'agent-filesystem'), source: 'agent' as const }
-    const read = { ...buildToolDefinition('read', 'agent-filesystem'), source: 'agent' as const }
+    const detailedFilesystem = ['read', 'write', 'edit', 'glob', 'grep'].map((name) => ({
+      ...buildToolDefinition(name, 'agent-filesystem'),
+      source: 'agent' as const
+    }))
+    const process = {
+      ...buildToolDefinition('process', 'agent-filesystem'),
+      source: 'agent' as const
+    }
     const question = {
       ...buildToolDefinition(QUESTION_TOOL_NAME, 'agent-core'),
       source: 'agent' as const
@@ -1277,6 +1284,7 @@ describe('ToolService', () => {
       source: 'agent' as const
     }
     const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
+    const executionCatalog = [exec, ...detailedFilesystem, process, question, subagents, remote]
     const commandShell = {
       profile: 'zsh',
       dialect: 'posix',
@@ -1291,11 +1299,16 @@ describe('ToolService', () => {
       mode: 'agent',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, subagents, remote]
+      executionCatalog
     })
     expect(agent.map((definition) => definition.function.name)).toEqual([
       'exec',
       'read',
+      'write',
+      'edit',
+      'glob',
+      'grep',
+      'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
       'remote_search'
@@ -1310,7 +1323,7 @@ describe('ToolService', () => {
       mode: 'code',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, subagents, remote]
+      executionCatalog
     })
     expect(code.map((definition) => definition.function.name)).toEqual(['run_code'])
     expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
@@ -1328,11 +1341,16 @@ describe('ToolService', () => {
       mode: 'agent',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, subagents, remote]
+      executionCatalog
     })
     expect(restoredAgent.map((definition) => definition.function.name)).toEqual([
       'exec',
       'read',
+      'write',
+      'edit',
+      'glob',
+      'grep',
+      'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
       'remote_search'
@@ -1346,11 +1364,15 @@ describe('ToolService', () => {
       mode: 'minimal',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, subagents, remote]
+      executionCatalog
     })
     expect(minimal.map((definition) => definition.function.name)).toEqual([
       'exec',
-      'str_replace_editor'
+      'process',
+      'str_replace_editor',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      'remote_search'
     ])
     expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
       'Code Mode subtools'
@@ -1361,12 +1383,27 @@ describe('ToolService', () => {
       mode: 'minimal',
       providerId: 'openai-codex',
       commandShell,
-      executionCatalog: [exec, read, question, subagents, remote]
+      executionCatalog
     })
     expect(codexMinimal.map((definition) => definition.function.name)).toEqual([
       'exec',
-      'apply_patch'
+      'process',
+      'apply_patch',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      'remote_search'
     ])
+    expect(() =>
+      toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'minimal',
+        providerId: 'deepseek',
+        commandShell,
+        executionCatalog: executionCatalog.filter(
+          (definition) => definition.function.name !== 'process'
+        )
+      })
+    ).toThrow('Minimal Mode requires the built-in process tool.')
     await toolService.shutdownCodeRuntime()
   })
 
@@ -4148,6 +4185,28 @@ describe('ToolService', () => {
     )
     expect(promptWithoutFocusedTools).not.toContain('rg -n')
     expect(promptWithoutFocusedTools).not.toContain('rg --files')
+
+    const minimalPrompt = toolService.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('exec', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('process', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('str_replace_editor', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    expect(minimalPrompt).toContain(
+      'Use canonical Agent tool names only: exec, process, str_replace_editor.'
+    )
+    expect(minimalPrompt).not.toContain('read, write, edit')
 
     const grepOnlyPrompt = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',

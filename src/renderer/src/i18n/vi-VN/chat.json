@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Sử dụng bộ công cụ Agent tiêu chuẩn.",
         "code": "Kết hợp các công cụ đã bật bằng mã. Yêu cầu chế độ quyền Toàn quyền truy cập.",
-        "minimal": "Chỉ sử dụng công cụ lệnh và chỉnh sửa tệp."
+        "minimal": "Đơn giản hóa thao tác tệp và giữ các công cụ đã bật khác."
       },
       "useModelDefault": "Dùng mặc định của mô hình",
       "saving": "Đang lưu chế độ...",

@@ -74,7 +74,7 @@
       "descriptions": {
         "agent": "Utiliser l’ensemble d’outils standard de l’agent.",
         "code": "Composer les outils activés par du code. Nécessite le mode d’autorisation Accès complet.",
-        "minimal": "Utiliser uniquement les outils de commande et d’édition de fichiers."
+        "minimal": "Simplifie les opérations sur les fichiers tout en conservant les autres outils activés."
       },
       "useModelDefault": "Utiliser la valeur par défaut du modèle",
       "saving": "Enregistrement du mode...",
