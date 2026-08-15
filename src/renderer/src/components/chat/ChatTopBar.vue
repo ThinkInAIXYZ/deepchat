@@ -27,7 +27,7 @@
         variant="ghost"
         size="sm"
         icon="lucide:corner-up-left"
-        class="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        class="no-drag h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
         :title="t('chat.topbar.backToParent')"
         @click="handleBackToParent"
       >
