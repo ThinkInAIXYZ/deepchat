@@ -2,10 +2,11 @@
 
 ## Status
 
-Implementation is complete on `feat/tape-trace-inspector`. The P1 read model and UI, P2 committed
-follow, and P3 timeline, export, and large-session work have landed. Whole-change review and
-automated final validation are complete. A manual desktop presentation pass and the documented
-multi-request message-entry acceptance decision remain before closing #2154.
+The core implementation is complete on `feat/tape-trace-inspector`. The P1 read model and UI, P2
+committed follow, and P3 sorting, export, and large-session work have landed. A renderer usability
+refinement is in progress after the manual presentation pass exposed unavoidable horizontal
+overflow and weak event scanability at supported side-panel widths. The data, identity, Live,
+pagination, and security contracts remain unchanged.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -177,7 +178,7 @@ recorded in `spec.md`.
 - [x] Review route and event naming for accurate authority and scope.
 - [x] Remove obsolete implementation code and temporary probes created during development.
 
-## 12. Final Validation
+## 12. Validation Baseline
 
 - [x] Run the smallest relevant main and renderer suites after each slice.
 - [x] Run `pnpm run format`.
@@ -188,13 +189,39 @@ recorded in `spec.md`.
 - [ ] Manually verify light/dark presentation, keyboard navigation, session/message entry points,
   legacy/unbound evidence, sparse ACP Tape, reset, pause/resume, and large-session scrolling.
 
-Completion condition: all selected checks pass, or any unrelated pre-existing failure is recorded
-with evidence before handoff.
+Baseline condition: all previously selected checks passed, or an unrelated pre-existing failure was
+recorded with evidence before the renderer usability refinement began.
 
 Automated final validation passed with 161 focused main-process tests and 249 focused renderer
 tests. The main-process migration suite emitted its existing ignored duplicate-column diagnostics;
 all selected tests still passed. The remaining manual presentation pass requires an interactive
 desktop session and does not change the read, identity, or security contracts above.
+
+## 13. Renderer Usability Refinement
+
+- [ ] Replace the per-row waterfall column with a bounded three-lane overview above the ledger.
+- [ ] Separate actual-time and canonical-sequence modes while preserving authoritative timing and
+  explicit point semantics.
+- [ ] Promote approved structured facts into localized row and group summaries without extending
+  list IPC or exposing payloads.
+- [ ] Make the ledger container-responsive at 360, 520, 760, and 960 px without horizontal
+  scrolling; retain wide-mode column sorting and resizing.
+- [ ] Make toolbar controls deterministic in compact widths and expose the existing side-panel
+  maximize pattern for focused inspection.
+- [ ] Show detail only after selection, as a wide side pane or compact in-panel overlay, with
+  keyboard-safe close and focus restoration.
+- [ ] Bound timeline rendering independently from the number of loaded records and preserve
+  selection, pagination anchors, collapse, filtering, and Live follow.
+- [ ] Add the smallest durable renderer coverage for semantic summaries, timeline projection,
+  responsive structure, and detail open/close behavior.
+- [ ] Run a full staged review for side effects, compatibility, edge cases, performance, security,
+  naming, test sufficiency, and maintenance cost before each commit.
+- [ ] Re-run format, i18n, lint, typecheck, focused renderer suites, and the manual presentation
+  matrix after implementation.
+
+Completion condition: the Inspector preserves every existing contract while a first-time user can
+orient, scan, and inspect records at every supported side-panel width without horizontal ledger
+navigation.
 
 ## Delivery Notes
 

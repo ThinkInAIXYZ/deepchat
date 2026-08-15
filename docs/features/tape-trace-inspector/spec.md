@@ -2,8 +2,9 @@
 
 ## Status
 
-Implemented. This specification is the normative contract for the session-level Tape Trace
-Inspector requested by [#2154](https://github.com/ThinkInAIXYZ/deepchat/issues/2154).
+Core implementation is complete. The renderer presentation is being refined for scanability and
+adaptive side-panel widths. This specification is the normative contract for the session-level
+Tape Trace Inspector requested by [#2154](https://github.com/ThinkInAIXYZ/deepchat/issues/2154).
 
 ## Problem
 
@@ -46,6 +47,10 @@ rows, or treat its grouping and status projections as durable state.
 - Keep large sessions responsive through keyset pagination and row virtualization.
 - Add committed-only live follow without changing Tape producers.
 - Preserve selection and scroll position across pagination, grouping, filtering, and live updates.
+- Keep the Inspector understandable without horizontal scrolling at the side panel's supported
+  widths.
+- Separate session orientation, event scanning, and evidence inspection into an overview timeline,
+  semantic ledger, and on-demand detail surface.
 
 ## Non-Goals
 
@@ -396,8 +401,8 @@ adds cancellable bounded page filling without sending payloads to the renderer.
 
 Canonical sort is ascending `entryId`. Before #2154 closes, server-side composite-key keyset sorting
 must support the columns that advertise sorting. Name, kind, explicit fact status, and start time may
-be supported; duration and waterfall do not advertise sorting because they are renderer-derived and
-may be incomplete.
+be supported; duration and overview position do not advertise sorting because they are
+renderer-derived and may be incomplete.
 
 Non-canonical sorting is a flat fact result mode. Correlation identities and detail navigation remain
 available, but synthetic hierarchical group rows are not shown because globally sorted group members
@@ -512,7 +517,7 @@ after-commit notifier remains a future optimization only if measured latency req
 ## Renderer Architecture
 
 The feature lives under `src/renderer/src/components/tape-inspector/` and owns one pure derived
-snapshot consumed by the table, waterfall, search, grouping, and detail pane.
+snapshot consumed by the ledger, overview timeline, search, grouping, and detail pane.
 
 State includes:
 
@@ -547,22 +552,58 @@ After:
 
 ```text
 +-- Tape Inspector ------------------------------------------------------+
-| Live  Filter...  Type  Status  Errors  Pause  Export                  |
+| Filter...  Live  Pause  Refresh  Export  Maximize                     |
 +------------------------------------------------------------------------+
-| Name / Initiator | Kind | Status | Start | Duration | Waterfall       |
-| Run ...                                                               |
-|   Provider attempt ...                                                |
-|     Provider request evidence ...                                     |
-|   Tool dispatch ...                                                   |
-|   Tool outcome ...                                                    |
+| Session  |  Model  |  Tools     synchronized overview timeline       |
 +------------------------------------------------------------------------+
-| Summary | Payload | Timing | Provenance | Integrity | Raw             |
-+------------------------------------------------------------------------+
+| Event / bounded summary      | Kind | Status | Start | Duration       |
+| Run completed, 12 facts                                              |
+|   Provider/model, completed, bounded usage                            |
+|   Tool name, target, success, 11 ms                                   |
++--------------------------------------+---------------------------------+
+| Virtualized chronological ledger    | on-demand selected detail       |
++--------------------------------------+---------------------------------+
 ```
 
-The implementation provides a full-height in-session panel, sticky headers, keyboard navigation,
-resizable columns, sequence plus available-actual waterfall rendering, horizontal pan/zoom, range
-brushing, and timing tooltips.
+The overview timeline is above the ledger rather than repeated as a wide per-row column. It uses
+three stable semantic lanes: session, model, and tools. Actual-time mode plots `createdAt` points and
+only authoritative run/tool spans; sequence mode plots canonical `entryId` positions. The modes are
+explicit and never overlay two coordinate systems in one glyph. Missing duration remains a point,
+not a zero-width inferred span.
+
+The overview and ledger are synchronized:
+
+- hover describes the semantic record, local time, and authoritative duration when available;
+- clicking an item selects and reveals its ledger row;
+- range brushing focuses the visible time window without deleting or reordering ledger records;
+- zoom and pan preserve selection;
+- filters affect both surfaces, while collapse only changes ledger row visibility;
+- an earlier-history boundary states when the overview covers only the loaded window.
+
+The ledger keeps fixed-height virtual rows and renderer-local prose assembled from existing bounded
+`facts`. Raw event names and physical kinds remain available as secondary metadata and in detail;
+tool name, provider/model, target, explicit outcome, retry decision, error code, and bounded usage
+may be promoted into the primary one-line summary. Context/Skill bodies, request payloads, tool
+arguments/results, and unknown-schema payloads never enter these summaries.
+
+The layout responds to the Inspector and remaining ledger container widths, not the window
+viewport:
+
+- at 840 px and wider, the unselected ledger exposes Event, Kind, Status, Start, and Duration
+  columns, and a selected detail pane may share the width on the right;
+- from 560 px through 839 px, Kind and Start collapse into secondary row metadata;
+- below 560 px, each row becomes one semantic event cell with compact inline status and timing;
+- toolbar actions adopt a deterministic second row and compact icon treatment rather than causing
+  horizontal overflow;
+- the detail pane does not reserve space without a selection and becomes an in-panel overlay below
+  840 px;
+- when a wide side detail reduces the remaining ledger below a row breakpoint, the ledger adopts
+  that compact row mode rather than retaining hidden or overflowing tracks;
+- a maximize action is an optional inspection aid, never a substitute for narrow-width support.
+
+Wide-mode columns remain resizable. Hidden compact-mode columns do not reserve grid tracks or
+produce a horizontal scrollbar. Numeric time, duration, and count values use tabular alignment.
+Unknown status is quiet text rather than a repeated high-weight badge.
 
 All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points.
 
@@ -598,6 +639,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - No initial session open scans from entry 1 to reach the tail.
 - Storage queries use keyset pagination, never offset pagination.
 - Renderer rows are virtualized.
+- The overview timeline uses bounded pixel buckets or an equivalent bounded render projection; the
+  number of timeline DOM nodes must not grow linearly with every loaded point.
 - Filter fallback scans have an explicit row budget and continuation cursor.
 - Trace existence is batched per page, not queried once per fact row.
 - Integrity and payload parsing that are not needed for list metadata are deferred to detail.
@@ -644,6 +687,14 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 25. Explicit request selection and diagnostics never fall back to another request when evidence is
     absent.
 26. Message-only preselection selects a request only when the visible identity is unambiguous.
+27. The waterfall is a synchronized overview above the ledger, not a width-reserving per-row
+    column.
+28. Actual time and canonical sequence are explicit mutually exclusive display modes.
+29. Semantic row summaries use only bounded list metadata already approved for renderer IPC.
+30. Responsive behavior follows Inspector container width and never requires maximize to become
+    usable.
+31. Detail is on demand: wide containers use a side pane, compact containers use an in-panel
+    overlay, and closing it restores ledger context.
 
 ## Acceptance Criteria
 
@@ -655,7 +706,10 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   one correlated view when available.
 - Evidence never acquires a Tape identity, and legacy evidence never acquires an inferred attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.
-- Sequence is always drawable; actual spans use authoritative endpoints; unknown timing is explicit.
+- The synchronized overview supports sequence and actual-time modes, pan/zoom, range brushing,
+  selection linkage, and explicit unknown timing.
+- The supported 360, 520, 760, and 960 px Inspector widths do not require horizontal ledger
+  scrolling, and localized summaries retain their primary identity.
 - Live append is deterministic, payload-free, incarnation-safe, and does not steal selection.
 - Pause and resume affect automatic pulls and follow only.
 - Filters apply to their documented server or loaded scope, and the UI states that scope.
