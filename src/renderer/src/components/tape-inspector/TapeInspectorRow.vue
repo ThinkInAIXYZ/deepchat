@@ -1,6 +1,6 @@
 <template>
   <div
-    class="tape-inspector-row grid h-9 cursor-default items-center border-b border-border/50 text-xs outline-none"
+    class="tape-inspector-row relative grid h-12 cursor-default items-center border-b border-border/50 text-xs outline-none"
     :class="[
       selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/40',
       row.recordType === 'group' || row.recordType === 'evidence_lane'
@@ -18,6 +18,11 @@
     @click="emit('select', row.key)"
     @dblclick="toggleIfCollapsible"
   >
+    <span
+      aria-hidden="true"
+      class="absolute inset-y-2 left-0 w-0.5 rounded-r"
+      :class="accentClass"
+    />
     <div class="flex min-w-0 items-center gap-1.5 px-2" :style="indentStyle" role="gridcell">
       <button
         v-if="isCollapsible"
@@ -31,15 +36,26 @@
         <Icon :icon="isCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'" class="size-3" />
       </button>
       <span v-else class="w-5 shrink-0 text-center text-muted-foreground" aria-hidden="true">
-        <Icon :icon="rowIcon" class="inline size-3" />
+        <Icon :icon="rowIcon" class="inline size-3.5" :class="iconClass" />
       </span>
-      <span class="truncate" :title="nameLabel">{{ nameLabel }}</span>
-      <span
-        v-if="row.recordType === 'evidence' && row.legacyUnattributed"
-        class="shrink-0 rounded border border-border px-1 text-[10px] font-normal text-muted-foreground"
-      >
-        {{ t('tapeInspector.evidence.legacy') }}
-      </span>
+      <div class="min-w-0 flex-1 py-1">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <span class="truncate" :title="nameLabel">{{ nameLabel }}</span>
+          <span
+            v-if="row.recordType === 'evidence' && row.legacyUnattributed"
+            class="shrink-0 rounded border border-border px-1 text-[10px] font-normal text-muted-foreground"
+          >
+            {{ t('tapeInspector.evidence.legacy') }}
+          </span>
+        </div>
+        <div
+          v-if="summaryLabel"
+          class="mt-0.5 truncate text-[10px] font-normal text-muted-foreground"
+          :title="summaryLabel"
+        >
+          {{ summaryLabel }}
+        </div>
+      </div>
     </div>
     <div class="truncate px-2 text-muted-foreground" role="gridcell" :title="kindLabel">
       {{ kindLabel }}
@@ -90,7 +106,11 @@
 import { computed, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { getTapeInspectorRowDomId, type TapeInspectorDisplayRow } from './model'
+import {
+  getTapeInspectorRowDomId,
+  type TapeInspectorDisplayRow,
+  type TapeInspectorFactRow
+} from './model'
 
 const props = withDefaults(
   defineProps<{
@@ -184,7 +204,42 @@ const nameLabel = computed(() => {
   if (row.group.kind === 'attempt') {
     return `${t('tapeInspector.groups.attempt')} · #${row.group.physicalAttempt ?? '?'}`
   }
-  return `${t('tapeInspector.groups.tool')} · ${shortIdentity(row.group.providerToolCallId)}`
+  return row.summary.toolName ?? t('tapeInspector.groups.tool')
+})
+
+function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record']['facts']): void {
+  if (!facts) return
+  if (facts.toolName) parts.push(facts.toolName)
+  if (facts.targetServer) parts.push(facts.targetServer)
+  if (facts.providerId || facts.modelId) {
+    parts.push([facts.providerId, facts.modelId].filter(Boolean).join(' / '))
+  }
+  if (facts.outcome) parts.push(facts.outcome)
+  if (facts.stopReason && facts.stopReason !== facts.outcome) parts.push(facts.stopReason)
+  if (facts.retryDecision) parts.push(facts.retryDecision)
+  if (facts.errorCode) parts.push(facts.errorCode)
+}
+
+const summaryLabel = computed(() => {
+  const row = props.row
+  const parts: string[] = []
+  if (row.recordType === 'fact') {
+    appendFactSummary(parts, row.record.facts)
+    if (parts.length === 0) parts.push(row.record.family)
+  } else if (row.recordType === 'evidence') {
+    parts.push(`${row.record.providerId} / ${row.record.modelId}`)
+    parts.push(`#${row.record.requestSeq}`)
+  } else if (row.recordType === 'evidence_lane') {
+    return t('tapeInspector.kinds.lane')
+  } else {
+    appendFactSummary(parts, row.summary)
+    parts.push(`${t('tapeInspector.fields.records')}: ${row.summary.factCount}`)
+    if (row.group.kind === 'run' && row.group.runId) parts.push(shortIdentity(row.group.runId))
+    if (row.group.kind === 'tool' && row.group.providerToolCallId) {
+      parts.push(shortIdentity(row.group.providerToolCallId))
+    }
+  }
+  return [...new Set(parts.filter(Boolean))].join(' · ')
 })
 
 const kindLabel = computed(() => {
@@ -242,11 +297,85 @@ const timingTooltip = computed(() => {
 })
 const rowIcon = computed(() => {
   if (props.row.recordType === 'evidence') return 'lucide:radio'
-  if (props.row.recordType === 'fact' && props.row.record.family === 'context') {
-    return 'lucide:shield'
+  if (props.row.recordType === 'evidence_lane') return 'lucide:radio-tower'
+  if (props.row.recordType === 'group') {
+    if (props.row.group.kind === 'run') return 'lucide:activity'
+    if (props.row.group.kind === 'request') return 'lucide:bot'
+    if (props.row.group.kind === 'attempt') return 'lucide:rotate-cw'
+    return 'lucide:wrench'
   }
-  return 'lucide:diamond'
+  const familyIcons: Record<TapeInspectorFactRow['record']['family'], string> = {
+    context: 'lucide:layers',
+    journal: 'lucide:route',
+    contract: 'lucide:shield-check',
+    view: 'lucide:panel-top',
+    attempt: 'lucide:bot',
+    anchor: 'lucide:anchor',
+    message: 'lucide:message-square',
+    lineage: 'lucide:git-fork',
+    tool: 'lucide:wrench',
+    other: 'lucide:diamond'
+  }
+  return familyIcons[props.row.record.family]
 })
+
+const semanticTone = computed<'error' | 'session' | 'model' | 'tool' | 'evidence' | 'neutral'>(
+  () => {
+    const row = props.row
+    const explicitStatus = row.status?.toLocaleLowerCase()
+    if (
+      explicitStatus === 'error' ||
+      explicitStatus === 'failed' ||
+      explicitStatus === 'failure' ||
+      (row.recordType === 'fact' &&
+        (row.record.facts?.isError === true || Boolean(row.record.facts?.errorCode))) ||
+      (row.recordType === 'group' && Boolean(row.summary.errorCode))
+    ) {
+      return 'error'
+    }
+    if (row.recordType === 'evidence' || row.recordType === 'evidence_lane') return 'evidence'
+    if (row.recordType === 'group') {
+      if (row.group.kind === 'request' || row.group.kind === 'attempt') return 'model'
+      if (row.group.kind === 'tool') return 'tool'
+      return 'session'
+    }
+    if (row.record.family === 'attempt') return 'model'
+    if (row.record.family === 'tool') return 'tool'
+    if (
+      row.record.family === 'context' ||
+      row.record.family === 'view' ||
+      row.record.family === 'anchor' ||
+      row.record.family === 'lineage'
+    ) {
+      return 'session'
+    }
+    return 'neutral'
+  }
+)
+
+const accentClass = computed(
+  () =>
+    ({
+      error: 'bg-destructive',
+      session: 'bg-emerald-500',
+      model: 'bg-violet-500',
+      tool: 'bg-amber-500',
+      evidence: 'bg-cyan-500',
+      neutral: 'bg-muted-foreground/40'
+    })[semanticTone.value]
+)
+
+const iconClass = computed(
+  () =>
+    ({
+      error: 'text-destructive',
+      session: 'text-emerald-600 dark:text-emerald-400',
+      model: 'text-violet-600 dark:text-violet-400',
+      tool: 'text-amber-600 dark:text-amber-400',
+      evidence: 'text-cyan-600 dark:text-cyan-400',
+      neutral: 'text-muted-foreground'
+    })[semanticTone.value]
+)
 
 function toggleIfCollapsible(): void {
   if (isCollapsible.value) emit('toggle', props.row.key)

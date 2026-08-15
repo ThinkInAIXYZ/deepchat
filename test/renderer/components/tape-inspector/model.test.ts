@@ -258,7 +258,8 @@ describe('Tape Inspector renderer projection', () => {
         runId: 'run-1',
         requestSeq: 1,
         providerToolCallId: 'call-1',
-        createdAt: 200
+        createdAt: 200,
+        facts: { toolName: 'lookup', targetServer: 'search' }
       }),
       fact(4, {
         name: 'execution/tool_outcome',
@@ -266,7 +267,7 @@ describe('Tape Inspector renderer projection', () => {
         requestSeq: 1,
         providerToolCallId: 'call-1',
         createdAt: 260,
-        facts: { isError: false }
+        facts: { isError: false, toolName: 'lookup', targetServer: 'search' }
       }),
       fact(5, { name: 'execution/run_started', runId: 'run-3', createdAt: 400 }),
       fact(6, { name: 'execution/run_terminal', runId: 'run-3', createdAt: 390 })
@@ -304,6 +305,11 @@ describe('Tape Inspector renderer projection', () => {
     expect(tool?.actualStartAt).toBe(200)
     expect(tool?.actualEndAt).toBe(260)
     expect(tool?.sequenceEntryId).toBe(3)
+    expect(tool?.recordType === 'group' && tool.summary).toMatchObject({
+      factCount: 2,
+      toolName: 'lookup',
+      targetServer: 'search'
+    })
     const dispatch = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 3)
     expect(dispatch?.durationMs).toBe(60)
     expect(dispatch?.actualStartAt).toBe(200)

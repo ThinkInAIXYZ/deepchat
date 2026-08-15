@@ -130,12 +130,42 @@ describe('TapeInspectorRow', () => {
         messageId: 'message-1',
         requestSeq: 1
       },
+      summary: { factCount: 1 },
       collapsed: false
     }
     await wrapper.setProps({ row: unknownGroup })
 
     expect(wrapper.find('[data-testid="tape-inspector-actual-point"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="tape-inspector-sequence-marker"]').exists()).toBe(false)
+  })
+
+  it('surfaces bounded provider and outcome facts without opening detail', () => {
+    const wrapper = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({
+          status: 'completed',
+          record: {
+            recordType: 'fact',
+            key: 'entry:10',
+            entryId: 10,
+            family: 'attempt',
+            kind: 'event',
+            name: 'provider/attempt_completed',
+            createdAt: 1_000,
+            facts: {
+              providerId: 'provider-1',
+              modelId: 'model-1',
+              outcome: 'completed'
+            }
+          }
+        }),
+        selected: false
+      }
+    })
+
+    expect(wrapper.text()).toContain('provider/attempt_completed')
+    expect(wrapper.text()).toContain('provider-1 / model-1 · completed')
+    expect(wrapper.classes()).toContain('h-12')
   })
 
   it('hides markers that fall entirely outside the viewport', () => {

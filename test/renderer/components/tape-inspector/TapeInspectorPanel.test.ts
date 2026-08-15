@@ -241,7 +241,7 @@ describe('TapeInspectorPanel', () => {
       maxEntryId: 20
     })
     expect(inspectorStore.startEvidenceRefresh).toHaveBeenCalledOnce()
-    expect(wrapper.get('[data-testid="recycle-scroller"]').attributes('data-item-size')).toBe('36')
+    expect(wrapper.get('[data-testid="recycle-scroller"]').attributes('data-item-size')).toBe('48')
   })
 
   it('does not apply a stale request from another session', async () => {
@@ -547,7 +547,7 @@ describe('TapeInspectorPanel', () => {
     })
     await flushPromises()
     const scroller = wrapper.findComponent({ name: 'RecycleScroller' })
-    ;(scroller.element as HTMLElement).scrollTop = 48
+    ;(scroller.element as HTMLElement).scrollTop = 60
     const loadOlder = wrapper
       .findAll('button')
       .find((button) => button.text() === 'tapeInspector.actions.loadOlder')
@@ -560,7 +560,7 @@ describe('TapeInspectorPanel', () => {
       key: 'fact:incarnation:entry:11',
       offset: 12
     })
-    expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(120)
+    expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(156)
     expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
   })
 

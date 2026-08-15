@@ -18,6 +18,18 @@ export interface TapeInspectorGroupDescriptor {
   childOrdinal?: number
 }
 
+export interface TapeInspectorGroupSummary {
+  factCount: number
+  toolName?: string
+  targetServer?: string
+  providerId?: string
+  modelId?: string
+  outcome?: string
+  stopReason?: string
+  retryDecision?: string
+  errorCode?: string
+}
+
 interface TapeInspectorRowBase {
   key: string
   depth: number
@@ -34,6 +46,7 @@ interface TapeInspectorRowBase {
 export interface TapeInspectorGroupRow extends TapeInspectorRowBase {
   recordType: 'group'
   group: TapeInspectorGroupDescriptor
+  summary: TapeInspectorGroupSummary
   collapsed: boolean
 }
 
@@ -245,6 +258,38 @@ function groupStatus(
       : null
   }
   return stableDerivedStatus(matching.map(factStatus))
+}
+
+function groupSummary(matching: readonly TapeInspectorFactRecord[]): TapeInspectorGroupSummary {
+  const values = {
+    toolName: new Set<string>(),
+    targetServer: new Set<string>(),
+    providerId: new Set<string>(),
+    modelId: new Set<string>(),
+    outcome: new Set<string>(),
+    stopReason: new Set<string>(),
+    retryDecision: new Set<string>(),
+    errorCode: new Set<string>()
+  }
+  for (const record of matching) {
+    for (const key of Object.keys(values) as Array<keyof typeof values>) {
+      const value = record.facts?.[key]
+      if (value) values[key].add(value)
+    }
+  }
+  const unique = (set: ReadonlySet<string>): string | undefined =>
+    set.size === 1 ? [...set][0] : undefined
+  return {
+    factCount: matching.length,
+    toolName: unique(values.toolName),
+    targetServer: unique(values.targetServer),
+    providerId: unique(values.providerId),
+    modelId: unique(values.modelId),
+    outcome: unique(values.outcome),
+    stopReason: unique(values.stopReason),
+    retryDecision: unique(values.retryDecision),
+    errorCode: unique(values.errorCode)
+  }
 }
 
 interface TimingPair {
@@ -515,6 +560,7 @@ export function buildTapeInspectorRows(input: {
           recordType: 'group',
           key: group.key,
           group,
+          summary: groupSummary(recordsByGroup.get(group.key) ?? []),
           depth: index,
           collapsed: input.collapsedKeys.has(group.key),
           status: groupStatus(group, recordsByGroup.get(group.key) ?? []),

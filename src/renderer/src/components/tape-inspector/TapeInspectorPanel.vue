@@ -513,7 +513,7 @@ const emit = defineEmits<{
   openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
 }>()
 
-const ROW_HEIGHT = 36
+const ROW_HEIGHT = 48
 const familyOptions: TapeInspectorFactFamily[] = [
   'context',
   'journal',
