@@ -1,8 +1,13 @@
 <template>
   <div
     :class="[
-      'relative w-full overflow-hidden p-4 text-foreground',
-      props.embedded ? '' : 'tool-interaction-overlay max-w-2xl rounded-xl'
+      'relative flex min-h-0 w-full flex-col overflow-hidden p-4 text-foreground',
+      props.embedded
+        ? ''
+        : [
+            'tool-interaction-overlay max-w-2xl rounded-xl',
+            isPermission ? 'max-h-[min(70vh,calc(100vh-12rem))]' : ''
+          ]
     ]"
   >
     <div v-if="!props.embedded" class="tool-interaction-overlay__backdrop" aria-hidden="true" />
@@ -28,7 +33,16 @@
       >
     </div>
 
-    <div v-if="isPermission" class="mt-3 space-y-2">
+    <div
+      v-if="isPermission"
+      data-testid="tool-interaction-scroll-region"
+      :class="[
+        'mt-3 space-y-2',
+        props.embedded
+          ? ''
+          : 'dc-overscroll-contain min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'
+      ]"
+    >
       <div class="rounded-md border bg-muted/50 px-3 py-2">
         <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Tool</div>
         <div class="text-xs font-medium break-all">{{ interaction.toolName || '-' }}</div>
@@ -70,7 +84,7 @@
       </DcButton>
     </div>
 
-    <div v-else class="mt-4 flex gap-2">
+    <div v-else data-testid="tool-interaction-actions" class="mt-4 flex shrink-0 gap-2">
       <DcButton
         :disabled="processing"
         variant="outline"

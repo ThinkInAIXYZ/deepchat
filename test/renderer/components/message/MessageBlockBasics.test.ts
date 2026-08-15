@@ -235,6 +235,33 @@ describe('MessageBlock basics', () => {
     ])
   })
 
+  it('bounds standalone permission details while keeping actions outside the scroll region', () => {
+    const wrapper = mount(ChatToolInteractionOverlay, {
+      props: {
+        interaction: {
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          actionType: 'tool_call_permission',
+          toolName: 'deepchat_subagents',
+          toolArgs: JSON.stringify({ prompt: 'Review the project. '.repeat(200) }),
+          block: createBlock({
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            content: 'Approve this subagent task?'
+          })
+        }
+      }
+    })
+
+    expect(wrapper.classes()).toContain('max-h-[min(70vh,calc(100vh-12rem))]')
+    const scrollRegion = wrapper.get('[data-testid="tool-interaction-scroll-region"]')
+    expect(scrollRegion.classes()).toContain('overflow-y-auto')
+    expect(scrollRegion.findAll('button')).toHaveLength(0)
+    expect(wrapper.get('[data-testid="tool-interaction-actions"]').findAll('button')).toHaveLength(
+      2
+    )
+  })
+
   it('renders question request content and answer', () => {
     const wrapper = mount(MessageBlockQuestionRequest, {
       props: {
