@@ -427,11 +427,11 @@ export function renderCodeModeSdk(
   if (frontend === 'codex') {
     return `## Writing code for exec
 
-\`exec\` and \`wait\` are the Code Mode entrypoints. Any tools separately exposed alongside them are direct top-level tools and never subtools. The declarations below are subtools, not top-level tools. Never call a subtool directly; invoke it only inside \`exec\` through \`await tools.name(args)\`. Any top-level tool call whose name comes from the subtool declarations is invalid.
+\`exec\` and \`wait\` are the Code Mode entrypoints. Any tools separately exposed alongside them are direct top-level tools and never subtools. Only those entrypoints and separately exposed direct tools are valid top-level calls. The declarations below are subtools and must be invoked inside the top-level \`exec\` through \`await tools.name(args)\`.
 
 \`exec\` runs the body of an async JavaScript module. Only values passed to the output helpers or returned by the module enter the tool result. Use \`yield_control()\` only when the cell must be resumed later with \`wait\`.
 
-\`tools.exec\` is the selected Shell command subtool; the top-level \`exec\` is the Code Mode entrypoint.
+The top-level \`exec\` starts a Code Mode cell; \`tools.exec\` inside that cell runs the selected Shell command subtool.
 
 \`\`\`ts
 ${codexDeclaration}

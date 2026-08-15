@@ -45,6 +45,7 @@ const nestedTool: MCPToolDefinition = {
 describe('Tool Mode provider contracts', () => {
   it('projects the Codex frontend as raw exec plus function wait', () => {
     const definitions = createCodexCodeModeToolDefinitions([nestedTool])
+    const sdk = renderCodeModeSdk('codex', [nestedTool])
 
     expect(definitions.map((tool) => tool.function.name)).toEqual(['exec', 'wait'])
     expect(definitions[0]).toMatchObject({
@@ -59,6 +60,12 @@ describe('Tool Mode provider contracts', () => {
     )
     expect(definitions[0].function.description).toContain(
       'declare const tools: { mcp_demo_read_file(args: { "path": string }): Promise<{ "content": string }>; };'
+    )
+    expect(sdk).toContain(
+      'Only those entrypoints and separately exposed direct tools are valid top-level calls.'
+    )
+    expect(sdk).toContain(
+      'The top-level `exec` starts a Code Mode cell; `tools.exec` inside that cell runs the selected Shell command subtool.'
     )
     expect(definitions[1].function.parameters).toMatchObject({
       required: ['cell_id'],
