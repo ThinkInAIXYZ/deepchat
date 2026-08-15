@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "Tryb",
+      "modelDefault": "Domyślny dla modelu",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Użyj standardowego zestawu narzędzi agenta.",
+        "code": "Łącz włączone narzędzia za pomocą kodu. Wymaga trybu uprawnień Pełny dostęp.",
+        "minimal": "Używaj tylko narzędzi poleceń i edycji plików."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Użyj domyślnego dla modelu",
+      "saving": "Zapisywanie trybu...",
+      "locked": "Tryb można zmienić po zakończeniu tej odpowiedzi.",
+      "updateFailed": "Nie udało się zaktualizować trybu narzędzi.",
+      "codeEntry": "Wejście kodu",
+      "codeCallable": "Wywoływalne z kodu",
+      "minimalTools": "Narzędzia programistyczne"
     },
     "fileUploadFailed": "Załącznik nie powiódł się",
     "fileUploadFailedDesc": "Nie można przetworzyć plików {count}: {names}",

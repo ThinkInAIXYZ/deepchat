@@ -3,9 +3,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import type { UtilityProcess } from 'electron'
-import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/mcp'
+import type { MCPToolDefinition, MCPToolResponse, ToolDispatchCommitInput } from '@shared/types/mcp'
 import type { ToolCallOptions } from '@shared/types/tool'
 import {
+  RUN_CODE_MAX_NESTED_CALLS,
   RUN_CODE_PROTOCOL_VERSION,
   RUN_CODE_SOURCE_MAX_BYTES,
   type RunCodeFrontend,
@@ -13,6 +14,8 @@ import {
   type RunCodeParentMessage,
   type RunCodeToolBinding
 } from '@shared/codeModeProtocol'
+import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJournal'
 import { normalizeCodexToolName } from './toolModeTools'
 
 type CodeModeUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
@@ -49,6 +52,7 @@ export interface RunCodeExecutionInput {
   yieldTimeMs?: number
   maxOutputTokens?: number
   executionCatalog: readonly MCPToolDefinition[]
+  outerDispatch: ToolDispatchCommitInput
   options: ToolCallOptions
 }
 
@@ -59,6 +63,7 @@ export interface RunCodeWaitInput {
   yieldTimeMs: number
   maxTokens: number
   terminate: boolean
+  outerDispatch: ToolDispatchCommitInput
   options: ToolCallOptions
 }
 
@@ -82,6 +87,17 @@ type PendingPermissionCall = {
   response: { content: unknown; rawData: MCPToolResponse }
 }
 
+type NestedCallState = {
+  hostCallId: string
+  outerToolCallId: string
+  childOrdinal: number
+  definitionHash: string
+  dispatchCommitted: boolean
+  outcomeCommitted: boolean
+}
+
+type HostSettlementMessage = Extract<RunCodeHostMessage, { type: 'YIELDED' | 'RESULT' | 'ERROR' }>
+
 type ActiveCell = {
   id: string
   sessionId: string
@@ -90,7 +106,16 @@ type ActiveCell = {
   frontend: RunCodeFrontend
   host: CodeModeUtilityProcess
   state: CellState
-  bindings: Map<string, { binding: RunCodeToolBinding; definition: MCPToolDefinition }>
+  bindings: Map<
+    string,
+    { binding: RunCodeToolBinding; definition: MCPToolDefinition; definitionHash: string }
+  >
+  capabilityHash: string
+  nestedCalls: Map<string, NestedCallState>
+  nestedCallsInFlight: number
+  nextChildOrdinal: number
+  pendingNestedMessages: Array<Extract<RunCodeHostMessage, { type: 'NESTED_CALL' }>>
+  pendingHostSettlement: HostSettlementMessage | null
   options: ToolCallOptions
   waiter: DeferredResult | null
   yieldTimeMs: number
@@ -122,6 +147,10 @@ type ActiveCell = {
 const READY_TIMEOUT_MS = 5_000
 const HEARTBEAT_TIMEOUT_MS = 3_500
 const YIELD_LEASE_MS = 60_000
+const MAX_JOURNALED_NESTED_CALLS = Math.min(
+  RUN_CODE_MAX_NESTED_CALLS,
+  MAX_EXECUTION_JOURNAL_NESTED_CHILDREN
+)
 const STOP_GRACE_MS = 500
 const RSS_SOFT_MIN_BYTES = 256 * 1024 * 1024
 const RSS_SOFT_DELTA_BYTES = 128 * 1024 * 1024
@@ -202,6 +231,18 @@ function limitOutputTokens(content: string, maxTokens: number): string {
   return `${content.slice(0, maxChars)}\n<output truncated>`
 }
 
+function assertCompleteJournalCapabilities(options: ToolCallOptions): void {
+  const capabilities = [
+    options.commitDispatch,
+    options.commitNestedDispatch,
+    options.commitNestedToolOutcome
+  ]
+  const provided = capabilities.filter(Boolean).length
+  if (provided !== 0 && provided !== capabilities.length) {
+    throw new Error('Code Mode execution requires complete outer and nested journal capabilities.')
+  }
+}
+
 export class RunCodeRuntimeManager {
   private readonly cellsById = new Map<string, ActiveCell>()
   private readonly cellsBySession = new Map<string, ActiveCell>()
@@ -213,18 +254,22 @@ export class RunCodeRuntimeManager {
   async execute(input: RunCodeExecutionInput): Promise<RunCodeExecutionResult> {
     if (this.shuttingDown) throw new Error('Code mode runtime is shutting down.')
     input.options.signal?.throwIfAborted()
+    assertCompleteJournalCapabilities(input.options)
     if (Buffer.byteLength(input.source, 'utf8') > RUN_CODE_SOURCE_MAX_BYTES) {
       throw new Error('Code mode source exceeded the 256 KiB limit.')
     }
 
     const existing = this.cellsBySession.get(input.sessionId)
     if (existing) {
+      // Permission retries must keep the provider tool-call ID so parent and child journal
+      // identities remain stable across the resumed execution.
       if (
         existing.outerToolCallId === input.toolCallId &&
         existing.state === 'permission' &&
         existing.pendingPermission
       ) {
         existing.options = input.options
+        this.clearCellLease(existing)
         this.bindAbortSignal(existing, input.options.signal)
         existing.waiter = createDeferred()
         void this.retryPermissionCall(existing)
@@ -234,14 +279,21 @@ export class RunCodeRuntimeManager {
     }
 
     const cellId = randomUUID()
+
+    const canonicalCatalog = buildCanonicalToolCatalog(input.executionCatalog)
+    const catalogEntryByName = new Map(
+      canonicalCatalog.entries.map((entry) => [entry.target.providerVisibleName, entry])
+    )
     const bindings = new Map<
       string,
-      { binding: RunCodeToolBinding; definition: MCPToolDefinition }
+      { binding: RunCodeToolBinding; definition: MCPToolDefinition; definitionHash: string }
     >()
     const seenNames = new Set<string>()
     for (const definition of input.executionCatalog) {
       const rawName = definition.function.name.trim()
       if (!rawName) continue
+      const catalogEntry = catalogEntryByName.get(rawName)
+      if (!catalogEntry) throw new Error(`Code Mode catalog identity is missing for '${rawName}'.`)
       const name = input.frontend === 'codex' ? normalizeCodexToolName(rawName) : rawName
       if (seenNames.has(name)) throw new Error(`Duplicate Code Mode tool name: ${name}`)
       seenNames.add(name)
@@ -254,9 +306,14 @@ export class RunCodeRuntimeManager {
             ? 'parallel'
             : 'sequential'
       }
-      bindings.set(binding.id, { binding, definition })
+      bindings.set(binding.id, {
+        binding,
+        definition,
+        definitionHash: catalogEntry.canonicalToolDefinitionHash
+      })
     }
 
+    input.options.commitDispatch?.(input.outerDispatch)
     const host = await this.spawnReadyHost()
 
     const cell = this.createCell({
@@ -267,9 +324,11 @@ export class RunCodeRuntimeManager {
       frontend: input.frontend,
       host,
       bindings,
+      capabilityHash: canonicalCatalog.fullCatalogHash,
       yieldTimeMs: input.yieldTimeMs ?? 10_000,
       maxOutputTokens: input.maxOutputTokens ?? 10_000,
-      options: input.options
+      options: input.options,
+      committedDispatchToolCallId: input.toolCallId
     })
     this.cellsById.set(cell.id, cell)
     this.cellsBySession.set(cell.sessionId, cell)
@@ -292,10 +351,20 @@ export class RunCodeRuntimeManager {
 
   async wait(input: RunCodeWaitInput): Promise<RunCodeExecutionResult> {
     input.options.signal?.throwIfAborted()
+    assertCompleteJournalCapabilities(input.options)
     const cell = this.cellsById.get(input.cellId)
     if (!cell || cell.sessionId !== input.sessionId) {
       throw new Error(`Code cell ${input.cellId} is not available for this session.`)
     }
+    if (
+      cell.state === 'permission' &&
+      cell.pendingPermission &&
+      cell.outerToolCallId !== input.toolCallId
+    ) {
+      throw new Error('Code Mode permission must resume through its original outer tool call.')
+    }
+    cell.outerToolCallId = input.toolCallId
+    this.commitOuterDispatch(cell, input.toolCallId, input.outerDispatch, input.options)
     if (input.terminate) {
       cell.terminal = true
       this.cleanupCell(cell, 'Terminated by wait.')
@@ -304,13 +373,7 @@ export class RunCodeRuntimeManager {
 
     if (cell.state === 'permission' && cell.pendingPermission) {
       cell.options = input.options
-      if (cell.outerToolCallId !== input.toolCallId) {
-        cell.outerToolCallId = input.toolCallId
-        return {
-          content: stringifyResult(cell.pendingPermission.response.content),
-          rawData: cell.pendingPermission.response.rawData
-        }
-      }
+      this.clearCellLease(cell)
       this.bindAbortSignal(cell, input.options.signal)
       cell.waiter = createDeferred()
       void this.retryPermissionCall(cell)
@@ -325,8 +388,7 @@ export class RunCodeRuntimeManager {
     cell.options = input.options
     cell.yieldTimeMs = input.yieldTimeMs
     cell.maxOutputTokens = input.maxTokens
-    if (cell.yieldLeaseTimer) clearTimeout(cell.yieldLeaseTimer)
-    cell.yieldLeaseTimer = null
+    this.clearCellLease(cell)
 
     if (cell.pendingError) {
       const error = cell.pendingError
@@ -345,7 +407,7 @@ export class RunCodeRuntimeManager {
     if (cell.pendingYieldOutput) {
       const output = this.takeUndeliveredOutput(cell, cell.pendingYieldOutput)
       cell.pendingYieldOutput = null
-      this.armYieldLease(cell)
+      this.armCellLease(cell, 'Code cell yield lease expired.')
       return {
         content: limitOutputTokens(createYieldContent(cell.id, output), cell.maxOutputTokens)
       }
@@ -362,6 +424,7 @@ export class RunCodeRuntimeManager {
         cellId: cell.id
       })
     }
+    this.drainPendingNestedCalls(cell)
     this.scheduleYield(cell)
     return await cell.waiter.promise
   }
@@ -397,6 +460,8 @@ export class RunCodeRuntimeManager {
     yieldTimeMs: number
     maxOutputTokens: number
     options: ToolCallOptions
+    capabilityHash: string
+    committedDispatchToolCallId: string | null
   }): ActiveCell {
     const cell: ActiveCell = {
       ...input,
@@ -409,7 +474,11 @@ export class RunCodeRuntimeManager {
       pendingError: null,
       deliveredOutputCount: 0,
       pendingPermission: null,
-      committedDispatchToolCallId: null,
+      nestedCalls: new Map(),
+      nestedCallsInFlight: 0,
+      nextChildOrdinal: 0,
+      pendingNestedMessages: [],
+      pendingHostSettlement: null,
       lastHeartbeatAt: Date.now(),
       startupRssBytes: null,
       heartbeatTimer: null,
@@ -452,6 +521,10 @@ export class RunCodeRuntimeManager {
     cell.yieldTimer = setTimeout(() => {
       cell.yieldTimer = null
       if (cell.state !== 'running' || !cell.waiter || cell.terminal) return
+      if (cell.nestedCallsInFlight > 0) {
+        this.scheduleYield(cell)
+        return
+      }
       const waiter = cell.waiter
       cell.waiter = null
       cell.state = 'yielded'
@@ -460,7 +533,7 @@ export class RunCodeRuntimeManager {
       waiter.resolve({
         content: limitOutputTokens(createYieldContent(cell.id, []), cell.maxOutputTokens)
       })
-      this.armYieldLease(cell)
+      this.armCellLease(cell, 'Code cell yield lease expired.')
     }, cell.yieldTimeMs)
   }
 
@@ -469,12 +542,17 @@ export class RunCodeRuntimeManager {
     cell.yieldTimer = null
   }
 
-  private armYieldLease(cell: ActiveCell): void {
-    if (cell.yieldLeaseTimer) clearTimeout(cell.yieldLeaseTimer)
+  private armCellLease(cell: ActiveCell, errorMessage: string): void {
+    this.clearCellLease(cell)
     cell.yieldLeaseTimer = setTimeout(
-      () => this.failAndCleanup(cell, new Error('Code cell yield lease expired.')),
+      () => this.failAndCleanup(cell, new Error(errorMessage)),
       YIELD_LEASE_MS
     )
+  }
+
+  private clearCellLease(cell: ActiveCell): void {
+    if (cell.yieldLeaseTimer) clearTimeout(cell.yieldLeaseTimer)
+    cell.yieldLeaseTimer = null
   }
 
   private takeUndeliveredOutput(cell: ActiveCell, output: unknown[]): unknown[] {
@@ -483,15 +561,88 @@ export class RunCodeRuntimeManager {
     return output.slice(start)
   }
 
+  private commitOuterDispatch(
+    cell: ActiveCell,
+    toolCallId: string,
+    outerDispatch: ToolDispatchCommitInput,
+    options: ToolCallOptions
+  ): void {
+    if (cell.committedDispatchToolCallId === toolCallId) return
+    options.commitDispatch?.(outerDispatch)
+    cell.committedDispatchToolCallId = toolCallId
+  }
+
+  private createNestedCallState(
+    cell: ActiveCell,
+    hostCallId: string,
+    definitionHash: string
+  ): NestedCallState {
+    if (cell.nestedCalls.has(hostCallId)) {
+      throw new Error(`Duplicate Code Mode subtool call ID: ${hostCallId}`)
+    }
+    if (cell.nextChildOrdinal >= MAX_JOURNALED_NESTED_CALLS) {
+      throw new Error(`Code cell exceeded ${MAX_JOURNALED_NESTED_CALLS} nested tool calls.`)
+    }
+    if (cell.committedDispatchToolCallId !== cell.outerToolCallId) {
+      throw new Error('Code Mode subtool call has no committed outer dispatch.')
+    }
+    const child: NestedCallState = {
+      hostCallId,
+      outerToolCallId: cell.outerToolCallId,
+      childOrdinal: cell.nextChildOrdinal,
+      definitionHash,
+      dispatchCommitted: false,
+      outcomeCommitted: false
+    }
+    cell.nextChildOrdinal += 1
+    cell.nestedCalls.set(hostCallId, child)
+    return child
+  }
+
+  private drainPendingNestedCalls(cell: ActiveCell): void {
+    const pending = cell.pendingNestedMessages.splice(0)
+    for (const message of pending) void this.handleNestedCall(cell, message)
+  }
+
+  private flushPendingHostSettlement(cell: ActiveCell): void {
+    if (
+      cell.state !== 'running' ||
+      cell.nestedCallsInFlight > 0 ||
+      cell.terminal ||
+      !cell.pendingHostSettlement
+    ) {
+      return
+    }
+    const message = cell.pendingHostSettlement
+    cell.pendingHostSettlement = null
+    this.handleCellMessage(cell, message)
+  }
+
   private async handleNestedCall(
     cell: ActiveCell,
     message: Extract<RunCodeHostMessage, { type: 'NESTED_CALL' }>
   ): Promise<void> {
+    if (cell.state === 'yielded') {
+      cell.pendingNestedMessages.push(message)
+      return
+    }
+    if (cell.state !== 'running') {
+      this.postNestedError(cell, message.callId, 'Code Mode cell is not accepting subtool calls.')
+      return
+    }
     const entry = cell.bindings.get(message.bindingId)
     if (!entry) {
       this.postNestedError(cell, message.callId, 'Unknown or stale Code Mode tool binding.')
       return
     }
+    let child: NestedCallState
+    try {
+      child = this.createNestedCallState(cell, message.callId, entry.definitionHash)
+    } catch (error) {
+      this.postNestedError(cell, message.callId, toError(error).message)
+      return
+    }
+    cell.nestedCallsInFlight += 1
 
     try {
       const response = await this.managerOptions.executeNested({
@@ -500,13 +651,14 @@ export class RunCodeRuntimeManager {
         callId: message.callId,
         definition: entry.definition,
         arguments: message.arguments,
-        options: this.createNestedOptions(cell)
+        options: this.createNestedOptions(cell, child)
       })
-      if (cell.terminal || cell.state === 'stopping') return
+      if (cell.terminal) return
       if (response.rawData.requiresPermission === true) {
+        if (child.dispatchCommitted) {
+          throw new Error('Code Mode subtool requested permission after dispatch.')
+        }
         this.clearYieldTimer(cell)
-        if (cell.yieldLeaseTimer) clearTimeout(cell.yieldLeaseTimer)
-        cell.yieldLeaseTimer = null
         cell.state = 'permission'
         cell.pendingPermission = {
           hostCallId: message.callId,
@@ -521,8 +673,15 @@ export class RunCodeRuntimeManager {
           content: stringifyResult(response.content),
           rawData: response.rawData
         })
+        this.armCellLease(cell, 'Code cell permission lease expired.')
         return
       }
+      this.commitNestedOutcome(
+        cell,
+        child,
+        stringifyResult(response.rawData.content ?? response.content),
+        response.rawData.isError === true
+      )
       this.post(cell, {
         type: 'NESTED_RESULT',
         version: RUN_CODE_PROTOCOL_VERSION,
@@ -532,8 +691,11 @@ export class RunCodeRuntimeManager {
         result: getNestedToolResult(response)
       })
     } catch (error) {
-      if (cell.terminal || cell.state === 'stopping') return
-      this.postNestedError(cell, message.callId, toError(error).message)
+      if (cell.terminal) return
+      this.completeNestedFailure(cell, child, toError(error))
+    } finally {
+      cell.nestedCallsInFlight -= 1
+      this.flushPendingHostSettlement(cell)
     }
   }
 
@@ -541,11 +703,13 @@ export class RunCodeRuntimeManager {
     const pending = cell.pendingPermission
     if (!pending) return
     const entry = cell.bindings.get(pending.binding.id)
-    if (!entry) {
+    const child = cell.nestedCalls.get(pending.hostCallId)
+    if (!entry || !child) {
       this.failAndCleanup(cell, new Error('Code Mode tool binding expired during permission wait.'))
       return
     }
 
+    cell.nestedCallsInFlight += 1
     try {
       const response = await this.managerOptions.executeNested({
         sessionId: cell.sessionId,
@@ -553,10 +717,13 @@ export class RunCodeRuntimeManager {
         callId: pending.hostCallId,
         definition: entry.definition,
         arguments: pending.arguments,
-        options: this.createNestedOptions(cell)
+        options: this.createNestedOptions(cell, child)
       })
       if (cell.terminal || cell.state === 'stopping') return
       if (response.rawData.requiresPermission === true) {
+        if (child.dispatchCommitted) {
+          throw new Error('Code Mode subtool requested permission after dispatch.')
+        }
         pending.response = response
         const waiter = cell.waiter
         cell.waiter = null
@@ -565,8 +732,15 @@ export class RunCodeRuntimeManager {
           content: stringifyResult(response.content),
           rawData: response.rawData
         })
+        this.armCellLease(cell, 'Code cell permission lease expired.')
         return
       }
+      this.commitNestedOutcome(
+        cell,
+        child,
+        stringifyResult(response.rawData.content ?? response.content),
+        response.rawData.isError === true
+      )
       cell.pendingPermission = null
       cell.state = 'running'
       this.post(cell, {
@@ -582,8 +756,11 @@ export class RunCodeRuntimeManager {
       if (cell.terminal || cell.state === 'stopping') return
       cell.pendingPermission = null
       cell.state = 'running'
-      this.postNestedError(cell, pending.hostCallId, toError(error).message)
+      this.completeNestedFailure(cell, child, toError(error))
       this.scheduleYield(cell)
+    } finally {
+      cell.nestedCallsInFlight -= 1
+      this.flushPendingHostSettlement(cell)
     }
   }
 
@@ -592,6 +769,18 @@ export class RunCodeRuntimeManager {
     if (!isHostMessage(message)) return
     if (message.type === 'READY') return
     if ('cellId' in message && message.cellId && message.cellId !== cell.id) return
+    if (
+      (message.type === 'YIELDED' || message.type === 'RESULT' || message.type === 'ERROR') &&
+      (cell.nestedCallsInFlight > 0 || cell.pendingNestedMessages.length > 0)
+    ) {
+      if (cell.pendingHostSettlement) {
+        this.failAndCleanup(cell, new Error('Code Mode host sent overlapping settlement messages.'))
+        return
+      }
+      this.clearYieldTimer(cell)
+      cell.pendingHostSettlement = message
+      return
+    }
 
     switch (message.type) {
       case 'HEARTBEAT':
@@ -619,7 +808,7 @@ export class RunCodeRuntimeManager {
         } else {
           cell.pendingYieldOutput = message.output
         }
-        this.armYieldLease(cell)
+        this.armCellLease(cell, 'Code cell yield lease expired.')
         return
       case 'RESULT':
         this.storesBySession.set(cell.sessionId, structuredClone(message.store))
@@ -641,7 +830,7 @@ export class RunCodeRuntimeManager {
           } else {
             cell.state = 'yielded'
             cell.pendingResult = result
-            this.armYieldLease(cell)
+            this.armCellLease(cell, 'Code cell yield lease expired.')
           }
         }
         return
@@ -658,7 +847,7 @@ export class RunCodeRuntimeManager {
           } else {
             cell.state = 'yielded'
             cell.pendingError = error
-            this.armYieldLease(cell)
+            this.armCellLease(cell, 'Code cell yield lease expired.')
           }
         }
         return
@@ -764,21 +953,64 @@ export class RunCodeRuntimeManager {
     if (signal.aborted) listener()
   }
 
-  private createNestedOptions(cell: ActiveCell): ToolCallOptions {
-    const commitDispatch = cell.options.commitDispatch
+  private createNestedOptions(cell: ActiveCell, child: NestedCallState): ToolCallOptions {
+    const {
+      commitDispatch: _commitOuterDispatch,
+      commitNestedDispatch,
+      commitNestedToolOutcome: _commitNestedToolOutcome,
+      ...options
+    } = cell.options
     return {
-      ...cell.options,
+      ...options,
       signal: cell.runtimeAbortController.signal,
-      ...(commitDispatch
+      ...(commitNestedDispatch
         ? {
             commitDispatch: (input) => {
-              if (cell.committedDispatchToolCallId === cell.outerToolCallId) return
-              commitDispatch(input)
-              cell.committedDispatchToolCallId = cell.outerToolCallId
+              if (child.dispatchCommitted) {
+                throw new Error(`Code Mode subtool ${child.hostCallId} dispatched more than once.`)
+              }
+              if (
+                child.outerToolCallId !== cell.outerToolCallId ||
+                cell.committedDispatchToolCallId !== child.outerToolCallId
+              ) {
+                throw new Error('Code Mode subtool parent dispatch identity changed.')
+              }
+              commitNestedDispatch({
+                ...input,
+                childOrdinal: child.childOrdinal,
+                definitionHash: child.definitionHash,
+                capabilityHash: cell.capabilityHash
+              })
+              child.dispatchCommitted = true
             }
           }
         : {})
     }
+  }
+
+  private commitNestedOutcome(
+    cell: ActiveCell,
+    child: NestedCallState,
+    responseText: string,
+    isError: boolean
+  ): void {
+    if (!child.dispatchCommitted || child.outcomeCommitted) return
+    cell.options.commitNestedToolOutcome?.({
+      childOrdinal: child.childOrdinal,
+      responseText,
+      isError
+    })
+    child.outcomeCommitted = true
+  }
+
+  private completeNestedFailure(cell: ActiveCell, child: NestedCallState, error: Error): void {
+    try {
+      this.commitNestedOutcome(cell, child, error.message, true)
+    } catch (journalError) {
+      this.failAndCleanup(cell, toError(journalError))
+      return
+    }
+    this.postNestedError(cell, child.hostCallId, error.message)
   }
 
   private inspectRss(cell: ActiveCell): void {

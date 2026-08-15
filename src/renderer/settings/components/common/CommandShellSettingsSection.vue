@@ -48,9 +48,9 @@
               </SelectItem>
             </template>
             <template v-else>
-              <SelectItem value="bash">Bash</SelectItem>
-              <SelectItem value="zsh">Zsh</SelectItem>
-              <SelectItem value="fish">Fish</SelectItem>
+              <SelectItem value="bash">{{ t('settings.common.commandShell.bash') }}</SelectItem>
+              <SelectItem value="zsh">{{ t('settings.common.commandShell.zsh') }}</SelectItem>
+              <SelectItem value="fish">{{ t('settings.common.commandShell.fish') }}</SelectItem>
             </template>
           </SelectContent>
         </Select>

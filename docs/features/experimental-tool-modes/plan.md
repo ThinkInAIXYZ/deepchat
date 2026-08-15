@@ -67,7 +67,8 @@ draft/session toolModeOverride
 - [x] Minimal Mode 为 `openai-codex` 投影 `exec + apply_patch`。
 - [x] Minimal Mode 为其他 Provider 投影 `exec + str_replace_editor`。
 - [x] direct call、unsafe name、保留名和规范化冲突 fail closed。
-- [x] 从 Code Mode 排除无法安全挂起 code cell 的 `deepchat_question`。
+- [x] 从 Code Mode 排除无法安全挂起 code cell 的 `deepchat_question` 和
+      `deepchat_subagents`，Agent 与 Minimal projection 不受影响。
 - [x] freeform input 在 AI SDK stream 中保持 raw string。
 - [x] Code 与 Minimal 不叠加 Tool Surface 虚拟化，Agent 保持原有 Tool Surface 行为。
 
@@ -86,6 +87,7 @@ draft/session toolModeOverride
 - [x] 保留绝对路径、唯一 literal match、view range 和输出截断语义。
 - [x] 复用现有 workspace、protected Skill、session path 和 symlink 校验。
 - [x] 新建多层目录文件时验证最近现存祖先，拒绝 symlink escape。
+- [x] 多 operation patch 在首次写入前完成纯校验；I/O 部分失败时要求重新查看受影响文件。
 - [x] 写入前接入现有 effect/journal commit callback。
 
 主要所有者：
@@ -102,9 +104,11 @@ draft/session toolModeOverride
 - [x] 参数、结果、store 通过 JSON 边界；结构化 MCP output 优先返回给代码。
 - [x] 禁止 string code generation、WASM、Node/Electron globals 和 import linking。
 - [x] 实现 TypeScript erasable syntax、Codex raw JavaScript、yield/wait 和 session store。
-- [x] 嵌套命令权限在同一 cell 内按调用签发 one-shot grant 并原地恢复，不重放已完成代码。
-- [x] 同一外层 code/wait operation 的 nested mutation 只提交一次 execution-journal dispatch。
-- [x] 实现 source/output/call/concurrency/heap/RSS/heartbeat/yield lease 限制。
+- [x] 嵌套命令权限在同一 cell 与同一外层 tool-call ID 内按调用签发 one-shot grant 并原地恢复，
+      不重放已完成代码。
+- [x] 每个 wrapper 与每个 nested subtool 分别提交 execution-journal dispatch/outcome；外层结算
+      等待所有已 dispatch 的 nested operation 完成。
+- [x] 实现 source/output/call/concurrency/heap/RSS/heartbeat/yield/permission lease 限制。
 - [x] cleanup 取消嵌套调用，清 timer/listener/map，并在 grace 后 `kill()`。
 - [x] app teardown 在 MCP/plugin 等执行 owner 销毁前关闭 Code runtime。
 
@@ -194,6 +198,7 @@ renderer: 254 files passed
 - Codex/function wrapper、freeform editor 和 SDK 契约；
 - Utility context constructor escape、结果/store 序列化、取消和 listener cleanup；
 - nested structured output、调用调度和 active call abort；
+- nested dispatch/outcome 审计、外层结算顺序和 permission lease 回收；
 - apply patch、literal replacement、view range、missing-parent 与 symlink escape；
 - POSIX/Windows Shell profile 和设置 UI；
 - 高级配置即时 projection、持久化和 working disabled state。
@@ -215,5 +220,6 @@ renderer: 254 files passed
 ## 后续边界
 
 - WSL 只有在 scoped cleanup 与 cwd translation 完成后才能加入。
-- `deepchat_question` 只有在 code cell 可持久挂起并安全恢复后才能进入 nested SDK。
+- `deepchat_question` 与 `deepchat_subagents` 只有在 code cell 可持久挂起并安全恢复顶层交互后
+  才能进入 nested SDK。
 - Code Mode transcript 的嵌套层级可作为独立 UI 增强，不改变当前协议与执行边界。

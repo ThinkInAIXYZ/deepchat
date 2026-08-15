@@ -229,7 +229,7 @@ export interface ExecutionJournalWriter {
   commitRunTerminal(input: CommitExecutionRunTerminalInput): ExecutionJournalCommitReceipt
 }
 
-/** Reserved for the process-live Programmatic parent controller; ordinary loops do not receive it. */
+/** Reserved for process-live parent runtimes; ordinary tools do not receive it. */
 export interface NestedExecutionJournalWriter {
   commitNestedDispatch(input: CommitNestedExecutionDispatchInput): ExecutionJournalCommitReceipt
   commitNestedToolOutcome(
@@ -279,7 +279,8 @@ export interface DeepChatLoopTapePort
     TapeRuntimeSkillViewContextReader,
     TapeProviderAttemptWriter,
     TapeProviderAttemptReader,
-    ExecutionJournalWriter {}
+    ExecutionJournalWriter,
+    Partial<NestedExecutionJournalWriter> {}
 
 export interface TapeMessageFactWriter {
   appendMessageRecord(record: ChatMessageRecord): number

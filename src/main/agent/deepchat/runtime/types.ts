@@ -30,7 +30,11 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import type { CommandShellProfile } from '@shared/commandShell'
-import type { ExecutionJournalWriter, TapeToolFactWriter } from '@/tape/ports/capabilities'
+import type {
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter,
+  TapeToolFactWriter
+} from '@/tape/ports/capabilities'
 import type { EffectiveSkillContentResolution } from '@shared/types/skill'
 import type {
   ExecutionOperationIdentity,
@@ -157,7 +161,8 @@ export type ProcessIoParams = Pick<
   'messageStore' | 'publishEvent' | 'publishSessionUpdate'
 > & {
   tapeToolFactWriter: TapeToolFactWriter
-  executionJournalWriter: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournalWriter: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
 }
 
 export type SkillActivationPreparation =

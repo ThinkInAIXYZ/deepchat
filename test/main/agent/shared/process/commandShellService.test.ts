@@ -117,6 +117,16 @@ describe('CommandShellService', () => {
     expect(settings.set).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    ['darwin', 'git-bash'],
+    ['linux', 'cmd'],
+    ['win32', 'zsh']
+  ] as const)('falls back from persisted %s-incompatible %s settings', (platform, preference) => {
+    const { service } = createHarness({ config: { preference }, platform })
+
+    expect(service.getConfig()).toEqual({ preference: 'auto' })
+  })
+
   it('treats an invalid explicit override as authoritative and does not fall through', async () => {
     const executable = 'C:\\Missing\\bash.exe'
     const { service, runCommand, normalizedFiles } = createHarness({

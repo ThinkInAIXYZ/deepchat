@@ -363,6 +363,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@shared/toolMode'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 type ToolGroupItem = {
   id: string
@@ -624,7 +625,11 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
       ...groupedAgentTools.value
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => item.toolName !== 'deepchat_question'),
+          items: group.items.filter(
+            (item) =>
+              item.toolName !== 'deepchat_question' &&
+              item.toolName !== LIVE_DELEGATION_AGENT_TOOL_NAME
+          ),
           label: `${t('chat.input.toolMode.codeCallable')} · ${group.label}`
         }))
         .filter((group) => group.items.length > 0)

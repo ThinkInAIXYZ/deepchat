@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "Modo",
+      "modelDefault": "Padrão do modelo",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Use o conjunto de ferramentas padrão do agente.",
+        "code": "Combine as ferramentas ativadas por código. Requer o modo de permissão Acesso total.",
+        "minimal": "Use apenas ferramentas de comando e edição de arquivos."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Usar padrão do modelo",
+      "saving": "Salvando modo...",
+      "locked": "Você poderá trocar de modo após o fim desta resposta.",
+      "updateFailed": "Não foi possível atualizar o modo de ferramentas.",
+      "codeEntry": "Entrada de código",
+      "codeCallable": "Chamável pelo código",
+      "minimalTools": "Ferramentas de programação"
     },
     "fileUploadFailed": "Falha ao processar anexo",
     "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",

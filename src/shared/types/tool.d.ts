@@ -6,6 +6,8 @@ import type {
   MCPToolDefinition,
   MCPToolCall,
   MCPToolResponse,
+  NestedToolDispatchCommit,
+  NestedToolOutcomeCommit,
   ToolDispatchCommit,
   ToolOutcomeProjectionRegistrar
 } from '../core/mcp'
@@ -65,6 +67,8 @@ export interface ToolCallOptions {
   agentId?: string
   enabledMcpServerIds?: string[]
   commitDispatch?: ToolDispatchCommit
+  commitNestedDispatch?: NestedToolDispatchCommit
+  commitNestedToolOutcome?: NestedToolOutcomeCommit
   registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
   commandShell?: ResolvedCommandShell
   oneShotCommandGrantId?: string

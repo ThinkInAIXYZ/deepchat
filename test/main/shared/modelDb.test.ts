@@ -39,6 +39,23 @@ describe('GPT-5.6 provider resource', () => {
 })
 
 describe('sanitizeAggregate', () => {
+  it('preserves valid default tool modes and drops invalid values', () => {
+    const aggregate = sanitizeAggregate({
+      providers: {
+        demo: {
+          id: 'demo',
+          models: [
+            { id: 'code-model', default_tool_mode: 'code' },
+            { id: 'invalid-model', default_tool_mode: 'unsupported' }
+          ]
+        }
+      }
+    })
+
+    expect(aggregate?.providers.demo.models[0].default_tool_mode).toBe('code')
+    expect(aggregate?.providers.demo.models[1].default_tool_mode).toBeUndefined()
+  })
+
   it('keeps extra_capabilities.reasoning portraits alongside legacy reasoning', () => {
     const aggregate = sanitizeAggregate({
       providers: {

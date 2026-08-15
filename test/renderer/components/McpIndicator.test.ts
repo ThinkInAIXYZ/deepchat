@@ -143,6 +143,7 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
+        buildTool('deepchat_subagents', 'agent-core'),
         buildTool('update_plan', 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
@@ -363,6 +364,7 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Agent Core')
     expect(wrapper.text()).not.toContain('Progress')
     expect(wrapper.text()).toContain('update_plan')
+    expect(wrapper.text()).toContain('deepchat_subagents')
 
     const updatePlanButton = wrapper
       .findAll('button')
@@ -503,6 +505,7 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('run_code')
     expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).not.toContain('deepchat_question')
+    expect(wrapper.text()).not.toContain('deepchat_subagents')
     expect(wrapper.text()).toContain('demo-server')
   })
 

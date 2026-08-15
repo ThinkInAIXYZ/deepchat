@@ -3267,18 +3267,24 @@ describe('DeepChatAgentHarness', () => {
       toolService.configureToolMode = vi.fn(() => [runCodeDefinition])
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ tool_mode_override: 'code' })
       recreateAgentWithToolSurfaceRunMode(resolveRunMode)
+      let observedToolMode = ''
+      let observedToolSurfaceMode = ''
+      let observedToolNames: string[] = []
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
-        expect(params.run.resources.toolMode.mode).toBe('code')
-        expect(params.run.resources.toolSurfaceMode).toBe('legacy')
-        expect(
-          params.run.resources.toolDefinitions.map((definition) => definition.function.name)
-        ).toEqual(['run_code'])
+        observedToolMode = params.run.resources.toolMode.mode
+        observedToolSurfaceMode = params.run.resources.toolSurfaceMode
+        observedToolNames = params.run.resources.toolDefinitions.map(
+          (definition) => definition.function.name
+        )
         return { status: 'completed', stopReason: 'complete' }
       })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
+      expect(observedToolMode).toBe('code')
+      expect(observedToolSurfaceMode).toBe('legacy')
+      expect(observedToolNames).toEqual(['run_code'])
       expect(resolveRunMode).not.toHaveBeenCalled()
       expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
     })
@@ -10223,7 +10229,8 @@ describe('DeepChatAgentHarness', () => {
           resources: {
             toolDefinitions: [],
             activeSkillNames: [],
-            commandShell: POSIX_COMMAND_SHELL
+            commandShell: POSIX_COMMAND_SHELL,
+            toolMode: { mode: 'agent', source: 'fallback' }
           }
         })
       )
@@ -13586,7 +13593,12 @@ describe('DeepChatAgentHarness', () => {
         abortController,
         messages: [],
         streamState,
-        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
+        }
       })
       instance.registerActiveGeneration(run)
       setRuntimeStatus(agent, 's1', 'generating')

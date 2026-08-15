@@ -65,24 +65,24 @@
     },
     "toolMode": {
       "title": "Mode",
-      "modelDefault": "Model default",
+      "modelDefault": "Bawaan model",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Gunakan perangkat alat standar Agent.",
+        "code": "Rangkai alat yang aktif melalui kode. Memerlukan mode izin Akses penuh.",
+        "minimal": "Gunakan hanya alat perintah dan penyuntingan file."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Gunakan bawaan model",
+      "saving": "Menyimpan mode...",
+      "locked": "Anda dapat mengganti mode setelah respons ini selesai.",
+      "updateFailed": "Mode alat tidak dapat diperbarui.",
+      "codeEntry": "Entri kode",
+      "codeCallable": "Dapat dipanggil dari kode",
+      "minimalTools": "Alat pengodean"
     },
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",

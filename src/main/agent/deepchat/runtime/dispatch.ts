@@ -86,7 +86,10 @@ import {
   normalizeExecutionOperationIdentity,
   type ExecutionOperationIdentity
 } from '@/tape/domain/executionJournal'
-import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
+import type {
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter
+} from '@/tape/ports/capabilities'
 import type {
   LoopRunRequestToolSurfaceBinding,
   LoopRunRequestViewBinding
@@ -1925,7 +1928,8 @@ async function runToolCall(params: {
   rendererFlushHandle: RendererFlushHandle
   allowProgressUpdates: boolean
   onToolCallStarted?: (toolCallId: string) => void
-  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
@@ -2210,6 +2214,70 @@ async function runToolCall(params: {
           activeSkillNames: effectiveActiveSkillNames,
           agentId: controls?.getAgentId?.(),
           commitDispatch,
+          commitNestedDispatch: (input) => {
+            if (!executionJournal.commitNestedDispatch) {
+              throw new ExecutionJournalError(
+                'Code Mode nested dispatch journal is unavailable.',
+                'invalid_fact'
+              )
+            }
+            if (!dispatchedOperation) {
+              throw new ExecutionJournalError(
+                'Code Mode child dispatch requires a committed parent dispatch.',
+                'invalid_fact'
+              )
+            }
+            const receipt = executionJournal.commitNestedDispatch({
+              sessionId: io.sessionId,
+              messageId: io.messageId,
+              operation: {
+                ...operation,
+                kind: 'nested',
+                childOrdinal: input.childOrdinal
+              },
+              toolName: input.toolName,
+              toolSource: input.toolSource,
+              normalizedArguments: input.normalizedArguments,
+              target: input.target,
+              definitionHash: input.definitionHash,
+              capabilityHash: input.capabilityHash
+            })
+            if (!receipt.created) {
+              throw new ExecutionJournalCorruptionError(
+                `Code Mode child dispatch already existed at ordinal ${input.childOrdinal}.`
+              )
+            }
+          },
+          commitNestedToolOutcome: (input) => {
+            if (!executionJournal.commitNestedToolOutcome) {
+              throw new ExecutionJournalError(
+                'Code Mode nested outcome journal is unavailable.',
+                'invalid_fact'
+              )
+            }
+            if (!dispatchedOperation) {
+              throw new ExecutionJournalError(
+                'Code Mode child outcome requires a committed parent dispatch.',
+                'invalid_fact'
+              )
+            }
+            const receipt = executionJournal.commitNestedToolOutcome({
+              sessionId: io.sessionId,
+              messageId: io.messageId,
+              operation: {
+                ...operation,
+                kind: 'nested',
+                childOrdinal: input.childOrdinal
+              },
+              responseText: input.responseText,
+              isError: input.isError
+            })
+            if (!receipt.created) {
+              throw new ExecutionJournalCorruptionError(
+                `Code Mode child outcome already existed at ordinal ${input.childOrdinal}.`
+              )
+            }
+          },
           registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
           ...(toolSurfaceContext ? { toolSurfaceContext } : {}),
           commandShell,
@@ -2668,7 +2736,8 @@ export interface SettleToolBatchParams {
   providerReplayProjector?: ChatMessageProviderReplayProjector
   collaborators?: ToolDispatchCollaborators
   providerId?: string
-  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null

@@ -32,7 +32,8 @@ function createRun(sessionId: string, initialRequestSeq = 0) {
     resources: {
       toolDefinitions: [],
       activeSkillNames: [`${sessionId}-skill`],
-      commandShell: POSIX_COMMAND_SHELL
+      commandShell: POSIX_COMMAND_SHELL,
+      toolMode: { mode: 'agent', source: 'fallback' }
     },
     initialRequestSeq,
     startedAt: 100
@@ -59,7 +60,14 @@ function runtimeExecutionRef(
 
 describe('LoopRun', () => {
   it.each([
-    ['missing', { toolDefinitions: [], activeSkillNames: [] }],
+    [
+      'missing',
+      {
+        toolDefinitions: [],
+        activeSkillNames: [],
+        toolMode: { mode: 'agent', source: 'fallback' }
+      }
+    ],
     [
       'contradictory',
       {
@@ -68,7 +76,8 @@ describe('LoopRun', () => {
         commandShell: {
           ...POSIX_COMMAND_SHELL,
           dialect: 'powershell'
-        }
+        },
+        toolMode: { mode: 'agent', source: 'fallback' }
       }
     ]
   ] as const)('rejects a %s command shell contract', (_kind, resources) => {
@@ -125,7 +134,8 @@ describe('LoopRun', () => {
         toolDefinitions: [],
         activeSkillNames: [],
         commandShell: POSIX_COMMAND_SHELL,
-        toolSurfaceMode: 'full'
+        toolSurfaceMode: 'full',
+        toolMode: { mode: 'agent', source: 'fallback' }
       }
     })
 
@@ -293,7 +303,12 @@ describe('LoopRun', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL },
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
+        },
         initialLogicalRound: 3
       }).logicalRound
     ).toBe(3)
@@ -306,7 +321,12 @@ describe('LoopRun', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL },
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
+        },
         initialLogicalRound: 1.5
       }).logicalRound
     ).toBe(0)
@@ -336,7 +356,8 @@ describe('LoopRun', () => {
         toolDefinitions: [],
         activeSkillNames: [],
         promptAssembly,
-        commandShell: POSIX_COMMAND_SHELL
+        commandShell: POSIX_COMMAND_SHELL,
+        toolMode: { mode: 'agent', source: 'fallback' }
       }
     })
 

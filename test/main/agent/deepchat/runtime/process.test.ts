@@ -386,7 +386,8 @@ describe('processStream', () => {
           resources: {
             toolDefinitions: tools,
             activeSkillNames: [],
-            commandShell: POSIX_COMMAND_SHELL
+            commandShell: POSIX_COMMAND_SHELL,
+            toolMode: { mode: 'agent', source: 'fallback' }
           },
           initialRequestSeq: 1
         }),
@@ -506,7 +507,8 @@ describe('processStream', () => {
         toolDefinitions: selected.controller.ceiling.entries.map((entry) => entry.definition),
         activeSkillNames: [],
         commandShell: POSIX_COMMAND_SHELL,
-        toolSurfaceMode: 'full'
+        toolSurfaceMode: 'full',
+        toolMode: { mode: 'agent', source: 'fallback' }
       },
       initialRequestSeq: 1
     })
@@ -1103,7 +1105,8 @@ describe('processStream', () => {
           toolDefinitions: selected.controller.ceiling.entries.map((entry) => entry.definition),
           activeSkillNames: [],
           commandShell: POSIX_COMMAND_SHELL,
-          toolSurfaceMode: 'full'
+          toolSurfaceMode: 'full',
+          toolMode: { mode: 'agent', source: 'fallback' }
         },
         initialRequestSeq: 1
       })
@@ -1303,7 +1306,8 @@ describe('processStream', () => {
           toolDefinitions: [exec],
           activeSkillNames: [],
           commandShell: POSIX_COMMAND_SHELL,
-          toolSurfaceMode: 'cli-programmatic'
+          toolSurfaceMode: 'cli-programmatic',
+          toolMode: { mode: 'agent', source: 'fallback' }
         },
         initialRequestSeq: 1
       })
@@ -1624,7 +1628,8 @@ describe('processStream', () => {
         resources: {
           toolDefinitions: tools,
           activeSkillNames: [],
-          commandShell: POSIX_COMMAND_SHELL
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
         },
         initialRequestSeq: 1
       })
@@ -1685,7 +1690,8 @@ describe('processStream', () => {
           toolDefinitions: tools,
           activeSkillNames: [],
           commandShell: POSIX_COMMAND_SHELL,
-          toolSurfaceMode: 'full'
+          toolSurfaceMode: 'full',
+          toolMode: { mode: 'agent', source: 'fallback' }
         },
         initialRequestSeq: 1
       })
@@ -3577,7 +3583,8 @@ describe('processStream', () => {
         toolDefinitions: initialTools,
         activeSkillNames: [],
         commandShell: POSIX_COMMAND_SHELL,
-        toolSurfaceMode: 'cli-programmatic'
+        toolSurfaceMode: 'cli-programmatic',
+        toolMode: { mode: 'agent', source: 'fallback' }
       },
       initialRequestSeq: 1
     })

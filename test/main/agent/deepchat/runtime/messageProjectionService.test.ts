@@ -73,7 +73,12 @@ describe('MessageProjectionService', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
+        }
       })
     )
 

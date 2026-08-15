@@ -12,7 +12,12 @@ function createRun() {
     abortController: new AbortController(),
     messages: [{ role: 'user', content: 'Hello' }],
     streamState: {},
-    resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
+    resources: {
+      toolDefinitions: [],
+      activeSkillNames: [],
+      commandShell: POSIX_COMMAND_SHELL,
+      toolMode: { mode: 'agent', source: 'fallback' }
+    }
   })
 }
 

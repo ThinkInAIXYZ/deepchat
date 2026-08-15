@@ -71,25 +71,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "Tilstand",
+      "modelDefault": "Modelstandard",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Brug Agents standardværktøjssæt.",
+        "code": "Sammensæt aktiverede værktøjer via kode. Kræver tilladelsestilstanden Fuld adgang.",
+        "minimal": "Brug kun kommando- og filredigeringsværktøjer."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Brug modelstandard",
+      "saving": "Gemmer tilstand...",
+      "locked": "Du kan skifte tilstand, når dette svar er færdigt.",
+      "updateFailed": "Værktøjstilstanden kunne ikke opdateres.",
+      "codeEntry": "Kodeindgang",
+      "codeCallable": "Kan kaldes fra kode",
+      "minimalTools": "Kodeværktøjer"
     },
     "fileUploadFailed": "Vedhæftning mislykkedes",
     "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",

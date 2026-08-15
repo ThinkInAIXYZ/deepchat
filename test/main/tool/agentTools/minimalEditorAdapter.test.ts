@@ -64,6 +64,15 @@ describe('minimal editor adapters', () => {
     ])
   })
 
+  it('keeps multiple append-only chunks in patch order', () => {
+    expect(
+      applyUpdateChunks('start\n', 'file.txt', [
+        { oldLines: [], newLines: ['first'], endOfFile: false },
+        { oldLines: [], newLines: ['second'], endOfFile: false }
+      ])
+    ).toBe('start\nfirst\nsecond\n')
+  })
+
   it('finds every literal match and reports one-based line numbers', () => {
     const content = 'alpha\nbeta alpha\nalpha\n'
     const offsets = matchOffsets(content, 'alpha')

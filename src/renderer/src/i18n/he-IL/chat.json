@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "מצב",
+      "modelDefault": "ברירת המחדל של המודל",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "השתמש בערכת הכלים הרגילה של הסוכן.",
+        "code": "שלב כלים פעילים באמצעות קוד. נדרש מצב הרשאה של גישה מלאה.",
+        "minimal": "השתמש רק בכלי פקודה ועריכת קבצים."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "השתמש בברירת המחדל של המודל",
+      "saving": "המצב נשמר...",
+      "locked": "ניתן להחליף מצב לאחר סיום התשובה הזאת.",
+      "updateFailed": "לא ניתן לעדכן את מצב הכלים.",
+      "codeEntry": "כניסת קוד",
+      "codeCallable": "ניתן לקריאה מהקוד",
+      "minimalTools": "כלי תכנות"
     },
     "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
     "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",

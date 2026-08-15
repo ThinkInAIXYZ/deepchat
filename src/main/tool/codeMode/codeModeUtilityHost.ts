@@ -474,6 +474,9 @@ export function runCodeModeUtilityHost(): void {
           modelTimers.delete(timerId)
         },
         yield: async () => {
+          if (resumeYield) {
+            throw new Error('yield_control already has a pending resume.')
+          }
           post({
             type: 'YIELDED',
             version: RUN_CODE_PROTOCOL_VERSION,

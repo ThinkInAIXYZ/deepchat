@@ -73,7 +73,7 @@
       },
       "descriptions": {
         "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
+        "code": "Compose enabled tools through code. Requires Full Access permission mode.",
         "minimal": "Use only command and file editing tools."
       },
       "useModelDefault": "Use model default",

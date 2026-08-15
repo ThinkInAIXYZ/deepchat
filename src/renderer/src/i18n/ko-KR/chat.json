@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "모드",
+      "modelDefault": "모델 기본값",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "표준 Agent 도구 모음을 사용합니다.",
+        "code": "활성화된 도구를 코드로 조합합니다. 전체 액세스 권한 모드가 필요합니다.",
+        "minimal": "명령 및 파일 편집 도구만 사용합니다."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "모델 기본값 사용",
+      "saving": "모드 저장 중...",
+      "locked": "이 응답이 끝나면 모드를 전환할 수 있습니다.",
+      "updateFailed": "도구 모드를 업데이트하지 못했습니다.",
+      "codeEntry": "코드 진입점",
+      "codeCallable": "코드에서 호출 가능",
+      "minimalTools": "코딩 도구"
     },
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",

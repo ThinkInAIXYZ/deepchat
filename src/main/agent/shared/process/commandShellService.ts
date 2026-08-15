@@ -267,14 +267,26 @@ export class CommandShellService {
   }
 
   getConfig(): AgentCommandShellConfig {
-    return normalizeAgentCommandShellConfig(this.dependencies.settings.get('agentCommandShell'))
+    return this.normalizeConfigForPlatform(
+      normalizeAgentCommandShellConfig(this.dependencies.settings.get('agentCommandShell'))
+    )
   }
 
   setConfig(value: AgentCommandShellConfig): AgentCommandShellConfig {
-    const parsed = AgentCommandShellConfigSchema.parse(value)
+    const parsed = this.normalizeConfigForPlatform(AgentCommandShellConfigSchema.parse(value))
     this.dependencies.settings.set('agentCommandShell', parsed)
     this.clearValidationCache()
     return parsed
+  }
+
+  private normalizeConfigForPlatform(config: AgentCommandShellConfig): AgentCommandShellConfig {
+    const preference = config.preference
+    const platform = this.getPlatform()
+    const incompatible =
+      platform === 'win32'
+        ? ['bash', 'zsh', 'fish'].includes(preference)
+        : ['windows-powershell', 'powershell-core', 'cmd', 'git-bash'].includes(preference)
+    return incompatible ? { ...config, preference: 'auto' } : config
   }
 
   clearValidationCache(): void {

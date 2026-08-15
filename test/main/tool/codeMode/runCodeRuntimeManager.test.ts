@@ -1,6 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import {
+  TOOL_EXECUTION,
+  type MCPToolDefinition,
+  type ToolDispatchCommitInput
+} from '@shared/types/mcp'
 import { RUN_CODE_PROTOCOL_VERSION, type RunCodeParentMessage } from '@shared/codeModeProtocol'
 import {
   RunCodeRuntimeManager,
@@ -64,6 +68,13 @@ const tool = (
   }
 })
 
+const outerDispatch = (toolName = 'run_code'): ToolDispatchCommitInput => ({
+  toolName,
+  toolSource: 'agent',
+  normalizedArguments: { code: 'return true' },
+  target: { serverName: 'agent-code-mode', originalName: toolName }
+})
+
 const createManager = (
   host: FakeUtilityProcess,
   executeNested: RunCodeRuntimeManagerOptions['executeNested'] = vi.fn(async () => ({
@@ -80,6 +91,26 @@ const createManager = (
   })
 
 describe('RunCodeRuntimeManager', () => {
+  it('rejects partial execution-journal capability wiring before starting a cell', async () => {
+    const host = new FakeUtilityProcess(false)
+    const manager = createManager(host)
+
+    await expect(
+      manager.execute({
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        frontend: 'function',
+        source: 'return true',
+        executionCatalog: [tool('exec')],
+        outerDispatch: outerDispatch(),
+        options: { commitDispatch: vi.fn() }
+      })
+    ).rejects.toThrow('complete outer and nested journal capabilities')
+
+    expect(host.messages).toEqual([])
+    await manager.shutdown()
+  })
+
   it('returns completion and releases every utility-process listener', async () => {
     const host = new FakeUtilityProcess(true)
     const manager = createManager(host)
@@ -91,6 +122,7 @@ describe('RunCodeRuntimeManager', () => {
         frontend: 'function',
         source: 'return { ok: true }',
         executionCatalog: [tool('exec')],
+        outerDispatch: outerDispatch(),
         options: {}
       })
     ).resolves.toEqual({ content: 'from console\n{\n  "ok": true\n}' })
@@ -114,6 +146,7 @@ describe('RunCodeRuntimeManager', () => {
       source: 'await new Promise(() => {})',
       yieldTimeMs: 5,
       executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch('exec'),
       options: {}
     })
     const cellId = yielded.content.match(/cell ID ([\w-]+)/)?.[1]
@@ -127,6 +160,7 @@ describe('RunCodeRuntimeManager', () => {
         yieldTimeMs: 5,
         maxTokens: 1_000,
         terminate: true,
+        outerDispatch: outerDispatch('wait'),
         options: {}
       })
     ).resolves.toEqual({ content: `Code cell ${cellId} was terminated.` })
@@ -151,6 +185,7 @@ describe('RunCodeRuntimeManager', () => {
         tool('mcp/read-file', TOOL_EXECUTION.read.parallel),
         tool('write-file', TOOL_EXECUTION.write)
       ],
+      outerDispatch: outerDispatch('exec'),
       options: {}
     })
     const start = host.messages.find(
@@ -184,6 +219,7 @@ describe('RunCodeRuntimeManager', () => {
       frontend: 'function',
       source: 'return await tools.lookup({})',
       executionCatalog: [tool('lookup')],
+      outerDispatch: outerDispatch(),
       options: {}
     })
     await vi.waitFor(() =>
@@ -227,9 +263,11 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
-  it('commits one outer dispatch across nested mutations', async () => {
+  it('journals the outer dispatch and each nested mutation separately', async () => {
     const host = new FakeUtilityProcess(false)
     const commitDispatch = vi.fn()
+    const commitNestedDispatch = vi.fn()
+    const commitNestedToolOutcome = vi.fn()
     const executeNested = vi.fn(async (input: RunCodeNestedExecutionInput) => {
       input.options.commitDispatch?.({
         toolName: input.definition.function.name,
@@ -249,7 +287,8 @@ describe('RunCodeRuntimeManager', () => {
       frontend: 'function',
       source: 'await tools.exec({ command: "first" }); await tools.exec({ command: "second" })',
       executionCatalog: [tool('exec')],
-      options: { commitDispatch }
+      outerDispatch: outerDispatch(),
+      options: { commitDispatch, commitNestedDispatch, commitNestedToolOutcome }
     })
     await vi.waitFor(() =>
       expect(host.messages.some((message) => message.type === 'START')).toBe(true)
@@ -288,6 +327,156 @@ describe('RunCodeRuntimeManager', () => {
     })
     expect(executeNested).toHaveBeenCalledTimes(2)
     expect(commitDispatch).toHaveBeenCalledOnce()
+    expect(commitDispatch).toHaveBeenCalledWith(outerDispatch())
+    expect(commitNestedDispatch).toHaveBeenCalledTimes(2)
+    expect(commitNestedDispatch.mock.calls.map(([input]) => input.childOrdinal)).toEqual([0, 1])
+    expect(commitNestedDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'exec',
+        normalizedArguments: { command: 'first' },
+        definitionHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        capabilityHash: expect.stringMatching(/^[0-9a-f]{64}$/)
+      })
+    )
+    expect(commitNestedToolOutcome.mock.calls.map(([input]) => input.childOrdinal)).toEqual([0, 1])
+    await manager.shutdown()
+  })
+
+  it('journals nested calls after wait under the resumed outer call', async () => {
+    const host = new FakeUtilityProcess(false)
+    const commitDispatch = vi.fn()
+    const commitNestedDispatch = vi.fn()
+    const commitNestedToolOutcome = vi.fn()
+    const executeNested = vi.fn(async (input: RunCodeNestedExecutionInput) => {
+      input.options.commitDispatch?.({
+        toolName: input.definition.function.name,
+        toolSource: 'agent',
+        normalizedArguments: input.arguments as Record<string, unknown>,
+        target: { serverName: 'test', originalName: input.definition.function.name }
+      })
+      return { content: 'done', rawData: { content: 'done' } }
+    })
+    const manager = createManager(host, executeNested)
+    const yielded = await manager.execute({
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'codex',
+      source: 'await yield_control(); return await tools.exec({ command: "after wait" })',
+      yieldTimeMs: 5,
+      executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch('exec'),
+      options: { commitDispatch, commitNestedDispatch, commitNestedToolOutcome }
+    })
+    const cellId = yielded.content.match(/cell ID ([\w-]+)/)?.[1]
+    expect(cellId).toBeTruthy()
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested-after-wait',
+      bindingId: start.bindings[0].id,
+      arguments: { command: 'after wait' }
+    })
+    host.emit('message', {
+      type: 'RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      output: [],
+      returnValue: 'done',
+      store: {}
+    })
+    expect(commitNestedDispatch).not.toHaveBeenCalled()
+
+    const waiting = manager.wait({
+      sessionId: 'session-1',
+      cellId: cellId!,
+      toolCallId: 'wait-1',
+      yieldTimeMs: 1_000,
+      maxTokens: 1_000,
+      terminate: false,
+      outerDispatch: outerDispatch('wait'),
+      options: { commitDispatch, commitNestedDispatch, commitNestedToolOutcome }
+    })
+
+    await expect(waiting).resolves.toMatchObject({ content: expect.stringContaining('done') })
+    expect(commitDispatch.mock.calls.map(([input]) => input.toolName)).toEqual(['exec', 'wait'])
+    expect(commitNestedDispatch).toHaveBeenCalledOnce()
+    await manager.shutdown()
+  })
+
+  it('waits for in-flight nested outcomes before settling the outer call', async () => {
+    const host = new FakeUtilityProcess(false)
+    let finishNested!: () => void
+    const nestedPending = new Promise<void>((resolve) => {
+      finishNested = resolve
+    })
+    const commitDispatch = vi.fn()
+    const commitNestedDispatch = vi.fn()
+    const commitNestedToolOutcome = vi.fn()
+    const executeNested = vi.fn(async (input: RunCodeNestedExecutionInput) => {
+      input.options.commitDispatch?.({
+        toolName: input.definition.function.name,
+        toolSource: 'agent',
+        normalizedArguments: input.arguments as Record<string, unknown>,
+        target: { serverName: 'test', originalName: input.definition.function.name }
+      })
+      await nestedPending
+      return { content: 'done', rawData: { content: 'done' } }
+    })
+    const manager = createManager(host, executeNested)
+    const execution = manager.execute({
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function',
+      source: 'void tools.exec({ command: "write" }); return true',
+      executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch(),
+      options: { commitDispatch, commitNestedDispatch, commitNestedToolOutcome }
+    })
+    let settled = false
+    void execution.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    await vi.waitFor(() =>
+      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+    )
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested-1',
+      bindingId: start.bindings[0].id,
+      arguments: { command: 'write' }
+    })
+    await vi.waitFor(() => expect(commitNestedDispatch).toHaveBeenCalledOnce())
+    host.emit('message', {
+      type: 'RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      output: [],
+      returnValue: true,
+      store: {}
+    })
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+    finishNested()
+    await expect(execution).resolves.toEqual({ content: 'true' })
+    expect(commitNestedToolOutcome).toHaveBeenCalledOnce()
     await manager.shutdown()
   })
 
@@ -318,6 +507,7 @@ describe('RunCodeRuntimeManager', () => {
       frontend: 'function' as const,
       source: 'return await tools.exec({ command: "git status --short" })',
       executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch(),
       options: {}
     }
     const firstExecution = manager.execute(input)
@@ -370,6 +560,76 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
+  it('expires a code cell left waiting for permission', async () => {
+    vi.useFakeTimers()
+    try {
+      const host = new FakeUtilityProcess(false)
+      Object.defineProperty(host, 'pid', { value: 0 })
+      const executeNested = vi.fn(async () => ({
+        content: 'permission required',
+        rawData: {
+          content: 'permission required',
+          requiresPermission: true,
+          permissionRequest: {
+            toolName: 'exec',
+            permissionType: 'command' as const,
+            command: 'git status --short'
+          }
+        }
+      }))
+      const manager = createManager(host, executeNested)
+      const execution = manager.execute({
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        frontend: 'function',
+        source: 'return await tools.exec({ command: "git status --short" })',
+        executionCatalog: [tool('exec')],
+        outerDispatch: outerDispatch(),
+        options: {}
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      const start = host.messages.find(
+        (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+          message.type === 'START'
+      )!
+      expect(start).toBeDefined()
+
+      host.emit('message', {
+        type: 'NESTED_CALL',
+        version: RUN_CODE_PROTOCOL_VERSION,
+        cellId: start.cellId,
+        callId: 'nested-1',
+        bindingId: start.bindings[0].id,
+        arguments: { command: 'git status --short' }
+      })
+      await expect(execution).resolves.toMatchObject({
+        rawData: { requiresPermission: true }
+      })
+
+      const heartbeat = setInterval(() => {
+        host.emit('message', {
+          type: 'HEARTBEAT',
+          version: RUN_CODE_PROTOCOL_VERSION,
+          cellId: start.cellId,
+          now: Date.now()
+        })
+      }, 1_000)
+      await vi.advanceTimersByTimeAsync(60_001)
+      clearInterval(heartbeat)
+
+      expect(host.messages).toContainEqual(
+        expect.objectContaining({
+          type: 'STOP',
+          cellId: start.cellId,
+          reason: 'Code cell permission lease expired.'
+        })
+      )
+      await manager.shutdown()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('aborts an in-flight nested call when its session is cancelled', async () => {
     const host = new FakeUtilityProcess(false)
     let nestedSignal: AbortSignal | undefined
@@ -391,6 +651,7 @@ describe('RunCodeRuntimeManager', () => {
       frontend: 'function',
       source: 'return await tools.exec({ command: "pwd" })',
       executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch(),
       options: {}
     })
     await vi.waitFor(() =>

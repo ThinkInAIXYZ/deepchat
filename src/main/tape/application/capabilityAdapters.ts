@@ -92,6 +92,16 @@ export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepCh
       source.commitDispatch(input),
     commitToolOutcome: (input: Parameters<DeepChatLoopTapePort['commitToolOutcome']>[0]) =>
       source.commitToolOutcome(input),
+    ...(source.commitNestedDispatch && source.commitNestedToolOutcome
+      ? {
+          commitNestedDispatch: (
+            input: Parameters<NonNullable<DeepChatLoopTapePort['commitNestedDispatch']>>[0]
+          ) => source.commitNestedDispatch!(input),
+          commitNestedToolOutcome: (
+            input: Parameters<NonNullable<DeepChatLoopTapePort['commitNestedToolOutcome']>>[0]
+          ) => source.commitNestedToolOutcome!(input)
+        }
+      : {}),
     commitRunTerminal: (input: Parameters<DeepChatLoopTapePort['commitRunTerminal']>[0]) =>
       source.commitRunTerminal(input)
   })

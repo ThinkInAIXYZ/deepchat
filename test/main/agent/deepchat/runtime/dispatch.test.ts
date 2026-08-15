@@ -42,7 +42,10 @@ import {
 } from '@shared/agentImageGenerationTool'
 import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
-import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
+import type {
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter
+} from '@/tape/ports/capabilities'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
@@ -483,7 +486,8 @@ type TestHooks = Partial<ProcessControlCollaborators & ProcessInternalDiagnostic
   ) => void
   resultNormalizer?: ToolResultPort['normalize']
   providerReplayProjector?: ChatMessageProviderReplayProjector
-  executionJournal?: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournal?: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
   toolSurface?: LoopRunRequestToolSurfaceBinding
   programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
 }
@@ -1384,6 +1388,119 @@ describe('dispatch', () => {
         tool_call_id: 'tc1',
         content: 'changed'
       })
+    })
+
+    it('binds Code Mode child journal facts to the outer provider tool call', async () => {
+      const tools = [makeTool('run_code')]
+      const toolService = createMockToolService()
+      const conversation: any[] = [{ role: 'user', content: 'Run code' }]
+      const order: string[] = []
+      const commitDispatch = vi.fn(() => {
+        order.push('outer-dispatch')
+        return { sessionId: 's1', entryId: 1, created: true }
+      })
+      const commitNestedDispatch = vi.fn(() => {
+        order.push('child-dispatch')
+        return { sessionId: 's1', entryId: 2, created: true }
+      })
+      const commitNestedToolOutcome = vi.fn(() => {
+        order.push('child-outcome')
+        return { sessionId: 's1', entryId: 3, created: true }
+      })
+      const commitToolOutcome = vi.fn(() => {
+        order.push('outer-outcome')
+        return { sessionId: 's1', entryId: 4, created: true }
+      })
+      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+        options?.commitDispatch?.({
+          toolName: request.function.name,
+          toolSource: 'agent',
+          normalizedArguments: { code: 'return true' },
+          target: { serverName: 'agent-code-mode', originalName: 'run_code' }
+        })
+        options?.commitNestedDispatch?.({
+          childOrdinal: 0,
+          toolName: 'exec',
+          toolSource: 'agent',
+          normalizedArguments: { command: 'pwd' },
+          target: { serverName: 'agent-filesystem', originalName: 'exec' },
+          definitionHash: 'a'.repeat(64),
+          capabilityHash: 'b'.repeat(64)
+        })
+        options?.commitNestedToolOutcome?.({
+          childOrdinal: 0,
+          responseText: '/workspace',
+          isError: false
+        })
+        return {
+          content: 'done',
+          rawData: { toolCallId: request.id, content: 'done', isError: false }
+        }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-code', name: 'run_code', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc-code', name: 'run_code', arguments: '{}' }]
+
+      await settleToolBatch(
+        state,
+        conversation,
+        0,
+        tools,
+        toolService,
+        'gpt-5.6',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        {
+          executionJournal: {
+            commitDispatch,
+            commitNestedDispatch,
+            commitNestedToolOutcome,
+            commitToolOutcome
+          }
+        },
+        'openai'
+      )
+
+      expect(order).toEqual([
+        'outer-dispatch',
+        'child-dispatch',
+        'child-outcome',
+        'outer-outcome'
+      ])
+      expect(commitNestedDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'm1',
+          operation: {
+            kind: 'nested',
+            runId: '11111111-1111-4111-8111-111111111111',
+            requestSeq: 1,
+            providerToolCallId: 'tc-code',
+            childOrdinal: 0
+          },
+          toolName: 'exec',
+          normalizedArguments: { command: 'pwd' }
+        })
+      )
+      expect(commitNestedToolOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: expect.objectContaining({
+            kind: 'nested',
+            providerToolCallId: 'tc-code',
+            childOrdinal: 0
+          }),
+          responseText: '/workspace',
+          isError: false
+        })
+      )
     })
 
     it('rejects Programmatic exec authority outside CLI Programmatic mode', () => {

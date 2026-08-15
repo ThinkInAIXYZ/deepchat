@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "Режим",
+      "modelDefault": "По умолчанию для модели",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Использовать стандартный набор инструментов агента.",
+        "code": "Объединять включённые инструменты с помощью кода. Требуется режим разрешений «Полный доступ».",
+        "minimal": "Использовать только команды и инструменты редактирования файлов."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Использовать настройку модели",
+      "saving": "Сохранение режима...",
+      "locked": "Режим можно переключить после завершения этого ответа.",
+      "updateFailed": "Не удалось обновить режим инструментов.",
+      "codeEntry": "Вход для кода",
+      "codeCallable": "Доступно из кода",
+      "minimalTools": "Инструменты программирования"
     },
     "fileUploadFailed": "Не удалось обработать вложение",
     "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",

@@ -77,7 +77,7 @@ describe('Tool Mode provider contracts', () => {
 
     expect(applyPatch.function.name).toBe('apply_patch')
     expect(applyPatch.function.description).toBe(
-      'The `apply_patch` tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.'
+      'The `apply_patch` tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON. If a multi-operation patch reports a partial failure, re-view every affected file before retrying.'
     )
     expect(applyPatch.providerPresentation).toMatchObject({
       type: 'freeform',
@@ -134,11 +134,35 @@ describe('Tool Mode provider contracts', () => {
       ...nestedTool,
       function: { ...nestedTool.function, name: 'deepchat_question' }
     }
+    const subagents = {
+      ...nestedTool,
+      function: { ...nestedTool.function, name: 'deepchat_subagents' }
+    }
 
-    expect(renderCodeModeSdk('function', [nestedTool, question])).not.toContain('deepchat_question')
+    expect(renderCodeModeSdk('function', [nestedTool, question, subagents])).not.toContain(
+      'deepchat_question'
+    )
+    expect(renderCodeModeSdk('function', [nestedTool, question, subagents])).not.toContain(
+      'deepchat_subagents'
+    )
     expect(
-      createCodexCodeModeToolDefinitions([nestedTool, question])[0].function.description
+      createCodexCodeModeToolDefinitions([nestedTool, question, subagents])[0].function.description
     ).not.toContain('deepchat_question')
+    expect(
+      createCodexCodeModeToolDefinitions([nestedTool, question, subagents])[0].function.description
+    ).not.toContain('deepchat_subagents')
+  })
+
+  it('uses trimmed names for both SDK declarations and runtime bindings', () => {
+    const spaced = {
+      ...nestedTool,
+      function: { ...nestedTool.function, name: '  mcp-demo/read-file  ' }
+    }
+
+    const sdk = renderCodeModeSdk('function', [spaced])
+
+    expect(sdk).toContain('"mcp-demo/read-file"')
+    expect(sdk).not.toContain('  mcp-demo/read-file  ')
   })
 
   it('normalizes only the Codex JavaScript identifier projection', () => {

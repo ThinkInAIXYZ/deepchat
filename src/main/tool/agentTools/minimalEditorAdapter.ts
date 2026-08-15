@@ -195,6 +195,7 @@ export function applyUpdateChunks(
   const lines = content.replace(/\r\n/g, '\n').split('\n')
   if (lines.at(-1) === '') lines.pop()
   const replacements: Array<{ index: number; count: number; lines: string[] }> = []
+  const appendedLines: string[] = []
   let lineIndex = 0
 
   for (const chunk of chunks) {
@@ -206,7 +207,7 @@ export function applyUpdateChunks(
       lineIndex = contextIndex + 1
     }
     if (chunk.oldLines.length === 0) {
-      replacements.push({ index: lines.length, count: 0, lines: chunk.newLines })
+      appendedLines.push(...chunk.newLines)
       continue
     }
     const found = findSequence(lines, chunk.oldLines, lineIndex, chunk.endOfFile)
@@ -220,6 +221,7 @@ export function applyUpdateChunks(
   for (const replacement of replacements.sort((left, right) => right.index - left.index)) {
     lines.splice(replacement.index, replacement.count, ...replacement.lines)
   }
+  lines.push(...appendedLines)
   if (lines.at(-1) !== '') lines.push('')
   return lines.join('\n')
 }
@@ -278,7 +280,7 @@ export function formatStrReplaceFileView(
     if (viewRange.length !== 2 || !viewRange.every(Number.isInteger)) {
       throw new Error('Invalid `view_range`. It should be a list of two integers.')
     }
-    ;[initialLine, finalLine] = viewRange
+    ;[initialLine, finalLine] = viewRange as [number, number]
     if (initialLine < 1 || initialLine > allLines.length) {
       throw new Error(
         `Invalid \`view_range\`: [${viewRange.join(', ')}]. Its first element \`${initialLine}\` should be within the range of lines of the file: [1, ${allLines.length}]`

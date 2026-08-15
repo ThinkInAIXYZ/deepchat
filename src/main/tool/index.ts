@@ -8,6 +8,7 @@ import {
   type MCPToolDefinitionBase,
   type MCPToolResponse,
   type ToolDispatchCommit,
+  type ToolDispatchCommitInput,
   type ToolExecutionContract,
   type ToolOutcomeProjectionRegistrar
 } from '@shared/types/mcp'
@@ -137,6 +138,7 @@ import {
   isCodexToolFrontend,
   normalizeCodexToolName
 } from './codeMode/toolModeTools'
+import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -1217,6 +1219,14 @@ export class ToolService implements ToolServicePort {
 
     const waitInput = isWait ? this.requireCodeModeWaitInput(request.function.arguments) : null
     const execInput = isExec ? this.requireCodexExecInput(request.function.arguments) : null
+    const outerDispatch: ToolDispatchCommitInput = {
+      toolName,
+      toolSource: 'agent',
+      normalizedArguments: execInput
+        ? { source: execInput.source }
+        : this.parseAgentToolArguments(request.function.arguments, toolName),
+      target: { serverName: CODE_MODE_TOOL_SERVER_NAME, originalName: toolName }
+    }
     const result = waitInput
       ? await this.runCodeRuntime.wait({
           sessionId,
@@ -1225,6 +1235,7 @@ export class ToolService implements ToolServicePort {
           yieldTimeMs: waitInput.yieldTimeMs,
           maxTokens: waitInput.maxTokens,
           terminate: waitInput.terminate,
+          outerDispatch,
           options: options ?? {}
         })
       : await this.runCodeRuntime.execute({
@@ -1240,6 +1251,7 @@ export class ToolService implements ToolServicePort {
               }
             : {}),
           executionCatalog: context.executionCatalog,
+          outerDispatch,
           options: options ?? {}
         })
     const rawData = result.rawData ?? {

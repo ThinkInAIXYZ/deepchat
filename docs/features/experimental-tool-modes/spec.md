@@ -48,19 +48,22 @@ Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发�
   `tools.<name>(...)` 调用，不能作为顶层工具调用；
 - Codex 工具名只在 JavaScript SDK 中规范化，真实工具名和执行映射保持不变；
 - 名称不安全、`run_code` 保留名冲突和规范化后冲突会在 Provider 请求前失败；
-- `deepchat_question` 依赖顶层 Agent loop 的交互挂起协议，不能在当前 code cell 中安全续跑，
-  因此不会进入 Code Mode SDK 或执行 binding。模型仍可直接用自然语言向用户提问。
+- `deepchat_question` 和 `deepchat_subagents` 依赖顶层 Agent loop 的交互挂起协议，不能在当前
+  code cell 中安全续跑，因此不会进入 Code Mode SDK 或执行 binding。模型仍可直接用自然语言
+  向用户提问。
 
-Code Mode 当前要求 `full_access`。这不是把 UtilityProcess 当成安全沙箱，而是避免一个任意
-组合程序在普通逐工具审批语义下造成错误预期。嵌套调用仍然通过 `ToolService`、现有 authority
-检查、permission broker、effect observer、handler、输出限制和取消信号执行，UtilityProcess
-不能直接访问工具 handler。
+Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求。这不是把
+UtilityProcess 当成安全沙箱，而是避免一个任意组合程序在普通逐工具审批语义下造成错误预期。
+嵌套调用仍然通过 `ToolService`、现有 authority 检查、permission broker、effect observer、
+handler、输出限制和取消信号执行，UtilityProcess 不能直接访问工具 handler。
 
 需要 command lease 的嵌套 `exec` 不绕过现有权限服务。外层 `full_access` 调度为每次命令调用
-签发精确的一次性 grant，并在同一个 code cell 内恢复对应调用；此前已经完成的 JavaScript 和
-subtool 不会重放。同一个外层 `run_code`、`exec` 或 `wait` 调用中的多个 mutation 只提交一次
-外层 execution-journal dispatch，后续 nested mutation 复用该 operation；新的 `wait` 调用使用
-新的外层 operation。
+签发精确的一次性 grant，并在同一个 code cell、同一个 Provider tool-call ID 下恢复对应调用；
+此前已经完成的 JavaScript 和 subtool 不会重放。每个 `run_code`、`exec` 或 `wait` wrapper 先
+提交自己的外层 execution-journal dispatch；每个实际 subtool 再以稳定 `childOrdinal` 独立提交
+nested dispatch 和 outcome，保留真实 target、arguments、definition hash 与 capability hash。
+外层 outcome 只能在其所有已 dispatch 的 nested operation 结算后提交，新的 `wait` 使用新的外层
+operation。
 
 ### Minimal Mode
 
@@ -75,7 +78,9 @@ delegation 工具。Provider 对应关系固定为：
 `apply_patch` 使用 V4A patch 格式，支持 add、delete、update、move 和多 hunk 顺序应用。
 `str_replace_editor` 保持 `view | create | str_replace | insert` schema、绝对路径和唯一 literal
 match 规则。两者复用 `AgentFileSystemHandler` 的 workspace containment、真实路径和 symlink
-校验；`apply_patch` 新增或移动文件时会先验证最近的现存祖先，再创建父目录。
+校验；`apply_patch` 新增或移动文件时会先验证最近的现存祖先，再创建父目录。多 operation patch
+会在第一次写入前完成路径、文件类型、内容匹配和目标路径预检；实际 I/O 仍可能部分失败，错误会
+要求模型重新查看所有受影响文件后再重试。
 
 切换到 Minimal Mode 不会删除原有 disabled-tool 配置，切回 Agent 或 Code Mode 后原配置继续
 生效。
@@ -162,7 +167,7 @@ IPC allowlist、V8 内存限制、heartbeat 和强制回收的组合。
 | READY | 5 秒 |
 | heartbeat 丢失 | 约 3.5 秒后终止 |
 | VM 同步执行 slice | 2 秒 |
-| yielded cell lease | 60 秒 |
+| yielded / permission cell lease | 60 秒 |
 | RSS hard ceiling | 512 MiB |
 | STOP grace | 500 ms 后 `kill()` |
 

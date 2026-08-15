@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "حالت",
+      "modelDefault": "پیش‌فرض مدل",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "از مجموعه ابزار استاندارد عامل استفاده کنید.",
+        "code": "ابزارهای فعال را از طریق کد ترکیب کنید. به حالت مجوز دسترسی کامل نیاز دارد.",
+        "minimal": "فقط از ابزارهای فرمان و ویرایش فایل استفاده کنید."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "استفاده از پیش‌فرض مدل",
+      "saving": "در حال ذخیره حالت...",
+      "locked": "پس از پایان این پاسخ می‌توانید حالت را تغییر دهید.",
+      "updateFailed": "حالت ابزار به‌روزرسانی نشد.",
+      "codeEntry": "ورودی کد",
+      "codeCallable": "قابل فراخوانی از کد",
+      "minimalTools": "ابزارهای کدنویسی"
     },
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",

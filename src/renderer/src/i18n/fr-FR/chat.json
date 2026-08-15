@@ -65,24 +65,24 @@
     },
     "toolMode": {
       "title": "Mode",
-      "modelDefault": "Model default",
+      "modelDefault": "Valeur par défaut du modèle",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Utiliser l’ensemble d’outils standard de l’agent.",
+        "code": "Composer les outils activés par du code. Nécessite le mode d’autorisation Accès complet.",
+        "minimal": "Utiliser uniquement les outils de commande et d’édition de fichiers."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Utiliser la valeur par défaut du modèle",
+      "saving": "Enregistrement du mode...",
+      "locked": "Vous pourrez changer de mode après cette réponse.",
+      "updateFailed": "Impossible de mettre à jour le mode des outils.",
+      "codeEntry": "Entrée de code",
+      "codeCallable": "Appelable depuis le code",
+      "minimalTools": "Outils de programmation"
     },
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",

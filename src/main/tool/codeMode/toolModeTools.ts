@@ -1,6 +1,7 @@
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { formatCommandShellForModel, type ResolvedCommandShell } from '@shared/commandShell'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'
@@ -8,14 +9,20 @@ export const CODE_MODE_WAIT_TOOL_NAME = 'wait'
 export const APPLY_PATCH_TOOL_NAME = 'apply_patch'
 export const STR_REPLACE_EDITOR_TOOL_NAME = 'str_replace_editor'
 
-const CODE_MODE_INTERACTION_TOOL_NAMES = new Set(['deepchat_question'])
+const CODE_MODE_INTERACTION_TOOL_NAMES = new Set([
+  'deepchat_question',
+  LIVE_DELEGATION_AGENT_TOOL_NAME
+])
 
 export function filterCodeModeExecutionCatalog(
   executionCatalog: readonly MCPToolDefinition[]
 ): MCPToolDefinition[] {
-  return executionCatalog.filter(
-    (tool) => !CODE_MODE_INTERACTION_TOOL_NAMES.has(tool.function.name)
-  )
+  return executionCatalog.flatMap((tool) => {
+    const name = tool.function.name.trim()
+    if (CODE_MODE_INTERACTION_TOOL_NAMES.has(name)) return []
+    if (name === tool.function.name) return [tool]
+    return [{ ...tool, function: { ...tool.function, name } }]
+  })
 }
 
 const RUN_CODE_DESCRIPTION =
@@ -61,7 +68,7 @@ const CODE_MODE_WAIT_DESCRIPTION = `Waits on a yielded \`exec\` cell and returns
 - If the cell has already finished, \`wait\` returns the completed result and closes the cell.`
 
 const APPLY_PATCH_DESCRIPTION =
-  'The `apply_patch` tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.'
+  'The `apply_patch` tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON. If a multi-operation patch reports a partial failure, re-view every affected file before retrying.'
 
 const APPLY_PATCH_LARK_GRAMMAR = String.raw`start: begin_patch hunk+ end_patch
 begin_patch: "*** Begin Patch" LF

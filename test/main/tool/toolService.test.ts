@@ -1272,6 +1272,10 @@ describe('ToolService', () => {
       ...buildToolDefinition(QUESTION_TOOL_NAME, 'agent-core'),
       source: 'agent' as const
     }
+    const subagents = {
+      ...buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
     const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
     const commandShell = {
       profile: 'zsh',
@@ -1287,12 +1291,13 @@ describe('ToolService', () => {
       mode: 'agent',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, remote]
+      executionCatalog: [exec, read, question, subagents, remote]
     })
     expect(agent.map((definition) => definition.function.name)).toEqual([
       'exec',
       'read',
       QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
       'remote_search'
     ])
     expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
@@ -1305,9 +1310,10 @@ describe('ToolService', () => {
       mode: 'code',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, remote]
+      executionCatalog: [exec, read, question, subagents, remote]
     })
     expect(code.map((definition) => definition.function.name)).toEqual(['run_code'])
+    expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
     await expect(
       toolService.callTool({
         id: 'direct-read',
@@ -1322,12 +1328,13 @@ describe('ToolService', () => {
       mode: 'agent',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, remote]
+      executionCatalog: [exec, read, question, subagents, remote]
     })
     expect(restoredAgent.map((definition) => definition.function.name)).toEqual([
       'exec',
       'read',
       QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
       'remote_search'
     ])
     expect(
@@ -1339,7 +1346,7 @@ describe('ToolService', () => {
       mode: 'minimal',
       providerId: 'deepseek',
       commandShell,
-      executionCatalog: [exec, read, question, remote]
+      executionCatalog: [exec, read, question, subagents, remote]
     })
     expect(minimal.map((definition) => definition.function.name)).toEqual([
       'exec',
@@ -1354,7 +1361,7 @@ describe('ToolService', () => {
       mode: 'minimal',
       providerId: 'openai-codex',
       commandShell,
-      executionCatalog: [exec, read, question, remote]
+      executionCatalog: [exec, read, question, subagents, remote]
     })
     expect(codexMinimal.map((definition) => definition.function.name)).toEqual([
       'exec',

@@ -64,25 +64,25 @@
       }
     },
     "toolMode": {
-      "title": "Mode",
-      "modelDefault": "Model default",
+      "title": "Mod",
+      "modelDefault": "Model varsayılanı",
       "options": {
         "agent": "Agent",
         "code": "Code",
         "minimal": "Minimal"
       },
       "descriptions": {
-        "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code.",
-        "minimal": "Use only command and file editing tools."
+        "agent": "Standart Agent araç setini kullanır.",
+        "code": "Etkin araçları kod aracılığıyla birleştirir. Tam Erişim izin modu gerekir.",
+        "minimal": "Yalnızca komut ve dosya düzenleme araçlarını kullanır."
       },
-      "useModelDefault": "Use model default",
-      "saving": "Saving mode...",
-      "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "useModelDefault": "Model varsayılanını kullan",
+      "saving": "Mod kaydediliyor...",
+      "locked": "Bu yanıt bittikten sonra mod değiştirebilirsiniz.",
+      "updateFailed": "Araç modu güncellenemedi.",
+      "codeEntry": "Kod girişi",
+      "codeCallable": "Koddan çağrılabilir",
+      "minimalTools": "Kodlama araçları"
     },
     "fileUploadFailed": "Ek başarısız oldu",
     "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",

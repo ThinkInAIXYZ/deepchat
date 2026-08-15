@@ -352,7 +352,7 @@ describe('SkillExecutionService', () => {
     )
   })
 
-  it.each([WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL])(
+  it.each([WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL, POSIX_COMMAND_SHELL])(
     'rejects Windows shell skills under the $displayName profile',
     async (commandShell) => {
       Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
@@ -379,6 +379,19 @@ describe('SkillExecutionService', () => {
         GIT_BASH_COMMAND_SHELL
       )
     ).resolves.toEqual({ command: GIT_BASH_COMMAND_SHELL.executable, mode: 'shell' })
+  })
+
+  it('rejects a persisted Git Bash profile on non-Windows hosts', async () => {
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'darwin' })
+
+    await expect(
+      (service as never).resolveRuntimeCommand(
+        { runtime: 'shell' },
+        { python: 'auto', node: 'auto' },
+        {},
+        GIT_BASH_COMMAND_SHELL
+      )
+    ).rejects.toThrow('platform-compatible POSIX command shell')
   })
 
   it('keeps POSIX skill plans direct without a pre-dispatch RTK rewrite', async () => {

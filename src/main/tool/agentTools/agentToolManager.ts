@@ -1878,6 +1878,8 @@ export class AgentToolManager {
       dispatchCommitted = true
     }
 
+    await this.validateMinimalPatchOperations(operations, baseDirectory, fileSystemHandler, options)
+
     try {
       for (const operation of operations) {
         options.signal?.throwIfAborted()
@@ -1890,14 +1892,95 @@ export class AgentToolManager {
         applied += 1
       }
     } catch (error) {
-      if (applied === 0) throw error
+      if (!dispatchCommitted) throw error
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(
-        `${message}\n${applied} earlier patch operation${applied === 1 ? '' : 's'} completed before this failure.`
+        `${message}\n${applied} earlier patch operation${applied === 1 ? '' : 's'} completed before this failure; the current operation may also be partial. Re-view affected files before retrying.`
       )
     }
 
     return formatApplyPatchSummary(operations)
+  }
+
+  private async validateMinimalPatchOperations(
+    operations: readonly ApplyPatchOperation[],
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    options: AgentFileSystemExecutionOptions
+  ): Promise<void> {
+    type VirtualFile = {
+      key: string
+      source: string
+      exists: boolean
+      content: string
+    }
+
+    const files = new Map<string, VirtualFile>()
+    const load = async (requestedPath: string): Promise<VirtualFile> => {
+      const key = await fileSystemHandler.resolveValidatedCreatePath(requestedPath, baseDirectory)
+      const cached = files.get(key)
+      if (cached) return cached
+
+      try {
+        await fs.promises.stat(key)
+      } catch (error) {
+        if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+          throw error
+        }
+        const missing = { key, source: key, exists: false, content: '' }
+        files.set(key, missing)
+        return missing
+      }
+
+      const source = await fileSystemHandler.resolveValidatedPath(
+        requestedPath,
+        baseDirectory,
+        'write'
+      )
+      const sourceInfo = await fs.promises.stat(source)
+      if (!sourceInfo.isFile()) throw new Error(`Path is not a regular file: ${source}`)
+      const existing = {
+        key,
+        source,
+        exists: true,
+        content: await fs.promises.readFile(source, 'utf8')
+      }
+      files.set(key, existing)
+      return existing
+    }
+
+    for (const operation of operations) {
+      options.signal?.throwIfAborted()
+      const source = await load(operation.path)
+      if (operation.type === 'add') {
+        if (source.exists) throw new Error(`Path already exists: ${source.key}`)
+        source.exists = true
+        source.content = operation.content
+        continue
+      }
+      if (!source.exists) throw new Error(`Path does not exist: ${source.key}`)
+      if (operation.type === 'delete') {
+        source.exists = false
+        source.content = ''
+        continue
+      }
+
+      const updated = applyUpdateChunks(source.content, operation.path, operation.chunks)
+      if (!operation.movePath) {
+        source.content = updated
+        continue
+      }
+      const destination = await load(operation.movePath)
+      if (destination.key === source.source) {
+        source.content = updated
+        continue
+      }
+      if (destination.exists) throw new Error(`Path already exists: ${destination.key}`)
+      destination.exists = true
+      destination.content = updated
+      source.exists = false
+      source.content = ''
+    }
   }
 
   private async applyMinimalPatchOperation(
@@ -2652,7 +2735,12 @@ export class AgentToolManager {
       }
       case APPLY_PATCH_TOOL_NAME: {
         const patch = args.patch
-        return typeof patch === 'string' ? collectApplyPatchPaths(parseApplyPatch(patch)) : []
+        if (typeof patch !== 'string') return []
+        try {
+          return collectApplyPatchPaths(parseApplyPatch(patch))
+        } catch {
+          return []
+        }
       }
       default:
         return []

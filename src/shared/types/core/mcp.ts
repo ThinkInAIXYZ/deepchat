@@ -114,6 +114,20 @@ export interface ToolDispatchCommitInput {
 
 export type ToolDispatchCommit = (input: ToolDispatchCommitInput) => void
 
+export interface NestedToolDispatchCommitInput extends ToolDispatchCommitInput {
+  childOrdinal: number
+  definitionHash: string
+  capabilityHash: string
+}
+
+export type NestedToolDispatchCommit = (input: NestedToolDispatchCommitInput) => void
+
+export type NestedToolOutcomeCommit = (input: {
+  childOrdinal: number
+  responseText: string
+  isError: boolean
+}) => void
+
 export type ToolOutcomeProjection = () => void
 
 export type ToolOutcomeProjectionRegistrar = (projection: ToolOutcomeProjection) => void

@@ -505,7 +505,8 @@ export async function runNativeAgentEvalScenario(
       resources: {
         toolDefinitions: tools,
         activeSkillNames: [],
-        commandShell: POSIX_COMMAND_SHELL
+        commandShell: POSIX_COMMAND_SHELL,
+        toolMode: { mode: 'agent', source: 'fallback' }
       },
       initialRequestSeq: 1
     }),

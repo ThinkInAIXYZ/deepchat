@@ -13,6 +13,7 @@ import {
 import {
   EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION,
   EXECUTION_JOURNAL_EVENT_NAMES,
+  MAX_EXECUTION_JOURNAL_NESTED_CHILDREN,
   CommittedToolOutcomeProjectionError,
   ExecutionJournalCorruptionError,
   buildExecutionOperationKey,
@@ -29,7 +30,6 @@ import {
   type NestedExecutionOperationIdentity,
   type ExecutionOperationIdentity
 } from '@/tape/domain/executionJournal'
-import { MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN } from '@/tape/domain/toolSurfaceFacts'
 import {
   ExecutionJournalService,
   type ExecutionJournalCommitFailpoint
@@ -280,7 +280,11 @@ describe('Execution Journal domain and strict persistence', () => {
     commitStarted(service, RUN_IDS.completed)
     commitDispatch(service, RUN_IDS.completed)
 
-    for (const childOrdinal of [-1, MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN, Number.MAX_SAFE_INTEGER]) {
+    for (const childOrdinal of [
+      -1,
+      MAX_EXECUTION_JOURNAL_NESTED_CHILDREN,
+      Number.MAX_SAFE_INTEGER
+    ]) {
       expect(() => commitNestedDispatch(table, RUN_IDS.completed, childOrdinal)).toThrow(
         /childOrdinal/
       )
