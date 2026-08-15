@@ -1,6 +1,8 @@
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { formatCommandShellForModel, type ResolvedCommandShell } from '@shared/commandShell'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { QUESTION_TOOL_NAME } from '../agentTools/questionTool'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'
@@ -8,21 +10,25 @@ export const CODE_MODE_WAIT_TOOL_NAME = 'wait'
 export const APPLY_PATCH_TOOL_NAME = 'apply_patch'
 export const STR_REPLACE_EDITOR_TOOL_NAME = 'str_replace_editor'
 
-const CODE_MODE_EXCLUDED_TOOL_NAMES = new Set(['deepchat_question'])
+const CODE_MODE_DIRECT_TOOL_NAMES = new Set([QUESTION_TOOL_NAME, LIVE_DELEGATION_AGENT_TOOL_NAME])
+
+export function isCodeModeDirectToolName(name: string): boolean {
+  return CODE_MODE_DIRECT_TOOL_NAMES.has(name)
+}
 
 export function filterCodeModeExecutionCatalog(
   executionCatalog: readonly MCPToolDefinition[]
 ): MCPToolDefinition[] {
   return executionCatalog.flatMap((tool) => {
     const name = tool.function.name.trim()
-    if (CODE_MODE_EXCLUDED_TOOL_NAMES.has(name)) return []
+    if (isCodeModeDirectToolName(name)) return []
     if (name === tool.function.name) return [tool]
     return [{ ...tool, function: { ...tool.function, name } }]
   })
 }
 
 const RUN_CODE_DESCRIPTION =
-  'Execute a TypeScript program against Code Mode subtools. `run_code` is the only top-level tool in this mode; never call a subtool directly. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Invoke subtools only inside `code` as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return comes back — curate it.'
+  'Execute a TypeScript program against Code Mode subtools. `run_code` is the only code entrypoint; call any separately exposed top-level tools directly and never call a subtool directly. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Invoke subtools only inside `code` as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return comes back — curate it.'
 
 const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION =
   'Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: "Count TODO markers across packages"; "Read failing test and its fixture"; "Rename config key in every cordis.yml".'
@@ -30,6 +36,7 @@ const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION =
 const CODE_MODE_EXEC_DESCRIPTION = `Run JavaScript code to orchestrate/compose tool calls
 - Evaluates the provided JavaScript code in a fresh V8 isolate as an async module.
 - Code Mode subtools are available only inside this program on the global \`tools\` object, for example \`await tools.exec_command(...)\`. Never issue a subtool as a top-level tool call. Subtool names are exposed as normalized JavaScript identifiers, for example \`await tools.mcp__ologs__get_profile(...)\`.
+- Call any separately exposed top-level tools directly; they are not available on the \`tools\` object.
 - Subtool methods take either a string or an object as their input argument.
 - Subtools return either an object or a string, based on the description.
 - Runs raw JavaScript -- no Node, no file system, no network access, no console.
@@ -420,7 +427,7 @@ export function renderCodeModeSdk(
   if (frontend === 'codex') {
     return `## Writing code for exec
 
-The only top-level Code Mode tools are \`exec\` and \`wait\`. The declarations below are subtools, not top-level tools. Never call a subtool directly; invoke it only inside \`exec\` through \`await tools.name(args)\`. Any top-level tool call whose name comes from the subtool declarations is invalid.
+\`exec\` and \`wait\` are the Code Mode entrypoints. Any tools separately exposed alongside them are direct top-level tools and never subtools. The declarations below are subtools, not top-level tools. Never call a subtool directly; invoke it only inside \`exec\` through \`await tools.name(args)\`. Any top-level tool call whose name comes from the subtool declarations is invalid.
 
 \`exec\` runs the body of an async JavaScript module. Only values passed to the output helpers or returned by the module enter the tool result. Use \`yield_control()\` only when the cell must be resumed later with \`wait\`.
 
@@ -439,7 +446,7 @@ declare function yield_control(): Promise<void>
 
   return `## Writing code for run_code
 
-\`run_code\` is the only top-level tool in this mode. The declarations below are Code Mode subtools, not top-level tools. A valid top-level tool call always has the name \`run_code\`. Never issue a direct tool call to a subtool such as \`exec\` or \`read\`; those names may appear only after \`tools.\` inside the \`code\` argument.
+\`run_code\` is the only code entrypoint. Any tools separately exposed alongside it are direct top-level tools and never subtools. The declarations below are Code Mode subtools, not top-level tools. Never issue a direct tool call to a subtool such as \`exec\` or \`read\`; those names may appear only after \`tools.\` inside the \`code\` argument.
 
 \`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. Inside the program:
 

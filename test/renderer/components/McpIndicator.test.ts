@@ -508,8 +508,14 @@ describe('McpIndicator', () => {
     ).toEqual(['Agent', 'Code', 'Minimal'])
     expect(wrapper.text()).toContain('run_code')
     expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
-    expect(wrapper.text()).not.toContain('deepchat_question')
+    expect(wrapper.text()).toContain('deepchat_question')
     expect(wrapper.text()).toContain('deepchat_subagents')
+    expect(
+      wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'deepchat_question')
+        ?.attributes('disabled')
+    ).toBeUndefined()
     expect(
       wrapper
         .findAll('button')

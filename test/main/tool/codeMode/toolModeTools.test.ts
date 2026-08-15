@@ -112,9 +112,7 @@ describe('Tool Mode provider contracts', () => {
         description: { type: 'string' }
       }
     })
-    expect(runCode.function.description).toContain(
-      '`run_code` is the only top-level tool in this mode'
-    )
+    expect(runCode.function.description).toContain('`run_code` is the only code entrypoint')
     expect(runCode.function.description).toContain('Invoke subtools only inside `code`')
     expect(sdk).toContain('interface SubtoolArgsMap')
     expect(sdk).toContain('type SubtoolName = keyof SubtoolOutputMap')
@@ -122,14 +120,16 @@ describe('Tool Mode provider contracts', () => {
     expect(sdk).toContain('"mcp-demo/read-file": { "content": string };')
     expect(sdk).toContain('declare class ToolCallError extends Error')
     expect(sdk).toContain('The declarations below are Code Mode subtools')
-    expect(sdk).toContain('A valid top-level tool call always has the name `run_code`')
+    expect(sdk).toContain(
+      'Any tools separately exposed alongside it are direct top-level tools and never subtools'
+    )
     expect(sdk).toContain(
       'Available Code Mode subtools (only callable inside `run_code.code` through `tools`)'
     )
     expect(sdk).toContain('Independent read-only calls MAY overlap under `Promise.all`')
   })
 
-  it('omits user questions but keeps Subagents in generated SDK declarations', () => {
+  it('omits direct Loop tools from generated SDK declarations', () => {
     const question = {
       ...nestedTool,
       function: { ...nestedTool.function, name: 'deepchat_question' }
@@ -147,9 +147,9 @@ describe('Tool Mode provider contracts', () => {
     ])[0].function.description
 
     expect(sdk).not.toContain('deepchat_question')
-    expect(sdk).toContain('deepchat_subagents')
+    expect(sdk).not.toContain('deepchat_subagents')
     expect(codexDescription).not.toContain('deepchat_question')
-    expect(codexDescription).toContain('deepchat_subagents')
+    expect(codexDescription).not.toContain('deepchat_subagents')
   })
 
   it('uses trimmed names for both SDK declarations and runtime bindings', () => {

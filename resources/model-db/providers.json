@@ -203333,6 +203333,35 @@
           "type": "chat"
         },
         {
+          "id": "dots-studio/dots-3-note-preview:free",
+          "name": "Dots Studio: Dots3-Note Preview (free)",
+          "display_name": "Dots Studio: Dots3-Note Preview (free)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 512000,
+            "output": 512000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
+          "type": "chat"
+        },
+        {
           "id": "minimax/minimax-01",
           "name": "MiniMax: MiniMax-01",
           "display_name": "MiniMax: MiniMax-01",
@@ -242886,6 +242915,20 @@
           "type": "chat"
         },
         {
+          "id": "qwen/qwen3.8-27b",
+          "name": "qwen/qwen3.8-27b",
+          "display_name": "qwen/qwen3.8-27b",
+          "limit": {
+            "context": 4096,
+            "output": 4096
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen/qwen3.8-max",
           "name": "qwen/qwen3.8-max",
           "display_name": "qwen/qwen3.8-max",
@@ -265576,6 +265619,30 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "dots-studio/dots-3-note-preview:free",
+          "name": "Dots Studio: Dots3-Note Preview (free)",
+          "display_name": "Dots Studio: Dots3-Note Preview (free)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 512000,
+            "output": 512000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "chat"
         },

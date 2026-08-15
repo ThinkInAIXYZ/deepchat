@@ -12,7 +12,8 @@ type ToolModeOverride = ToolMode | null
 ```
 
 - **Agent Mode**：保持现有工具调用方式。
-- **Code Mode**：模型只看到一个代码编排入口，代码内可以调用当前启用的工具。
+- **Code Mode**：文件、计划等能力收敛到一个代码编排入口；依赖 Agent Loop 的问答和
+  Subagent 工具保留在顶层。
 - **Minimal Mode**：只简化文件操作工具，保留当前已启用的其他能力。
 
 没有 `Tool set`、`Calling mode`、`Protocol`、`Transport` 或 `Runtime` 等用户配置，也没有
@@ -26,7 +27,7 @@ type ToolModeOverride = ToolMode | null
 | 模式 | 执行目录 | 模型可见工具 | 高级配置中的工具区域 |
 | --- | --- | --- | --- |
 | Agent Mode | 当前启用的 Agent、MCP、插件工具 | 原有 direct tools | 原有分组与开关 |
-| Code Mode | 当前启用目录中可安全嵌套调用的工具 | Codex 路由为 `exec`、`wait`；其他路由为 `run_code` | code 入口和「Code 可调用」工具 |
+| Code Mode | 当前启用目录中可安全嵌套调用的工具，加顶层 Loop 工具 | Codex 路由为 `exec`、`wait`；其他路由为 `run_code`；两者按可用性直接保留 `deepchat_question`、`deepchat_subagents` | 顶层工具和「Code 可调用」工具 |
 | Minimal Mode | 精简文件工具加当前已启用的非文件工具 | 直接工具 | 精简文件工具和原有能力分组 |
 
 ### Agent Mode
@@ -48,10 +49,11 @@ Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发�
   `tools.<name>(...)` 调用，不能作为顶层工具调用；
 - Codex 工具名只在 JavaScript SDK 中规范化，真实工具名和执行映射保持不变；
 - 名称不安全、`run_code` 保留名冲突和规范化后冲突会在 Provider 请求前失败；
-- `deepchat_subagents` 进入 Code Mode SDK 和执行 binding，但不作为顶层 Provider tool 暴露；
-  模型只能在 code 入口内通过 `tools.deepchat_subagents(...)` 调用；
-- `deepchat_question` 仍依赖顶层 Agent loop 的用户问答挂起协议，不进入 Code Mode SDK 或执行
-  binding。模型可以直接用自然语言向用户提问。
+- `deepchat_question` 和 `deepchat_subagents` 依赖顶层 Agent Loop 的交互、确认和持久状态协议，
+  因此不进入 Code Mode SDK 或 nested execution binding；
+- 两者在当前会话可用时，作为独立顶层 Provider tools 与 code 入口并列暴露，继续走原有 Loop；
+- `update_plan`、CronJob、文件、MCP、插件等其余已启用能力仍作为 subtools，只能在 code 入口
+  内通过 `tools.<name>(...)` 调用。
 
 Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求。这不是把
 UtilityProcess 当成安全沙箱，而是避免一个任意组合程序在普通逐工具审批语义下造成错误预期。
@@ -60,18 +62,15 @@ handler、输出限制和取消信号执行，UtilityProcess 不能直接访问�
 
 需要 command lease 的嵌套 `exec` 不绕过现有权限服务。外层 `full_access` 调度为每次命令调用
 签发精确的一次性 grant，并在同一个 code cell、同一个 Provider tool-call ID 下恢复对应调用；
-此前已经完成的 JavaScript 和 subtool 不会重放。`deepchat_subagents` 的 `spawn` 和 `follow_up`
-仍遵守 `explicit | proactive` 编排策略：需要确认时暂停当前 cell，批准后恢复同一个 nested call，
-不能重新执行整段代码。
+此前已经完成的 JavaScript 和 subtool 不会重放。
 
-Code cell 只拥有调用和等待，不拥有子 Session 生命周期。`spawn` 一旦完成持久化，即使 code cell
-之后异常、取消、超时或只取消一个 `wait`，子 Agent 仍继续由 live-delegation runtime 管理；系统
-不得回滚、自动中断或删除已经创建的子 Session。模型可以在后续 cell 中使用 `list`、`inspect`、
-`wait` 和 `read_result` 重新发现并接管结果。子 Session 独立解析自己的模型 Tool Mode，不继承
-父会话的 `toolModeOverride`。
+`deepchat_subagents` 的 `spawn` 和 `follow_up` 继续遵守 `explicit | proactive` 编排策略，并由顶层
+Agent Loop 处理确认、暂停、恢复和工具卡投影。Code cell 不调用或等待 Subagent，因此 cell 的
+完成、失败、取消、超时与子 Session 生命周期没有耦合。子 Session 独立解析自己的模型 Tool
+Mode，不继承父会话的 `toolModeOverride`。
 
 每个 `run_code`、`exec` 或 `wait` wrapper 先提交自己的外层 execution-journal dispatch；每个
-实际 subtool（包括 `deepchat_subagents`）再以稳定 `childOrdinal` 独立提交 nested dispatch 和
+实际 subtool 再以稳定 `childOrdinal` 独立提交 nested dispatch 和
 outcome，保留真实 target、arguments、definition hash 与 capability hash。外层 outcome 只能在其
 所有已 dispatch 的 nested operation 结算后提交，新的 `wait` 使用新的外层 operation。
 
@@ -148,7 +147,8 @@ session override + model capability + enabled tools + resolved shell
 ```
 
 - Agent Mode：执行目录和 Provider tools 相同；
-- Code Mode：执行目录保留嵌套工具，Provider tools 只保留 code wrapper；
+- Code Mode：执行目录保留嵌套工具，Provider tools 暴露 code 入口和可用的两个顶层 Loop
+  工具；
 - Minimal Mode：执行目录替换内置文件工具，其他已启用能力继续直接投影给 Provider；
 - Code Mode 与 Minimal Mode 不叠加 Tool Surface 虚拟化；只有 Agent Mode 参与该能力；
 - direct call 不能绕过 Code Mode wrapper；stale 或伪造 binding ID 会被拒绝；
@@ -243,11 +243,13 @@ AFTER
 - radio 只有三项，点击后先更新本地工具 projection，再持久化；失败时回滚并显示行内错误；
 - 「使用模型默认」把 override 清为 `null`，不是第四个模式；
 - Agent Mode 保持现有工具分组与开关；
-- Code Mode 显示实际 code 入口和可嵌套调用的工具；
+- Code Mode 显示实际 code 入口、顶层 `deepchat_question`/`deepchat_subagents` 和可嵌套调用的
+  工具；
 - Minimal Mode 显示精简文件工具以及当前已启用的其他能力，MCP 与插件列表保持可见；
-- Code Mode 把 `deepchat_subagents` 显示在「Code 可调用」分组，不显示成顶层 code 入口；
-- Code 内启动的子 Agent 仍以 Subagent Activity 和侧边栏持久投影为权威状态来源；外层
-  `run_code`/`exec` 消息只展示 code cell 与 nested-call 摘要，不伪装成直接 Subagent 工具卡；
+- Code Mode 把 `deepchat_question` 和 `deepchat_subagents` 显示在顶层工具分组，不显示在
+  「Code 可调用」分组；
+- 子 Agent 继续使用原有 Subagent 工具卡、Activity 和侧边栏持久投影；`run_code`/`exec` 消息只
+  展示 code cell 与 nested-call 摘要；
 - session 处于工作状态时禁用切换；
 - 所有用户文案使用 `vue-i18n`，控件保留 radio、disabled 和 aria 语义。
 
@@ -262,14 +264,15 @@ AFTER
 1. 高级配置只有 Agent、Code、Minimal 三项，没有组合式高级参数。
 2. override 使用一个 nullable session 字段持久化，draft、会话重开和 fork 都能携带。
 3. GPT-5.6 精确型号和 DeepSeek 工具模型默认 Code，其他模型默认 Agent。
-4. Code Mode 对 Provider 只发送 `exec`/`wait` 或 `run_code`，内部只有一个 runtime。
+4. Code Mode 对 Provider 发送 `exec`/`wait` 或 `run_code`，并按可用性并列发送
+   `deepchat_question`、`deepchat_subagents`；内部仍只有一个 code runtime。
 5. Minimal Mode 用 `exec`、`process` 和 Provider 编辑器替换细粒度文件工具，同时保留当前已
    启用的非文件能力。
 6. `exec` 名称稳定，Shell 描述、提示和实际执行来自同一次 resolved snapshot。
 7. UtilityProcess 所有终态都清理进程、timer、listener 和 pending call；session store 在关闭
    会话或应用退出时清理。
 8. UI 使用现有 DeepChat 控件，并在模式变化后立即同步下方工具区域。
-9. Code Mode 只能在 code 入口内部调用 `deepchat_subagents`；显式确认恢复原 cell 且不会重放
-   已完成代码。
-10. 已持久化的子 Session 不受外层 code cell 结束、失败、取消或超时影响，并可通过后续
-    `deepchat_subagents` 调用继续管理。
+9. Code Mode 在 Provider 顶层保留可用的 `deepchat_question` 和 `deepchat_subagents`，两者不
+   进入 code SDK；其他 subtools 仍拒绝直接调用。
+10. Subagent 的确认、等待和持久状态继续由顶层 Agent Loop 与 live-delegation runtime 管理，
+    不与 code cell 生命周期耦合。

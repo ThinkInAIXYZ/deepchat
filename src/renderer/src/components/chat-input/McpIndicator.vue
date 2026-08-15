@@ -392,6 +392,7 @@ const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
   'exec',
   'process'
 ])
+const CODE_MODE_DIRECT_AGENT_TOOLS = new Set(['deepchat_question', 'deepchat_subagents'])
 
 const props = withDefaults(
   defineProps<{
@@ -618,6 +619,13 @@ const fixedToolGroup = (name: string, label: string, toolNames: string[]): ToolG
   }))
 })
 
+const createSubagentToolItem = (): ToolGroupItem => ({
+  id: 'deepchat_subagents',
+  label: 'deepchat_subagents',
+  toolName: 'deepchat_subagents',
+  configurable: false
+})
+
 const includeSubagentTool = (groups: ToolGroup[], fallbackLabel: string): ToolGroup[] => {
   if (
     !props.subagentsAvailable ||
@@ -626,12 +634,7 @@ const includeSubagentTool = (groups: ToolGroup[], fallbackLabel: string): ToolGr
     return groups
   }
 
-  const subagentItem: ToolGroupItem = {
-    id: 'deepchat_subagents',
-    label: 'deepchat_subagents',
-    toolName: 'deepchat_subagents',
-    configurable: false
-  }
+  const subagentItem = createSubagentToolItem()
   const coreGroupIndex = groups.findIndex((group) => group.name === 'agent-core')
   if (coreGroupIndex < 0) {
     return [
@@ -675,19 +678,25 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
   if (resolvedToolMode.value === 'code') {
     const entries = currentProviderId.value === 'openai-codex' ? ['exec', 'wait'] : ['run_code']
     const codeCallableLabel = t('chat.input.toolMode.codeCallable')
+    const codeEntryGroup = fixedToolGroup(
+      'tool-mode-code-entry',
+      t('chat.input.toolMode.codeEntry'),
+      entries
+    )
+    const directToolItems = groupedAgentTools.value
+      .flatMap((group) => group.items)
+      .filter((item) => item.toolName === 'deepchat_question')
+    if (props.subagentsAvailable) directToolItems.push(createSubagentToolItem())
     const codeCallableGroups = groupedAgentTools.value
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => item.toolName !== 'deepchat_question'),
+        items: group.items.filter((item) => !CODE_MODE_DIRECT_AGENT_TOOLS.has(item.toolName)),
         label: `${codeCallableLabel} · ${group.label}`
       }))
       .filter((group) => group.items.length > 0)
     return [
-      fixedToolGroup('tool-mode-code-entry', t('chat.input.toolMode.codeEntry'), entries),
-      ...includeSubagentTool(
-        codeCallableGroups,
-        `${codeCallableLabel} · ${getGroupLabel('agent-core')}`
-      )
+      { ...codeEntryGroup, items: [...codeEntryGroup.items, ...directToolItems] },
+      ...codeCallableGroups
     ]
   }
 

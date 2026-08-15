@@ -69,9 +69,9 @@ draft/session toolModeOverride
       工具。
 - [x] Minimal Mode 保留当前已启用的非文件 Agent、MCP 和插件能力，不强制启用被禁用工具。
 - [x] direct call、unsafe name、保留名和规范化冲突 fail closed。
-- [x] 从 Code Mode 排除依赖顶层用户问答挂起协议的 `deepchat_question`。
-- [x] 把 `deepchat_subagents` 纳入 Code SDK 与 nested execution binding，同时继续拒绝顶层
-      direct call。
+- [x] 从 Code SDK 与 nested execution binding 排除 `deepchat_question` 和
+      `deepchat_subagents`，并在可用时把两者保留为顶层 Provider tools。
+- [x] Code Mode 只允许上述两个 Loop 工具直接调用，其他 subtools 继续拒绝顶层 direct call。
 - [x] 验证 Agent、Code、Minimal 使用独立 projection，Code catalog 调整不改变其他模式。
 - [x] freeform input 在 AI SDK stream 中保持 raw string。
 - [x] Code 与 Minimal 不叠加 Tool Surface 虚拟化，Agent 保持原有 Tool Surface 行为。
@@ -112,11 +112,8 @@ draft/session toolModeOverride
       不重放已完成代码。
 - [x] 每个 wrapper 与每个 nested subtool 分别提交 execution-journal dispatch/outcome；外层结算
       等待所有已 dispatch 的 nested operation 完成。
-- [x] 让 `deepchat_subagents` 的显式确认暂停并恢复同一个 cell 和 nested call，不重放已经完成
-      的 JavaScript 或 subtool。
-- [x] 保证已经持久化的子 Session 不因 cell 完成、失败、取消、超时或 nested `wait` 取消而被
-      回滚或自动中断。
-- [x] 验证后续 cell 可以通过 `list`、`inspect`、`wait` 和 `read_result` 重新发现既有子 Session。
+- [x] 顶层 Agent Loop 继续负责 `deepchat_question` 和 `deepchat_subagents` 的确认、暂停、恢复与
+      持久状态，Code cell 不调用或等待这两个工具。
 - [x] 实现 source/output/call/concurrency/heap/RSS/heartbeat/yield/permission lease 限制。
 - [x] cleanup 取消嵌套调用，清 timer/listener/map，并在 grace 后 `kill()`。
 - [x] app teardown 在 MCP/plugin 等执行 owner 销毁前关闭 Code runtime。
@@ -154,11 +151,11 @@ WSL 不在本次范围内；需要先完成 distribution、cwd 映射和 scoped 
 - [x] 使用现有 `DcPopover`、`DcButton`、`RadioGroup`、`Switch` 和 design token。
 - [x] 显示模型默认来源和「使用模型默认」操作。
 - [x] 选择后立即投影工具，持久化失败时回滚。
-- [x] Agent、Code、Minimal 分别显示原目录、包含 `deepchat_subagents` 的 code-callable 目录，
+- [x] Agent、Code、Minimal 分别显示原目录、code 入口加顶层 Loop 工具与 code-callable 目录，
       以及精简文件工具加其他已启用能力。
 - [x] Minimal Mode 保持 MCP 与插件列表可见，不再因为模式本身隐藏这些区域。
-- [x] Code 内子 Agent 的持久状态继续由 Activity/侧边栏展示；外层 code wrapper 只显示 cell 和
-      nested-call 摘要。
+- [x] Code Mode 的 Subagent 继续使用原有工具卡、Activity 与侧边栏；code wrapper 只显示 cell
+      和 nested-call 摘要。
 - [x] session 工作中禁用切换。
 - [x] 文案进入 20 个 locale，并保留 aria/radio/disabled 语义。
 
@@ -221,10 +218,10 @@ renderer: 254 files passed
 
 本次增量验证覆盖：
 
-- Code SDK 包含 `deepchat_subagents`，Provider 顶层目录仍只有 code wrapper；
-- 显式确认原地恢复 nested call，已完成代码不重放；
-- 子 Session 生命周期仍由 live-delegation runtime 持有，code cell cleanup 只取消尚未完成的
-  nested call；
+- Code SDK 排除 `deepchat_question` 和 `deepchat_subagents`，Provider 顶层目录按可用性保留
+  这两个 Loop 工具；
+- 只有这两个 Loop 工具可以绕过 code 入口直接调用，其他 direct call 继续 fail closed；
+- Subagent 确认与子 Session 生命周期仍由顶层 Loop 和 live-delegation runtime 持有；
 - Minimal projection 只替换文件工具，并保留 enabled/disabled、MCP、插件和 Subagent 能力；
 - 三种模式连续切换不会污染彼此的 execution catalog 或 UI projection；
 - DeepChat Loop 使用专用 `programmaticExecutionJournal` 提交 nested dispatch/outcome，不再依赖
@@ -237,17 +234,17 @@ renderer: 254 files passed
    `str_replace_editor`，其他已启用能力以及 MCP/插件列表仍存在。
 3. 切回 Agent Mode，确认原 disabled-tool 开关仍保持。
 4. 点击「使用模型默认」，重开会话，确认 override 已清除并按模型重新解析。
-5. 发送 Code Mode 请求，确认 Provider 只收到 `exec`/`wait` 或 `run_code`。
+5. 发送 Code Mode 请求，确认 Provider 收到 `exec`/`wait` 或 `run_code`，以及当前可用的
+   `deepchat_question`、`deepchat_subagents`。
 6. 运行长 cell 后用 `wait` 续跑或终止，确认 UtilityProcess 最终退出。
 7. 在通用设置切换 Shell，确认 `exec` 名称不变，描述与实际 executable 同步。
-8. 在 Code Mode 内通过 `tools.deepchat_subagents(...)` 启动并等待子 Agent，确认 Provider 顶层
-   没有直接暴露该工具。
-9. 在显式策略下批准 `spawn` 或 `follow_up`，确认恢复原 cell，且批准前已经完成的 subtool 不
-   重放。
-10. 在子 Agent 创建后终止 code cell，确认子 Session 继续运行并能在后续 cell 中重新发现。
+8. 在 Code Mode 直接调用 `deepchat_question`，确认顶层 Loop 正常挂起并在用户回答后恢复。
+9. 在 Code Mode 直接调用 `deepchat_subagents`，确认显式策略仍通过原生 Loop 请求批准，并正常
+   展示 Subagent 工具卡和 Activity。
+10. 确认 `update_plan`、CronJob、文件、MCP 和插件工具仍只能在 code 入口中作为 subtools 调用。
 
 ## 后续边界
 
 - WSL 只有在 scoped cleanup 与 cwd translation 完成后才能加入。
-- `deepchat_question` 继续留在顶层 Agent 交互，不进入 Code nested SDK。
+- `deepchat_question` 和 `deepchat_subagents` 继续留在顶层 Agent Loop，不进入 Code nested SDK。
 - Code Mode transcript 的嵌套层级可作为独立 UI 增强，不改变当前协议与执行边界。

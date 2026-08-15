@@ -1266,6 +1266,8 @@ describe('ToolService', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentTools: buildAgentToolRuntimeMock()
     })
+    const agentToolManager = (toolService as any).ensureAgentToolManager(null)
+    agentToolManager.callTool = vi.fn().mockResolvedValue('question_requested')
     const exec = { ...buildToolDefinition('exec', 'agent-filesystem'), source: 'agent' as const }
     const detailedFilesystem = ['read', 'write', 'edit', 'glob', 'grep'].map((name) => ({
       ...buildToolDefinition(name, 'agent-filesystem'),
@@ -1325,8 +1327,39 @@ describe('ToolService', () => {
       commandShell,
       executionCatalog
     })
-    expect(code.map((definition) => definition.function.name)).toEqual(['run_code'])
+    expect(code.map((definition) => definition.function.name)).toEqual([
+      'run_code',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    ])
     expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
+    const codexCode = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'code',
+      providerId: 'openai-codex',
+      commandShell,
+      executionCatalog
+    })
+    expect(codexCode.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'wait',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    ])
+    await expect(
+      toolService.callTool({
+        id: 'direct-question',
+        type: 'function',
+        function: {
+          name: QUESTION_TOOL_NAME,
+          arguments: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }]
+          })
+        },
+        conversationId: 'session-1'
+      })
+    ).resolves.toMatchObject({ content: 'question_requested' })
     await expect(
       toolService.callTool({
         id: 'direct-read',

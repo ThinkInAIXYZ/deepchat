@@ -136,6 +136,7 @@ import {
   createStrReplaceEditorToolDefinition,
   decorateExecForShell,
   filterCodeModeExecutionCatalog,
+  isCodeModeDirectToolName,
   isCodexToolFrontend,
   normalizeCodexToolName
 } from './codeMode/toolModeTools'
@@ -552,11 +553,17 @@ export class ToolService implements ToolServicePort {
     const conversationId = input.conversationId.trim()
     if (!conversationId) throw new Error('Tool mode configuration requires a conversation ID.')
 
-    const executionCatalog = (
+    const decoratedCatalog = input.executionCatalog.map((definition) =>
+      decorateExecForShell(definition, input.commandShell)
+    )
+    const executionCatalog =
+      input.mode === 'code' ? filterCodeModeExecutionCatalog(decoratedCatalog) : decoratedCatalog
+    const codeModeDirectTools =
       input.mode === 'code'
-        ? filterCodeModeExecutionCatalog(input.executionCatalog)
-        : input.executionCatalog
-    ).map((definition) => decorateExecForShell(definition, input.commandShell))
+        ? decoratedCatalog.filter((definition) =>
+            isCodeModeDirectToolName(definition.function.name.trim())
+          )
+        : []
     const frontend = isCodexToolFrontend(input.providerId) ? 'codex' : 'function'
     const previousMode = this.conversationToolModes.get(conversationId)
     if (
@@ -610,7 +617,7 @@ export class ToolService implements ToolServicePort {
     }
 
     if (input.mode === 'code') this.assertCodeModeCatalog(frontend, executionCatalog)
-    this.publishConfiguredCatalog(conversationId, executionCatalog)
+    this.publishConfiguredCatalog(conversationId, [...executionCatalog, ...codeModeDirectTools])
     this.conversationToolModes.set(conversationId, {
       mode: input.mode,
       frontend,
@@ -618,9 +625,11 @@ export class ToolService implements ToolServicePort {
     })
 
     if (input.mode === 'agent') return executionCatalog
-    return frontend === 'codex'
-      ? createCodexCodeModeToolDefinitions(executionCatalog)
-      : [createRunCodeToolDefinition()]
+    const codeEntryTools =
+      frontend === 'codex'
+        ? createCodexCodeModeToolDefinitions(executionCatalog)
+        : [createRunCodeToolDefinition()]
+    return [...codeEntryTools, ...codeModeDirectTools]
   }
 
   async shutdownCodeRuntime(): Promise<void> {
@@ -666,7 +675,11 @@ export class ToolService implements ToolServicePort {
       const codeModeResult = await this.callCodeModeEntry(request, options)
       if (codeModeResult) return codeModeResult
       const sessionId = request.conversationId?.trim()
-      if (sessionId && this.conversationToolModes.get(sessionId)?.mode === 'code') {
+      if (
+        sessionId &&
+        this.conversationToolModes.get(sessionId)?.mode === 'code' &&
+        !isCodeModeDirectToolName(request.function.name)
+      ) {
         throw new Error(
           `Direct tool '${request.function.name}' is unavailable in Code Mode; use the code entrypoint.`
         )
