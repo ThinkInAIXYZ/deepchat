@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
@@ -10,12 +10,23 @@ const passthrough = (name: string) =>
 
 const ButtonStub = defineComponent({
   name: 'Button',
+  inheritAttrs: false,
   props: {
+    as: { type: String, default: 'button' },
     disabled: { type: Boolean, default: false }
   },
   emits: ['click'],
-  template:
-    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+  render() {
+    return h(
+      this.as,
+      {
+        ...this.$attrs,
+        disabled: this.as === 'button' ? this.disabled : undefined,
+        onClick: () => this.$emit('click')
+      },
+      this.$slots.default?.()
+    )
+  }
 })
 
 const SwitchStub = defineComponent({
@@ -495,8 +506,8 @@ describe('McpIndicator', () => {
     })
   })
 
-  it('shows the model-recommended Code Mode and its projected tools', async () => {
-    const { wrapper } = await setup({
+  it('shows fixed Code tools as active read-only items', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
       providerId: 'deepseek',
       defaultToolMode: 'code',
       subagentsAvailable: true
@@ -510,23 +521,26 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).toContain('deepchat_question')
     expect(wrapper.text()).toContain('deepchat_subagents')
+    const runCodeItem = wrapper.findAll('span').find((item) => item.text() === 'run_code')
+    const subagentItem = wrapper
+      .findAll('span')
+      .find((item) => item.text() === 'deepchat_subagents')
+    expect(runCodeItem?.classes()).toContain('bg-primary')
+    expect(subagentItem?.classes()).toContain('bg-primary')
     expect(
       wrapper
         .findAll('button')
         .find((button) => button.text() === 'deepchat_question')
         ?.attributes('disabled')
     ).toBeUndefined()
-    expect(
-      wrapper
-        .findAll('button')
-        .find((button) => button.text() === 'deepchat_subagents')
-        ?.attributes('disabled')
-    ).toBeDefined()
+    await subagentItem!.trigger('click')
+    await flushPromises()
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('demo-server')
   })
 
   it('persists Minimal Mode and only replaces the filesystem tool group', async () => {
-    const { wrapper, sessionStore } = await setup({
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       defaultToolMode: 'code',
       pluginEnabled: true,
       subagentsAvailable: true
@@ -546,6 +560,15 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('deepchat_subagents')
     expect(wrapper.text()).toContain('demo-server')
     expect(wrapper.text()).toContain('CUA Driver')
+    const fixedToolNames = ['exec', 'process', 'str_replace_editor', 'deepchat_subagents']
+    const fixedToolItems = wrapper
+      .findAll('span')
+      .filter((item) => fixedToolNames.includes(item.text()))
+    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
+    expect(fixedToolItems.every((item) => item.classes().includes('bg-primary'))).toBe(true)
+    await fixedToolItems[0].trigger('click')
+    await flushPromises()
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
   it('disables Tool Mode changes while the session is working', async () => {

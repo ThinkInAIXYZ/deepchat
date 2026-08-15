@@ -172,15 +172,17 @@
                 <DcButton
                   v-for="item in group.items"
                   :key="item.id"
+                  :as="item.configurable ? 'button' : 'span'"
                   variant="outline"
                   size="sm"
                   class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
-                  :class="
+                  :class="[
                     !item.configurable || isGroupItemEnabled(item)
                       ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                  "
-                  :disabled="!item.configurable || isGroupItemPending(item)"
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+                    !item.configurable ? 'pointer-events-none' : ''
+                  ]"
+                  :disabled="item.configurable && isGroupItemPending(item)"
                   @click="toggleGroupItem(item)"
                 >
                   {{ item.label }}
@@ -872,6 +874,7 @@ const toggleAgentTool = async (toolName: string) => {
 }
 
 const toggleGroupItem = async (item: ToolGroupItem) => {
+  if (!item.configurable) return
   await toggleAgentTool(item.toolName)
 }
 
