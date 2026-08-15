@@ -199,4 +199,40 @@ describe('TapeInspectorDetailPane', () => {
       [{ messageId: 'message-1', requestSeq: undefined }]
     ])
   })
+
+  it('focuses an overlay detail and closes it with Escape', async () => {
+    const wrapper = mount(TapeInspectorDetailPane, {
+      attachTo: document.body,
+      props: {
+        row: {
+          recordType: 'fact',
+          key: 'fact:incarnation-1:entry:1',
+          record: firstDetail.detail.record,
+          depth: 0,
+          status: null,
+          durationMs: null,
+          sequenceEntryId: 1,
+          sequenceStart: 0,
+          actualStartAt: 100,
+          actualEndAt: null,
+          actualStart: 0,
+          actualWidth: 0
+        },
+        detail: firstDetail,
+        capabilities,
+        loading: false,
+        errorCode: null,
+        placement: 'overlay'
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.attributes('role')).toBe('dialog')
+    expect(wrapper.attributes('aria-modal')).toBeUndefined()
+    expect(document.activeElement).toBe(wrapper.element)
+
+    await wrapper.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
 })

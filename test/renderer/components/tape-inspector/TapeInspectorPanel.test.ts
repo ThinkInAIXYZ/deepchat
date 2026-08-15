@@ -15,7 +15,10 @@ const inspectorStoreData = vi.hoisted(() => ({
   rows: [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }],
   overviewRows: [] as Array<{ key: string; recordType: string }>,
   selectedKey: null,
-  selectedRow: null,
+  selectedRow: null as {
+    key: string
+    recordType: 'fact' | 'group' | 'evidence' | 'evidence_lane'
+  } | null,
   selectedDetail: null,
   selectedCapabilities: null,
   loadingInitial: false,
@@ -156,7 +159,7 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    props: ['row', 'selected', 'ariaRowIndex'],
+    props: ['row', 'selected', 'ariaRowIndex', 'layout'],
     emits: ['select'],
     computed: {
       rowDomId() {
@@ -164,14 +167,17 @@ vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
       }
     },
     template:
-      '<div :id="rowDomId" data-testid="tape-inspector-row" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
+      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
   })
 }))
 
 vi.mock('@/components/tape-inspector/TapeInspectorDetailPane.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorDetailPane',
-    template: '<div data-testid="detail-pane" />'
+    props: ['placement'],
+    emits: ['close'],
+    template:
+      '<div data-testid="detail-pane" :data-placement="placement"><button data-testid="close-detail" @click="$emit(\'close\')" /></div>'
   })
 }))
 
@@ -197,6 +203,9 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.rows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
     inspectorStore.overviewRows = []
     inspectorStore.selectedKey = null
+    inspectorStore.selectedRow = null
+    inspectorStore.selectedDetail = null
+    inspectorStore.selectedCapabilities = null
     inspectorStore.hasOlder = false
     inspectorStore.loadingOlder = false
     inspectorStore.liveSyncing = false
@@ -291,8 +300,15 @@ describe('TapeInspectorPanel', () => {
     expect(sessionClient.unsubscribeTapeInspectorHead).toHaveBeenCalledWith(expect.any(String))
   })
 
-  it('moves selection and loads details with keyboard navigation', async () => {
-    inspectorStore.moveSelection.mockReturnValueOnce('fact:incarnation:entry:1')
+  it('moves keyboard selection without reopening detail until Enter', async () => {
+    inspectorStore.moveSelection.mockImplementationOnce(() => {
+      inspectorStore.selectedKey = 'fact:incarnation:entry:1'
+      inspectorStore.selectedRow = {
+        key: 'fact:incarnation:entry:1',
+        recordType: 'fact'
+      }
+      return inspectorStore.selectedKey
+    })
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -306,7 +322,14 @@ describe('TapeInspectorPanel', () => {
     })
 
     expect(inspectorStore.moveSelection).toHaveBeenCalledWith(1)
+    expect(wrapper.find('[data-testid="detail-pane"]').exists()).toBe(false)
+    expect(inspectorStore.loadSelectedDetail).not.toHaveBeenCalled()
+
+    await wrapper.get('[role="grid"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
     expect(inspectorStore.loadSelectedDetail).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="detail-pane"]').exists()).toBe(true)
   })
 
   it('exposes virtual row selection through the focused grid', async () => {
@@ -427,6 +450,55 @@ describe('TapeInspectorPanel', () => {
 
     expect(inspectorStore.revealOverviewRow).toHaveBeenCalledWith('fact:incarnation:entry:1')
     expect(inspectorStore.loadSelectedDetail).toHaveBeenCalledOnce()
+  })
+
+  it('does not reserve detail space until a row is selected', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="detail-pane"]').exists()).toBe(false)
+  })
+
+  it('closes detail without clearing selection and restores ledger focus', async () => {
+    inspectorStore.selectedKey = 'fact:incarnation:entry:1'
+    inspectorStore.selectedRow = { key: 'fact:incarnation:entry:1', recordType: 'fact' }
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      },
+      attachTo: document.body
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="detail-pane"]').attributes('data-placement')).toBe('side')
+    await wrapper.get('[data-testid="close-detail"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="detail-pane"]').exists()).toBe(false)
+    expect(inspectorStore.selectedKey).toBe('fact:incarnation:entry:1')
+    expect(inspectorStore.selectRow).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(wrapper.get('[role="grid"]').element)
+    wrapper.unmount()
+  })
+
+  it('emits the optional focused inspection action', async () => {
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null,
+        isFullscreen: false
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="tape-inspector-fullscreen-toggle"]').trigger('click')
+    expect(wrapper.emitted('toggleFullscreen')).toHaveLength(1)
   })
 
   it('restores the same visible key and pixel offset after prepending older rows', async () => {

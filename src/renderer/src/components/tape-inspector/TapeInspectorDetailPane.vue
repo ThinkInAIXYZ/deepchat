@@ -1,5 +1,18 @@
 <template>
-  <aside class="flex h-[38%] min-h-[220px] w-full shrink-0 flex-col border-t bg-background">
+  <aside
+    ref="rootRef"
+    data-testid="tape-inspector-detail-pane"
+    class="flex min-h-0 flex-col bg-background outline-none"
+    :class="
+      placement === 'side'
+        ? 'h-full w-[clamp(320px,38%,480px)] shrink-0 border-l'
+        : 'absolute inset-0 z-20 h-full w-full'
+    "
+    :role="placement === 'overlay' ? 'dialog' : 'complementary'"
+    :aria-label="t('tapeInspector.detail.title')"
+    tabindex="-1"
+    @keydown.esc.stop="emit('close')"
+  >
     <div class="flex h-9 shrink-0 items-center justify-between border-b px-3">
       <span class="text-xs font-medium">{{ t('tapeInspector.detail.title') }}</span>
       <div class="flex items-center gap-2">
@@ -25,6 +38,15 @@
           :label="copied ? t('common.copied') : t('common.copy')"
           :tooltip="copied ? t('common.copied') : t('common.copy')"
           @click="copySelected"
+        />
+        <DcButton
+          data-testid="tape-inspector-close-detail"
+          size="icon-sm"
+          variant="ghost"
+          icon="lucide:x"
+          :label="t('common.close')"
+          :tooltip="t('common.close')"
+          @click="emit('close')"
         />
       </div>
     </div>
@@ -106,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -118,20 +140,26 @@ import type {
 } from './model'
 import type { TapeInspectorErrorCode } from './store'
 
-const props = defineProps<{
-  row: TapeInspectorDisplayRow | null
-  detail: TapeInspectorDetailState | null
-  capabilities: TapeInspectorDetailCapabilities | null
-  loading: boolean
-  errorCode: TapeInspectorErrorCode
-}>()
+const props = withDefaults(
+  defineProps<{
+    row: TapeInspectorDisplayRow | null
+    detail: TapeInspectorDetailState | null
+    capabilities: TapeInspectorDetailCapabilities | null
+    loading: boolean
+    errorCode: TapeInspectorErrorCode
+    placement?: 'side' | 'overlay'
+  }>(),
+  { placement: 'side' }
+)
 
 const emit = defineEmits<{
+  close: []
   retry: []
   openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
 }>()
 
 const { t } = useI18n()
+const rootRef = ref<HTMLElement | null>(null)
 const copied = ref(false)
 let copiedTimer: number | null = null
 let copyGeneration = 0
@@ -319,6 +347,16 @@ watch(
       copiedTimer = null
     }
   }
+)
+
+watch(
+  () => [props.row?.key, props.placement] as const,
+  async ([key, placement]) => {
+    if (!key || placement !== 'overlay') return
+    await nextTick()
+    rootRef.value?.focus({ preventScroll: true })
+  },
+  { immediate: true }
 )
 
 onBeforeUnmount(() => {

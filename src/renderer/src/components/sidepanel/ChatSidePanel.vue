@@ -9,6 +9,7 @@
     :style="shellStyle"
     :data-workspace-fullscreen="String(isWorkspaceFullscreenActive)"
     :data-browser-fullscreen="String(isBrowserFullscreenActive)"
+    :data-tape-inspector-fullscreen="String(isTapeInspectorFullscreenActive)"
   >
     <aside
       v-if="props.sessionId"
@@ -128,6 +129,8 @@
           "
           :session-id="props.sessionId"
           :open-request="sidepanelStore.tapeInspectorOpenRequest"
+          :is-fullscreen="isTapeInspectorFullscreenActive"
+          @toggle-fullscreen="toggleTapeInspectorFullscreen"
           @open-message-diagnostics="inspectorDiagnosticsTarget = $event"
         />
       </Transition>
@@ -186,6 +189,7 @@ const isResizing = ref(false)
 const panelContentLeaving = ref(false)
 const isWorkspaceFullscreen = ref(false)
 const isBrowserFullscreen = ref(false)
+const isTapeInspectorFullscreen = ref(false)
 const inspectorDiagnosticsTarget = ref<TapeInspectorMessageDiagnosticsTarget | null>(null)
 const fullscreenMotionState = ref<'expanding' | 'collapsing' | null>(null)
 
@@ -195,8 +199,18 @@ const isWorkspaceFullscreenActive = computed(() => {
 const isBrowserFullscreenActive = computed(() => {
   return isBrowserFullscreen.value && shouldShow.value && sidepanelStore.activeTab === 'browser'
 })
+const isTapeInspectorFullscreenActive = computed(() => {
+  return (
+    isTapeInspectorFullscreen.value &&
+    shouldShow.value &&
+    sidepanelStore.activeTab === 'tape-inspector'
+  )
+})
 const isSidepanelFullscreenActive = computed(
-  () => isWorkspaceFullscreenActive.value || isBrowserFullscreenActive.value
+  () =>
+    isWorkspaceFullscreenActive.value ||
+    isBrowserFullscreenActive.value ||
+    isTapeInspectorFullscreenActive.value
 )
 
 const shellStyle = computed(() => {
@@ -279,6 +293,11 @@ const resetBrowserFullscreen = () => {
   clearFullscreenMotionHandle()
 }
 
+const resetTapeInspectorFullscreen = () => {
+  isTapeInspectorFullscreen.value = false
+  clearFullscreenMotionHandle()
+}
+
 const toggleWorkspaceFullscreen = () => {
   if (!shouldShow.value || sidepanelStore.activeTab !== 'workspace') {
     return
@@ -305,6 +324,20 @@ const toggleBrowserFullscreen = () => {
     fullscreenMotionState.value = null
   }, FULLSCREEN_MOTION_MS)
   isBrowserFullscreen.value = !isBrowserFullscreen.value
+}
+
+const toggleTapeInspectorFullscreen = () => {
+  if (!shouldShow.value || sidepanelStore.activeTab !== 'tape-inspector') {
+    return
+  }
+
+  clearFullscreenMotionHandle()
+  fullscreenMotionState.value = isTapeInspectorFullscreen.value ? 'collapsing' : 'expanding'
+  fullscreenMotionTimer = window.setTimeout(() => {
+    fullscreenMotionTimer = null
+    fullscreenMotionState.value = null
+  }, FULLSCREEN_MOTION_MS)
+  isTapeInspectorFullscreen.value = !isTapeInspectorFullscreen.value
 }
 
 const handleWorkspaceInsertFileReference = (filePath: string) => {
@@ -366,6 +399,7 @@ watch(shouldShow, (visible) => {
   if (!visible) {
     resetWorkspaceFullscreen()
     resetBrowserFullscreen()
+    resetTapeInspectorFullscreen()
   }
 
   if (visible) {
@@ -395,6 +429,9 @@ watch(
     if (activeTab !== 'browser') {
       resetBrowserFullscreen()
     }
+    if (activeTab !== 'tape-inspector') {
+      resetTapeInspectorFullscreen()
+    }
   }
 )
 
@@ -417,6 +454,7 @@ watch(
     if (!sessionId || sessionId !== previousSessionId) {
       resetWorkspaceFullscreen()
       resetBrowserFullscreen()
+      resetTapeInspectorFullscreen()
       inspectorDiagnosticsTarget.value = null
     }
   }

@@ -10,6 +10,7 @@
     :data-testid="`tape-inspector-row-${row.key}`"
     :data-row-key="row.key"
     :data-row-type="row.recordType"
+    :data-layout="layout"
     role="row"
     :id="rowDomId"
     :aria-rowindex="ariaRowIndex"
@@ -47,20 +48,32 @@
           >
             {{ t('tapeInspector.evidence.legacy') }}
           </span>
+          <span
+            v-if="layout === 'compact' && row.status"
+            class="ml-auto inline-flex shrink-0 truncate rounded px-1.5 py-0.5 text-[10px]"
+            :class="statusClass"
+          >
+            {{ statusLabel }}
+          </span>
         </div>
         <div
-          v-if="summaryLabel"
+          v-if="displaySummaryLabel"
           class="mt-0.5 truncate text-[10px] font-normal text-muted-foreground"
-          :title="summaryLabel"
+          :title="displaySummaryLabel"
         >
-          {{ summaryLabel }}
+          {{ displaySummaryLabel }}
         </div>
       </div>
     </div>
-    <div class="truncate px-2 text-muted-foreground" role="gridcell" :title="kindLabel">
+    <div
+      v-if="layout === 'wide'"
+      class="truncate px-2 text-muted-foreground"
+      role="gridcell"
+      :title="kindLabel"
+    >
       {{ kindLabel }}
     </div>
-    <div class="px-2" role="gridcell">
+    <div v-if="layout !== 'compact'" class="px-2" role="gridcell">
       <span
         class="inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-[10px]"
         :class="statusClass"
@@ -68,10 +81,18 @@
         {{ statusLabel }}
       </span>
     </div>
-    <div class="truncate px-2 font-mono text-[11px] text-muted-foreground" role="gridcell">
+    <div
+      v-if="layout === 'wide'"
+      class="truncate px-2 font-mono text-[11px] text-muted-foreground"
+      role="gridcell"
+    >
       {{ startLabel }}
     </div>
-    <div class="truncate px-2 font-mono text-[11px] text-muted-foreground" role="gridcell">
+    <div
+      v-if="layout !== 'compact'"
+      class="truncate px-2 font-mono text-[11px] text-muted-foreground"
+      role="gridcell"
+    >
       {{ durationLabel }}
     </div>
   </div>
@@ -91,11 +112,13 @@ const props = withDefaults(
   defineProps<{
     row: TapeInspectorDisplayRow
     selected: boolean
+    layout?: 'wide' | 'medium' | 'compact'
     gridTemplateColumns?: string
     tableMinWidth?: number
     ariaRowIndex?: number
   }>(),
   {
+    layout: 'wide',
     gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px',
     tableMinWidth: 630
   }
@@ -164,7 +187,7 @@ function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record'
   if (facts.errorCode) parts.push(facts.errorCode)
 }
 
-const summaryLabel = computed(() => {
+const semanticSummaryLabel = computed(() => {
   const row = props.row
   const parts: string[] = []
   if (row.recordType === 'fact') {
@@ -199,7 +222,7 @@ const statusClass = computed(() => {
   if (props.row.status === 'success' || props.row.status === 'completed') {
     return 'bg-foreground/10 text-foreground'
   }
-  return 'bg-muted text-muted-foreground'
+  return 'text-muted-foreground'
 })
 
 const rowCreatedAt = computed(() => {
@@ -217,6 +240,14 @@ const durationLabel = computed(() => {
   if (duration === null) return t('tapeInspector.states.unknown')
   if (duration < 1_000) return `${duration} ms`
   return `${(duration / 1_000).toFixed(2)} s`
+})
+const displaySummaryLabel = computed(() => {
+  const parts = semanticSummaryLabel.value ? [semanticSummaryLabel.value] : []
+  if (props.layout === 'medium') parts.push(kindLabel.value, startLabel.value)
+  if (props.layout === 'compact') {
+    parts.push(kindLabel.value, startLabel.value, durationLabel.value)
+  }
+  return [...new Set(parts.filter(Boolean))].join(' · ')
 })
 const rowIcon = computed(() => {
   if (props.row.recordType === 'evidence') return 'lucide:radio'

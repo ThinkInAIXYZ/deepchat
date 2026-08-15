@@ -1,7 +1,15 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col bg-background" data-testid="tape-inspector-panel">
-    <div class="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
-      <div class="relative min-w-[160px] flex-1">
+  <div
+    ref="panelRef"
+    class="flex min-h-0 flex-1 flex-col bg-background"
+    data-testid="tape-inspector-panel"
+    :data-layout="panelLayout"
+  >
+    <div class="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
+      <div
+        class="relative min-w-0"
+        :class="isCompactPanel ? 'order-first basis-full' : 'min-w-[200px] flex-1'"
+      >
         <Icon
           icon="lucide:search"
           class="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -25,11 +33,12 @@
           <DcButton
             size="sm"
             variant="outline"
-            class="h-7 px-2 text-xs"
+            class="h-7 text-xs"
+            :class="isCompactPanel ? 'w-7 px-0' : 'px-2'"
             :label="t('tapeInspector.filters.title')"
           >
-            <Icon icon="lucide:funnel" class="mr-1.5 size-3.5" />
-            {{ t('tapeInspector.filters.title') }}
+            <Icon icon="lucide:funnel" class="size-3.5" :class="{ 'mr-1.5': !isCompactPanel }" />
+            <span v-if="!isCompactPanel">{{ t('tapeInspector.filters.title') }}</span>
             <span v-if="activeFilterCount" class="ml-1 text-[10px] text-muted-foreground">
               {{ activeFilterCount }}
             </span>
@@ -87,7 +96,7 @@
         :title="liveStatusLabel"
       >
         <Icon :icon="liveStatusIcon" class="size-3.5" />
-        {{ liveStatusLabel }}
+        <span v-if="!isCompactPanel">{{ liveStatusLabel }}</span>
       </span>
 
       <DcButton
@@ -108,25 +117,26 @@
       <DcButton
         size="sm"
         variant="ghost"
-        class="h-7 px-2 text-xs"
+        class="h-7 text-xs"
+        :class="isCompactPanel ? 'w-7 px-0' : 'px-2'"
         :disabled="!store.canLoadNewer"
         :label="t('tapeInspector.actions.refresh')"
         @click="store.loadNewerPage()"
       >
         <Icon
           :icon="store.loadingNewer ? 'lucide:loader-circle' : 'lucide:refresh-cw'"
-          class="mr-1.5 size-3.5"
-          :class="{ 'animate-spin': store.loadingNewer }"
+          class="size-3.5"
+          :class="{ 'mr-1.5': !isCompactPanel, 'animate-spin': store.loadingNewer }"
         />
-        {{ t('tapeInspector.actions.refresh') }}
+        <span v-if="!isCompactPanel">{{ t('tapeInspector.actions.refresh') }}</span>
       </DcButton>
 
       <DcButton
         data-testid="tape-inspector-export"
         size="sm"
         variant="ghost"
-        class="h-7 px-2 text-xs"
-        :class="{ 'text-destructive': exportFailed }"
+        class="h-7 text-xs"
+        :class="[isCompactPanel ? 'w-7 px-0' : 'px-2', { 'text-destructive': exportFailed }]"
         :disabled="!store.tapeIncarnationId || store.loadingInitial || exporting"
         :label="t('common.export')"
         :title="exportFailed ? t('common.error.requestFailed') : t('common.export')"
@@ -134,18 +144,28 @@
       >
         <Icon
           :icon="exporting ? 'lucide:loader-circle' : 'lucide:download'"
-          class="mr-1.5 size-3.5"
-          :class="{ 'animate-spin': exporting }"
+          class="size-3.5"
+          :class="{ 'mr-1.5': !isCompactPanel, 'animate-spin': exporting }"
         />
-        {{ t('common.export') }}
+        <span v-if="!isCompactPanel">{{ t('common.export') }}</span>
       </DcButton>
+
+      <DcButton
+        data-testid="tape-inspector-fullscreen-toggle"
+        size="icon-sm"
+        variant="ghost"
+        :icon="isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
+        :label="isFullscreen ? t('common.restore') : t('common.maximize')"
+        :tooltip="isFullscreen ? t('common.restore') : t('common.maximize')"
+        @click="emit('toggleFullscreen')"
+      />
     </div>
 
     <div
-      class="flex shrink-0 items-center justify-between border-b px-2 py-1 text-[10px] text-muted-foreground"
+      class="flex shrink-0 flex-wrap items-center justify-between gap-x-3 border-b px-2 py-1 text-[10px] text-muted-foreground"
     >
-      <span>{{ t('tapeInspector.search.loadedScope') }}</span>
-      <span>
+      <span class="min-w-0 truncate">{{ t('tapeInspector.search.loadedScope') }}</span>
+      <span class="shrink-0">
         {{
           t('tapeInspector.states.loadedCounts', {
             facts: store.records.length,
@@ -176,214 +196,242 @@
         :has-unloaded-history="store.hasOlder || store.hasMoreEvidence"
         @select="selectOverviewRow"
       />
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="relative flex min-h-0 flex-1 overflow-hidden">
         <div
-          v-if="store.rows.length === 0"
-          class="flex min-h-0 flex-1 items-center justify-center p-6 text-center"
+          ref="ledgerRef"
+          class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          :data-layout="ledgerLayout"
         >
-          <span class="text-xs text-muted-foreground">{{ t('tapeInspector.states.empty') }}</span>
-        </div>
-        <div v-else class="min-h-0 flex-1 overflow-x-auto">
           <div
-            ref="gridRef"
-            class="flex h-full flex-col outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-            :style="{ minWidth: `${tableMinWidth}px` }"
-            role="grid"
-            tabindex="0"
-            :aria-label="t('tapeInspector.title')"
-            :aria-activedescendant="activeDescendantId"
-            :aria-rowcount="store.rows.length + 1"
-            @keydown="handleKeydown"
+            v-if="store.rows.length === 0"
+            class="flex min-h-0 flex-1 items-center justify-center p-6 text-center"
           >
+            <span class="text-xs text-muted-foreground">{{ t('tapeInspector.states.empty') }}</span>
+          </div>
+          <div v-else class="min-h-0 flex-1 overflow-hidden">
             <div
-              class="grid h-8 shrink-0 items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-              :style="{ gridTemplateColumns }"
-              role="row"
-              aria-rowindex="1"
+              ref="gridRef"
+              class="flex h-full flex-col outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+              :style="{ minWidth: `${tableMinWidth}px` }"
+              role="grid"
+              tabindex="0"
+              :aria-label="t('tapeInspector.title')"
+              :aria-activedescendant="activeDescendantId"
+              :aria-rowcount="store.rows.length + 1"
+              @keydown="handleKeydown"
             >
-              <div class="relative flex h-full min-w-0 items-center">
-                <button
-                  type="button"
-                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
-                  role="columnheader"
-                  :aria-sort="ariaSort('name')"
-                  @click="toggleSort('name')"
+              <div
+                class="grid h-8 shrink-0 items-center border-b bg-muted/30 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+                :style="{ gridTemplateColumns }"
+                role="row"
+                aria-rowindex="1"
+              >
+                <div class="relative flex h-full min-w-0 items-center">
+                  <button
+                    type="button"
+                    class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                    role="columnheader"
+                    :aria-sort="ariaSort('name')"
+                    @click="toggleSort('name')"
+                  >
+                    <span class="truncate">{{ t('tapeInspector.columns.name') }}</span>
+                    <Icon :icon="sortIcon('name')" class="size-3 shrink-0" />
+                  </button>
+                  <TapeInspectorColumnResizeHandle
+                    v-if="ledgerLayout === 'wide'"
+                    column="name"
+                    :label="t('tapeInspector.columns.name')"
+                    :min="columnLimits.name.min"
+                    :max="columnLimits.name.max"
+                    :value="columnWidths.name"
+                    @resize-start="startColumnResize('name', $event)"
+                    @resize-move="continueColumnResize"
+                    @resize-end="finishColumnResize"
+                    @resize-cancel="cancelColumnResize"
+                    @resize-by="resizeColumnBy('name', $event)"
+                  />
+                </div>
+                <div
+                  v-if="ledgerLayout === 'wide'"
+                  class="relative flex h-full min-w-0 items-center"
                 >
-                  <span class="truncate">{{ t('tapeInspector.columns.name') }}</span>
-                  <Icon :icon="sortIcon('name')" class="size-3 shrink-0" />
-                </button>
-                <TapeInspectorColumnResizeHandle
-                  column="name"
-                  :label="t('tapeInspector.columns.name')"
-                  :min="columnLimits.name.min"
-                  :max="columnLimits.name.max"
-                  :value="columnWidths.name"
-                  @resize-start="startColumnResize('name', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('name', $event)"
-                />
-              </div>
-              <div class="relative flex h-full min-w-0 items-center">
-                <button
-                  type="button"
-                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                  <button
+                    type="button"
+                    class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                    role="columnheader"
+                    :aria-sort="ariaSort('kind')"
+                    @click="toggleSort('kind')"
+                  >
+                    <span class="truncate">{{ t('tapeInspector.columns.kind') }}</span>
+                    <Icon :icon="sortIcon('kind')" class="size-3 shrink-0" />
+                  </button>
+                  <TapeInspectorColumnResizeHandle
+                    column="kind"
+                    :label="t('tapeInspector.columns.kind')"
+                    :min="columnLimits.kind.min"
+                    :max="columnLimits.kind.max"
+                    :value="columnWidths.kind"
+                    @resize-start="startColumnResize('kind', $event)"
+                    @resize-move="continueColumnResize"
+                    @resize-end="finishColumnResize"
+                    @resize-cancel="cancelColumnResize"
+                    @resize-by="resizeColumnBy('kind', $event)"
+                  />
+                </div>
+                <div
+                  v-if="ledgerLayout !== 'compact'"
+                  class="relative flex h-full min-w-0 items-center px-2"
                   role="columnheader"
-                  :aria-sort="ariaSort('kind')"
-                  @click="toggleSort('kind')"
                 >
-                  <span class="truncate">{{ t('tapeInspector.columns.kind') }}</span>
-                  <Icon :icon="sortIcon('kind')" class="size-3 shrink-0" />
-                </button>
-                <TapeInspectorColumnResizeHandle
-                  column="kind"
-                  :label="t('tapeInspector.columns.kind')"
-                  :min="columnLimits.kind.min"
-                  :max="columnLimits.kind.max"
-                  :value="columnWidths.kind"
-                  @resize-start="startColumnResize('kind', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('kind', $event)"
-                />
-              </div>
-              <div class="relative flex h-full min-w-0 items-center px-2" role="columnheader">
-                <span class="truncate">{{ t('tapeInspector.columns.status') }}</span>
-                <TapeInspectorColumnResizeHandle
-                  column="status"
-                  :label="t('tapeInspector.columns.status')"
-                  :min="columnLimits.status.min"
-                  :max="columnLimits.status.max"
-                  :value="columnWidths.status"
-                  @resize-start="startColumnResize('status', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('status', $event)"
-                />
-              </div>
-              <div class="relative flex h-full min-w-0 items-center">
-                <button
-                  type="button"
-                  class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                  <span class="truncate">{{ t('tapeInspector.columns.status') }}</span>
+                  <TapeInspectorColumnResizeHandle
+                    v-if="ledgerLayout === 'wide'"
+                    column="status"
+                    :label="t('tapeInspector.columns.status')"
+                    :min="columnLimits.status.min"
+                    :max="columnLimits.status.max"
+                    :value="columnWidths.status"
+                    @resize-start="startColumnResize('status', $event)"
+                    @resize-move="continueColumnResize"
+                    @resize-end="finishColumnResize"
+                    @resize-cancel="cancelColumnResize"
+                    @resize-by="resizeColumnBy('status', $event)"
+                  />
+                </div>
+                <div
+                  v-if="ledgerLayout === 'wide'"
+                  class="relative flex h-full min-w-0 items-center"
+                >
+                  <button
+                    type="button"
+                    class="flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-left hover:text-foreground"
+                    role="columnheader"
+                    :aria-sort="ariaSort('createdAt')"
+                    @click="toggleSort('createdAt')"
+                  >
+                    <span class="truncate">{{ t('tapeInspector.columns.start') }}</span>
+                    <Icon :icon="sortIcon('createdAt')" class="size-3 shrink-0" />
+                  </button>
+                  <TapeInspectorColumnResizeHandle
+                    column="start"
+                    :label="t('tapeInspector.columns.start')"
+                    :min="columnLimits.start.min"
+                    :max="columnLimits.start.max"
+                    :value="columnWidths.start"
+                    @resize-start="startColumnResize('start', $event)"
+                    @resize-move="continueColumnResize"
+                    @resize-end="finishColumnResize"
+                    @resize-cancel="cancelColumnResize"
+                    @resize-by="resizeColumnBy('start', $event)"
+                  />
+                </div>
+                <div
+                  v-if="ledgerLayout !== 'compact'"
+                  class="relative flex h-full min-w-0 items-center px-2"
                   role="columnheader"
-                  :aria-sort="ariaSort('createdAt')"
-                  @click="toggleSort('createdAt')"
                 >
-                  <span class="truncate">{{ t('tapeInspector.columns.start') }}</span>
-                  <Icon :icon="sortIcon('createdAt')" class="size-3 shrink-0" />
-                </button>
-                <TapeInspectorColumnResizeHandle
-                  column="start"
-                  :label="t('tapeInspector.columns.start')"
-                  :min="columnLimits.start.min"
-                  :max="columnLimits.start.max"
-                  :value="columnWidths.start"
-                  @resize-start="startColumnResize('start', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('start', $event)"
-                />
+                  <span class="truncate">{{ t('tapeInspector.columns.duration') }}</span>
+                  <TapeInspectorColumnResizeHandle
+                    v-if="ledgerLayout === 'wide'"
+                    column="duration"
+                    :label="t('tapeInspector.columns.duration')"
+                    :min="columnLimits.duration.min"
+                    :max="columnLimits.duration.max"
+                    :value="columnWidths.duration"
+                    @resize-start="startColumnResize('duration', $event)"
+                    @resize-move="continueColumnResize"
+                    @resize-end="finishColumnResize"
+                    @resize-cancel="cancelColumnResize"
+                    @resize-by="resizeColumnBy('duration', $event)"
+                  />
+                </div>
               </div>
-              <div class="relative flex h-full min-w-0 items-center px-2" role="columnheader">
-                <span class="truncate">{{ t('tapeInspector.columns.duration') }}</span>
-                <TapeInspectorColumnResizeHandle
-                  column="duration"
-                  :label="t('tapeInspector.columns.duration')"
-                  :min="columnLimits.duration.min"
-                  :max="columnLimits.duration.max"
-                  :value="columnWidths.duration"
-                  @resize-start="startColumnResize('duration', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('duration', $event)"
-                />
-              </div>
+              <RecycleScroller
+                ref="scrollerRef"
+                role="rowgroup"
+                class="min-h-0 flex-1"
+                :items="store.rows"
+                :item-size="ROW_HEIGHT"
+                key-field="key"
+                :buffer="ROW_HEIGHT * 12"
+                :prerender="16"
+              >
+                <template #default="{ item, index }">
+                  <TapeInspectorRow
+                    :row="item"
+                    :selected="store.selectedKey === item.key"
+                    :aria-row-index="index + 2"
+                    :layout="ledgerLayout"
+                    :grid-template-columns="gridTemplateColumns"
+                    :table-min-width="tableMinWidth"
+                    @select="selectRow"
+                    @toggle="store.toggleCollapsed"
+                  />
+                </template>
+              </RecycleScroller>
             </div>
-            <RecycleScroller
-              ref="scrollerRef"
-              role="rowgroup"
-              class="min-h-0 flex-1"
-              :items="store.rows"
-              :item-size="ROW_HEIGHT"
-              key-field="key"
-              :buffer="ROW_HEIGHT * 12"
-              :prerender="16"
+          </div>
+
+          <div class="flex h-9 shrink-0 items-center justify-between border-t px-2">
+            <DcButton
+              size="sm"
+              variant="ghost"
+              class="h-7 px-2 text-xs"
+              :disabled="!store.hasOlder || store.loadingOlder"
+              @click="loadOlder"
             >
-              <template #default="{ item, index }">
-                <TapeInspectorRow
-                  :row="item"
-                  :selected="store.selectedKey === item.key"
-                  :aria-row-index="index + 2"
-                  :grid-template-columns="gridTemplateColumns"
-                  :table-min-width="tableMinWidth"
-                  @select="selectRow"
-                  @toggle="store.toggleCollapsed"
-                />
-              </template>
-            </RecycleScroller>
+              <Icon
+                :icon="
+                  store.loadingOlder
+                    ? 'lucide:loader-circle'
+                    : store.canonicalSort
+                      ? 'lucide:arrow-up-to-line'
+                      : 'lucide:list-plus'
+                "
+                class="mr-1.5 size-3.5"
+                :class="{ 'animate-spin': store.loadingOlder }"
+              />
+              {{
+                t(
+                  store.canonicalSort
+                    ? 'tapeInspector.actions.loadOlder'
+                    : 'tapeInspector.actions.loadMore'
+                )
+              }}
+            </DcButton>
+            <DcButton
+              v-if="store.hasMoreEvidence"
+              size="sm"
+              variant="ghost"
+              class="h-7 px-2 text-xs"
+              :disabled="store.loadingEvidence"
+              @click="store.loadMoreEvidence()"
+            >
+              {{ t('tapeInspector.actions.loadEvidence') }}
+            </DcButton>
           </div>
         </div>
 
-        <div class="flex h-9 shrink-0 items-center justify-between border-t px-2">
-          <DcButton
-            size="sm"
-            variant="ghost"
-            class="h-7 px-2 text-xs"
-            :disabled="!store.hasOlder || store.loadingOlder"
-            @click="loadOlder"
-          >
-            <Icon
-              :icon="
-                store.loadingOlder
-                  ? 'lucide:loader-circle'
-                  : store.canonicalSort
-                    ? 'lucide:arrow-up-to-line'
-                    : 'lucide:list-plus'
-              "
-              class="mr-1.5 size-3.5"
-              :class="{ 'animate-spin': store.loadingOlder }"
-            />
-            {{
-              t(
-                store.canonicalSort
-                  ? 'tapeInspector.actions.loadOlder'
-                  : 'tapeInspector.actions.loadMore'
-              )
-            }}
-          </DcButton>
-          <DcButton
-            v-if="store.hasMoreEvidence"
-            size="sm"
-            variant="ghost"
-            class="h-7 px-2 text-xs"
-            :disabled="store.loadingEvidence"
-            @click="store.loadMoreEvidence()"
-          >
-            {{ t('tapeInspector.actions.loadEvidence') }}
-          </DcButton>
-        </div>
+        <TapeInspectorDetailPane
+          v-if="store.selectedRow && detailOpen"
+          :row="store.selectedRow"
+          :detail="store.selectedDetail"
+          :capabilities="store.selectedCapabilities"
+          :loading="store.loadingDetail"
+          :error-code="detailErrorCode"
+          :placement="detailPlacement"
+          @close="closeDetail"
+          @retry="store.loadSelectedDetail()"
+          @open-message-diagnostics="emit('openMessageDiagnostics', $event)"
+        />
       </div>
-
-      <TapeInspectorDetailPane
-        :row="store.selectedRow"
-        :detail="store.selectedDetail"
-        :capabilities="store.selectedCapabilities"
-        :loading="store.loadingDetail"
-        :error-code="detailErrorCode"
-        @retry="store.loadSelectedDetail()"
-        @open-message-diagnostics="emit('openMessageDiagnostics', $event)"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
@@ -401,6 +449,11 @@ import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'
 import { createSessionClient } from '../../../api/SessionClient'
 import { getTapeInspectorRowDomId, type TapeInspectorMessageDiagnosticsTarget } from './model'
+import {
+  tapeInspectorDetailPlacement,
+  tapeInspectorLayoutMode,
+  type TapeInspectorLayoutMode
+} from './layout'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
@@ -423,13 +476,18 @@ interface ColumnResizeState {
   target: HTMLElement
 }
 
-const props = defineProps<{
-  sessionId: string
-  openRequest: TapeInspectorOpenRequest | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    sessionId: string
+    openRequest: TapeInspectorOpenRequest | null
+    isFullscreen?: boolean
+  }>(),
+  { isFullscreen: false }
+)
 
 const emit = defineEmits<{
   openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
+  toggleFullscreen: []
 }>()
 
 const ROW_HEIGHT = 48
@@ -449,9 +507,12 @@ const familyOptions: TapeInspectorFactFamily[] = [
 const { t } = useI18n()
 const store = useTapeInspectorStore()
 const sessionClient = createSessionClient()
+const panelRef = ref<HTMLElement | null>(null)
+const ledgerRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
 const scrollerRef = ref<RecycleScrollerHandle | null>(null)
 const filterOpen = ref(false)
+const detailOpen = ref(false)
 const liveConnected = ref(false)
 const followingTail = ref(true)
 const draftFamily = ref<TapeInspectorFactFamily | ''>('')
@@ -476,17 +537,30 @@ const columnWidths = reactive<Record<InspectorColumn, number>>({
   duration: 110
 })
 const columnResize = ref<ColumnResizeState | null>(null)
-const gridTemplateColumns = computed(() =>
-  (Object.keys(columnWidths) as InspectorColumn[])
+const { width: panelWidth } = useElementSize(panelRef, { width: 960, height: 0 })
+const { width: ledgerWidth } = useElementSize(ledgerRef, { width: 960, height: 0 })
+const panelLayout = computed<TapeInspectorLayoutMode>(() =>
+  tapeInspectorLayoutMode(panelWidth.value)
+)
+const ledgerLayout = computed<TapeInspectorLayoutMode>(() =>
+  tapeInspectorLayoutMode(ledgerWidth.value)
+)
+const detailPlacement = computed(() => tapeInspectorDetailPlacement(panelWidth.value))
+const isCompactPanel = computed(() => panelLayout.value === 'compact')
+const gridTemplateColumns = computed(() => {
+  if (ledgerLayout.value === 'compact') return 'minmax(0, 1fr)'
+  if (ledgerLayout.value === 'medium') return 'minmax(0, 1fr) 96px 96px'
+  return (Object.keys(columnWidths) as InspectorColumn[])
     .map((column) => `${columnWidths[column]}px`)
     .join(' ')
-)
-const tableMinWidth = computed(() =>
-  (Object.keys(columnWidths) as InspectorColumn[]).reduce(
+})
+const tableMinWidth = computed(() => {
+  if (ledgerLayout.value !== 'wide') return 0
+  return (Object.keys(columnWidths) as InspectorColumn[]).reduce(
     (width, column) => width + columnWidths[column],
     0
   )
-)
+})
 const activeDescendantId = computed(() =>
   store.rows.some((row) => row.key === store.selectedKey) && store.selectedKey
     ? getTapeInspectorRowDomId(store.selectedKey)
@@ -636,6 +710,7 @@ function finishColumnResize(event: PointerEvent): void {
 
 async function initialize(): Promise<void> {
   const generation = ++liveLifecycleGeneration
+  detailOpen.value = false
   followingTail.value = true
   exporting.value = false
   exportFailed.value = false
@@ -652,6 +727,7 @@ async function initialize(): Promise<void> {
       : null
   })
   if (!loaded) return
+  detailOpen.value = Boolean(store.selectedKey)
   store.startEvidenceRefresh()
   syncFilterDrafts()
   await nextTick()
@@ -759,16 +835,24 @@ async function clearFilters(): Promise<void> {
 
 async function selectRow(key: string): Promise<void> {
   store.selectRow(key)
+  detailOpen.value = true
   gridRef.value?.focus({ preventScroll: true })
   await store.loadSelectedDetail()
 }
 
 async function selectOverviewRow(key: string): Promise<void> {
   if (!store.revealOverviewRow(key)) return
+  detailOpen.value = true
   await nextTick()
   scrollToSelected()
   gridRef.value?.focus({ preventScroll: true })
   await store.loadSelectedDetail()
+}
+
+async function closeDetail(): Promise<void> {
+  detailOpen.value = false
+  await nextTick()
+  gridRef.value?.focus({ preventScroll: true })
 }
 
 function scrollToSelected(): void {
@@ -840,7 +924,7 @@ function handleKeydown(event: KeyboardEvent): void {
     const key = store.moveSelection(event.key === 'ArrowDown' ? 1 : -1)
     if (key) {
       scrollToSelected()
-      void store.loadSelectedDetail()
+      if (detailOpen.value) void store.loadSelectedDetail()
     }
     return
   }
@@ -849,7 +933,11 @@ function handleKeydown(event: KeyboardEvent): void {
     if (row.recordType === 'group' || row.recordType === 'evidence_lane') {
       event.preventDefault()
       store.toggleCollapsed(row.key)
+      return
     }
+    event.preventDefault()
+    detailOpen.value = true
+    void store.loadSelectedDetail()
   }
 }
 
@@ -859,6 +947,10 @@ watch(
     cancelColumnResize()
   }
 )
+
+watch(ledgerLayout, (layout) => {
+  if (layout !== 'wide') cancelColumnResize()
+})
 
 watch(
   () => [props.sessionId, props.openRequest?.token] as const,

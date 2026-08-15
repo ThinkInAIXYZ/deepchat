@@ -99,10 +99,10 @@ describe('ChatSidePanel', () => {
     vi.doMock('@/components/tape-inspector/TapeInspectorPanel.vue', () => ({
       default: defineComponent({
         name: 'TapeInspectorPanel',
-        props: ['sessionId', 'openRequest'],
-        emits: ['open-message-diagnostics'],
+        props: ['sessionId', 'openRequest', 'isFullscreen'],
+        emits: ['open-message-diagnostics', 'toggle-fullscreen'],
         template:
-          '<div data-testid="tape-inspector-panel-stub" :data-session-id="sessionId" :data-request-token="openRequest?.token"><button data-testid="open-message-diagnostics" @click="$emit(\'open-message-diagnostics\', { messageId: \'message-1\', requestSeq: 2 })" /></div>'
+          '<div data-testid="tape-inspector-panel-stub" :data-session-id="sessionId" :data-request-token="openRequest?.token" :data-fullscreen="String(isFullscreen)"><button data-testid="toggle-inspector-fullscreen" @click="$emit(\'toggle-fullscreen\')" /><button data-testid="open-message-diagnostics" @click="$emit(\'open-message-diagnostics\', { messageId: \'message-1\', requestSeq: 2 })" /></div>'
       })
     }))
 
@@ -194,6 +194,22 @@ describe('ChatSidePanel', () => {
 
     await nextTick()
     expect(wrapper.find('#mcp-app-sidepanel-outlet').isVisible()).toBe(true)
+  })
+
+  it('lets the Tape Inspector use and restore the shared fullscreen shell', async () => {
+    const { wrapper } = await setup({ activeTab: 'tape-inspector' })
+    const shell = wrapper.get('[data-testid="chat-side-panel-shell"]')
+    const inspector = wrapper.get('[data-testid="tape-inspector-panel-stub"]')
+
+    expect(shell.attributes('data-tape-inspector-fullscreen')).toBe('false')
+    expect(inspector.attributes('data-fullscreen')).toBe('false')
+
+    await wrapper.get('[data-testid="toggle-inspector-fullscreen"]').trigger('click')
+    expect(shell.attributes('data-tape-inspector-fullscreen')).toBe('true')
+    expect(inspector.attributes('data-fullscreen')).toBe('true')
+
+    await wrapper.get('[data-testid="toggle-inspector-fullscreen"]').trigger('click')
+    expect(shell.attributes('data-tape-inspector-fullscreen')).toBe('false')
   })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {

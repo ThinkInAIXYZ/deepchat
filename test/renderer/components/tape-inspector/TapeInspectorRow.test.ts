@@ -102,4 +102,34 @@ describe('TapeInspectorRow', () => {
     expect(wrapper.find('[data-testid="tape-inspector-actual-span"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="tape-inspector-actual-point"]').exists()).toBe(false)
   })
+
+  it('collapses secondary columns into readable metadata at compact widths', () => {
+    const row = factRow({ status: 'completed', durationMs: 25, actualEndAt: 1_025 })
+    const compact = mount(TapeInspectorRow, {
+      props: {
+        row,
+        selected: false,
+        layout: 'compact',
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        tableMinWidth: 0
+      }
+    })
+
+    expect(compact.findAll('[role="gridcell"]')).toHaveLength(1)
+    expect(compact.text()).toContain('event · 1970-01-01T00:00:01.000Z · 25 ms')
+    expect(compact.text()).toContain('completed')
+    expect(compact.attributes('style')).toContain('min-width: 0px')
+
+    const medium = mount(TapeInspectorRow, {
+      props: {
+        row,
+        selected: false,
+        layout: 'medium',
+        gridTemplateColumns: 'minmax(0, 1fr) 96px 96px',
+        tableMinWidth: 0
+      }
+    })
+    expect(medium.findAll('[role="gridcell"]')).toHaveLength(3)
+    expect(medium.text()).toContain('event · 1970-01-01T00:00:01.000Z')
+  })
 })
