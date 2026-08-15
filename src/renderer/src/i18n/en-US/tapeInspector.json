@@ -90,6 +90,7 @@
   "detail": {
     "title": "Details",
     "selectPrompt": "Select a row to inspect its available details",
+    "contextTail": "Recent visible activity before this request",
     "integrity": "Integrity",
     "provenance": "Provenance",
     "timing": "Timing",

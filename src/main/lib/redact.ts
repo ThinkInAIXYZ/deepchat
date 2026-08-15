@@ -2,44 +2,11 @@
  * Redaction utilities for sensitive information in request trace payloads.
  */
 
-const SENSITIVE_HEADER_KEYS = [
-  'authorization',
-  'api-key',
-  'x-api-key',
-  'apikey',
-  'token',
-  'secret',
-  'password',
-  'credential',
-  'access-key',
-  'access_key',
-  'client-secret',
-  'client_secret'
-]
+const SENSITIVE_HEADER_KEYS = new Set(['authorization', 'api-key', 'x-api-key', 'x-goog-api-key'])
 
-const SENSITIVE_BODY_KEYS = [
-  'api_key',
-  'apikey',
-  'apiKey',
-  'secret',
-  'password',
-  'token',
-  'access_token',
-  'refresh_token',
-  'client_secret',
-  'private_key'
-]
-
-const ALLOWED_BODY_KEYS = [
-  'max_tokens',
-  'max_completion_tokens',
-  'max_output_tokens',
-  'temperature',
-  'stream',
-  'model',
-  'messages',
-  'tools'
-]
+// Provider credentials are carried by the headers above. Keep body matching limited to the explicit
+// API-key field; broad token/key matching hides ordinary provider diagnostics and tool arguments.
+const SENSITIVE_BODY_KEYS = new Set(['api_key'])
 
 const MASKED_LITERAL = '***MASKED***'
 
@@ -59,27 +26,20 @@ function maskSensitiveString(value: string): string {
   return maskKeepTail(value)
 }
 
+function normalizeBodyKey(key: string): string {
+  return key
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+    .replace(/[\s-]+/gu, '_')
+    .toLowerCase()
+}
+
 function isSensitiveHeaderKey(key: string): boolean {
-  const lower = key.toLowerCase()
-  return SENSITIVE_HEADER_KEYS.some((sensitiveKey) => lower.includes(sensitiveKey))
+  return SENSITIVE_HEADER_KEYS.has(key.trim().toLowerCase())
 }
 
 function isSensitiveBodyKey(key: string): boolean {
-  if (ALLOWED_BODY_KEYS.includes(key)) {
-    return false
-  }
-
-  const keyLower = key.toLowerCase()
-  return SENSITIVE_BODY_KEYS.some((sensitiveKey) => {
-    const sensitiveLower = sensitiveKey.toLowerCase()
-    if (keyLower === sensitiveLower) {
-      return true
-    }
-    if (keyLower.endsWith(`_${sensitiveLower}`) || keyLower.endsWith(sensitiveLower)) {
-      return !ALLOWED_BODY_KEYS.some((allowed) => keyLower.includes(allowed.toLowerCase()))
-    }
-    return false
-  })
+  return SENSITIVE_BODY_KEYS.has(normalizeBodyKey(key))
 }
 
 function maskUnknownValue(value: unknown): unknown {
@@ -87,6 +47,20 @@ function maskUnknownValue(value: unknown): unknown {
     return maskSensitiveString(value)
   }
   return MASKED_LITERAL
+}
+
+function redactUrl(value: URL): string {
+  // AI SDK message mapping represents remote media as URL objects. Preserve the URL while keeping
+  // its explicit authentication material out of the persisted request evidence.
+  const redacted = new URL(value)
+  if (redacted.username) redacted.username = MASKED_LITERAL
+  if (redacted.password) Reflect.set(redacted, 'password', MASKED_LITERAL)
+  for (const key of value.searchParams.keys()) {
+    if (isSensitiveBodyKey(key)) {
+      redacted.searchParams.set(key, MASKED_LITERAL)
+    }
+  }
+  return redacted.toString()
 }
 
 export function redactHeaders(headers: Record<string, string>): Record<string, string> {
@@ -102,6 +76,10 @@ export function redactHeaders(headers: Record<string, string>): Record<string, s
 export function redactBody(body: unknown): unknown {
   if (body === null || body === undefined) {
     return body
+  }
+
+  if (body instanceof URL) {
+    return redactUrl(body)
   }
 
   if (Array.isArray(body)) {

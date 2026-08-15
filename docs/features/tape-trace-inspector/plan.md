@@ -272,6 +272,23 @@ gaps, while point facts and diagnostics remain discoverable without dominating r
 Completion condition: routine scanning reads as a time-oriented activity history, while full
 provider payloads and uncommon diagnostics remain available only through deliberate inspection.
 
+## 16. Request Context Legibility
+
+- [x] Replace aggregate final-message summaries on request rows with the latest visible Transcript
+  activity strictly preceding each trace.
+- [x] Show a bounded latest-first context tail in request detail while keeping tool arguments and
+  results out of ledger summaries.
+- [x] Persist normalized AI SDK instructions, messages, tools, and provider options in new request
+  evidence so deliberate detail inspection contains the runtime context supplied to the SDK.
+- [x] Narrow redaction to reusable credentials and preserve token accounting and ordinary
+  diagnostics.
+- [x] Add focused renderer, persistence-redaction, and provider-runtime regression coverage.
+- [x] Complete staged risk review and full automated checks.
+- [ ] Manually verify wide and compact presentation with newly recorded requests.
+
+Completion condition: consecutive model requests are distinguishable at a glance, deliberate detail
+inspection exposes the useful normalized request context, and reusable credentials remain protected.
+
 ## Delivery Notes
 
 - Evidence remains request-scoped when `physicalAttempt` is null; null is never treated as zero and

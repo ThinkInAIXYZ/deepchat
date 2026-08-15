@@ -118,7 +118,11 @@ import {
   type TapeInspectorDisplayRow,
   type TapeInspectorFactRow
 } from './model'
-import type { TapeInspectorMessagePreview } from './messagePreview'
+import type {
+  TapeInspectorMessagePreview,
+  TapeInspectorRequestActivity,
+  TapeInspectorRequestActivityKind
+} from './messagePreview'
 
 const props = withDefaults(
   defineProps<{
@@ -129,6 +133,7 @@ const props = withDefaults(
     tableMinWidth?: number
     ariaRowIndex?: number
     messagePreview?: TapeInspectorMessagePreview | null
+    requestActivity?: TapeInspectorRequestActivity | null
   }>(),
   {
     layout: 'wide',
@@ -215,6 +220,13 @@ function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record'
   if (facts.errorCode) parts.push(facts.errorCode)
 }
 
+function activityLabel(kind: TapeInspectorRequestActivityKind): string {
+  if (kind === 'user') return t('tapeInspector.activity.user')
+  if (kind === 'assistant') return t('tapeInspector.activity.assistant')
+  if (kind === 'tool') return t('tapeInspector.groups.tool')
+  return t('tapeInspector.timeline.error')
+}
+
 const semanticSummaryLabel = computed(() => {
   const row = props.row
   const parts: string[] = []
@@ -229,9 +241,10 @@ const semanticSummaryLabel = computed(() => {
     }
   } else if (row.recordType === 'evidence') {
     parts.push(`#${row.record.requestSeq}`)
-    if (props.messagePreview) {
+    if (props.requestActivity) {
+      const label = activityLabel(props.requestActivity.kind)
       parts.push(
-        `${t(`tapeInspector.activity.${props.messagePreview.role}`)}: ${props.messagePreview.text}`
+        props.requestActivity.preview ? `${label}: ${props.requestActivity.preview}` : label
       )
     }
     if (row.association === 'context_unloaded') {

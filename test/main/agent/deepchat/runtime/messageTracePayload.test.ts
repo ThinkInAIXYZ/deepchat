@@ -15,6 +15,7 @@ describe('buildPersistableMessageTracePayload', () => {
       },
       body: {
         token: 'body-token-9999',
+        input_tokens: 42,
         nested: {
           api_key: 'nested-secret-key-8888',
           normal: 'keep-me'
@@ -25,6 +26,7 @@ describe('buildPersistableMessageTracePayload', () => {
     const headers = JSON.parse(result.headersJson) as Record<string, string>
     const body = JSON.parse(result.bodyJson) as {
       token: string
+      input_tokens: number
       nested: { api_key: string; normal: string }
     }
 
@@ -32,7 +34,8 @@ describe('buildPersistableMessageTracePayload', () => {
     expect(headers.authorization).toMatch(/^Bearer \*+oken$/)
     expect(headers['x-api-key']).toMatch(/^\*+1234$/)
     expect(headers['content-type']).toBe('application/json')
-    expect(body.token).toMatch(/^\*+9999$/)
+    expect(body.token).toBe('body-token-9999')
+    expect(body.input_tokens).toBe(42)
     expect(body.nested.api_key).toMatch(/^\*+8888$/)
     expect(body.nested.normal).toBe('keep-me')
   })

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key
+    t: (key: string) => key,
+    d: (value: Date) => value.toISOString()
   })
 }))
 
@@ -200,6 +201,87 @@ describe('TapeInspectorDetailPane', () => {
     expect(wrapper.emitted('openMessageDiagnostics')).toEqual([
       [{ messageId: 'message-1', requestSeq: undefined }]
     ])
+  })
+
+  it('shows the latest request context before the complete sanitized request payload', () => {
+    const wrapper = mount(TapeInspectorDetailPane, {
+      props: {
+        row: {
+          recordType: 'evidence',
+          key: 'trace:trace-1',
+          record: {
+            recordType: 'evidence',
+            key: 'trace:trace-1',
+            traceId: 'trace-1',
+            messageId: 'message-1',
+            requestSeq: 2,
+            providerId: 'provider-1',
+            modelId: 'model-1',
+            createdAt: 300,
+            truncated: false
+          },
+          parentGroupKey: null,
+          association: 'context_unloaded',
+          depth: 1,
+          status: null,
+          statusState: 'not_applicable',
+          durationMs: null,
+          timingState: 'point',
+          sequenceEntryId: null,
+          sequenceStart: 1,
+          actualStartAt: 300,
+          actualEndAt: null,
+          actualStart: 1,
+          actualWidth: 0
+        },
+        detail: {
+          source: 'request',
+          trace: {
+            id: 'trace-1',
+            messageId: 'message-1',
+            sessionId: 'session-1',
+            providerId: 'provider-1',
+            modelId: 'model-1',
+            requestSeq: 2,
+            logicalRound: 1,
+            physicalAttempt: 0,
+            endpoint: 'https://example.com/chat',
+            headersJson: '{"authorization":"Bearer ****1234"}',
+            bodyJson: '{"messages":[{"role":"tool","content":"result"}]}',
+            truncated: false,
+            createdAt: 300
+          }
+        },
+        capabilities: {
+          source: 'message_trace',
+          summary: true,
+          payload: true,
+          timing: true,
+          provenance: false,
+          integrity: false,
+          raw: true,
+          messageDiagnostics: true
+        },
+        loading: false,
+        errorCode: null,
+        requestActivities: [
+          {
+            key: 'tool-1',
+            kind: 'tool',
+            text: 'files / read_file',
+            preview: 'files / read_file',
+            timestamp: 250,
+            truncated: false
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tape-inspector-request-context"]').text()).toContain(
+      'files / read_file'
+    )
+    const payload = wrapper.text().slice(wrapper.text().indexOf('tapeInspector.detail.payload'))
+    expect(payload.indexOf('"body"')).toBeLessThan(payload.indexOf('"headers"'))
   })
 
   it('focuses an overlay detail and closes it with Escape', async () => {

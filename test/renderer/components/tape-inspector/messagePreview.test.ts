@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { projectTapeInspectorMessagePreview } from '@/components/tape-inspector/messagePreview'
+import {
+  projectTapeInspectorAssistantActivities,
+  projectTapeInspectorMessagePreview,
+  selectTapeInspectorRequestContext
+} from '@/components/tape-inspector/messagePreview'
 
 function message(
   role: ChatMessageRecord['role'],
@@ -77,5 +81,58 @@ describe('Tape Inspector message preview', () => {
     expect(preview?.text.endsWith('…')).toBe(true)
     expect(preview?.text).not.toContain('\uFFFD')
     expect(preview?.text).not.toMatch(/[\uD800-\uDBFF]…$/u)
+  })
+
+  it('selects the latest visible block before a model request instead of the final message', () => {
+    const assistant = message('assistant', [
+      { type: 'content', status: 'success', timestamp: 150, content: 'First answer' },
+      {
+        id: 'tool-1',
+        type: 'tool_call',
+        status: 'success',
+        timestamp: 250,
+        tool_call: { server_name: 'files', name: 'read_file', response: 'private result' }
+      },
+      { type: 'reasoning_content', status: 'success', timestamp: 275, content: 'private' },
+      { type: 'content', status: 'success', timestamp: 300, content: 'Ambiguous same tick' },
+      { type: 'content', status: 'success', timestamp: 350, content: 'Final answer' }
+    ])
+
+    const context = selectTapeInspectorRequestContext({
+      activities: projectTapeInspectorAssistantActivities(assistant),
+      before: 300
+    })
+
+    expect(context.map(({ kind, preview }) => ({ kind, preview }))).toEqual([
+      { kind: 'tool', preview: 'files / read_file' },
+      { kind: 'assistant', preview: 'First answer' }
+    ])
+    expect(context.map((activity) => activity.preview)).not.toContain('Final answer')
+    expect(context.map((activity) => activity.preview)).not.toContain('Ambiguous same tick')
+    expect(context.map((activity) => activity.text)).not.toContain('private result')
+  })
+
+  it('uses the preceding user message when no assistant block predates the request', () => {
+    const assistant = message(
+      'assistant',
+      [{ type: 'content', status: 'success', timestamp: 350, content: 'Later answer' }],
+      { id: 'assistant-1', orderSeq: 2 }
+    )
+    const user = message('user', { text: 'Start this task' }, { id: 'user-1', orderSeq: 1 })
+
+    expect(
+      selectTapeInspectorRequestContext({
+        activities: projectTapeInspectorAssistantActivities(assistant),
+        before: 300,
+        precedingUser: user
+      })
+    ).toMatchObject([{ kind: 'user', preview: 'Start this task' }])
+    expect(
+      selectTapeInspectorRequestContext({
+        activities: [],
+        before: 300,
+        precedingUser: { ...user, createdAt: 300 }
+      })
+    ).toEqual([])
   })
 })

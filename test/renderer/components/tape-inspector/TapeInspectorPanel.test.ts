@@ -90,7 +90,8 @@ const messageStore = reactive({
       createdAt: number
       updatedAt: number
     }
-  >()
+  >(),
+  getAssistantMessageBlocks: (record: { content: string }) => JSON.parse(record.content)
 })
 
 const sessionClient = vi.hoisted(() => ({
@@ -197,7 +198,7 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    props: ['row', 'selected', 'ariaRowIndex', 'layout', 'messagePreview'],
+    props: ['row', 'selected', 'ariaRowIndex', 'layout', 'messagePreview', 'requestActivity'],
     emits: ['select'],
     computed: {
       rowDomId() {
@@ -205,14 +206,14 @@ vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
       }
     },
     template:
-      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
+      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :data-request-activity="requestActivity?.preview" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
   })
 }))
 
 vi.mock('@/components/tape-inspector/TapeInspectorDetailPane.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorDetailPane',
-    props: ['placement'],
+    props: ['placement', 'requestActivities'],
     emits: ['close'],
     template:
       '<div data-testid="detail-pane" :data-placement="placement"><button data-testid="close-detail" @click="$emit(\'close\')" /></div>'
@@ -394,6 +395,72 @@ describe('TapeInspectorPanel', () => {
     })
     await flushPromises()
 
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
+    ).toBeUndefined()
+  })
+
+  it('shows the latest block before each request instead of the final assistant message', async () => {
+    inspectorStore.evidence = [
+      {
+        traceId: 'trace-1',
+        messageId: 'assistant-1',
+        requestSeq: 2,
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        createdAt: 300,
+        truncated: false
+      }
+    ] as never[]
+    inspectorStore.rows = [
+      {
+        key: 'trace:trace-1',
+        recordType: 'evidence',
+        association: 'context_unloaded',
+        record: inspectorStore.evidence[0]
+      }
+    ] as typeof inspectorStore.rows
+    messageStore.messageCache.set('user-1', {
+      id: 'user-1',
+      sessionId: 'session-1',
+      orderSeq: 1,
+      role: 'user',
+      content: JSON.stringify({ text: 'Start the task' }),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 100,
+      updatedAt: 100
+    })
+    messageStore.messageCache.set('assistant-1', {
+      id: 'assistant-1',
+      sessionId: 'session-1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: JSON.stringify([
+        { type: 'content', status: 'success', timestamp: 150, content: 'Earlier answer' },
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 250,
+          tool_call: { server_name: 'files', name: 'read_file', response: 'private' }
+        },
+        { type: 'content', status: 'success', timestamp: 350, content: 'Final answer' }
+      ]),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 100,
+      updatedAt: 400
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: { sessionId: 'session-1', openRequest: null }
+    })
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-request-activity')
+    ).toBe('files / read_file')
     expect(
       wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
     ).toBeUndefined()

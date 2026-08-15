@@ -155,10 +155,22 @@ describe('TapeInspectorRow', () => {
 
   it('presents an ungrouped trace as a time-ordered model request, not missing evidence', () => {
     const wrapper = mount(TapeInspectorRow, {
-      props: { row: evidenceRow(), selected: false }
+      props: {
+        row: evidenceRow(),
+        selected: false,
+        requestActivity: {
+          key: 'tool-1',
+          kind: 'tool',
+          text: 'files / read_file',
+          preview: 'files / read_file',
+          timestamp: 1_050,
+          truncated: false
+        }
+      }
     })
 
     expect(wrapper.text()).toContain('tapeInspector.evidence.request · provider-1/model-1')
+    expect(wrapper.text()).toContain('tapeInspector.groups.tool: files / read_file')
     expect(wrapper.text()).toContain('tapeInspector.evidence.contextNotLoaded')
     expect(wrapper.text()).not.toContain('unresolved')
     expect(wrapper.classes()).toContain('h-12')

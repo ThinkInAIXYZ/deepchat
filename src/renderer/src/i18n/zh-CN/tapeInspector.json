@@ -90,6 +90,7 @@
   "detail": {
     "title": "详情",
     "selectPrompt": "选择一行以查看其可用详情",
+    "contextTail": "本次请求前的近期可见活动",
     "integrity": "完整性",
     "provenance": "来源",
     "timing": "时序",

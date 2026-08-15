@@ -74,6 +74,7 @@
   "detail": {
     "title": "詳細資料",
     "selectPrompt": "選取一列以檢視其可用詳細資料",
+    "contextTail": "本次請求前的近期可見活動",
     "integrity": "完整性",
     "provenance": "來源",
     "timing": "時序",

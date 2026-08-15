@@ -616,13 +616,23 @@ may be promoted into the primary one-line summary. Context/Skill bodies, request
 arguments/results, and unknown-schema payloads never enter these summaries.
 
 User and assistant message facts may add a one-line preview from the active session's existing
-Transcript cache. Model request rows may show the same associated Transcript preview to explain what
-the request produced. Retraction and other message lifecycle facts never reopen cached content. The
-renderer bounds the result to 220 characters and includes only the user text already rendered by the
-conversation or assistant `content` blocks. Reasoning, error text, tool arguments/results, and
-provider request bodies are excluded. A message outside the committed session or outside the current
-cache has no preview; the Inspector does not fetch or copy transcript payloads through its list
-routes.
+Transcript cache. A model request row instead shows the latest visible Transcript activity whose
+block timestamp is strictly earlier than that trace's `createdAt`. This is a renderer-only context
+hint, not a binding claim or provider-body reconstruction. It prevents every request for one final
+assistant message from repeating that same final message. Tool activities expose the tool/server
+name but not arguments or results. The request detail may show up to eight preceding visible
+activities in reverse order so the latest context is first.
+
+The renderer bounds row previews to 220 characters and detail activity text to 4096 characters.
+Reasoning, error text, tool arguments/results, and future blocks are excluded from the derived
+activity preview. The first request may fall back to the preceding cached user message when no
+assistant block predates it. A message outside the committed session or outside the current cache has
+no preview; the Inspector does not fetch or copy transcript payloads through its list routes.
+
+For newly recorded AI SDK requests, persisted evidence includes the normalized request inputs passed
+to the SDK, including instructions, messages, tool definitions, and provider options when present.
+This is a semantic SDK request snapshot, not a claim to be the adapter's final wire encoding. Older
+evidence remains readable without synthetic backfill.
 
 The layout responds to the Inspector and remaining ledger container widths, not the window
 viewport:
@@ -667,7 +677,19 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - List routes are metadata-only and bounded.
 - Detail routes use exact schema allowlists; unknown payloads fail closed to hash/size metadata.
 - Request evidence payloads retain existing persistence redaction and size limits.
-- Context and Skill bodies never cross Inspector IPC, including details and export.
+- Credential redaction is exact and recursive. It covers the authentication and API-key headers used
+  by current provider traces and the explicit `api_key`/`apiKey` body field. Provider credentials
+  used only during provider construction or authentication are not speculative body rules. The
+  normalized media URL path also removes URL basic-auth credentials and explicit `apiKey` query
+  values while preserving the rest of the URL. The redactor does not use broad `token`, `key`,
+  `secret`, or `signature` substring rules. Ordinary diagnostics and tool values such as
+  input/output/reasoning token counts, provider replay signatures, usage values, stop reasons, and
+  fields merely named `token` or `secret` remain visible. Free-form prompt text is not classified as
+  a credential and may contain user-sensitive content; recording is therefore still explicitly gated
+  by `traceDebugEnabled`.
+- Tape context and Skill entry bodies never cross Inspector IPC as row details or export payloads.
+  Content already assembled into an explicitly recorded provider request may appear in that request's
+  on-demand evidence detail; support export remains metadata-only for request evidence.
 - Raw means sanitized projected JSON, not raw database JSON.
 - Copying a Tape fact uses the same projected detail shown in the pane; request-detail copy retains
   the existing persisted trace redaction and size boundary.
@@ -741,7 +763,12 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 32. Not-applicable status or duration is distinct from an unresolved authoritative state.
 33. Diagnostic evidence is default-collapsed and never presented as a legacy provider request.
 34. Message previews are bounded renderer derivations from the active Transcript cache, never new
-    Inspector list payloads.
+    Inspector list payloads. Request rows select the latest visible block strictly before the trace,
+    not the final aggregate assistant message.
+35. Request activity hints do not infer provider input or association; request detail retains the
+    independently persisted evidence as the authoritative request snapshot.
+36. Credential redaction protects reusable authentication material without masking token accounting
+    or other ordinary diagnostics.
 
 ## Acceptance Criteria
 
@@ -754,7 +781,11 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
   unknown or pending association.
 - Loaded user and assistant messages can be understood from bounded inline previews without opening
-  detail; reasoning, errors, tool payloads, and provider request bodies stay excluded.
+  detail. Consecutive model requests show their latest preceding visible activity, while reasoning,
+  error text, and tool payloads stay excluded from ledger summaries.
+- Request detail shows a bounded latest-first context tail. Newly recorded AI SDK request evidence
+  includes normalized instructions, messages, tools, and provider options when present; credential
+  fields remain masked while token accounting remains visible.
 - Evidence never acquires a Tape identity, and request-scoped evidence never acquires an inferred
   attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.

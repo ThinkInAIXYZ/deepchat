@@ -74,6 +74,33 @@
         </template>
       </dl>
 
+      <section
+        v-if="detail.source === 'request' && requestActivities.length > 0"
+        data-testid="tape-inspector-request-context"
+        class="mt-4 border-t pt-3"
+      >
+        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.contextTail') }}</h3>
+        <ol class="divide-y border-y text-xs">
+          <li v-for="activity in requestActivities" :key="activity.key" class="py-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
+              <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+                {{ formatActivityTime(activity.timestamp) }}
+              </time>
+            </div>
+            <p
+              v-if="activity.text"
+              class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground"
+            >
+              {{ activity.text }}
+            </p>
+            <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
+              {{ t('tapeInspector.detail.truncated') }}
+            </span>
+          </li>
+        </ol>
+      </section>
+
       <section v-if="capabilities?.integrity && integrityLabel" class="mt-4 border-t pt-3">
         <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.integrity') }}</h3>
         <span class="rounded bg-muted px-1.5 py-0.5 text-[10px]">{{ integrityLabel }}</span>
@@ -138,6 +165,10 @@ import type {
   TapeInspectorDisplayRow,
   TapeInspectorMessageDiagnosticsTarget
 } from './model'
+import type {
+  TapeInspectorRequestActivity,
+  TapeInspectorRequestActivityKind
+} from './messagePreview'
 import type { TapeInspectorErrorCode } from './store'
 
 const props = withDefaults(
@@ -148,8 +179,9 @@ const props = withDefaults(
     loading: boolean
     errorCode: TapeInspectorErrorCode
     placement?: 'side' | 'overlay'
+    requestActivities?: readonly TapeInspectorRequestActivity[]
   }>(),
-  { placement: 'side' }
+  { placement: 'side', requestActivities: () => [] }
 )
 
 const emit = defineEmits<{
@@ -158,7 +190,7 @@ const emit = defineEmits<{
   openMessageDiagnostics: [target: TapeInspectorMessageDiagnosticsTarget]
 }>()
 
-const { t } = useI18n()
+const { t, d } = useI18n()
 const rootRef = ref<HTMLElement | null>(null)
 const copied = ref(false)
 let copiedTimer: number | null = null
@@ -188,6 +220,21 @@ function parseJson(value: string): unknown {
   } catch {
     return value
   }
+}
+
+function activityLabel(kind: TapeInspectorRequestActivityKind): string {
+  if (kind === 'user') return t('tapeInspector.activity.user')
+  if (kind === 'assistant') return t('tapeInspector.activity.assistant')
+  if (kind === 'tool') return t('tapeInspector.groups.tool')
+  return t('tapeInspector.timeline.error')
+}
+
+function formatActivityTime(timestamp: number): string {
+  return d(new Date(timestamp), {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
 }
 
 const summaryFields = computed(() => {
@@ -240,8 +287,8 @@ const payloadText = computed(() => {
   }
   if (detail.source === 'request') {
     return json({
-      headers: parseJson(detail.trace.headersJson),
-      body: parseJson(detail.trace.bodyJson)
+      body: parseJson(detail.trace.bodyJson),
+      headers: parseJson(detail.trace.headersJson)
     })
   }
   return null

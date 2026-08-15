@@ -365,6 +365,7 @@
                     :grid-template-columns="gridTemplateColumns"
                     :table-min-width="tableMinWidth"
                     :message-preview="messagePreviewForRow(item)"
+                    :request-activity="requestActivitiesForRow(item)[0] ?? null"
                     @select="selectRow"
                     @toggle="store.toggleCollapsed"
                   />
@@ -421,6 +422,7 @@
           :loading="store.loadingDetail"
           :error-code="detailErrorCode"
           :placement="detailPlacement"
+          :request-activities="requestActivitiesForRow(store.selectedRow)"
           @close="closeDetail"
           @retry="store.loadSelectedDetail()"
           @open-message-diagnostics="emit('openMessageDiagnostics', $event)"
@@ -446,6 +448,7 @@ import type {
   TapeInspectorHeadPulse,
   TapeInspectorSort
 } from '@shared/types/tape-inspector'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { useMessageStore } from '@/stores/ui/message'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'
@@ -462,7 +465,10 @@ import {
 } from './layout'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import {
+  projectTapeInspectorAssistantActivities,
   projectTapeInspectorMessagePreview,
+  selectTapeInspectorRequestContext,
+  type TapeInspectorRequestActivity,
   type TapeInspectorMessagePreview
 } from './messagePreview'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
@@ -578,24 +584,67 @@ const activeDescendantId = computed(() =>
     : undefined
 )
 
-function rowMessageId(row: TapeInspectorDisplayRow): string | null {
-  if (row.recordType === 'fact') {
-    return row.record.name === 'message/user' || row.record.name === 'message/assistant'
-      ? (row.record.messageId ?? null)
-      : null
-  }
-  if (row.recordType === 'evidence' && row.association !== 'diagnostic') {
-    return row.record.messageId
-  }
-  return null
-}
-
 function messagePreviewForRow(row: TapeInspectorDisplayRow): TapeInspectorMessagePreview | null {
   if (messageStore.committedSessionId !== props.sessionId) return null
-  const messageId = rowMessageId(row)
+  if (
+    row.recordType !== 'fact' ||
+    (row.record.name !== 'message/user' && row.record.name !== 'message/assistant')
+  ) {
+    return null
+  }
+  const messageId = row.record.messageId
   if (!messageId) return null
   const message = messageStore.messageCache.get(messageId)
   return message?.sessionId === props.sessionId ? projectTapeInspectorMessagePreview(message) : null
+}
+
+const requestContextsByTraceId = computed(() => {
+  const contexts = new Map<string, TapeInspectorRequestActivity[]>()
+  if (messageStore.committedSessionId !== props.sessionId) return contexts
+
+  const sessionMessages = [...messageStore.messageCache.values()]
+    .filter((message) => message.sessionId === props.sessionId)
+    .sort((left, right) => left.orderSeq - right.orderSeq || left.id.localeCompare(right.id))
+  const precedingUserByMessageId = new Map<string, ChatMessageRecord>()
+  let precedingUser: ChatMessageRecord | null = null
+  for (const message of sessionMessages) {
+    if (message.role === 'user') {
+      precedingUser = message
+    } else if (precedingUser) {
+      precedingUserByMessageId.set(message.id, precedingUser)
+    }
+  }
+
+  const activitiesByMessageId = new Map<string, TapeInspectorRequestActivity[]>()
+  for (const evidence of store.evidence) {
+    const message = messageStore.messageCache.get(evidence.messageId)
+    if (!message || message.sessionId !== props.sessionId || message.role !== 'assistant') continue
+    let activities = activitiesByMessageId.get(message.id)
+    if (!activities) {
+      activities = projectTapeInspectorAssistantActivities(
+        message,
+        messageStore.getAssistantMessageBlocks(message)
+      )
+      activitiesByMessageId.set(message.id, activities)
+    }
+    contexts.set(
+      evidence.traceId,
+      selectTapeInspectorRequestContext({
+        activities,
+        before: evidence.createdAt,
+        precedingUser: precedingUserByMessageId.get(message.id)
+      })
+    )
+  }
+  return contexts
+})
+
+function requestActivitiesForRow(
+  row: TapeInspectorDisplayRow
+): readonly TapeInspectorRequestActivity[] {
+  return row.recordType === 'evidence'
+    ? (requestContextsByTraceId.value.get(row.record.traceId) ?? [])
+    : []
 }
 
 let liveLifecycleGeneration = 0

@@ -143,6 +143,14 @@ function resolveCapabilityProviderId(context: AiSdkRuntimeContext): string {
   )
 }
 
+function buildAiSdkRequestTraceBody(
+  request: Record<string, unknown>,
+  resolvedModelId: string
+): Record<string, unknown> {
+  const { model: _runtimeModel, abortSignal: _abortSignal, ...traceableRequest } = request
+  return { model: resolvedModelId, ...traceableRequest }
+}
+
 function normalizePromptValue(value: unknown): string {
   if (typeof value === 'string') {
     return value
@@ -1338,31 +1346,29 @@ export async function runAiSdkGenerateText(
     'isolated'
   )
   const timeout = resolveRequestTimeout(normalizedModelConfig)
-  const requestBody = {
-    model: runtime.providerContext.resolvedModelId ?? modelId,
-    maxOutputTokens: maxTokens,
-    ...effectiveRequest.samplingOptions
-  }
-
-  await context.emitRequestTrace?.(normalizedModelConfig, {
-    endpoint: runtime.providerContext.endpoint,
-    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: requestBody
-  })
-
-  const requestSignal = combineRequestSignal(timeout, signal)
-  requestSignal?.throwIfAborted()
-
-  const result = await generateText({
+  const request = {
     model: runtime.providerContext.model,
     maxRetries: 2,
     ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
     messages: runtime.messages,
     allowSystemInMessages: false,
     providerOptions: runtime.providerOptions as any,
-    ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...effectiveRequest.samplingOptions,
     maxOutputTokens: maxTokens
+  }
+
+  await context.emitRequestTrace?.(normalizedModelConfig, {
+    endpoint: runtime.providerContext.endpoint,
+    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+    body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
+  })
+
+  const requestSignal = combineRequestSignal(timeout, signal)
+  requestSignal?.throwIfAborted()
+
+  const result = await generateText({
+    ...request,
+    ...(requestSignal ? { abortSignal: requestSignal } : {})
   })
 
   return {
@@ -1561,23 +1567,7 @@ export async function* runAiSdkCoreStream(
     'conversation',
     options?.search === true
   )
-  const requestBody = {
-    model: runtime.providerContext.resolvedModelId ?? modelId,
-    maxOutputTokens: maxTokens,
-    ...effectiveRequest.samplingOptions,
-    tools: tools.map((tool) => tool.function.name)
-  }
-
-  await context.emitRequestTrace?.(normalizedModelConfig, {
-    endpoint: runtime.providerContext.endpoint,
-    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: requestBody
-  })
-
-  const requestSignal = combineRequestSignal(timeout, signal)
-  requestSignal?.throwIfAborted()
-
-  const result = streamText({
+  const request = {
     model: runtime.providerContext.model,
     maxRetries: 0,
     ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
@@ -1585,10 +1575,23 @@ export async function* runAiSdkCoreStream(
     allowSystemInMessages: false,
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
-    ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...effectiveRequest.samplingOptions,
     maxOutputTokens: maxTokens,
     ...(runtime.includeRawChunks ? { include: { rawChunks: true } } : {})
+  }
+
+  await context.emitRequestTrace?.(normalizedModelConfig, {
+    endpoint: runtime.providerContext.endpoint,
+    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+    body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
+  })
+
+  const requestSignal = combineRequestSignal(timeout, signal)
+  requestSignal?.throwIfAborted()
+
+  const result = streamText({
+    ...request,
+    ...(requestSignal ? { abortSignal: requestSignal } : {})
   })
 
   yield* adaptAiSdkStream(result.stream, {
