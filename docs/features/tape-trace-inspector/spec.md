@@ -616,18 +616,32 @@ may be promoted into the primary one-line summary. Context/Skill bodies, request
 arguments/results, and unknown-schema payloads never enter these summaries.
 
 User and assistant message facts may add a one-line preview from the active session's existing
-Transcript cache. A model request row instead shows the latest visible Transcript activity whose
-block timestamp is strictly earlier than that trace's `createdAt`. This is a renderer-only context
-hint, not a binding claim or provider-body reconstruction. It prevents every request for one final
-assistant message from repeating that same final message. Tool activities expose the tool/server
-name but not arguments or results. The request detail may show up to eight preceding visible
-activities in reverse order so the latest context is first.
+Transcript cache. A model request row prefers the latest final Transcript block carrying the exact
+`requestSeq` and, when present on the evidence, `logicalRound` and `physicalAttempt`. New
+provider-generated blocks persist those optional identities in block metadata. This is a minimal
+correlation enhancement to the existing Transcript checkpoint, not a new authority, trace table, or
+Inspector list payload.
 
-The renderer bounds row previews to 220 characters and detail activity text to 4096 characters.
-Reasoning, error text, tool arguments/results, and future blocks are excluded from the derived
-activity preview. The first request may fall back to the preceding cached user message when no
-assistant block predates it. A message outside the committed session or outside the current cache has
-no preview; the Inspector does not fetch or copy transcript payloads through its list routes.
+Request evidence without a physical attempt remains request-scoped: it may show blocks with the
+same request sequence, but never treats a missing attempt as zero or as one particular retry. Older
+Transcript blocks have no provider identity. For those records, the row may show bounded activity
+strictly after the trace and before the next trace for that message, but labels it as later
+conversation activity rather than output. If neither result nor later activity is available, the row
+falls back to the latest visible activity strictly before the request. This fallback is temporal
+orientation only; it is not a binding claim or provider-body reconstruction.
+
+The request detail separates final observed result, later conversation activity, preceding context,
+and the independently recorded model request. Exact observed results are final accumulated
+Transcript blocks, not token-by-token or delta replay: DeepChat does not durably retain provider
+chunks. The detail may show up to twelve reverse-ordered result blocks and eight reverse-ordered
+context blocks. Assistant content, reasoning, tool-call name and arguments, errors, and media block
+presence are represented. Tool results are excluded because they are runtime outcomes rather than
+model-generated request output and have their own Tape facts.
+
+The renderer bounds row previews to 220 characters and detailed activity text to 32768 characters
+per block. The first request may fall back to the preceding cached user message when no assistant
+block predates it. A message outside the committed session or outside the current cache has no
+preview; the Inspector does not fetch or copy transcript payloads through its list routes.
 
 For newly recorded AI SDK requests, persisted evidence includes the normalized request inputs passed
 to the SDK, including instructions, messages, tool definitions, and provider options when present.
@@ -711,7 +725,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 
 ## Compatibility
 
-- No existing Tape row, trace row, transcript row, or schema meaning changes.
+- No existing Tape row or trace row meaning changes. Transcript blocks gain optional provider
+  request/attempt correlation metadata; existing blocks remain valid without it.
 - No table migration is required; index-only migrations remain allowed.
 - Existing Tape search/context/effective-view behavior is unchanged.
 - Existing Trace dialog routes and renderer entry point remain available.
@@ -763,12 +778,15 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 32. Not-applicable status or duration is distinct from an unresolved authoritative state.
 33. Diagnostic evidence is default-collapsed and never presented as a legacy provider request.
 34. Message previews are bounded renderer derivations from the active Transcript cache, never new
-    Inspector list payloads. Request rows select the latest visible block strictly before the trace,
-    not the final aggregate assistant message.
-35. Request activity hints do not infer provider input or association; request detail retains the
-    independently persisted evidence as the authoritative request snapshot.
+    Inspector list payloads. Request rows prefer the final block carrying exact provider identity.
+35. Legacy later-activity and preceding-context hints do not infer provider association; request
+    detail retains the independently persisted evidence as the authoritative request snapshot.
 36. Credential redaction protects reusable authentication material without masking token accounting
     or other ordinary diagnostics.
+37. Provider chunks are not a durable history. The Inspector shows bounded final accumulated blocks
+    and never advertises token-by-token replay.
+38. Optional provider identity on Transcript blocks is correlation metadata only. It neither turns
+    Transcript into request evidence nor permits missing attempts to coalesce with attempt zero.
 
 ## Acceptance Criteria
 
@@ -781,11 +799,12 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
   unknown or pending association.
 - Loaded user and assistant messages can be understood from bounded inline previews without opening
-  detail. Consecutive model requests show their latest preceding visible activity, while reasoning,
-  error text, and tool payloads stay excluded from ledger summaries.
-- Request detail shows a bounded latest-first context tail. Newly recorded AI SDK request evidence
-  includes normalized instructions, messages, tools, and provider options when present; credential
-  fields remain masked while token accounting remains visible.
+  detail. Newly generated model requests show their latest exact final output block; older records
+  label temporal fallback as later activity rather than bound output.
+- Request detail separates bounded final accumulated output, legacy later activity, latest-first
+  context, and the recorded request. Newly recorded AI SDK request evidence includes normalized
+  instructions, messages, tools, and provider options when present; credential fields remain masked
+  while token accounting remains visible.
 - Evidence never acquires a Tape identity, and request-scoped evidence never acquires an inferred
   attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.

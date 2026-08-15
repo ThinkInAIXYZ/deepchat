@@ -7,7 +7,9 @@ committed follow, and P3 sorting, export, and large-session work have landed. Co
 layout and the overview timeline have also landed. Final semantic and activity-context refinements
 are in progress after manual inspection showed that inapplicable values looked unresolved, model
 requests without a loaded Tape parent looked invalid, and message facts required unnecessary detail
-navigation. The authority, identity, Live, pagination, and security contracts remain unchanged.
+navigation. Request-result projection is now in progress so model requests expose their final
+accumulated Transcript blocks without claiming unavailable chunk replay. The authority, Live,
+pagination, and security contracts remain unchanged.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -288,6 +290,28 @@ provider payloads and uncommon diagnostics remain available only through deliber
 
 Completion condition: consecutive model requests are distinguishable at a glance, deliberate detail
 inspection exposes the useful normalized request context, and reusable credentials remain protected.
+
+## 17. Final Request Result Projection
+
+- [x] Persist optional logical-round, request-sequence, and physical-attempt identity on new
+  provider-generated Transcript blocks.
+- [x] Close a pending narrative block when a transparent provider retry changes physical attempt so
+  content from two attempts cannot merge under one identity.
+- [x] Project final accumulated content, reasoning, tool-call arguments, errors, and media presence
+  from the committed session's existing Transcript cache.
+- [x] Prefer the latest exactly correlated block in each model-request ledger row while retaining a
+  bounded, explicitly non-binding temporal fallback for older blocks.
+- [x] Separate observed result, later conversation activity, preceding context, and persisted model
+  request in detail; state that provider chunks are not retained.
+- [x] Keep tool results out of model-generated output and retain existing Tape outcome detail.
+- [x] Add focused main and renderer coverage for retry boundaries, identity selection, null/zero
+  attempt discipline, legacy fallback, block projection, and bounded text.
+- [x] Complete staged risk review and automated validation.
+- [ ] Run the manual wide/compact presentation pass with a newly generated multi-round session.
+
+Completion condition: a developer can scan what each model request ultimately produced and inspect
+its bounded final blocks without mistaking temporal fallback for binding or final snapshots for
+token-by-token replay.
 
 ## Delivery Notes
 

@@ -120,8 +120,8 @@ import {
 } from './model'
 import type {
   TapeInspectorMessagePreview,
-  TapeInspectorRequestActivity,
-  TapeInspectorRequestActivityKind
+  TapeInspectorRequestActivityKind,
+  TapeInspectorRequestRowActivity
 } from './messagePreview'
 
 const props = withDefaults(
@@ -133,7 +133,7 @@ const props = withDefaults(
     tableMinWidth?: number
     ariaRowIndex?: number
     messagePreview?: TapeInspectorMessagePreview | null
-    requestActivity?: TapeInspectorRequestActivity | null
+    requestActivity?: TapeInspectorRequestRowActivity | null
   }>(),
   {
     layout: 'wide',
@@ -223,8 +223,14 @@ function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record'
 function activityLabel(kind: TapeInspectorRequestActivityKind): string {
   if (kind === 'user') return t('tapeInspector.activity.user')
   if (kind === 'assistant') return t('tapeInspector.activity.assistant')
+  if (kind === 'reasoning') return t('tapeInspector.activity.reasoning')
   if (kind === 'tool') return t('tapeInspector.groups.tool')
+  if (kind === 'media') return t('tapeInspector.activity.media')
   return t('tapeInspector.timeline.error')
+}
+
+function requestRelationLabel(relation: TapeInspectorRequestRowActivity['relation']): string {
+  return t(`tapeInspector.activity.relations.${relation}`)
 }
 
 const semanticSummaryLabel = computed(() => {
@@ -242,9 +248,11 @@ const semanticSummaryLabel = computed(() => {
   } else if (row.recordType === 'evidence') {
     parts.push(`#${row.record.requestSeq}`)
     if (props.requestActivity) {
-      const label = activityLabel(props.requestActivity.kind)
+      const activity = props.requestActivity.activity
+      const label = activityLabel(activity.kind)
+      const relation = requestRelationLabel(props.requestActivity.relation)
       parts.push(
-        props.requestActivity.preview ? `${label}: ${props.requestActivity.preview}` : label
+        activity.preview ? `${relation} · ${label}: ${activity.preview}` : `${relation} · ${label}`
       )
     }
     if (row.association === 'context_unloaded') {

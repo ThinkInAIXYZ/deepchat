@@ -15,6 +15,7 @@ import type {
   ModelConfig,
   RateLimitQueueSnapshot
 } from '@shared/types/provider'
+import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type {
   DeepChatTapeSkillContext,
   DeepChatTapeViewPolicy,
@@ -1380,6 +1381,7 @@ export class DeepChatLoopRunner {
       hooks.emit({ event: 'SessionStart', promptPreview })
 
       let reviewConversationMessages = messages
+      let activeProviderAttemptIdentity: DeepChatProviderAttemptIdentity | null = null
       const result = await processStream({
         run: loopRun,
         onConversationMessagesChange: (nextMessages) => {
@@ -1391,6 +1393,9 @@ export class DeepChatLoopRunner {
         toolExecution: this.ports.toolExecutionPort,
         toolResults: this.ports.toolResultPort,
         programmaticToolParents: this.ports.programmaticToolParents,
+        ...(traceEnabled
+          ? { providerAttemptIdentity: () => activeProviderAttemptIdentity }
+          : {}),
         coreStream: async function* (
           requestMessages,
           requestModelId,
@@ -1740,6 +1745,7 @@ export class DeepChatLoopRunner {
                 } else if (toolSurfaceSnapshot) {
                   throw new Error('Legacy provider request received an unexpected Tool Surface.')
                 }
+                activeProviderAttemptIdentity = { ...identity }
                 const attemptModelConfig = traceEnabled
                   ? (Object.assign({}, modelConfig, {
                       requestTraceContext: {

@@ -575,6 +575,73 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
   }
 
+  it('persists provider request identity on accumulated transcript blocks', async () => {
+    const identity = { logicalRound: 1, requestSeq: 2, physicalAttempt: 1 }
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'reasoning', reasoning_content: 'Inspect ' } as LLMCoreStreamEvent
+      yield { type: 'reasoning', reasoning_content: 'the data' } as LLMCoreStreamEvent
+      yield { type: 'text', content: 'Final answer' } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+    const params = createParams({
+      coreStream,
+      providerAttemptIdentity: () => identity
+    })
+
+    await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
+
+    expect(params.run.streamState.blocks).toEqual([
+      expect.objectContaining({
+        type: 'reasoning_content',
+        content: 'Inspect the data',
+        extra: expect.objectContaining({
+          providerLogicalRound: 1,
+          providerRequestSeq: 2,
+          providerPhysicalAttempt: 1
+        })
+      }),
+      expect.objectContaining({
+        type: 'content',
+        content: 'Final answer',
+        extra: expect.objectContaining({
+          providerLogicalRound: 1,
+          providerRequestSeq: 2,
+          providerPhysicalAttempt: 1
+        })
+      })
+    ])
+  })
+
+  it('starts a new transcript block when a provider retry changes attempt identity', async () => {
+    let identity = { logicalRound: 1, requestSeq: 2, physicalAttempt: 1 }
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'text', content: 'Partial first attempt' } as LLMCoreStreamEvent
+      identity = { logicalRound: 1, requestSeq: 2, physicalAttempt: 2 }
+      yield { type: 'text', content: 'Final retry answer' } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+    const params = createParams({
+      coreStream,
+      providerAttemptIdentity: () => identity
+    })
+
+    await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
+
+    expect(params.run.streamState.blocks).toEqual([
+      expect.objectContaining({
+        type: 'content',
+        content: 'Partial first attempt',
+        status: 'success',
+        extra: expect.objectContaining({ providerRequestSeq: 2, providerPhysicalAttempt: 1 })
+      }),
+      expect.objectContaining({
+        type: 'content',
+        content: 'Final retry answer',
+        extra: expect.objectContaining({ providerRequestSeq: 2, providerPhysicalAttempt: 2 })
+      })
+    ])
+  })
+
   it('persists normalized provider search results with the assistant message', async () => {
     const providerReplayJson = createDeepSeekReplayJson()
     const resultRow = {

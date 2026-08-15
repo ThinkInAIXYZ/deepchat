@@ -32,7 +32,10 @@
     "userMessage": "使用者訊息",
     "assistantMessage": "助理訊息",
     "user": "使用者",
-    "assistant": "助理"
+    "assistant": "助理",
+    "reasoning": "思考",
+    "media": "媒體",
+    "relations": { "input": "輸入", "output": "可觀察結果", "later": "後續活動" }
   },
   "evidence": {
     "request": "模型請求",
@@ -75,6 +78,11 @@
     "title": "詳細資料",
     "selectPrompt": "選取一列以檢視其可用詳細資料",
     "contextTail": "本次請求前的近期可見活動",
+    "observedResult": "可觀察結果",
+    "finalSnapshot": "與本次模型請求精確關聯的最終累計內容塊；系統未保留逐 token 事件。",
+    "resultBlocksTruncated": "這裡只顯示有界範圍內最新的結果內容塊。",
+    "subsequentActivity": "請求後的會話活動",
+    "subsequentActivityHint": "這些內容塊發生在請求之後，但舊記錄缺少足夠身份，不能歸屬為本次請求的輸出。",
     "integrity": "完整性",
     "provenance": "來源",
     "timing": "時序",

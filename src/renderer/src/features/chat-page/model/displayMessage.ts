@@ -87,6 +87,9 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
+  providerLogicalRound?: number
+  providerRequestSeq?: number
+  providerPhysicalAttempt?: number
   permissionRequestId?: string
   permissionRequest?: string
   commandInfo?: string

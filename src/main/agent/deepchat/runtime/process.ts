@@ -4,6 +4,7 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
+import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type {
   IoParams,
   PendingToolInteraction,
@@ -146,6 +147,63 @@ export const MAX_TOOL_CALLS_SKIPPED_ERROR =
 function stampRunAccounting(state: StreamState, run: ProcessParams['run']): void {
   state.metadata.providerRounds = run.logicalRound
   state.metadata.toolCalls = state.toolCallCount
+}
+
+function stampProviderAttemptIdentity(
+  blocks: AssistantMessageBlock[],
+  startIndex: number,
+  identity: DeepChatProviderAttemptIdentity | null
+): void {
+  if (
+    !identity ||
+    !Number.isSafeInteger(identity.logicalRound) ||
+    identity.logicalRound < 0 ||
+    !Number.isSafeInteger(identity.requestSeq) ||
+    identity.requestSeq <= 0 ||
+    !Number.isSafeInteger(identity.physicalAttempt) ||
+    identity.physicalAttempt <= 0
+  ) {
+    return
+  }
+
+  for (let index = startIndex; index < blocks.length; index += 1) {
+    const block = blocks[index]
+    block.extra = {
+      ...block.extra,
+      providerLogicalRound: identity.logicalRound,
+      providerRequestSeq: identity.requestSeq,
+      providerPhysicalAttempt: identity.physicalAttempt
+    }
+  }
+}
+
+function closePreviousProviderAttemptNarrative(
+  blocks: AssistantMessageBlock[],
+  identity: DeepChatProviderAttemptIdentity | null
+): void {
+  if (!identity) return
+  const last = blocks[blocks.length - 1]
+  if (
+    !last ||
+    last.status !== 'pending' ||
+    (last.type !== 'content' && last.type !== 'reasoning_content')
+  ) {
+    return
+  }
+  const previousLogicalRound = last.extra?.providerLogicalRound
+  const previousRequestSeq = last.extra?.providerRequestSeq
+  const previousPhysicalAttempt = last.extra?.providerPhysicalAttempt
+  if (
+    typeof previousLogicalRound !== 'number' ||
+    typeof previousRequestSeq !== 'number' ||
+    typeof previousPhysicalAttempt !== 'number' ||
+    (previousLogicalRound === identity.logicalRound &&
+      previousRequestSeq === identity.requestSeq &&
+      previousPhysicalAttempt === identity.physicalAttempt)
+  ) {
+    return
+  }
+  last.status = 'success'
 }
 
 function stampRunOutcome(
@@ -1156,10 +1214,20 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               }
             }
 
+            const providerAttemptIdentity =
+              event.type === 'usage' ? null : (params.providerAttemptIdentity?.() ?? null)
+            closePreviousProviderAttemptNarrative(state.blocks, providerAttemptIdentity)
+
             if (event.type === 'permission') {
+              const firstNewBlock = state.blocks.length
               const { actionBlock, permission, tool } = appendStreamingProviderPermissionBlock(
                 state,
                 event.permission
+              )
+              stampProviderAttemptIdentity(
+                state.blocks,
+                firstNewBlock,
+                providerAttemptIdentity
               )
               emitDeepChatLoopNotification(notificationObserver, {
                 event: 'PermissionRequest',
@@ -1180,7 +1248,13 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
 
             if (event.type !== 'usage') {
+              const firstNewBlock = state.blocks.length
               accumulate(state, event)
+              stampProviderAttemptIdentity(
+                state.blocks,
+                firstNewBlock,
+                providerAttemptIdentity
+              )
             }
             if (event.type === 'provider_search') {
               for (const result of event.provider_search.results) {

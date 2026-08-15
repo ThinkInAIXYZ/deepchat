@@ -365,7 +365,7 @@
                     :grid-template-columns="gridTemplateColumns"
                     :table-min-width="tableMinWidth"
                     :message-preview="messagePreviewForRow(item)"
-                    :request-activity="requestActivitiesForRow(item)[0] ?? null"
+                    :request-activity="requestRowActivityForRow(item)"
                     @select="selectRow"
                     @toggle="store.toggleCollapsed"
                   />
@@ -422,7 +422,7 @@
           :loading="store.loadingDetail"
           :error-code="detailErrorCode"
           :placement="detailPlacement"
-          :request-activities="requestActivitiesForRow(store.selectedRow)"
+          :request-observation="requestObservationForRow(store.selectedRow)"
           @close="closeDetail"
           @retry="store.loadSelectedDetail()"
           @open-message-diagnostics="emit('openMessageDiagnostics', $event)"
@@ -467,8 +467,11 @@ import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import {
   projectTapeInspectorAssistantActivities,
   projectTapeInspectorMessagePreview,
-  selectTapeInspectorRequestContext,
+  selectTapeInspectorRequestObservation,
+  selectTapeInspectorRequestRowActivity,
   type TapeInspectorRequestActivity,
+  type TapeInspectorRequestObservation,
+  type TapeInspectorRequestRowActivity,
   type TapeInspectorMessagePreview
 } from './messagePreview'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
@@ -598,9 +601,9 @@ function messagePreviewForRow(row: TapeInspectorDisplayRow): TapeInspectorMessag
   return message?.sessionId === props.sessionId ? projectTapeInspectorMessagePreview(message) : null
 }
 
-const requestContextsByTraceId = computed(() => {
-  const contexts = new Map<string, TapeInspectorRequestActivity[]>()
-  if (messageStore.committedSessionId !== props.sessionId) return contexts
+const requestObservationsByTraceId = computed(() => {
+  const observations = new Map<string, TapeInspectorRequestObservation>()
+  if (messageStore.committedSessionId !== props.sessionId) return observations
 
   const sessionMessages = [...messageStore.messageCache.values()]
     .filter((message) => message.sessionId === props.sessionId)
@@ -612,6 +615,29 @@ const requestContextsByTraceId = computed(() => {
       precedingUser = message
     } else if (precedingUser) {
       precedingUserByMessageId.set(message.id, precedingUser)
+    }
+  }
+
+  const nextTraceCreatedAtByTraceId = new Map<string, number>()
+  const evidenceByMessageId = new Map<string, typeof store.evidence>()
+  for (const evidence of store.evidence) {
+    const messageEvidence = evidenceByMessageId.get(evidence.messageId) ?? []
+    messageEvidence.push(evidence)
+    evidenceByMessageId.set(evidence.messageId, messageEvidence)
+  }
+  for (const evidence of evidenceByMessageId.values()) {
+    evidence.sort(
+      (left, right) => left.createdAt - right.createdAt || left.traceId.localeCompare(right.traceId)
+    )
+    for (let index = 0; index < evidence.length; index += 1) {
+      const previous = evidence[index - 1]
+      const current = evidence[index]
+      const next = evidence[index + 1]
+      if (previous?.createdAt === current.createdAt || next?.createdAt === current.createdAt) {
+        nextTraceCreatedAtByTraceId.set(current.traceId, current.createdAt)
+      } else if (next && next.createdAt > current.createdAt) {
+        nextTraceCreatedAtByTraceId.set(current.traceId, next.createdAt)
+      }
     }
   }
 
@@ -627,24 +653,38 @@ const requestContextsByTraceId = computed(() => {
       )
       activitiesByMessageId.set(message.id, activities)
     }
-    contexts.set(
+    const nextTraceCreatedAt = nextTraceCreatedAtByTraceId.get(evidence.traceId)
+    observations.set(
       evidence.traceId,
-      selectTapeInspectorRequestContext({
+      selectTapeInspectorRequestObservation({
         activities,
-        before: evidence.createdAt,
+        createdAt: evidence.createdAt,
+        requestSeq: evidence.requestSeq,
+        ...(evidence.logicalRound === undefined ? {} : { logicalRound: evidence.logicalRound }),
+        ...(evidence.physicalAttempt === undefined
+          ? {}
+          : { physicalAttempt: evidence.physicalAttempt }),
+        ...(nextTraceCreatedAt === undefined ? {} : { nextTraceCreatedAt }),
         precedingUser: precedingUserByMessageId.get(message.id)
       })
     )
   }
-  return contexts
+  return observations
 })
 
-function requestActivitiesForRow(
+function requestObservationForRow(
   row: TapeInspectorDisplayRow
-): readonly TapeInspectorRequestActivity[] {
+): TapeInspectorRequestObservation | null {
   return row.recordType === 'evidence'
-    ? (requestContextsByTraceId.value.get(row.record.traceId) ?? [])
-    : []
+    ? (requestObservationsByTraceId.value.get(row.record.traceId) ?? null)
+    : null
+}
+
+function requestRowActivityForRow(
+  row: TapeInspectorDisplayRow
+): TapeInspectorRequestRowActivity | null {
+  const observation = requestObservationForRow(row)
+  return observation ? selectTapeInspectorRequestRowActivity(observation) : null
 }
 
 let liveLifecycleGeneration = 0

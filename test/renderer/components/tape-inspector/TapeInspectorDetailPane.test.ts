@@ -264,21 +264,45 @@ describe('TapeInspectorDetailPane', () => {
         },
         loading: false,
         errorCode: null,
-        requestActivities: [
-          {
-            key: 'tool-1',
-            kind: 'tool',
-            text: 'files / read_file',
-            preview: 'files / read_file',
-            timestamp: 250,
-            truncated: false
-          }
-        ]
+        requestObservation: {
+          before: [
+            {
+              key: 'tool-1',
+              kind: 'tool',
+              text: 'files / read_file',
+              preview: 'files / read_file',
+              timestamp: 250,
+              blockIndex: 0,
+              truncated: false
+            }
+          ],
+          after: [
+            {
+              key: 'answer-1',
+              kind: 'assistant',
+              text: 'Final accumulated answer',
+              preview: 'Final accumulated answer',
+              timestamp: 350,
+              blockIndex: 1,
+              providerRequestSeq: 2,
+              providerPhysicalAttempt: 1,
+              truncated: false
+            }
+          ],
+          afterBasis: 'identity',
+          afterTruncated: false
+        }
       }
     })
 
     expect(wrapper.get('[data-testid="tape-inspector-request-context"]').text()).toContain(
       'files / read_file'
+    )
+    expect(wrapper.get('[data-testid="tape-inspector-request-result"]').text()).toContain(
+      'Final accumulated answer'
+    )
+    expect(wrapper.get('[data-testid="tape-inspector-request-result"]').text()).toContain(
+      'tapeInspector.detail.finalSnapshot'
     )
     const payload = wrapper.text().slice(wrapper.text().indexOf('tapeInspector.detail.payload'))
     expect(payload.indexOf('"body"')).toBeLessThan(payload.indexOf('"headers"'))

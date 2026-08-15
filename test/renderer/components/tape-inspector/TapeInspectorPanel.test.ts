@@ -206,14 +206,14 @@ vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
       }
     },
     template:
-      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :data-request-activity="requestActivity?.preview" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
+      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :data-request-activity="requestActivity?.activity.preview" :data-request-relation="requestActivity?.relation" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
   })
 }))
 
 vi.mock('@/components/tape-inspector/TapeInspectorDetailPane.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorDetailPane',
-    props: ['placement', 'requestActivities'],
+    props: ['placement', 'requestObservation'],
     emits: ['close'],
     template:
       '<div data-testid="detail-pane" :data-placement="placement"><button data-testid="close-detail" @click="$emit(\'close\')" /></div>'
@@ -400,7 +400,7 @@ describe('TapeInspectorPanel', () => {
     ).toBeUndefined()
   })
 
-  it('shows the latest block before each request instead of the final assistant message', async () => {
+  it('shows the latest subsequent block when legacy records lack output identity', async () => {
     inspectorStore.evidence = [
       {
         traceId: 'trace-1',
@@ -460,10 +460,70 @@ describe('TapeInspectorPanel', () => {
 
     expect(
       wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-request-activity')
-    ).toBe('files / read_file')
+    ).toBe('Final answer')
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-request-relation')
+    ).toBe('later')
     expect(
       wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
     ).toBeUndefined()
+  })
+
+  it('does not infer legacy output between traces with the same timestamp', async () => {
+    inspectorStore.evidence = [
+      {
+        traceId: 'trace-1',
+        messageId: 'assistant-1',
+        requestSeq: 2,
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        createdAt: 300,
+        truncated: false
+      },
+      {
+        traceId: 'trace-2',
+        messageId: 'assistant-1',
+        requestSeq: 3,
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        createdAt: 300,
+        truncated: false
+      }
+    ] as never[]
+    inspectorStore.rows = [
+      {
+        key: 'trace:trace-1',
+        recordType: 'evidence',
+        association: 'context_unloaded',
+        record: inspectorStore.evidence[0]
+      }
+    ] as typeof inspectorStore.rows
+    messageStore.messageCache.set('assistant-1', {
+      id: 'assistant-1',
+      sessionId: 'session-1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: JSON.stringify([
+        { type: 'content', status: 'success', timestamp: 250, content: 'Earlier context' },
+        { type: 'content', status: 'success', timestamp: 350, content: 'Ambiguous result' }
+      ]),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 100,
+      updatedAt: 400
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: { sessionId: 'session-1', openRequest: null }
+    })
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-request-activity')
+    ).toBe('Earlier context')
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-request-relation')
+    ).toBe('input')
   })
 
   it('cancels pending Inspector reads when the panel unmounts', async () => {

@@ -16,6 +16,7 @@ import type {
 } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
+import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type { DeepchatEventName } from '@shared/contracts/events'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 import type { SessionTranscript } from '@/session/data/transcript'
@@ -325,6 +326,7 @@ export interface ProcessParams {
   initialBlocks?: AssistantMessageBlock[]
   initialAccounting?: MessageMetadata
   providerReplayProjector?: ChatMessageProviderReplayProjector
+  providerAttemptIdentity?: () => DeepChatProviderAttemptIdentity | null
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean

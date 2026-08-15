@@ -194,6 +194,9 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
+  providerLogicalRound?: number
+  providerRequestSeq?: number
+  providerPhysicalAttempt?: number
   permissionRequestId?: string
   permissionRequest?: string
   executionContractBinding?: string

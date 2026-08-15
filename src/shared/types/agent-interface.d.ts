@@ -318,6 +318,9 @@ export interface AssistantMessageExtra {
   toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
+  providerLogicalRound?: number
+  providerRequestSeq?: number
+  providerPhysicalAttempt?: number
   permissionRequestId?: string
   permissionRequest?: string
   executionContractBinding?: string

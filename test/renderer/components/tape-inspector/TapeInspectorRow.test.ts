@@ -159,18 +159,24 @@ describe('TapeInspectorRow', () => {
         row: evidenceRow(),
         selected: false,
         requestActivity: {
-          key: 'tool-1',
-          kind: 'tool',
-          text: 'files / read_file',
-          preview: 'files / read_file',
-          timestamp: 1_050,
-          truncated: false
+          relation: 'output',
+          activity: {
+            key: 'tool-1',
+            kind: 'tool',
+            text: 'files / read_file',
+            preview: 'files / read_file',
+            timestamp: 1_050,
+            blockIndex: 0,
+            truncated: false
+          }
         }
       }
     })
 
     expect(wrapper.text()).toContain('tapeInspector.evidence.request · provider-1/model-1')
-    expect(wrapper.text()).toContain('tapeInspector.groups.tool: files / read_file')
+    expect(wrapper.text()).toContain(
+      'tapeInspector.activity.relations.output · tapeInspector.groups.tool: files / read_file'
+    )
     expect(wrapper.text()).toContain('tapeInspector.evidence.contextNotLoaded')
     expect(wrapper.text()).not.toContain('unresolved')
     expect(wrapper.classes()).toContain('h-12')

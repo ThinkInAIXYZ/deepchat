@@ -41,7 +41,14 @@
     "userMessage": "用户消息",
     "assistantMessage": "助手消息",
     "user": "用户",
-    "assistant": "助手"
+    "assistant": "助手",
+    "reasoning": "思考",
+    "media": "媒体",
+    "relations": {
+      "input": "输入",
+      "output": "可观察结果",
+      "later": "后续活动"
+    }
   },
   "evidence": {
     "request": "模型请求",
@@ -91,6 +98,11 @@
     "title": "详情",
     "selectPrompt": "选择一行以查看其可用详情",
     "contextTail": "本次请求前的近期可见活动",
+    "observedResult": "可观察结果",
+    "finalSnapshot": "与本次模型请求精确关联的最终累计内容块；系统未保留逐 token 事件。",
+    "resultBlocksTruncated": "这里只展示了有界范围内最新的结果内容块。",
+    "subsequentActivity": "请求后的会话活动",
+    "subsequentActivityHint": "这些内容块发生在请求之后，但旧记录缺少足够身份，不能归属为本次请求的输出。",
     "integrity": "完整性",
     "provenance": "来源",
     "timing": "时序",

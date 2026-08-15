@@ -75,13 +75,49 @@
       </dl>
 
       <section
-        v-if="detail.source === 'request' && requestActivities.length > 0"
+        v-if="detail.source === 'request' && observedActivities.length > 0"
+        data-testid="tape-inspector-request-result"
+        class="mt-4 border-t pt-3"
+      >
+        <h3 class="text-xs font-medium">{{ observedActivityHeading }}</h3>
+        <p class="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {{ observedActivityDescription }}
+        </p>
+        <p
+          v-if="requestObservation?.afterTruncated"
+          class="mt-1 text-[10px] leading-relaxed text-muted-foreground"
+        >
+          {{ t('tapeInspector.detail.resultBlocksTruncated') }}
+        </p>
+        <ol class="mt-2 divide-y border-y text-xs">
+          <li v-for="activity in observedActivities" :key="activity.key" class="py-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
+              <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+                {{ formatActivityTime(activity.timestamp) }}
+              </time>
+            </div>
+            <p
+              v-if="activity.text"
+              class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed"
+            >
+              {{ activity.text }}
+            </p>
+            <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
+              {{ t('tapeInspector.detail.truncated') }}
+            </span>
+          </li>
+        </ol>
+      </section>
+
+      <section
+        v-if="detail.source === 'request' && requestContextActivities.length > 0"
         data-testid="tape-inspector-request-context"
         class="mt-4 border-t pt-3"
       >
         <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.contextTail') }}</h3>
         <ol class="divide-y border-y text-xs">
-          <li v-for="activity in requestActivities" :key="activity.key" class="py-2">
+          <li v-for="activity in requestContextActivities" :key="activity.key" class="py-2">
             <div class="flex min-w-0 items-center gap-2">
               <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
               <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
@@ -167,7 +203,8 @@ import type {
 } from './model'
 import type {
   TapeInspectorRequestActivity,
-  TapeInspectorRequestActivityKind
+  TapeInspectorRequestActivityKind,
+  TapeInspectorRequestObservation
 } from './messagePreview'
 import type { TapeInspectorErrorCode } from './store'
 
@@ -179,9 +216,9 @@ const props = withDefaults(
     loading: boolean
     errorCode: TapeInspectorErrorCode
     placement?: 'side' | 'overlay'
-    requestActivities?: readonly TapeInspectorRequestActivity[]
+    requestObservation?: TapeInspectorRequestObservation | null
   }>(),
-  { placement: 'side', requestActivities: () => [] }
+  { placement: 'side', requestObservation: null }
 )
 
 const emit = defineEmits<{
@@ -225,7 +262,9 @@ function parseJson(value: string): unknown {
 function activityLabel(kind: TapeInspectorRequestActivityKind): string {
   if (kind === 'user') return t('tapeInspector.activity.user')
   if (kind === 'assistant') return t('tapeInspector.activity.assistant')
+  if (kind === 'reasoning') return t('tapeInspector.activity.reasoning')
   if (kind === 'tool') return t('tapeInspector.groups.tool')
+  if (kind === 'media') return t('tapeInspector.activity.media')
   return t('tapeInspector.timeline.error')
 }
 
@@ -236,6 +275,23 @@ function formatActivityTime(timestamp: number): string {
     second: '2-digit'
   })
 }
+
+const observedActivities = computed<readonly TapeInspectorRequestActivity[]>(
+  () => props.requestObservation?.after ?? []
+)
+const requestContextActivities = computed<readonly TapeInspectorRequestActivity[]>(
+  () => props.requestObservation?.before ?? []
+)
+const observedActivityHeading = computed(() =>
+  props.requestObservation?.afterBasis === 'identity'
+    ? t('tapeInspector.detail.observedResult')
+    : t('tapeInspector.detail.subsequentActivity')
+)
+const observedActivityDescription = computed(() =>
+  props.requestObservation?.afterBasis === 'identity'
+    ? t('tapeInspector.detail.finalSnapshot')
+    : t('tapeInspector.detail.subsequentActivityHint')
+)
 
 const summaryFields = computed(() => {
   const detail = props.detail

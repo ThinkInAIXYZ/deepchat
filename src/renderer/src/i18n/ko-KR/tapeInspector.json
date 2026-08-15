@@ -32,7 +32,10 @@
     "userMessage": "User message",
     "assistantMessage": "Assistant message",
     "user": "User",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "reasoning": "Reasoning",
+    "media": "Media",
+    "relations": { "input": "Input", "output": "Observed result", "later": "Later activity" }
   },
   "evidence": {
     "request": "Model request",
@@ -78,6 +81,11 @@
     "title": "Details",
     "selectPrompt": "Select a row to inspect its available details",
     "contextTail": "Recent visible activity before this request",
+    "observedResult": "Observed result",
+    "finalSnapshot": "Final accumulated blocks associated with this model request; token-by-token events are not retained.",
+    "resultBlocksTruncated": "Only the latest bounded result blocks are shown.",
+    "subsequentActivity": "Subsequent conversation activity",
+    "subsequentActivityHint": "These blocks occurred after the request, but older records do not carry enough identity to attribute them to it.",
     "integrity": "Integrity",
     "provenance": "Provenance",
     "timing": "Timing",
