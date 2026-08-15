@@ -201,13 +201,16 @@ const absoluteRange = computed<AbsoluteRange | null>(() => {
   let min = Number.POSITIVE_INFINITY
   let max = Number.NEGATIVE_INFINITY
   for (const row of props.rows) {
+    if (row.recordType === 'evidence' && row.association === 'diagnostic') continue
     if (mode.value === 'sequence') {
       if (row.sequenceEntryId === null) continue
       min = Math.min(min, row.sequenceEntryId)
       max = Math.max(max, row.sequenceEntryId)
       continue
     }
-    if (row.actualStartAt === null) continue
+    if (row.actualStartAt === null || (row.timingState !== 'span' && row.timingState !== 'point')) {
+      continue
+    }
     min = Math.min(min, row.actualStartAt)
     max = Math.max(max, row.actualEndAt ?? row.actualStartAt)
   }
@@ -238,7 +241,7 @@ function rowLabel(row: TapeInspectorDisplayRow): string {
     return `${t('tapeInspector.evidence.request')} · ${row.record.providerId}/${row.record.modelId}`
   }
   if (row.recordType === 'evidence_lane')
-    return t('tapeInspector.evidence.unbound', { count: row.count })
+    return t(`tapeInspector.evidence.lanes.${row.laneKind}`, { count: row.count })
   if (row.group.kind === 'run') return t('tapeInspector.groups.run')
   if (row.group.kind === 'request')
     return `${t('tapeInspector.groups.request')} #${row.group.requestSeq}`
@@ -258,11 +261,15 @@ function itemTitle(item: TapeInspectorTimelineItem): string {
   if (item.row.actualStartAt !== null) {
     lines.push(d(new Date(item.row.actualStartAt), { dateStyle: 'medium', timeStyle: 'medium' }))
   }
-  lines.push(
-    item.row.durationMs === null
-      ? t('tapeInspector.waterfall.point')
-      : `${t('tapeInspector.columns.duration')}: ${durationLabel(item.row.durationMs)}`
-  )
+  if (mode.value === 'sequence') {
+    lines.push(t('tapeInspector.waterfall.sequence'))
+  } else if (item.row.timingState === 'span' && item.row.durationMs !== null) {
+    lines.push(`${t('tapeInspector.columns.duration')}: ${durationLabel(item.row.durationMs)}`)
+  } else if (item.row.timingState === 'unresolved') {
+    lines.push(t('tapeInspector.states.timingPending'))
+  } else {
+    lines.push(t('tapeInspector.waterfall.point'))
+  }
   return lines.join('\n')
 }
 

@@ -1,7 +1,10 @@
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { TapeInspectorFactRow } from '@/components/tape-inspector/model'
+import type {
+  TapeInspectorEvidenceRow,
+  TapeInspectorFactRow
+} from '@/components/tape-inspector/model'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -24,7 +27,9 @@ function factRow(overrides: Partial<TapeInspectorFactRow> = {}): TapeInspectorFa
     key: 'fact:incarnation-1:entry:10',
     depth: 0,
     status: null,
+    statusState: 'not_applicable',
     durationMs: null,
+    timingState: 'point',
     sequenceEntryId: 10,
     sequenceStart: 0.5,
     actualStartAt: 1_000,
@@ -41,6 +46,38 @@ function factRow(overrides: Partial<TapeInspectorFactRow> = {}): TapeInspectorFa
       name: null,
       createdAt: 1_000
     },
+    ...overrides
+  }
+}
+
+function evidenceRow(overrides: Partial<TapeInspectorEvidenceRow> = {}): TapeInspectorEvidenceRow {
+  return {
+    key: 'trace:trace-1',
+    depth: 1,
+    status: null,
+    statusState: 'not_applicable',
+    durationMs: null,
+    timingState: 'point',
+    sequenceEntryId: null,
+    sequenceStart: 1,
+    actualStartAt: 1_100,
+    actualEndAt: null,
+    actualStart: 0.75,
+    actualWidth: 0,
+    recordType: 'evidence',
+    record: {
+      recordType: 'evidence',
+      key: 'trace:trace-1',
+      traceId: 'trace-1',
+      messageId: 'message-1',
+      requestSeq: 2,
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      createdAt: 1_100,
+      truncated: false
+    },
+    parentGroupKey: null,
+    association: 'context_unloaded',
     ...overrides
   }
 }
@@ -66,6 +103,7 @@ describe('TapeInspectorRow', () => {
       props: {
         row: factRow({
           status: 'completed',
+          statusState: 'explicit',
           record: {
             recordType: 'fact',
             key: 'entry:10',
@@ -90,10 +128,51 @@ describe('TapeInspectorRow', () => {
     expect(wrapper.classes()).toContain('h-12')
   })
 
+  it('shows bounded transcript context inline without changing the virtual row height', () => {
+    const wrapper = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({
+          record: {
+            recordType: 'fact',
+            key: 'entry:10',
+            entryId: 10,
+            family: 'message',
+            kind: 'message',
+            name: 'message/user',
+            messageId: 'message-1',
+            createdAt: 1_000
+          }
+        }),
+        selected: false,
+        messagePreview: { role: 'user', text: 'How will next month compare?' }
+      }
+    })
+
+    expect(wrapper.text()).toContain('tapeInspector.activity.userMessage')
+    expect(wrapper.text()).toContain('tapeInspector.activity.user: How will next month compare?')
+    expect(wrapper.classes()).toContain('h-12')
+  })
+
+  it('presents an ungrouped trace as a time-ordered model request, not missing evidence', () => {
+    const wrapper = mount(TapeInspectorRow, {
+      props: { row: evidenceRow(), selected: false }
+    })
+
+    expect(wrapper.text()).toContain('tapeInspector.evidence.request · provider-1/model-1')
+    expect(wrapper.text()).toContain('tapeInspector.evidence.contextNotLoaded')
+    expect(wrapper.text()).not.toContain('unresolved')
+    expect(wrapper.classes()).toContain('h-12')
+  })
+
   it('keeps timeline glyphs out of the semantic ledger row', () => {
     const wrapper = mount(TapeInspectorRow, {
       props: {
-        row: factRow({ durationMs: 100, actualEndAt: 1_100, actualWidth: 0.5 }),
+        row: factRow({
+          durationMs: 100,
+          timingState: 'span',
+          actualEndAt: 1_100,
+          actualWidth: 0.5
+        }),
         selected: false
       }
     })
@@ -104,7 +183,13 @@ describe('TapeInspectorRow', () => {
   })
 
   it('collapses secondary columns into readable metadata at compact widths', () => {
-    const row = factRow({ status: 'completed', durationMs: 25, actualEndAt: 1_025 })
+    const row = factRow({
+      status: 'completed',
+      statusState: 'explicit',
+      durationMs: 25,
+      timingState: 'span',
+      actualEndAt: 1_025
+    })
     const compact = mount(TapeInspectorRow, {
       props: {
         row,
@@ -131,5 +216,33 @@ describe('TapeInspectorRow', () => {
     })
     expect(medium.findAll('[role="gridcell"]')).toHaveLength(3)
     expect(medium.text()).toContain('event · 1970-01-01T00:00:01.000Z')
+  })
+
+  it('keeps inapplicable values quiet and distinguishes incomplete authoritative state', () => {
+    const point = mount(TapeInspectorRow, {
+      props: { row: factRow(), selected: false }
+    })
+    const pointStatus = point.get('[data-status-state="not_applicable"]')
+    const pointTiming = point.get('[data-timing-state="point"]')
+
+    expect(pointStatus.text()).toBe('—')
+    expect(pointStatus.attributes('title')).toBe('tapeInspector.states.notApplicable')
+    expect(pointTiming.text()).toBe('—')
+    expect(pointTiming.attributes('title')).toBe('tapeInspector.waterfall.point')
+    expect(point.text()).not.toContain('tapeInspector.states.unknown')
+
+    const unresolved = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({ statusState: 'unresolved', timingState: 'unresolved' }),
+        selected: false
+      }
+    })
+
+    expect(unresolved.get('[data-status-state="unresolved"]').text()).toBe(
+      'tapeInspector.states.statusPending'
+    )
+    expect(unresolved.get('[data-timing-state="unresolved"]').text()).toBe(
+      'tapeInspector.states.timingPending'
+    )
   })
 })

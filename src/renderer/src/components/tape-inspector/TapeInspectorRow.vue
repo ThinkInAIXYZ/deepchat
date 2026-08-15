@@ -43,15 +43,16 @@
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="truncate" :title="nameLabel">{{ nameLabel }}</span>
           <span
-            v-if="row.recordType === 'evidence' && row.legacyUnattributed"
+            v-if="evidenceAssociationLabel"
             class="shrink-0 rounded border border-border px-1 text-[10px] font-normal text-muted-foreground"
           >
-            {{ t('tapeInspector.evidence.legacy') }}
+            {{ evidenceAssociationLabel }}
           </span>
           <span
-            v-if="layout === 'compact' && row.status"
+            v-if="layout === 'compact' && showStatus"
             class="ml-auto inline-flex shrink-0 truncate rounded px-1.5 py-0.5 text-[10px]"
             :class="statusClass"
+            :title="statusTitle"
           >
             {{ statusLabel }}
           </span>
@@ -73,25 +74,35 @@
     >
       {{ kindLabel }}
     </div>
-    <div v-if="layout !== 'compact'" class="px-2" role="gridcell">
+    <div
+      v-if="layout !== 'compact'"
+      class="px-2"
+      role="gridcell"
+      :data-status-state="row.statusState"
+      :title="statusTitle"
+    >
       <span
+        v-if="showStatus"
         class="inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-[10px]"
         :class="statusClass"
       >
         {{ statusLabel }}
       </span>
+      <span v-else class="text-muted-foreground/60">—</span>
     </div>
     <div
       v-if="layout === 'wide'"
-      class="truncate px-2 font-mono text-[11px] text-muted-foreground"
+      class="truncate px-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground"
       role="gridcell"
     >
       {{ startLabel }}
     </div>
     <div
       v-if="layout !== 'compact'"
-      class="truncate px-2 font-mono text-[11px] text-muted-foreground"
+      class="truncate px-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground"
       role="gridcell"
+      :data-timing-state="row.timingState"
+      :title="durationTitle"
     >
       {{ durationLabel }}
     </div>
@@ -107,6 +118,7 @@ import {
   type TapeInspectorDisplayRow,
   type TapeInspectorFactRow
 } from './model'
+import type { TapeInspectorMessagePreview } from './messagePreview'
 
 const props = withDefaults(
   defineProps<{
@@ -116,6 +128,7 @@ const props = withDefaults(
     gridTemplateColumns?: string
     tableMinWidth?: number
     ariaRowIndex?: number
+    messagePreview?: TapeInspectorMessagePreview | null
   }>(),
   {
     layout: 'wide',
@@ -155,12 +168,16 @@ const shortIdentity = (value: string | undefined): string => {
 
 const nameLabel = computed(() => {
   const row = props.row
-  if (row.recordType === 'fact') return row.record.name ?? row.record.kind
+  if (row.recordType === 'fact') {
+    if (row.record.name === 'message/user') return t('tapeInspector.activity.userMessage')
+    if (row.record.name === 'message/assistant') return t('tapeInspector.activity.assistantMessage')
+    return row.record.name ?? row.record.kind
+  }
   if (row.recordType === 'evidence') {
     return `${t('tapeInspector.evidence.request')} · ${row.record.providerId}/${row.record.modelId}`
   }
   if (row.recordType === 'evidence_lane') {
-    return t('tapeInspector.evidence.unbound', { count: row.count })
+    return t(`tapeInspector.evidence.lanes.${row.laneKind}`, { count: row.count })
   }
   if (row.group.kind === 'run') {
     return `${t('tapeInspector.groups.run')} · ${shortIdentity(row.group.runId)}`
@@ -172,6 +189,17 @@ const nameLabel = computed(() => {
     return `${t('tapeInspector.groups.attempt')} · #${row.group.physicalAttempt ?? '?'}`
   }
   return row.summary.toolName ?? t('tapeInspector.groups.tool')
+})
+
+const evidenceAssociationLabel = computed(() => {
+  if (
+    props.row.recordType !== 'evidence' ||
+    props.row.association === 'attempt' ||
+    props.row.association === 'context_unloaded'
+  ) {
+    return null
+  }
+  return t(`tapeInspector.evidence.scope.${props.row.association}`)
 })
 
 function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record']['facts']): void {
@@ -192,12 +220,27 @@ const semanticSummaryLabel = computed(() => {
   const parts: string[] = []
   if (row.recordType === 'fact') {
     appendFactSummary(parts, row.record.facts)
-    if (parts.length === 0) parts.push(row.record.family)
+    if (props.messagePreview) {
+      parts.push(
+        `${t(`tapeInspector.activity.${props.messagePreview.role}`)}: ${props.messagePreview.text}`
+      )
+    } else if (parts.length === 0) {
+      parts.push(row.record.family)
+    }
   } else if (row.recordType === 'evidence') {
-    parts.push(`${row.record.providerId} / ${row.record.modelId}`)
     parts.push(`#${row.record.requestSeq}`)
+    if (props.messagePreview) {
+      parts.push(
+        `${t(`tapeInspector.activity.${props.messagePreview.role}`)}: ${props.messagePreview.text}`
+      )
+    }
+    if (row.association === 'context_unloaded') {
+      parts.push(t('tapeInspector.evidence.contextNotLoaded'))
+    }
   } else if (row.recordType === 'evidence_lane') {
-    return t('tapeInspector.kinds.lane')
+    return row.laneKind === 'diagnostic'
+      ? t('tapeInspector.evidence.scope.diagnostic')
+      : t('tapeInspector.kinds.lane')
   } else {
     appendFactSummary(parts, row.summary)
     parts.push(`${t('tapeInspector.fields.records')}: ${row.summary.factCount}`)
@@ -212,12 +255,28 @@ const semanticSummaryLabel = computed(() => {
 const kindLabel = computed(() => {
   if (props.row.recordType === 'fact') return props.row.record.kind
   if (props.row.recordType === 'evidence') return t('tapeInspector.kinds.evidence')
-  if (props.row.recordType === 'evidence_lane') return t('tapeInspector.kinds.lane')
+  if (props.row.recordType === 'evidence_lane') {
+    return props.row.laneKind === 'diagnostic'
+      ? t('tapeInspector.evidence.scope.diagnostic')
+      : t('tapeInspector.kinds.lane')
+  }
   return t('tapeInspector.kinds.group')
 })
 
-const statusLabel = computed(() => props.row.status ?? t('tapeInspector.states.unknown'))
+const showStatus = computed(() => props.row.statusState !== 'not_applicable')
+const statusLabel = computed(() => {
+  if (props.row.statusState === 'unresolved') return t('tapeInspector.states.statusPending')
+  return props.row.status ?? '—'
+})
+const statusTitle = computed(() =>
+  props.row.statusState === 'not_applicable'
+    ? t('tapeInspector.states.notApplicable')
+    : statusLabel.value
+)
 const statusClass = computed(() => {
+  if (props.row.statusState === 'unresolved') {
+    return 'border border-border/70 text-muted-foreground'
+  }
   if (props.row.status === 'error') return 'bg-destructive/10 text-destructive'
   if (props.row.status === 'success' || props.row.status === 'completed') {
     return 'bg-foreground/10 text-foreground'
@@ -225,21 +284,25 @@ const statusClass = computed(() => {
   return 'text-muted-foreground'
 })
 
-const rowCreatedAt = computed(() => {
-  if (props.row.recordType === 'fact' || props.row.recordType === 'evidence') {
-    return props.row.record.createdAt
-  }
-  return null
-})
 const startLabel = computed(() => {
-  if (rowCreatedAt.value === null) return '—'
-  return d(new Date(rowCreatedAt.value), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  if (props.row.actualStartAt === null) return '—'
+  return d(new Date(props.row.actualStartAt), {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
 })
 const durationLabel = computed(() => {
+  if (props.row.timingState === 'unresolved') return t('tapeInspector.states.timingPending')
   const duration = props.row.durationMs
-  if (duration === null) return t('tapeInspector.states.unknown')
+  if (duration === null) return '—'
   if (duration < 1_000) return `${duration} ms`
   return `${(duration / 1_000).toFixed(2)} s`
+})
+const durationTitle = computed(() => {
+  if (props.row.timingState === 'point') return t('tapeInspector.waterfall.point')
+  if (props.row.timingState === 'not_applicable') return t('tapeInspector.states.notApplicable')
+  return durationLabel.value
 })
 const displaySummaryLabel = computed(() => {
   const parts = semanticSummaryLabel.value ? [semanticSummaryLabel.value] : []
@@ -273,48 +336,53 @@ const rowIcon = computed(() => {
   return familyIcons[props.row.record.family]
 })
 
-const semanticTone = computed<'error' | 'session' | 'model' | 'tool' | 'evidence' | 'neutral'>(
-  () => {
-    const row = props.row
-    const explicitStatus = row.status?.toLocaleLowerCase()
-    if (
-      explicitStatus === 'error' ||
-      explicitStatus === 'failed' ||
-      explicitStatus === 'failure' ||
-      (row.recordType === 'fact' &&
-        (row.record.facts?.isError === true || Boolean(row.record.facts?.errorCode))) ||
-      (row.recordType === 'group' && Boolean(row.summary.errorCode))
-    ) {
-      return 'error'
-    }
-    if (row.recordType === 'evidence' || row.recordType === 'evidence_lane') return 'evidence'
-    if (row.recordType === 'group') {
-      if (row.group.kind === 'request' || row.group.kind === 'attempt') return 'model'
-      if (row.group.kind === 'tool') return 'tool'
-      return 'session'
-    }
-    if (row.record.family === 'attempt') return 'model'
-    if (row.record.family === 'tool') return 'tool'
-    if (
-      row.record.family === 'context' ||
-      row.record.family === 'view' ||
-      row.record.family === 'anchor' ||
-      row.record.family === 'lineage'
-    ) {
-      return 'session'
-    }
-    return 'neutral'
+const semanticTone = computed<'error' | 'input' | 'session' | 'model' | 'tool' | 'neutral'>(() => {
+  const row = props.row
+  const explicitStatus = row.status?.toLocaleLowerCase()
+  if (
+    explicitStatus === 'error' ||
+    explicitStatus === 'failed' ||
+    explicitStatus === 'failure' ||
+    (row.recordType === 'fact' &&
+      (row.record.facts?.isError === true || Boolean(row.record.facts?.errorCode))) ||
+    (row.recordType === 'group' && Boolean(row.summary.errorCode))
+  ) {
+    return 'error'
   }
-)
+  if (row.recordType === 'evidence') {
+    return row.association === 'diagnostic' ? 'neutral' : 'model'
+  }
+  if (row.recordType === 'evidence_lane') {
+    return row.laneKind === 'diagnostic' ? 'neutral' : 'model'
+  }
+  if (row.recordType === 'group') {
+    if (row.group.kind === 'request' || row.group.kind === 'attempt') return 'model'
+    if (row.group.kind === 'tool') return 'tool'
+    return 'session'
+  }
+  if (row.record.name === 'message/user') return 'input'
+  if (row.record.name === 'message/assistant') return 'model'
+  if (row.record.family === 'attempt') return 'model'
+  if (row.record.family === 'tool') return 'tool'
+  if (
+    row.record.family === 'context' ||
+    row.record.family === 'view' ||
+    row.record.family === 'anchor' ||
+    row.record.family === 'lineage'
+  ) {
+    return 'session'
+  }
+  return 'neutral'
+})
 
 const accentClass = computed(
   () =>
     ({
       error: 'bg-destructive',
+      input: 'bg-emerald-500',
       session: 'bg-emerald-500',
       model: 'bg-violet-500',
       tool: 'bg-amber-500',
-      evidence: 'bg-cyan-500',
       neutral: 'bg-muted-foreground/40'
     })[semanticTone.value]
 )
@@ -323,10 +391,10 @@ const iconClass = computed(
   () =>
     ({
       error: 'text-destructive',
+      input: 'text-emerald-600 dark:text-emerald-400',
       session: 'text-emerald-600 dark:text-emerald-400',
       model: 'text-violet-600 dark:text-violet-400',
       tool: 'text-amber-600 dark:text-amber-400',
-      evidence: 'text-cyan-600 dark:text-cyan-400',
       neutral: 'text-muted-foreground'
     })[semanticTone.value]
 )

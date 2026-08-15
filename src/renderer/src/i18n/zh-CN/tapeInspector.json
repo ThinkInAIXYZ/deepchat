@@ -7,7 +7,7 @@
     "refresh": "刷新",
     "loadOlder": "加载更早记录",
     "loadMore": "加载更多",
-    "loadEvidence": "加载更多证据",
+    "loadEvidence": "加载更多模型请求",
     "openSession": "打开 Tape 检查器",
     "openMessage": "在 Tape 检查器中打开",
     "pause": "暂停实时更新",
@@ -37,27 +37,43 @@
     "attempt": "尝试",
     "tool": "工具操作"
   },
+  "activity": {
+    "userMessage": "用户消息",
+    "assistantMessage": "助手消息",
+    "user": "用户",
+    "assistant": "助手"
+  },
   "evidence": {
-    "request": "请求证据",
-    "legacy": "旧版 / 未归属",
-    "unbound": "未绑定证据（{count}）"
+    "request": "模型请求",
+    "contextNotLoaded": "对应执行记录尚未加载",
+    "lanes": {
+      "request": "模型请求（{count}）",
+      "diagnostic": "内部诊断（{count}）"
+    },
+    "scope": {
+      "request": "请求级",
+      "diagnostic": "内部诊断"
+    }
   },
   "kinds": {
-    "evidence": "证据",
-    "lane": "证据通道",
+    "evidence": "模型请求",
+    "lane": "请求集合",
     "group": "派生分组"
   },
   "states": {
     "unknown": "未知",
-    "empty": "没有匹配的 Tape 事实或请求证据",
-    "loadedCounts": "{facts} 条事实 · {evidence} 条证据",
+    "statusPending": "结果尚未载入",
+    "timingPending": "起止尚未配对",
+    "notApplicable": "此记录不适用",
+    "empty": "没有匹配的 Tape 事实或模型请求",
+    "loadedCounts": "{facts} 条事实 · {evidence} 条模型请求",
     "live": "实时",
     "paused": "已暂停",
     "liveUnavailable": "实时更新不可用"
   },
   "waterfall": {
     "sequence": "Tape 规范序列位置",
-    "point": "单时刻事实；时长未知"
+    "point": "单时刻事实；不计算时长"
   },
   "timeline": {
     "title": "概览",
@@ -83,7 +99,7 @@
     "hashes": "哈希与大小",
     "sources": {
       "tape": "Tape 事实",
-      "message_trace": "请求证据",
+      "message_trace": "模型请求",
       "derived": "派生视图"
     }
   },

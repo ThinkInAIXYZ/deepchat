@@ -76,8 +76,9 @@ rows, or treat its grouping and status projections as durable state.
 - **Request-scoped evidence**: trace evidence lacking `physicalAttempt`; it belongs to a request
   group but not to a physical attempt.
 - **Diagnostic evidence**: the `requestSeq = 0` sentinel that intentionally has no request identity.
-- **Unresolved evidence**: trace evidence that cannot be associated with a currently loaded Tape
-  request group.
+- **Context-unloaded model request**: trace evidence whose corresponding Tape request or attempt
+  group is not in the loaded window. The trace remains a valid time-stamped model request; this
+  state does not claim that its durable parent is absent.
 - **Fact status**: a status or outcome explicitly present on one immutable fact.
 - **Group status**: a renderer projection from matched facts currently loaded.
 - **Online status**: current state supplied by Runtime, when a future view explicitly joins it.
@@ -214,17 +215,18 @@ Evidence association follows exact identities:
 - null `physicalAttempt`: bind only to `(messageId, requestSeq)` and present it neutrally as
   request-scoped evidence; the UI never claims that every such record is legacy;
 - never coalesce null to zero;
-- evidence not matching a currently loaded request group appears in a session-level unresolved
-  lane. This is a loaded-window statement, not proof that the durable parent is absent.
+- evidence not matching a currently loaded request group appears in a session-level model-request
+  collection ordered by `(createdAt, traceId)`. Its row may quietly state that execution context is
+  not loaded, but it is never labeled unknown, pending association, or invalid.
 
-Diagnostics, request-scoped evidence, and unresolved evidence remain separate presentation
-categories. Diagnostic records retain their individual trace identities and on-demand detail, but
-the ledger summarizes them behind one collapsed lane so repeated diagnostics do not dominate the
-chronological facts.
+Diagnostic records remain a separate presentation category. They retain their individual trace
+identities and on-demand detail, but the ledger summarizes them behind one collapsed lane so
+repeated diagnostics do not dominate the chronological facts. Ordinary model requests remain
+visible in actual-time order whether or not the matching Tape group is in the current page window.
 
-Within the evidence domain, order physical attempts deterministically, then use `createdAt` and
-`traceId` as stable tie-breakers. These fields do not create a Tape identity or cross-domain total
-order.
+Physical attempts remain separated by exact parent identity. Within one parent or the session-level
+model-request collection, use `createdAt` and `traceId` as stable evidence-domain ordering keys.
+These fields do not create a Tape identity or cross-domain total order.
 
 ### Renderer-only records
 
@@ -395,8 +397,8 @@ selection, cursors, and scroll anchors before bootstrapping again.
 ## Evidence Pagination Contract
 
 Session trace metadata uses an independent bounded page route and composite keyset cursor. It may
-filter by `messageId`, `requestSeq`, and `physicalAttempt` for lazy group expansion. The diagnostics
-and unresolved lanes use the session-wide form.
+filter by `messageId`, `requestSeq`, and `physicalAttempt` for lazy group expansion. Diagnostics and
+the session model-request collection use the session-wide form.
 
 `older` pages are ordered by `(createdAt, traceId)` descending for history expansion. `newer` pages
 use a read-side append cursor backed by the trace row ID and return append order ascending. The
@@ -613,6 +615,15 @@ tool name, provider/model, target, explicit outcome, retry decision, error code,
 may be promoted into the primary one-line summary. Context/Skill bodies, request payloads, tool
 arguments/results, and unknown-schema payloads never enter these summaries.
 
+User and assistant message facts may add a one-line preview from the active session's existing
+Transcript cache. Model request rows may show the same associated Transcript preview to explain what
+the request produced. Retraction and other message lifecycle facts never reopen cached content. The
+renderer bounds the result to 220 characters and includes only the user text already rendered by the
+conversation or assistant `content` blocks. Reasoning, error text, tool arguments/results, and
+provider request bodies are excluded. A message outside the committed session or outside the current
+cache has no preview; the Inspector does not fetch or copy transcript payloads through its list
+routes.
+
 The layout responds to the Inspector and remaining ledger container widths, not the window
 viewport:
 
@@ -647,8 +658,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   Inspector never guesses latest/max from timing or provider-round metadata.
 - The existing Trace dialog remains available during migration.
 - ACP sessions may have a nearly empty Tape spine; this is expected.
-- Session trace evidence that cannot bind to a current Tape group remains available through the
-  evidence lane and its empty-state action. The renderer never synthesizes Tape facts for ACP.
+- A model request whose Tape group is not currently loaded remains visible in the model-request
+  collection and actual-time overview. The renderer never synthesizes Tape facts for ACP.
 
 ## Security and Privacy
 
@@ -689,8 +700,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 ## Resolved Decisions
 
 1. Tape is the sole chronological spine; traces are evidence rows, not Tape facts.
-2. Request traces appear in the correlated view as lazy evidence children or in the unresolved
-   lane; diagnostic sentinels remain in a separate diagnostics lane.
+2. Request traces appear as exact evidence children when their Tape group is loaded; otherwise they
+   remain time-ordered model requests with a quiet context-unloaded note. Diagnostic sentinels stay
+   in a separate diagnostics lane.
 3. Request-scoped traces never bind to a physical attempt without `physicalAttempt`.
 4. Semantic family mapping is total and has an `other` fallback.
 5. Context rows remain in the spine while their bodies are withheld.
@@ -708,7 +720,7 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 17. Non-canonical server sorting uses composite keysets and flat result presentation.
 18. Tape Live uses a demand-driven committed-head watcher with no Tape write-path changes; evidence
     inserts only reserve the table's internal row-ID append token.
-19. ACP's sparse Tape spine and unresolved evidence are expected states.
+19. ACP's sparse Tape spine and context-unloaded model requests are expected states.
 20. The Inspector has no write or permission-authority behavior.
 21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
 22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
@@ -728,6 +740,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
     overlay, and closing it restores ledger context.
 32. Not-applicable status or duration is distinct from an unresolved authoritative state.
 33. Diagnostic evidence is default-collapsed and never presented as a legacy provider request.
+34. Message previews are bounded renderer derivations from the active Transcript cache, never new
+    Inspector list payloads.
 
 ## Acceptance Criteria
 
@@ -737,6 +751,10 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Every committed Tape kind, nullable name, and unknown fact remains represented exactly once.
 - Tape facts, execution journal facts, provider attempts, view facts, and request evidence appear in
   one correlated view when available.
+- Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
+  unknown or pending association.
+- Loaded user and assistant messages can be understood from bounded inline previews without opening
+  detail; reasoning, errors, tool payloads, and provider request bodies stay excluded.
 - Evidence never acquires a Tape identity, and request-scoped evidence never acquires an inferred
   attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.

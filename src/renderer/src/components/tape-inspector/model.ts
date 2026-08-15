@@ -30,11 +30,22 @@ export interface TapeInspectorGroupSummary {
   errorCode?: string
 }
 
+export type TapeInspectorStatusState = 'explicit' | 'not_applicable' | 'unresolved'
+export type TapeInspectorTimingState = 'span' | 'point' | 'not_applicable' | 'unresolved'
+export type TapeInspectorEvidenceAssociation =
+  | 'attempt'
+  | 'request'
+  | 'diagnostic'
+  | 'context_unloaded'
+export type TapeInspectorEvidenceLaneKind = 'request' | 'diagnostic'
+
 interface TapeInspectorRowBase {
   key: string
   depth: number
   status: string | null
+  statusState: TapeInspectorStatusState
   durationMs: number | null
+  timingState: TapeInspectorTimingState
   sequenceEntryId: number | null
   sequenceStart: number
   actualStartAt: number | null
@@ -59,11 +70,12 @@ export interface TapeInspectorEvidenceRow extends TapeInspectorRowBase {
   recordType: 'evidence'
   record: TapeInspectorEvidenceRecord
   parentGroupKey: string | null
-  legacyUnattributed: boolean
+  association: TapeInspectorEvidenceAssociation
 }
 
 export interface TapeInspectorEvidenceLaneRow extends TapeInspectorRowBase {
   recordType: 'evidence_lane'
+  laneKind: TapeInspectorEvidenceLaneKind
   count: number
   collapsed: boolean
 }
@@ -88,7 +100,8 @@ export type TapeInspectorDetailState =
       group: TapeInspectorGroupDescriptor
     }
   | {
-      source: 'unbound_lane'
+      source: 'evidence_lane'
+      laneKind: TapeInspectorEvidenceLaneKind
       count: number
     }
 
@@ -108,7 +121,8 @@ export interface TapeInspectorMessageDiagnosticsTarget {
   requestSeq?: number
 }
 
-const UNBOUND_EVIDENCE_LANE_KEY = 'lane:unbound-evidence'
+const REQUEST_EVIDENCE_LANE_KEY = 'lane:request-evidence'
+const DIAGNOSTIC_EVIDENCE_LANE_KEY = 'lane:diagnostic-evidence'
 
 function groupKey(
   kind: TapeInspectorGroupKind,
@@ -230,13 +244,30 @@ function expandGroupAncestors(
 
 function factStatus(record: TapeInspectorFactRecord): string | null {
   if (record.facts?.isError === true) return 'error'
+  if (record.facts?.isError === false) return 'success'
   return record.facts?.status ?? record.facts?.outcome ?? null
 }
 
-function stableDerivedStatus(statuses: Array<string | null>): string | null {
+function uniqueStatus(statuses: Array<string | null>): string | null {
   const values = [...new Set(statuses.filter((status): status is string => status !== null))]
-  if (values.includes('error')) return 'error'
   return values.length === 1 ? values[0] : null
+}
+
+function providerAttemptGroupStatus(
+  group: TapeInspectorGroupDescriptor,
+  matching: readonly TapeInspectorFactRecord[]
+): string | null {
+  const attempts = matching.filter((record) => record.name === 'provider/attempt_completed')
+  if (group.kind === 'attempt') return uniqueStatus(attempts.map(factStatus))
+  const numberedAttempts = attempts.filter(
+    (record): record is TapeInspectorFactRecord & { physicalAttempt: number } =>
+      record.physicalAttempt !== undefined
+  )
+  if (numberedAttempts.length === 0) return uniqueStatus(attempts.map(factStatus))
+  const latestAttempt = Math.max(...numberedAttempts.map((record) => record.physicalAttempt))
+  return uniqueStatus(
+    numberedAttempts.filter((record) => record.physicalAttempt === latestAttempt).map(factStatus)
+  )
 }
 
 function groupStatus(
@@ -257,7 +288,7 @@ function groupStatus(
           : null
       : null
   }
-  return stableDerivedStatus(matching.map(factStatus))
+  return providerAttemptGroupStatus(group, matching)
 }
 
 function groupSummary(matching: readonly TapeInspectorFactRecord[]): TapeInspectorGroupSummary {
@@ -297,6 +328,16 @@ interface TimingPair {
   startAt: number
   endAt: number
   durationMs: number
+}
+
+function groupStartAt(
+  group: TapeInspectorGroupDescriptor,
+  matching: readonly TapeInspectorFactRecord[]
+): number | null {
+  if (group.kind !== 'run' && group.kind !== 'tool') return null
+  const startName = group.kind === 'run' ? 'execution/run_started' : 'execution/dispatch_committed'
+  const starts = matching.filter((record) => record.name === startName)
+  return starts.length === 1 ? starts[0].createdAt : null
 }
 
 function groupTiming(
@@ -351,7 +392,11 @@ function matchesEvidenceSearch(record: TapeInspectorEvidenceRecord, search: stri
     record.providerId,
     record.modelId,
     String(record.requestSeq),
-    record.physicalAttempt === undefined ? 'legacy unattributed' : String(record.physicalAttempt)
+    record.requestSeq === 0
+      ? 'diagnostic'
+      : record.physicalAttempt === undefined
+        ? 'request scoped'
+        : String(record.physicalAttempt)
   ]
     .join('\n')
     .toLocaleLowerCase()
@@ -363,7 +408,7 @@ function normalizePosition(value: number, min: number, max: number): number {
   return Math.min(1, Math.max(0, (value - min) / (max - min)))
 }
 
-function evidenceComparator(
+function evidenceIdentityComparator(
   left: TapeInspectorEvidenceRecord,
   right: TapeInspectorEvidenceRecord
 ): number {
@@ -372,6 +417,97 @@ function evidenceComparator(
     left.createdAt - right.createdAt ||
     left.traceId.localeCompare(right.traceId)
   )
+}
+
+function evidenceChronologyComparator(
+  left: TapeInspectorEvidenceRecord,
+  right: TapeInspectorEvidenceRecord
+): number {
+  return left.createdAt - right.createdAt || left.traceId.localeCompare(right.traceId)
+}
+
+const EVIDENCE_LANE_KEYS: Record<TapeInspectorEvidenceLaneKind, string> = {
+  request: REQUEST_EVIDENCE_LANE_KEY,
+  diagnostic: DIAGNOSTIC_EVIDENCE_LANE_KEY
+}
+
+function evidenceRow(input: {
+  evidence: TapeInspectorEvidenceRecord
+  association: TapeInspectorEvidenceAssociation
+  parentGroupKey: string | null
+  depth: number
+  sequenceStart: number
+  minCreatedAt: number
+  maxCreatedAt: number
+}): TapeInspectorEvidenceRow {
+  return {
+    recordType: 'evidence',
+    key: input.evidence.key,
+    record: input.evidence,
+    parentGroupKey: input.parentGroupKey,
+    association: input.association,
+    depth: input.depth,
+    status: null,
+    statusState: 'not_applicable',
+    durationMs: null,
+    timingState: 'point',
+    sequenceEntryId: null,
+    sequenceStart: input.sequenceStart,
+    actualStartAt: input.evidence.createdAt,
+    actualEndAt: null,
+    actualStart: normalizePosition(
+      input.evidence.createdAt,
+      input.minCreatedAt,
+      input.maxCreatedAt
+    ),
+    actualWidth: 0
+  }
+}
+
+function appendEvidenceLane(
+  rows: TapeInspectorDisplayRow[],
+  kind: TapeInspectorEvidenceLaneKind,
+  evidence: readonly TapeInspectorEvidenceRecord[],
+  collapsedKeys: ReadonlySet<string>,
+  minCreatedAt: number,
+  maxCreatedAt: number,
+  associationFor: (record: TapeInspectorEvidenceRecord) => TapeInspectorEvidenceAssociation
+): void {
+  if (evidence.length === 0) return
+  const key = EVIDENCE_LANE_KEYS[kind]
+  const collapsed = collapsedKeys.has(key)
+  rows.push({
+    recordType: 'evidence_lane',
+    key,
+    laneKind: kind,
+    count: evidence.length,
+    collapsed,
+    depth: 0,
+    status: null,
+    statusState: 'not_applicable',
+    durationMs: null,
+    timingState: 'not_applicable',
+    sequenceEntryId: null,
+    sequenceStart: 1,
+    actualStartAt: null,
+    actualEndAt: null,
+    actualStart: 1,
+    actualWidth: 0
+  })
+  if (collapsed) return
+  for (const record of evidence) {
+    rows.push(
+      evidenceRow({
+        evidence: record,
+        association: associationFor(record),
+        parentGroupKey: null,
+        depth: 1,
+        sequenceStart: 1,
+        minCreatedAt,
+        maxCreatedAt
+      })
+    )
+  }
 }
 
 export function buildTapeInspectorRows(input: {
@@ -416,15 +552,20 @@ export function buildTapeInspectorRows(input: {
   const groupKeys = new Set(descriptors.keys())
   const evidenceByParent = new Map<string, TapeInspectorEvidenceRecord[]>()
   const searchMatchingEvidenceParents = new Set<string>()
-  const unboundEvidence: TapeInspectorEvidenceRecord[] = []
+  const diagnosticEvidence: TapeInspectorEvidenceRecord[] = []
+  const requestLaneEvidence: TapeInspectorEvidenceRecord[] = []
   for (const evidence of input.evidence) {
+    if (evidence.requestSeq === 0) {
+      if (matchesEvidenceSearch(evidence, normalizedSearch)) diagnosticEvidence.push(evidence)
+      continue
+    }
     const parentKey = getEvidenceParentGroupKey(
       evidence,
       groupKeys,
       input.tapeIncarnationId ?? 'unknown'
     )
     if (!parentKey) {
-      if (matchesEvidenceSearch(evidence, normalizedSearch)) unboundEvidence.push(evidence)
+      if (matchesEvidenceSearch(evidence, normalizedSearch)) requestLaneEvidence.push(evidence)
       continue
     }
     const values = evidenceByParent.get(parentKey) ?? []
@@ -434,8 +575,9 @@ export function buildTapeInspectorRows(input: {
       searchMatchingEvidenceParents.add(parentKey)
     }
   }
-  for (const values of evidenceByParent.values()) values.sort(evidenceComparator)
-  unboundEvidence.sort(evidenceComparator)
+  for (const values of evidenceByParent.values()) values.sort(evidenceIdentityComparator)
+  diagnosticEvidence.sort(evidenceChronologyComparator)
+  requestLaneEvidence.sort(evidenceChronologyComparator)
 
   const visibleFacts = records.filter(
     (record) =>
@@ -462,6 +604,7 @@ export function buildTapeInspectorRows(input: {
     maxCreatedAt = Math.max(maxCreatedAt, record.createdAt)
   }
   for (const record of input.evidence) {
+    if (record.requestSeq === 0) continue
     minCreatedAt = Math.min(minCreatedAt, record.createdAt)
     maxCreatedAt = Math.max(maxCreatedAt, record.createdAt)
   }
@@ -480,67 +623,45 @@ export function buildTapeInspectorRows(input: {
 
   if (input.flat) {
     const flatRows: TapeInspectorDisplayRow[] = visibleFacts.map((record) => {
-      const timing = (groupsByEntryId.get(record.entryId) ?? [])
-        .map((group) => timings.get(group.key) ?? null)
-        .find((candidate) => candidate?.startEntryId === record.entryId)
+      const status = factStatus(record)
       return {
         recordType: 'fact',
         key: `fact:${input.tapeIncarnationId ?? 'unknown'}:${record.key}`,
         record,
         depth: 0,
-        status: factStatus(record),
-        durationMs: timing?.durationMs ?? null,
+        status,
+        statusState: status === null ? 'not_applicable' : 'explicit',
+        durationMs: null,
+        timingState: 'point',
         sequenceEntryId: record.entryId,
         sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
         actualStartAt: record.createdAt,
-        actualEndAt: timing?.endAt ?? null,
+        actualEndAt: null,
         actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
-        actualWidth: timing
-          ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
-            normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
-          : 0
+        actualWidth: 0
       }
     })
     const visibleEvidence = input.evidence
       .filter((record) => matchesEvidenceSearch(record, normalizedSearch))
-      .sort(evidenceComparator)
-    if (visibleEvidence.length === 0) return flatRows
-    const collapsed = input.collapsedKeys.has(UNBOUND_EVIDENCE_LANE_KEY)
-    flatRows.push({
-      recordType: 'evidence_lane',
-      key: UNBOUND_EVIDENCE_LANE_KEY,
-      count: visibleEvidence.length,
-      collapsed,
-      depth: 0,
-      status: null,
-      durationMs: null,
-      sequenceEntryId: null,
-      sequenceStart: 1,
-      actualStartAt: null,
-      actualEndAt: null,
-      actualStart: 1,
-      actualWidth: 0
-    })
-    if (!collapsed) {
-      for (const evidence of visibleEvidence) {
-        flatRows.push({
-          recordType: 'evidence',
-          key: evidence.key,
-          record: evidence,
-          parentGroupKey: null,
-          legacyUnattributed: evidence.physicalAttempt === undefined,
-          depth: 1,
-          status: null,
-          durationMs: null,
-          sequenceEntryId: null,
-          sequenceStart: 1,
-          actualStartAt: evidence.createdAt,
-          actualEndAt: null,
-          actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
-          actualWidth: 0
-        })
-      }
-    }
+      .sort(evidenceChronologyComparator)
+    appendEvidenceLane(
+      flatRows,
+      'request',
+      visibleEvidence.filter((record) => record.requestSeq !== 0),
+      input.collapsedKeys,
+      minCreatedAt,
+      maxCreatedAt,
+      (record) => (record.physicalAttempt === undefined ? 'request' : 'attempt')
+    )
+    appendEvidenceLane(
+      flatRows,
+      'diagnostic',
+      visibleEvidence.filter((record) => record.requestSeq === 0),
+      input.collapsedKeys,
+      minCreatedAt,
+      maxCreatedAt,
+      () => 'diagnostic'
+    )
     return flatRows
   }
 
@@ -555,21 +676,34 @@ export function buildTapeInspectorRows(input: {
         .slice(0, index)
         .some((parent) => input.collapsedKeys.has(parent.key))
       if (!emittedGroups.has(group.key) && !hiddenByParent) {
+        const matching = recordsByGroup.get(group.key) ?? []
         const timing = timings.get(group.key) ?? null
+        const knownStartAt = timing?.startAt ?? groupStartAt(group, matching)
+        const status = groupStatus(group, matching)
         result.push({
           recordType: 'group',
           key: group.key,
           group,
-          summary: groupSummary(recordsByGroup.get(group.key) ?? []),
+          summary: groupSummary(matching),
           depth: index,
           collapsed: input.collapsedKeys.has(group.key),
-          status: groupStatus(group, recordsByGroup.get(group.key) ?? []),
+          status,
+          statusState: status === null ? 'unresolved' : 'explicit',
           durationMs: timing?.durationMs ?? null,
+          timingState:
+            group.kind === 'run' || group.kind === 'tool'
+              ? timing
+                ? 'span'
+                : 'unresolved'
+              : 'not_applicable',
           sequenceEntryId: record.entryId,
           sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
-          actualStartAt: timing?.startAt ?? null,
+          actualStartAt: knownStartAt,
           actualEndAt: timing?.endAt ?? null,
-          actualStart: timing ? normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt) : 0.5,
+          actualStart:
+            knownStartAt === null
+              ? 0.5
+              : normalizePosition(knownStartAt, minCreatedAt, maxCreatedAt),
           actualWidth: timing
             ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
               normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
@@ -580,25 +714,22 @@ export function buildTapeInspectorRows(input: {
       if (input.collapsedKeys.has(group.key)) hidden = true
     }
     if (!hidden) {
-      const timing = groups
-        .map((group) => timings.get(group.key) ?? null)
-        .find((candidate) => candidate?.startEntryId === record.entryId)
+      const status = factStatus(record)
       result.push({
         recordType: 'fact',
         key: `fact:${input.tapeIncarnationId ?? 'unknown'}:${record.key}`,
         record,
         depth: groups.length,
-        status: factStatus(record),
-        durationMs: timing?.durationMs ?? null,
+        status,
+        statusState: status === null ? 'not_applicable' : 'explicit',
+        durationMs: null,
+        timingState: 'point',
         sequenceEntryId: record.entryId,
         sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
         actualStartAt: record.createdAt,
-        actualEndAt: timing?.endAt ?? null,
+        actualEndAt: null,
         actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
-        actualWidth: timing
-          ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
-            normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
-          : 0
+        actualWidth: 0
       })
     }
 
@@ -612,64 +743,39 @@ export function buildTapeInspectorRows(input: {
       }
       for (const evidence of evidenceByParent.get(group.key) ?? []) {
         if (!matchesEvidenceSearch(evidence, normalizedSearch)) continue
-        result.push({
-          recordType: 'evidence',
-          key: evidence.key,
-          record: evidence,
-          parentGroupKey: group.key,
-          legacyUnattributed: evidence.physicalAttempt === undefined,
-          depth: groupIndex + 1,
-          status: null,
-          durationMs: null,
-          sequenceEntryId: null,
-          sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
-          actualStartAt: evidence.createdAt,
-          actualEndAt: null,
-          actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
-          actualWidth: 0
-        })
+        result.push(
+          evidenceRow({
+            evidence,
+            association: group.kind === 'request' ? 'request' : 'attempt',
+            parentGroupKey: group.key,
+            depth: groupIndex + 1,
+            sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+            minCreatedAt,
+            maxCreatedAt
+          })
+        )
       }
     }
   }
 
-  if (unboundEvidence.length > 0) {
-    const collapsed = input.collapsedKeys.has(UNBOUND_EVIDENCE_LANE_KEY)
-    result.push({
-      recordType: 'evidence_lane',
-      key: UNBOUND_EVIDENCE_LANE_KEY,
-      count: unboundEvidence.length,
-      collapsed,
-      depth: 0,
-      status: null,
-      durationMs: null,
-      sequenceEntryId: null,
-      sequenceStart: 1,
-      actualStartAt: null,
-      actualEndAt: null,
-      actualStart: 1,
-      actualWidth: 0
-    })
-    if (!collapsed) {
-      for (const evidence of unboundEvidence) {
-        result.push({
-          recordType: 'evidence',
-          key: evidence.key,
-          record: evidence,
-          parentGroupKey: null,
-          legacyUnattributed: evidence.physicalAttempt === undefined,
-          depth: 1,
-          status: null,
-          durationMs: null,
-          sequenceEntryId: null,
-          sequenceStart: 1,
-          actualStartAt: evidence.createdAt,
-          actualEndAt: null,
-          actualStart: normalizePosition(evidence.createdAt, minCreatedAt, maxCreatedAt),
-          actualWidth: 0
-        })
-      }
-    }
-  }
+  appendEvidenceLane(
+    result,
+    'diagnostic',
+    diagnosticEvidence,
+    input.collapsedKeys,
+    minCreatedAt,
+    maxCreatedAt,
+    () => 'diagnostic'
+  )
+  appendEvidenceLane(
+    result,
+    'request',
+    requestLaneEvidence,
+    input.collapsedKeys,
+    minCreatedAt,
+    maxCreatedAt,
+    () => 'context_unloaded'
+  )
   return result
 }
 
@@ -759,4 +865,4 @@ export function findTapeInspectorPreselection(input: {
   return matchingRows.at(-1)?.key ?? null
 }
 
-export { UNBOUND_EVIDENCE_LANE_KEY }
+export { DIAGNOSTIC_EVIDENCE_LANE_KEY, REQUEST_EVIDENCE_LANE_KEY }

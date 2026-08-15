@@ -7,7 +7,7 @@
     "refresh": "Refresh",
     "loadOlder": "Load older",
     "loadMore": "Load more",
-    "loadEvidence": "Load more evidence",
+    "loadEvidence": "Load more model requests",
     "openSession": "Open Tape Inspector",
     "openMessage": "Open in Tape Inspector",
     "pause": "Pause live updates",
@@ -37,27 +37,43 @@
     "attempt": "Attempt",
     "tool": "Tool operation"
   },
+  "activity": {
+    "userMessage": "User message",
+    "assistantMessage": "Assistant message",
+    "user": "User",
+    "assistant": "Assistant"
+  },
   "evidence": {
-    "request": "Request evidence",
-    "legacy": "legacy / unattributed",
-    "unbound": "Unbound evidence ({count})"
+    "request": "Model request",
+    "contextNotLoaded": "Execution context not loaded",
+    "lanes": {
+      "request": "Model requests ({count})",
+      "diagnostic": "Diagnostics ({count})"
+    },
+    "scope": {
+      "request": "request-scoped",
+      "diagnostic": "diagnostic"
+    }
   },
   "kinds": {
-    "evidence": "evidence",
-    "lane": "evidence lane",
+    "evidence": "model request",
+    "lane": "request collection",
     "group": "derived group"
   },
   "states": {
     "unknown": "unknown",
-    "empty": "No matching Tape facts or request evidence",
-    "loadedCounts": "{facts} facts · {evidence} evidence records",
+    "statusPending": "Outcome not loaded",
+    "timingPending": "Endpoints not paired",
+    "notApplicable": "Not applicable to this record",
+    "empty": "No matching Tape facts or model requests",
+    "loadedCounts": "{facts} facts · {evidence} model requests",
     "live": "Live",
     "paused": "Paused",
     "liveUnavailable": "Live updates unavailable"
   },
   "waterfall": {
     "sequence": "Canonical Tape sequence position",
-    "point": "Point-in-time fact; duration is unknown"
+    "point": "Point-in-time fact; duration does not apply"
   },
   "timeline": {
     "title": "Overview",
@@ -83,7 +99,7 @@
     "hashes": "Hashes and sizes",
     "sources": {
       "tape": "Tape fact",
-      "message_trace": "Request evidence",
+      "message_trace": "Model request",
       "derived": "Derived view"
     }
   },

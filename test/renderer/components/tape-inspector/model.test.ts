@@ -5,10 +5,11 @@ import type {
 } from '@shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
+  DIAGNOSTIC_EVIDENCE_LANE_KEY,
   findTapeInspectorPreselection,
   getEvidenceParentGroupKey,
   getFactGroupDescriptors,
-  UNBOUND_EVIDENCE_LANE_KEY
+  REQUEST_EVIDENCE_LANE_KEY
 } from '@/components/tape-inspector/model'
 
 function fact(
@@ -120,7 +121,7 @@ describe('Tape Inspector renderer projection', () => {
     expect(rows.find((row) => row.recordType === 'fact')?.key).toBe('fact:incarnation-1:entry:1')
   })
 
-  it('binds exact attempts, keeps null attempts at request scope, and leaves diagnostics unbound', () => {
+  it('binds exact attempts and keeps unloaded request context separate from diagnostics', () => {
     const attemptZero = fact(1, {
       family: 'attempt',
       name: 'provider/attempt_recorded',
@@ -141,13 +142,13 @@ describe('Tape Inspector renderer projection', () => {
     ]
     const groupKeys = new Set(groups.map((group) => group.key))
     const exact = evidence('exact-zero', { physicalAttempt: 0 })
-    const legacy = evidence('legacy')
+    const requestScoped = evidence('request-scoped')
     const diagnostic = evidence('diagnostic', { requestSeq: 0 })
 
     expect(getEvidenceParentGroupKey(exact, groupKeys, 'incarnation-1')).toBe(
       groups.find((group) => group.kind === 'attempt' && group.physicalAttempt === 0)?.key
     )
-    expect(getEvidenceParentGroupKey(legacy, groupKeys, 'incarnation-1')).toBe(
+    expect(getEvidenceParentGroupKey(requestScoped, groupKeys, 'incarnation-1')).toBe(
       groups.find((group) => group.kind === 'request')?.key
     )
     expect(
@@ -162,22 +163,48 @@ describe('Tape Inspector renderer projection', () => {
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
       records: [attemptZero, attemptOne],
-      evidence: [legacy, exact, diagnostic, evidence('missing', { physicalAttempt: 2 })],
+      evidence: [requestScoped, exact, diagnostic, evidence('missing', { physicalAttempt: 2 })],
       collapsedKeys: new Set()
     })
     const exactRow = rows.find((row) => row.key === exact.key)
-    const legacyRow = rows.find((row) => row.key === legacy.key)
+    const requestScopedRow = rows.find((row) => row.key === requestScoped.key)
     const diagnosticRow = rows.find((row) => row.key === diagnostic.key)
     const missingRow = rows.find((row) => row.key === 'trace:missing')
 
     expect(exactRow?.recordType).toBe('evidence')
-    expect(exactRow?.recordType === 'evidence' && exactRow.legacyUnattributed).toBe(false)
+    expect(exactRow?.recordType === 'evidence' && exactRow.association).toBe('attempt')
     expect(exactRow?.sequenceEntryId).toBeNull()
     expect(exactRow?.actualStartAt).toBe(100)
-    expect(legacyRow?.recordType === 'evidence' && legacyRow.legacyUnattributed).toBe(true)
-    expect(missingRow?.recordType === 'evidence' && missingRow.parentGroupKey).toBeNull()
-    expect(diagnosticRow?.recordType === 'evidence' && diagnosticRow.parentGroupKey).toBeNull()
-    expect(rows.some((row) => row.key === UNBOUND_EVIDENCE_LANE_KEY)).toBe(true)
+    expect(requestScopedRow?.recordType === 'evidence' && requestScopedRow.association).toBe(
+      'request'
+    )
+    expect(missingRow?.recordType === 'evidence' && missingRow.association).toBe('context_unloaded')
+    expect(diagnosticRow?.recordType === 'evidence' && diagnosticRow.association).toBe('diagnostic')
+    expect(rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
+    expect(rows.some((row) => row.key === REQUEST_EVIDENCE_LANE_KEY)).toBe(true)
+  })
+
+  it('orders model requests with unloaded execution context by their actual time', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [],
+      evidence: [
+        evidence('latest', { createdAt: 300 }),
+        evidence('earliest', { createdAt: 100 }),
+        evidence('middle', { createdAt: 200 })
+      ],
+      collapsedKeys: new Set()
+    })
+
+    expect(
+      rows
+        .filter((row) => row.recordType === 'evidence')
+        .map((row) => [row.record.traceId, row.actualStartAt, row.association])
+    ).toEqual([
+      ['earliest', 100, 'context_unloaded'],
+      ['middle', 200, 'context_unloaded'],
+      ['latest', 300, 'context_unloaded']
+    ])
   })
 
   it('does not hide request evidence when a descendant attempt is collapsed', () => {
@@ -195,11 +222,11 @@ describe('Tape Inspector renderer projection', () => {
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
       records: [record],
-      evidence: [evidence('legacy')],
+      evidence: [evidence('request-scoped')],
       collapsedKeys: new Set(attemptGroup ? [attemptGroup.key] : [])
     })
 
-    expect(rows.some((row) => row.key === 'trace:legacy')).toBe(true)
+    expect(rows.some((row) => row.key === 'trace:request-scoped')).toBe(true)
     expect(rows.some((row) => row.recordType === 'fact')).toBe(false)
   })
 
@@ -297,11 +324,16 @@ describe('Tape Inspector renderer projection', () => {
 
     expect(runOne?.durationMs).toBeNull()
     expect(runOne?.status).toBeNull()
-    expect(runOne?.actualStartAt).toBeNull()
+    expect(runOne?.statusState).toBe('unresolved')
+    expect(runOne?.timingState).toBe('unresolved')
+    expect(runOne?.actualStartAt).toBe(100)
     expect(runOne?.actualEndAt).toBeNull()
     expect(runTwo?.durationMs).toBeNull()
     expect(runThree?.durationMs).toBeNull()
     expect(tool?.durationMs).toBe(60)
+    expect(tool?.status).toBe('success')
+    expect(tool?.statusState).toBe('explicit')
+    expect(tool?.timingState).toBe('span')
     expect(tool?.actualStartAt).toBe(200)
     expect(tool?.actualEndAt).toBe(260)
     expect(tool?.sequenceEntryId).toBe(3)
@@ -311,10 +343,57 @@ describe('Tape Inspector renderer projection', () => {
       targetServer: 'search'
     })
     const dispatch = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 3)
-    expect(dispatch?.durationMs).toBe(60)
+    const outcome = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 4)
+    expect(dispatch?.durationMs).toBeNull()
+    expect(dispatch?.timingState).toBe('point')
     expect(dispatch?.actualStartAt).toBe(200)
-    expect(dispatch?.actualEndAt).toBe(260)
+    expect(dispatch?.actualEndAt).toBeNull()
     expect(dispatch?.sequenceEntryId).toBe(3)
+    expect(outcome?.status).toBe('success')
+    expect(outcome?.statusState).toBe('explicit')
+    expect(outcome?.durationMs).toBeNull()
+  })
+
+  it('derives request and attempt status only from provider attempt facts', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(1, {
+          name: 'provider/attempt_completed',
+          family: 'attempt',
+          messageId: 'message-1',
+          requestSeq: 4,
+          physicalAttempt: 1,
+          facts: { status: 'error' }
+        }),
+        fact(2, {
+          name: 'execution/tool_outcome',
+          messageId: 'message-1',
+          requestSeq: 4,
+          facts: { isError: true }
+        }),
+        fact(3, {
+          name: 'provider/attempt_completed',
+          family: 'attempt',
+          messageId: 'message-1',
+          requestSeq: 4,
+          physicalAttempt: 2,
+          facts: { status: 'completed' }
+        })
+      ],
+      evidence: [],
+      collapsedKeys: new Set()
+    })
+    const request = rows.find((row) => row.recordType === 'group' && row.group.kind === 'request')
+    const attempts = rows.filter(
+      (row) => row.recordType === 'group' && row.group.kind === 'attempt'
+    )
+
+    expect(request?.status).toBe('completed')
+    expect(request?.statusState).toBe('explicit')
+    expect(request?.timingState).toBe('not_applicable')
+    expect(attempts.map((row) => row.status)).toEqual(['error', 'completed'])
+    expect(attempts.every((row) => row.timingState === 'not_applicable')).toBe(true)
   })
 
   it('upgrades delayed timing without pairing nested operations across identities', () => {
@@ -409,5 +488,17 @@ describe('Tape Inspector renderer projection', () => {
 
     expect(rows.some((row) => row.recordType === 'fact' && row.record.entryId === 10)).toBe(true)
     expect(rows.some((row) => row.key === 'trace:needle')).toBe(true)
+  })
+
+  it('keeps diagnostic timestamps out of the overview time domain', () => {
+    const rows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [fact(1, { createdAt: 100 }), fact(2, { createdAt: 200 })],
+      evidence: [evidence('diagnostic', { requestSeq: 0, createdAt: 10_000 })],
+      collapsedKeys: new Set()
+    })
+    const lastFact = rows.find((row) => row.recordType === 'fact' && row.record.entryId === 2)
+
+    expect(lastFact?.actualStart).toBe(1)
   })
 })

@@ -364,6 +364,7 @@
                     :layout="ledgerLayout"
                     :grid-template-columns="gridTemplateColumns"
                     :table-min-width="tableMinWidth"
+                    :message-preview="messagePreviewForRow(item)"
                     @select="selectRow"
                     @toggle="store.toggleCollapsed"
                   />
@@ -445,16 +446,25 @@ import type {
   TapeInspectorHeadPulse,
   TapeInspectorSort
 } from '@shared/types/tape-inspector'
+import { useMessageStore } from '@/stores/ui/message'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'
 import { createSessionClient } from '../../../api/SessionClient'
-import { getTapeInspectorRowDomId, type TapeInspectorMessageDiagnosticsTarget } from './model'
+import {
+  getTapeInspectorRowDomId,
+  type TapeInspectorDisplayRow,
+  type TapeInspectorMessageDiagnosticsTarget
+} from './model'
 import {
   tapeInspectorDetailPlacement,
   tapeInspectorLayoutMode,
   type TapeInspectorLayoutMode
 } from './layout'
 import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
+import {
+  projectTapeInspectorMessagePreview,
+  type TapeInspectorMessagePreview
+} from './messagePreview'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
 import TapeInspectorRow from './TapeInspectorRow.vue'
@@ -506,6 +516,7 @@ const familyOptions: TapeInspectorFactFamily[] = [
 
 const { t } = useI18n()
 const store = useTapeInspectorStore()
+const messageStore = useMessageStore()
 const sessionClient = createSessionClient()
 const panelRef = ref<HTMLElement | null>(null)
 const ledgerRef = ref<HTMLElement | null>(null)
@@ -566,6 +577,26 @@ const activeDescendantId = computed(() =>
     ? getTapeInspectorRowDomId(store.selectedKey)
     : undefined
 )
+
+function rowMessageId(row: TapeInspectorDisplayRow): string | null {
+  if (row.recordType === 'fact') {
+    return row.record.name === 'message/user' || row.record.name === 'message/assistant'
+      ? (row.record.messageId ?? null)
+      : null
+  }
+  if (row.recordType === 'evidence' && row.association !== 'diagnostic') {
+    return row.record.messageId
+  }
+  return null
+}
+
+function messagePreviewForRow(row: TapeInspectorDisplayRow): TapeInspectorMessagePreview | null {
+  if (messageStore.committedSessionId !== props.sessionId) return null
+  const messageId = rowMessageId(row)
+  if (!messageId) return null
+  const message = messageStore.messageCache.get(messageId)
+  return message?.sessionId === props.sessionId ? projectTapeInspectorMessagePreview(message) : null
+}
 
 let liveLifecycleGeneration = 0
 let liveSubscription: { sessionId: string; subscriptionId: string } | null = null

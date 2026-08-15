@@ -7,7 +7,7 @@
     "refresh": "重新整理",
     "loadOlder": "載入更早記錄",
     "loadMore": "載入更多",
-    "loadEvidence": "載入更多證據",
+    "loadEvidence": "載入更多模型請求",
     "openSession": "開啟 Tape 檢查器",
     "openMessage": "在 Tape 檢查器中開啟",
     "pause": "暫停即時更新",
@@ -28,21 +28,37 @@
   },
   "filters": { "title": "篩選", "allFamilies": "全部類別", "errorsOnly": "僅顯示錯誤" },
   "groups": { "run": "執行", "request": "請求", "attempt": "嘗試", "tool": "工具操作" },
-  "evidence": {
-    "request": "請求證據",
-    "legacy": "舊版 / 未歸屬",
-    "unbound": "未綁定證據（{count}）"
+  "activity": {
+    "userMessage": "使用者訊息",
+    "assistantMessage": "助理訊息",
+    "user": "使用者",
+    "assistant": "助理"
   },
-  "kinds": { "evidence": "證據", "lane": "證據通道", "group": "衍生群組" },
+  "evidence": {
+    "request": "模型請求",
+    "contextNotLoaded": "對應執行記錄尚未載入",
+    "lanes": {
+      "request": "模型請求（{count}）",
+      "diagnostic": "內部診斷（{count}）"
+    },
+    "scope": {
+      "request": "請求層級",
+      "diagnostic": "內部診斷"
+    }
+  },
+  "kinds": { "evidence": "模型請求", "lane": "請求集合", "group": "衍生群組" },
   "states": {
     "unknown": "未知",
-    "empty": "沒有相符的 Tape 事實或請求證據",
-    "loadedCounts": "{facts} 筆事實 · {evidence} 筆證據",
+    "statusPending": "結果尚未載入",
+    "timingPending": "起訖尚未配對",
+    "notApplicable": "此記錄不適用",
+    "empty": "沒有相符的 Tape 事實或模型請求",
+    "loadedCounts": "{facts} 筆事實 · {evidence} 筆模型請求",
     "live": "即時",
     "paused": "已暫停",
     "liveUnavailable": "即時更新無法使用"
   },
-  "waterfall": { "sequence": "Tape 標準序列位置", "point": "單一時間點事實；持續時間未知" },
+  "waterfall": { "sequence": "Tape 標準序列位置", "point": "單一時間點事實；不計算持續時間" },
   "timeline": {
     "title": "概覽",
     "actual": "時間",
@@ -65,7 +81,7 @@
     "raw": "已去除敏感資料的原始記錄",
     "truncated": "已截斷",
     "hashes": "雜湊與大小",
-    "sources": { "tape": "Tape 事實", "message_trace": "請求證據", "derived": "衍生檢視" }
+    "sources": { "tape": "Tape 事實", "message_trace": "模型請求", "derived": "衍生檢視" }
   },
   "fields": {
     "entryId": "項目 ID",

@@ -14,6 +14,7 @@ import type {
 } from '@shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
+  DIAGNOSTIC_EVIDENCE_LANE_KEY,
   findTapeInspectorPreselection,
   getTapeInspectorDetailCapabilities,
   type TapeInspectorDetailCapabilities,
@@ -28,6 +29,10 @@ const LIVE_RETRY_DELAY_MS = 1_000
 const SEARCH_FILL_DEBOUNCE_MS = 250
 const SEARCH_FILL_MAX_PAGES = 6
 const CANONICAL_SORT = { column: 'entryId', direction: 'asc' } as const
+
+function defaultCollapsedKeys(): Set<string> {
+  return new Set([DIAGNOSTIC_EVIDENCE_LANE_KEY])
+}
 
 export type TapeInspectorErrorCode = 'load_failed' | 'detail_failed' | 'record_not_found' | null
 
@@ -94,7 +99,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const loadedSearch = ref('')
   const loadingSearchFill = ref(false)
   const livePaused = ref(false)
-  const collapsedKeys = ref(new Set<string>())
+  const collapsedKeys = ref(defaultCollapsedKeys())
   const selectedKey = ref<string | null>(null)
   const selectedDetail = ref<TapeInspectorDetailState | null>(null)
   const selectedCapabilities = ref<TapeInspectorDetailCapabilities | null>(null)
@@ -262,7 +267,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     factEntryIds.value = []
     evidenceByTraceId.value = new Map()
     evidenceTraceIds.value = []
-    collapsedKeys.value = new Set()
+    collapsedKeys.value = defaultCollapsedKeys()
     selectedKey.value = null
     selectedDetail.value = null
     selectedCapabilities.value = null
@@ -912,7 +917,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       } else if (row.recordType === 'group') {
         detail = { source: 'derived', group: row.group }
       } else {
-        detail = { source: 'unbound_lane', count: row.count }
+        detail = { source: 'evidence_lane', laneKind: row.laneKind, count: row.count }
       }
       if (
         generation !== detailRequestGeneration ||

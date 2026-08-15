@@ -12,6 +12,7 @@ import {
 } from '@/tape/domain/executionJournal'
 import {
   getTapeInspectorTraceBinding,
+  matchesTapeInspectorFilters,
   projectTapeInspectorDetail,
   projectTapeInspectorFact
 } from '@/tape/application/traceInspectorProjection'
@@ -184,6 +185,29 @@ describe('Tape Trace Inspector projection', () => {
       messageId: 'message-1',
       requestSeq: 3
     })
+  })
+
+  it('filters explicit tool outcomes with the same status shown by the renderer', () => {
+    const successfulOutcome: TapeInspectorFactRecord = {
+      recordType: 'fact',
+      key: 'entry:9',
+      entryId: 9,
+      family: 'journal',
+      kind: 'event',
+      name: 'execution/tool_outcome',
+      createdAt: 900,
+      facts: { isError: false }
+    }
+    const failedOutcome: TapeInspectorFactRecord = {
+      ...successfulOutcome,
+      key: 'entry:10',
+      entryId: 10,
+      facts: { isError: true }
+    }
+
+    expect(matchesTapeInspectorFilters(successfulOutcome, { factStatus: 'success' })).toBe(true)
+    expect(matchesTapeInspectorFilters(successfulOutcome, { factStatus: 'error' })).toBe(false)
+    expect(matchesTapeInspectorFilters(failedOutcome, { factStatus: 'error' })).toBe(true)
   })
 
   it('discloses only recognized anchor fields after exact schema validation', () => {

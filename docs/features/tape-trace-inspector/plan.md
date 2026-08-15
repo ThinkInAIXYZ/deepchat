@@ -4,10 +4,10 @@
 
 The core implementation is complete on `feat/tape-trace-inspector`. The P1 read model and UI, P2
 committed follow, and P3 sorting, export, and large-session work have landed. Container-responsive
-layout and the overview timeline have also landed. A final semantic presentation refinement is in
-progress after manual screenshots showed that not-applicable facts, incomplete span pairs, and
-diagnostic evidence were all rendered as the same `unknown` state. The authority, identity, Live,
-pagination, and security contracts remain unchanged.
+layout and the overview timeline have also landed. Final semantic and activity-context refinements
+are in progress after manual inspection showed that inapplicable values looked unresolved, model
+requests without a loaded Tape parent looked invalid, and message facts required unnecessary detail
+navigation. The authority, identity, Live, pagination, and security contracts remain unchanged.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -68,8 +68,8 @@ view or omitting any physical Tape row.
 - [x] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
 - [x] Define the row-to-detail capability matrix in the renderer client.
 
-Completion condition: bound, diagnostic, and unresolved evidence are discoverable without payloads,
-and every fact selection has a safe, explicit detail result.
+Completion condition: bound requests, diagnostics, and requests with unloaded Tape context are
+discoverable without payloads, and every fact selection has a safe, explicit detail result.
 
 ## 4. P1 Typed Session Routes
 
@@ -88,8 +88,8 @@ IPC path.
 - [x] Implement stable fact/evidence maps, canonical keys, request generations, cursors, and
   incarnation reset.
 - [x] Implement total identity grouping and renderer-only group rows.
-- [x] Bind attempt evidence exactly; keep null-attempt evidence at request level; expose unmatched
-  evidence separately.
+- [x] Bind attempt evidence exactly; keep null-attempt evidence at request level; expose model
+  requests with unloaded Tape context separately.
 - [x] Pair run and tool timing by full identity; render attempts/evidence as points.
 - [x] Implement loaded-scope text search and documented server filters.
 - [x] Preserve selection during upsert, collapse, filter, and timing upgrades.
@@ -109,7 +109,7 @@ from timestamps or adjacency.
   the existing Trace dialog action. Message-only actions select a request only when the identity is
   unambiguous; an explicit `requestSeq` is never guessed or replaced.
 - [x] Add vue-i18n copy for every supported locale.
-- [x] Provide explicit sparse-Tape, diagnostic-evidence, and unresolved-evidence states for ACP
+- [x] Provide explicit sparse-Tape, diagnostics, and context-unloaded model-request states for ACP
   sessions.
 
 Completion condition: historical sessions are useful without Live and large loaded windows remain
@@ -189,7 +189,7 @@ recorded in `spec.md`.
 - [x] Run `pnpm run typecheck`.
 - [x] Run focused Tape, session route/query, renderer model, and component suites.
 - [ ] Manually verify light/dark presentation, keyboard navigation, session/message entry points,
-  request-scoped/diagnostic/unresolved evidence, sparse ACP Tape, reset, pause/resume, and
+  request-scoped/diagnostic/context-unloaded requests, sparse ACP Tape, reset, pause/resume, and
   large-session scrolling.
 
 Baseline condition: all previously selected checks passed, or an unrelated pre-existing failure was
@@ -228,27 +228,49 @@ navigation.
 
 ## 14. Semantic State and Evidence Refinement
 
-- [ ] Separate explicit status, not-applicable status, and unresolved group status in renderer
+- [x] Separate explicit status, not-applicable status, and unresolved group status in renderer
   presentation.
-- [ ] Map explicit successful tool outcomes without mixing unrelated child status vocabularies into
+- [x] Map explicit successful tool outcomes without mixing unrelated child status vocabularies into
   request or attempt group status.
-- [ ] Keep duration on run and tool groups only; present fact, attempt, request, and evidence rows as
+- [x] Keep duration on run and tool groups only; present fact, attempt, request, and evidence rows as
   point or not-applicable records without repeated `unknown` text.
-- [ ] Split diagnostic sentinel evidence from unresolved provider evidence and default-collapse the
+- [x] Split diagnostic sentinel evidence from ordinary model requests and default-collapse the
   diagnostics lane without changing trace identity or detail access.
-- [ ] Rename null-attempt evidence as request-scoped rather than claiming it is always legacy, and
-  describe unmatched evidence as unresolved in the loaded range.
-- [ ] Right-align tabular time and duration values and keep placeholders visually quiet at all row
+- [x] Rename null-attempt evidence as request-scoped rather than claiming it is always legacy, and
+  describe a missing loaded parent as unavailable execution context rather than unresolved data.
+- [x] Right-align tabular time and duration values and keep placeholders visually quiet at all row
   breakpoints.
-- [ ] Add durable renderer tests for explicit outcome status, group-only timing, evidence category
+- [x] Add durable renderer tests for explicit outcome status, group-only timing, evidence category
   separation, default diagnostic collapse, and quiet not-applicable cells.
-- [ ] Review the full staged change for hidden side effects, compatibility, boundary behavior,
+- [x] Review the full staged change for hidden side effects, compatibility, boundary behavior,
   performance, security, naming, test sufficiency, and maintenance cost before each commit.
-- [ ] Run format, i18n, lint, typecheck, focused renderer suites, production build, and the manual
-  screenshot matrix after implementation.
+- [ ] Re-run the manual screenshot matrix. Automated format, i18n, lint, typecheck, focused renderer
+  suites, and production build checks have passed.
 
 Completion condition: the ledger reserves visual emphasis for authoritative states and actionable
 gaps, while point facts and diagnostics remain discoverable without dominating routine scanning.
+
+## 15. Chronological Request and Message Context Refinement
+
+- [x] Replace the ambiguous unmatched-evidence category with a neutral model-request collection
+  while preserving the independent trace cursor and exact binding rules.
+- [x] Order model requests whose Tape parent is not loaded by actual `(createdAt, traceId)` time and
+  keep them visible in the actual-time overview.
+- [x] Add fixed-height inline previews for cached user and assistant transcript messages without
+  expanding Inspector list IPC.
+- [x] Restrict assistant previews to visible content blocks and exclude reasoning, errors, and tool
+  payloads; enforce committed-session ownership and bounded output.
+- [x] Keep diagnostics separate and default-collapsed; retain on-demand provider request detail.
+- [x] Add renderer tests for actual-time request ordering, safe preview projection, fixed row height,
+  and session isolation.
+- [x] Review the complete staged diff for hidden side effects, compatibility, edge cases,
+  performance, security, naming, test sufficiency, and maintenance cost.
+- [x] Run format, i18n, lint, typecheck, focused projection and renderer suites, and the production
+  build.
+- [ ] Re-run the manual presentation matrix.
+
+Completion condition: routine scanning reads as a time-oriented activity history, while full
+provider payloads and uncommon diagnostics remain available only through deliberate inspection.
 
 ## Delivery Notes
 

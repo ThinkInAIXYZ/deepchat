@@ -33,7 +33,9 @@ function factRow(
     key: `fact:incarnation-1:entry:${entryId}`,
     depth: 0,
     status: null,
+    statusState: 'not_applicable',
     durationMs: null,
+    timingState: 'point',
     sequenceEntryId: entryId,
     sequenceStart: entryId / 100,
     actualStartAt: entryId * 10,
@@ -59,7 +61,9 @@ function evidenceRow(): TapeInspectorEvidenceRow {
     key: 'trace:trace-1',
     depth: 1,
     status: null,
+    statusState: 'not_applicable',
     durationMs: null,
+    timingState: 'point',
     sequenceEntryId: null,
     sequenceStart: 0.5,
     actualStartAt: 500,
@@ -79,7 +83,7 @@ function evidenceRow(): TapeInspectorEvidenceRow {
       truncated: false
     },
     parentGroupKey: null,
-    legacyUnattributed: true
+    association: 'request'
   }
 }
 
@@ -127,6 +131,43 @@ describe('TapeInspectorTimeline', () => {
         selectedKey: null
       })
     ).toHaveLength(0)
+  })
+
+  it('keeps internal diagnostics out of the overview lanes', () => {
+    const diagnostic = { ...evidenceRow(), association: 'diagnostic' as const }
+
+    expect(
+      buildTapeInspectorTimelineItems({
+        rows: [diagnostic],
+        mode: 'actual',
+        viewportStart: 0,
+        viewportEnd: 1,
+        selectedKey: null
+      })
+    ).toHaveLength(0)
+  })
+
+  it('does not turn an incomplete authoritative span into an actual-time point', () => {
+    const unresolved = factRow(10, { timingState: 'unresolved' })
+
+    expect(
+      buildTapeInspectorTimelineItems({
+        rows: [unresolved],
+        mode: 'actual',
+        viewportStart: 0,
+        viewportEnd: 1,
+        selectedKey: null
+      })
+    ).toHaveLength(0)
+    expect(
+      buildTapeInspectorTimelineItems({
+        rows: [unresolved],
+        mode: 'sequence',
+        viewportStart: 0,
+        viewportEnd: 1,
+        selectedKey: null
+      })
+    ).toHaveLength(1)
   })
 
   it('renders three lanes and links a timeline item back to its ledger key', async () => {

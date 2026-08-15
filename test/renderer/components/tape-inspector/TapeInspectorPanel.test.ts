@@ -12,7 +12,18 @@ const inspectorStoreData = vi.hoisted(() => ({
   canonicalSort: true,
   records: [] as Array<{ entryId: number; createdAt: number }>,
   evidence: [],
-  rows: [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }],
+  rows: [
+    {
+      key: 'fact:incarnation:entry:1',
+      recordType: 'fact',
+      record: { family: 'other' }
+    }
+  ] as Array<{
+    key: string
+    recordType: string
+    association?: string
+    record?: { family?: string; name?: string | null; messageId?: string }
+  }>,
   overviewRows: [] as Array<{ key: string; recordType: string }>,
   selectedKey: null,
   selectedRow: null as {
@@ -58,6 +69,29 @@ const inspectorStoreData = vi.hoisted(() => ({
   clear: vi.fn()
 }))
 const inspectorStore = reactive(inspectorStoreData)
+const panelFactRow = (key: string) => ({
+  key,
+  recordType: 'fact' as const,
+  record: { family: 'other' }
+})
+const messageStore = reactive({
+  committedSessionId: 'session-1' as string | null,
+  messageCache: new Map<
+    string,
+    {
+      id: string
+      sessionId: string
+      orderSeq: number
+      role: 'user' | 'assistant'
+      content: string
+      status: 'pending' | 'sent' | 'error'
+      isContextEdge: number
+      metadata: string
+      createdAt: number
+      updatedAt: number
+    }
+  >()
+})
 
 const sessionClient = vi.hoisted(() => ({
   exportTapeInspectorSupportTrace: vi.fn(),
@@ -83,6 +117,10 @@ const scrollerMethods = vi.hoisted(() => ({
 
 vi.mock('@/components/tape-inspector/store', () => ({
   useTapeInspectorStore: () => inspectorStore
+}))
+
+vi.mock('@/stores/ui/message', () => ({
+  useMessageStore: () => messageStore
 }))
 
 vi.mock('../../../../src/renderer/api/SessionClient', () => ({
@@ -159,7 +197,7 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    props: ['row', 'selected', 'ariaRowIndex', 'layout'],
+    props: ['row', 'selected', 'ariaRowIndex', 'layout', 'messagePreview'],
     emits: ['select'],
     computed: {
       rowDomId() {
@@ -167,7 +205,7 @@ vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
       }
     },
     template:
-      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
+      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
   })
 }))
 
@@ -200,7 +238,7 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.tapeIncarnationId = 'incarnation-1'
     inspectorStore.records = []
     inspectorStore.evidence = []
-    inspectorStore.rows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
+    inspectorStore.rows = [panelFactRow('fact:incarnation:entry:1')]
     inspectorStore.overviewRows = []
     inspectorStore.selectedKey = null
     inspectorStore.selectedRow = null
@@ -213,6 +251,8 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.liveEvidenceRevision = 0
     inspectorStore.serverSort = { column: 'entryId', direction: 'asc' }
     inspectorStore.canonicalSort = true
+    messageStore.committedSessionId = 'session-1'
+    messageStore.messageCache.clear()
     sessionClient.headListener = null
     sessionClient.subscribeTapeInspectorHead.mockResolvedValue({
       subscribed: true,
@@ -285,6 +325,80 @@ describe('TapeInspectorPanel', () => {
     })
   })
 
+  it('adds cached transcript context only for the committed Inspector session', async () => {
+    inspectorStore.rows = [
+      {
+        key: 'fact:incarnation-1:entry:1',
+        recordType: 'fact',
+        record: {
+          family: 'message',
+          name: 'message/user',
+          messageId: 'message-1'
+        }
+      }
+    ]
+    messageStore.messageCache.set('message-1', {
+      id: 'message-1',
+      sessionId: 'session-1',
+      orderSeq: 1,
+      role: 'user',
+      content: JSON.stringify({ text: 'Show the monthly trend' }),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 100,
+      updatedAt: 100
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: { sessionId: 'session-1', openRequest: null }
+    })
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
+    ).toBe('Show the monthly trend')
+
+    messageStore.committedSessionId = 'session-2'
+    await flushPromises()
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
+    ).toBeUndefined()
+  })
+
+  it('does not surface cached content for retracted message events', async () => {
+    inspectorStore.rows = [
+      {
+        key: 'fact:incarnation-1:entry:2',
+        recordType: 'fact',
+        record: {
+          family: 'message',
+          name: 'message/retracted',
+          messageId: 'message-1'
+        }
+      }
+    ]
+    messageStore.messageCache.set('message-1', {
+      id: 'message-1',
+      sessionId: 'session-1',
+      orderSeq: 1,
+      role: 'user',
+      content: JSON.stringify({ text: 'Retracted content' }),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 100,
+      updatedAt: 100
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: { sessionId: 'session-1', openRequest: null }
+    })
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="tape-inspector-row"]').attributes('data-message-preview')
+    ).toBeUndefined()
+  })
+
   it('cancels pending Inspector reads when the panel unmounts', async () => {
     const wrapper = mount(TapeInspectorPanel, {
       props: {
@@ -334,7 +448,7 @@ describe('TapeInspectorPanel', () => {
 
   it('exposes virtual row selection through the focused grid', async () => {
     inspectorStore.rows = [
-      { key: 'fact:incarnation:entry:1', recordType: 'fact' },
+      panelFactRow('fact:incarnation:entry:1'),
       { key: 'group:request:["message-1",2]', recordType: 'group' }
     ]
     inspectorStore.selectedKey = 'fact:incarnation:entry:1'
@@ -504,17 +618,17 @@ describe('TapeInspectorPanel', () => {
   it('restores the same visible key and pixel offset after prepending older rows', async () => {
     inspectorStore.hasOlder = true
     inspectorStore.rows = [
-      { key: 'fact:incarnation:entry:10', recordType: 'fact' },
-      { key: 'fact:incarnation:entry:11', recordType: 'fact' },
-      { key: 'fact:incarnation:entry:12', recordType: 'fact' }
+      panelFactRow('fact:incarnation:entry:10'),
+      panelFactRow('fact:incarnation:entry:11'),
+      panelFactRow('fact:incarnation:entry:12')
     ]
     inspectorStore.loadOlderPage.mockImplementationOnce(async () => {
       inspectorStore.rows = [
-        { key: 'fact:incarnation:entry:8', recordType: 'fact' },
-        { key: 'fact:incarnation:entry:9', recordType: 'fact' },
-        { key: 'fact:incarnation:entry:10', recordType: 'fact' },
-        { key: 'fact:incarnation:entry:11', recordType: 'fact' },
-        { key: 'fact:incarnation:entry:12', recordType: 'fact' }
+        panelFactRow('fact:incarnation:entry:8'),
+        panelFactRow('fact:incarnation:entry:9'),
+        panelFactRow('fact:incarnation:entry:10'),
+        panelFactRow('fact:incarnation:entry:11'),
+        panelFactRow('fact:incarnation:entry:12')
       ]
       return true
     })
@@ -544,10 +658,9 @@ describe('TapeInspectorPanel', () => {
   })
 
   it('keeps a high-entry fixture inside the virtualized render window', async () => {
-    inspectorStore.rows = Array.from({ length: 10_000 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 10_000 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -590,10 +703,9 @@ describe('TapeInspectorPanel', () => {
 
   it('restores tail following when resume catches up paused rows', async () => {
     inspectorStore.livePaused = true
-    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -611,10 +723,9 @@ describe('TapeInspectorPanel', () => {
     await wrapper.get('[data-testid="recycle-scroller"]').trigger('scroll')
     inspectorStore.setLivePaused.mockImplementationOnce(async () => {
       inspectorStore.livePaused = false
-      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
-        key: `fact:incarnation:entry:${index + 1}`,
-        recordType: 'fact'
-      }))
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) =>
+        panelFactRow(`fact:incarnation:entry:${index + 1}`)
+      )
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
       return true
     })
@@ -627,10 +738,9 @@ describe('TapeInspectorPanel', () => {
   })
 
   it('follows evidence-only appends only while the viewport is at the tail', async () => {
-    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -648,10 +758,9 @@ describe('TapeInspectorPanel', () => {
     scroller.scrollTop = 288
     await scrollerWrapper.trigger('scroll')
 
-    inspectorStore.rows = Array.from({ length: 11 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 11 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 396 })
     inspectorStore.liveEvidenceRevision += 1
     await flushPromises()
@@ -661,10 +770,9 @@ describe('TapeInspectorPanel', () => {
     scrollerMethods.scrollToItem.mockClear()
     scroller.scrollTop = 72
     await scrollerWrapper.trigger('scroll')
-    inspectorStore.rows = Array.from({ length: 12 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 12 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 432 })
     inspectorStore.liveEvidenceRevision += 1
     await flushPromises()
@@ -673,10 +781,9 @@ describe('TapeInspectorPanel', () => {
   })
 
   it('continues following after a live pulse appends multiple rows at the tail', async () => {
-    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -692,10 +799,9 @@ describe('TapeInspectorPanel', () => {
     })
     scroller.scrollTop = 288
     inspectorStore.handleLiveHeadPulse.mockImplementationOnce(async () => {
-      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
-        key: `fact:incarnation:entry:${index + 1}`,
-        recordType: 'fact'
-      }))
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) =>
+        panelFactRow(`fact:incarnation:entry:${index + 1}`)
+      )
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
       return true
     })
@@ -711,10 +817,9 @@ describe('TapeInspectorPanel', () => {
   })
 
   it('does not force live rows into view after the user leaves the tail', async () => {
-    inspectorStore.rows = Array.from({ length: 10 }, (_, index) => ({
-      key: `fact:incarnation:entry:${index + 1}`,
-      recordType: 'fact'
-    }))
+    inspectorStore.rows = Array.from({ length: 10 }, (_, index) =>
+      panelFactRow(`fact:incarnation:entry:${index + 1}`)
+    )
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -730,10 +835,9 @@ describe('TapeInspectorPanel', () => {
     })
     scroller.scrollTop = 72
     inspectorStore.handleLiveHeadPulse.mockImplementationOnce(async () => {
-      inspectorStore.rows = Array.from({ length: 15 }, (_, index) => ({
-        key: `fact:incarnation:entry:${index + 1}`,
-        recordType: 'fact'
-      }))
+      inspectorStore.rows = Array.from({ length: 15 }, (_, index) =>
+        panelFactRow(`fact:incarnation:entry:${index + 1}`)
+      )
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 540 })
       return true
     })

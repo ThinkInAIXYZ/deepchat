@@ -224,7 +224,10 @@ const summaryFields = computed(() => {
     ]
   }
   return [
-    { label: t('tapeInspector.fields.kind'), value: t('tapeInspector.kinds.lane') },
+    {
+      label: t('tapeInspector.fields.kind'),
+      value: t(`tapeInspector.evidence.lanes.${detail.laneKind}`, { count: detail.count })
+    },
     { label: t('tapeInspector.fields.records'), value: String(detail.count) }
   ]
 })
@@ -278,8 +281,8 @@ const provenanceText = computed(() => {
 const timingText = computed(() => {
   const row = props.row
   if (!row || row.recordType === 'evidence_lane') return null
-  const { sequenceEntryId, actualStartAt, actualEndAt, durationMs } = row
-  return json({ sequenceEntryId, actualStartAt, actualEndAt, durationMs })
+  const { sequenceEntryId, actualStartAt, actualEndAt, durationMs, timingState } = row
+  return json({ timingState, sequenceEntryId, actualStartAt, actualEndAt, durationMs })
 })
 const hashesText = computed(() => {
   if (props.detail?.source !== 'tape') return null
@@ -313,7 +316,7 @@ function copyValue(): unknown {
     }
   }
   if (detail.source === 'derived') return detail.group
-  return { kind: 'unbound_evidence', count: detail.count }
+  return { kind: `${detail.laneKind}_evidence`, count: detail.count }
 }
 
 const rawText = computed(() => (props.detail ? json(copyValue()) : null))

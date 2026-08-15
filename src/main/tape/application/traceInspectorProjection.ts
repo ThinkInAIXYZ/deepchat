@@ -379,6 +379,8 @@ export function projectTapeInspectorFact(row: DeepChatTapeEntryRow): TapeInspect
 }
 
 function factStatus(record: TapeInspectorFactRecord): string | undefined {
+  if (record.facts?.isError === true) return 'error'
+  if (record.facts?.isError === false) return 'success'
   return record.facts?.status ?? record.facts?.outcome
 }
 

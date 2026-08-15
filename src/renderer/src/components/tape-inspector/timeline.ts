@@ -23,7 +23,9 @@ interface TimelineCandidate {
 
 function timelineLane(row: TapeInspectorDisplayRow): TapeInspectorTimelineLane | null {
   if (row.recordType === 'evidence_lane') return null
-  if (row.recordType === 'evidence') return 'model'
+  if (row.recordType === 'evidence') {
+    return row.association === 'diagnostic' ? null : 'model'
+  }
   if (row.recordType === 'group') {
     if (row.group.kind === 'tool') return 'tool'
     if (row.group.kind === 'request' || row.group.kind === 'attempt') return 'model'
@@ -57,13 +59,15 @@ function candidateForRow(
     if (row.sequenceEntryId === null) return null
     return { row, lane, start: row.sequenceStart, width: 0, point: true }
   }
-  if (row.actualStartAt === null) return null
+  if (row.actualStartAt === null || (row.timingState !== 'span' && row.timingState !== 'point')) {
+    return null
+  }
   return {
     row,
     lane,
     start: row.actualStart,
-    width: row.durationMs === null ? 0 : row.actualWidth,
-    point: row.durationMs === null
+    width: row.timingState === 'span' ? row.actualWidth : 0,
+    point: row.timingState !== 'span'
   }
 }
 

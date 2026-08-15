@@ -29,6 +29,7 @@ vi.mock('../../../../src/renderer/api/SessionClient', () => ({
 }))
 
 import { useTapeInspectorStore } from '@/components/tape-inspector/store'
+import { DIAGNOSTIC_EVIDENCE_LANE_KEY } from '@/components/tape-inspector/model'
 
 function fact(
   entryId: number,
@@ -132,6 +133,27 @@ describe('Tape Inspector store', () => {
     expect(store.selectedRow?.recordType === 'group' && store.selectedRow.group.kind).toBe(
       'request'
     )
+  })
+
+  it('defaults diagnostics to collapsed while keeping model requests discoverable', async () => {
+    client.listTapeInspectorPage.mockResolvedValueOnce(page([fact(20)]))
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(
+      evidencePage([
+        evidence('diagnostic', { requestSeq: 0, physicalAttempt: undefined }),
+        evidence('context-unloaded', { requestSeq: 9, physicalAttempt: 2 })
+      ])
+    )
+    const store = useTapeInspectorStore()
+
+    await store.initialize('session-1')
+
+    expect(store.collapsedKeys.has(DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
+    expect(store.rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
+    expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(false)
+    expect(store.rows.some((row) => row.key === 'trace:context-unloaded')).toBe(true)
+
+    store.toggleCollapsed(DIAGNOSTIC_EVIDENCE_LANE_KEY)
+    expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(true)
   })
 
   it('reveals only the collapsed ancestors of a timeline selection', async () => {
