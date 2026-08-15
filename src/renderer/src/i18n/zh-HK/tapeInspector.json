@@ -43,6 +43,18 @@
     "liveUnavailable": "即時更新無法使用"
   },
   "waterfall": { "sequence": "Tape 標準序列位置", "point": "單一時間點事實；持續時間未知" },
+  "timeline": {
+    "title": "概覽",
+    "actual": "時間",
+    "sequence": "序列",
+    "session": "工作階段",
+    "model": "模型",
+    "tools": "工具",
+    "duration": "時段",
+    "point": "時點",
+    "error": "錯誤",
+    "earlierNotLoaded": "較早的歷史尚未載入"
+  },
   "detail": {
     "title": "詳細資料",
     "selectPrompt": "選取一列以檢視其可用詳細資料",

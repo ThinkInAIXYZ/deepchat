@@ -58,6 +58,28 @@ function sameSort(left: TapeInspectorSort, right: TapeInspectorSort): boolean {
   return left.column === right.column && left.direction === right.direction
 }
 
+function applyCollapsedVisibility(
+  rows: readonly TapeInspectorDisplayRow[],
+  collapsedKeys: ReadonlySet<string>
+): TapeInspectorDisplayRow[] {
+  const visible: TapeInspectorDisplayRow[] = []
+  let hiddenBelowDepth: number | null = null
+  for (const row of rows) {
+    if (hiddenBelowDepth !== null) {
+      if (row.depth > hiddenBelowDepth) continue
+      hiddenBelowDepth = null
+    }
+    if (row.recordType !== 'group' && row.recordType !== 'evidence_lane') {
+      visible.push(row)
+      continue
+    }
+    const collapsed = collapsedKeys.has(row.key)
+    visible.push(collapsed === row.collapsed ? row : { ...row, collapsed })
+    if (collapsed) hiddenBelowDepth = row.depth
+  }
+  return visible
+}
+
 export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const sessionClient = createSessionClient()
   const sessionId = ref<string | null>(null)
@@ -115,16 +137,17 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       return record ? [record] : []
     })
   )
-  const rows = computed(() =>
+  const overviewRows = computed(() =>
     buildTapeInspectorRows({
       tapeIncarnationId: tapeIncarnationId.value,
       records: records.value,
       evidence: evidence.value,
-      collapsedKeys: collapsedKeys.value,
+      collapsedKeys: new Set(),
       search: loadedSearch.value,
       flat: !canonicalSort.value
     })
   )
+  const rows = computed(() => applyCollapsedVisibility(overviewRows.value, collapsedKeys.value))
   const selectedRow = computed(
     () => rows.value.find((row) => row.key === selectedKey.value) ?? null
   )
@@ -786,6 +809,27 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadingDetail.value = false
   }
 
+  function revealOverviewRow(key: string): boolean {
+    const targetIndex = overviewRows.value.findIndex((row) => row.key === key)
+    if (targetIndex < 0) return false
+    const target = overviewRows.value[targetIndex]
+    const nextCollapsed = new Set(collapsedKeys.value)
+    let ancestorDepth = target.depth - 1
+    for (let index = targetIndex - 1; index >= 0 && ancestorDepth >= 0; index -= 1) {
+      const candidate = overviewRows.value[index]
+      if (
+        candidate.depth === ancestorDepth &&
+        (candidate.recordType === 'group' || candidate.recordType === 'evidence_lane')
+      ) {
+        nextCollapsed.delete(candidate.key)
+        ancestorDepth -= 1
+      }
+    }
+    collapsedKeys.value = nextCollapsed
+    selectRow(key)
+    return true
+  }
+
   function moveSelection(offset: -1 | 1): string | null {
     if (rows.value.length === 0) return null
     const currentIndex = rows.value.findIndex((row) => row.key === selectedKey.value)
@@ -933,6 +977,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadingDetail,
     errorCode,
     rows,
+    overviewRows,
     selectedRow,
     hasOlder,
     hasMoreEvidence,
@@ -950,6 +995,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     toggleCollapsed,
     setPrependScrollAnchor,
     selectRow,
+    revealOverviewRow,
     moveSelection,
     loadSelectedDetail,
     clear

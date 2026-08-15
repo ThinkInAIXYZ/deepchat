@@ -169,6 +169,13 @@
       </DcButton>
     </div>
     <div v-else class="flex min-h-0 flex-1 flex-col">
+      <TapeInspectorTimeline
+        v-if="store.overviewRows.length > 0"
+        :rows="store.overviewRows"
+        :selected-key="store.selectedKey"
+        :has-unloaded-history="store.hasOlder || store.hasMoreEvidence"
+        @select="selectOverviewRow"
+      />
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           v-if="store.rows.length === 0"
@@ -296,80 +303,6 @@
                   @resize-by="resizeColumnBy('duration', $event)"
                 />
               </div>
-              <div
-                class="relative flex h-full min-w-0 items-center gap-1 px-2 normal-case tracking-normal"
-                role="columnheader"
-              >
-                <span class="shrink-0 uppercase tracking-wide">
-                  {{ t('tapeInspector.columns.waterfall') }}
-                </span>
-                <div
-                  data-testid="tape-inspector-waterfall-brush"
-                  class="relative h-4 min-w-12 flex-1 touch-none overflow-hidden rounded-sm bg-muted-foreground/15 outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  role="slider"
-                  :aria-label="t('tapeInspector.columns.waterfall')"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                  :aria-valuenow="waterfallViewportPercent"
-                  :aria-valuetext="waterfallViewportLabel"
-                  tabindex="0"
-                  @pointerdown="startWaterfallBrush"
-                  @pointermove="continueWaterfallBrush"
-                  @pointerup="finishWaterfallBrush"
-                  @pointercancel="cancelWaterfallBrush"
-                  @wheel.prevent="handleWaterfallWheel"
-                  @keydown="handleWaterfallKeydown"
-                >
-                  <span
-                    class="absolute inset-y-0 rounded-sm border border-foreground/35 bg-foreground/10"
-                    :style="waterfallViewportStyle"
-                  />
-                  <span
-                    v-if="waterfallBrushStyle"
-                    class="absolute inset-y-0 rounded-sm bg-ring/35"
-                    :style="waterfallBrushStyle"
-                  />
-                </div>
-                <button
-                  type="button"
-                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
-                  :aria-label="t('common.zoomOut')"
-                  :title="t('common.zoomOut')"
-                  @click="zoomWaterfall(1.4)"
-                >
-                  <Icon icon="lucide:zoom-out" class="size-3" />
-                </button>
-                <button
-                  type="button"
-                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
-                  :aria-label="t('common.zoomIn')"
-                  :title="t('common.zoomIn')"
-                  @click="zoomWaterfall(0.7)"
-                >
-                  <Icon icon="lucide:zoom-in" class="size-3" />
-                </button>
-                <button
-                  type="button"
-                  class="flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground"
-                  :aria-label="t('common.reset')"
-                  :title="t('common.reset')"
-                  @click="resetWaterfall"
-                >
-                  <Icon icon="lucide:rotate-ccw" class="size-3" />
-                </button>
-                <TapeInspectorColumnResizeHandle
-                  column="waterfall"
-                  :label="t('tapeInspector.columns.waterfall')"
-                  :min="columnLimits.waterfall.min"
-                  :max="columnLimits.waterfall.max"
-                  :value="columnWidths.waterfall"
-                  @resize-start="startColumnResize('waterfall', $event)"
-                  @resize-move="continueColumnResize"
-                  @resize-end="finishColumnResize"
-                  @resize-cancel="cancelColumnResize"
-                  @resize-by="resizeColumnBy('waterfall', $event)"
-                />
-              </div>
             </div>
             <RecycleScroller
               ref="scrollerRef"
@@ -388,8 +321,6 @@
                   :aria-row-index="index + 2"
                   :grid-template-columns="gridTemplateColumns"
                   :table-min-width="tableMinWidth"
-                  :waterfall-start="waterfallViewport.start"
-                  :waterfall-end="waterfallViewport.end"
                   @select="selectRow"
                   @toggle="store.toggleCollapsed"
                 />
@@ -452,7 +383,6 @@
 </template>
 
 <script setup lang="ts">
-import type { CSSProperties } from 'vue'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -475,6 +405,7 @@ import { useTapeInspectorStore, type TapeInspectorErrorCode } from './store'
 import TapeInspectorColumnResizeHandle from './TapeInspectorColumnResizeHandle.vue'
 import TapeInspectorDetailPane from './TapeInspectorDetailPane.vue'
 import TapeInspectorRow from './TapeInspectorRow.vue'
+import TapeInspectorTimeline from './TapeInspectorTimeline.vue'
 
 interface RecycleScrollerHandle {
   $el: HTMLElement
@@ -482,7 +413,7 @@ interface RecycleScrollerHandle {
   scrollToPosition: (position: number) => void
 }
 
-type InspectorColumn = 'name' | 'kind' | 'status' | 'start' | 'duration' | 'waterfall'
+type InspectorColumn = 'name' | 'kind' | 'status' | 'start' | 'duration'
 
 interface ColumnResizeState {
   column: InspectorColumn
@@ -490,18 +421,6 @@ interface ColumnResizeState {
   startWidth: number
   startX: number
   target: HTMLElement
-}
-
-interface WaterfallBrushState {
-  current: number
-  pointerId: number
-  start: number
-  target: HTMLElement
-}
-
-interface WaterfallTimeRange {
-  min: number
-  max: number
 }
 
 const props = defineProps<{
@@ -547,16 +466,14 @@ const columnLimits: Record<InspectorColumn, { min: number; max: number }> = {
   kind: { min: 80, max: 240 },
   status: { min: 80, max: 240 },
   start: { min: 110, max: 240 },
-  duration: { min: 90, max: 220 },
-  waterfall: { min: 260, max: 720 }
+  duration: { min: 90, max: 220 }
 }
 const columnWidths = reactive<Record<InspectorColumn, number>>({
   name: 280,
   kind: 110,
   status: 110,
   start: 140,
-  duration: 110,
-  waterfall: 360
+  duration: 110
 })
 const columnResize = ref<ColumnResizeState | null>(null)
 const gridTemplateColumns = computed(() =>
@@ -576,46 +493,6 @@ const activeDescendantId = computed(() =>
     : undefined
 )
 
-const MIN_WATERFALL_VIEWPORT = 0.04
-const MIN_WATERFALL_BRUSH = 0.015
-const WATERFALL_EDGE_EPSILON = 1e-6
-const waterfallViewport = ref({ start: 0, end: 1 })
-const waterfallBrush = ref<WaterfallBrushState | null>(null)
-const waterfallTimeRange = computed<WaterfallTimeRange | null>(() => {
-  let min = Number.POSITIVE_INFINITY
-  let max = Number.NEGATIVE_INFINITY
-  for (const record of store.records) {
-    min = Math.min(min, record.createdAt)
-    max = Math.max(max, record.createdAt)
-  }
-  for (const record of store.evidence) {
-    min = Math.min(min, record.createdAt)
-    max = Math.max(max, record.createdAt)
-  }
-  return Number.isFinite(min) ? { min, max } : null
-})
-const waterfallViewportPercent = computed(() =>
-  Math.round((waterfallViewport.value.end - waterfallViewport.value.start) * 100)
-)
-const waterfallViewportLabel = computed(
-  () =>
-    `${Math.round(waterfallViewport.value.start * 100)}%–${Math.round(
-      waterfallViewport.value.end * 100
-    )}%`
-)
-const waterfallViewportStyle = computed<CSSProperties>(() => ({
-  left: `${waterfallViewport.value.start * 100}%`,
-  width: `${(waterfallViewport.value.end - waterfallViewport.value.start) * 100}%`
-}))
-const waterfallBrushStyle = computed<CSSProperties | null>(() => {
-  if (!waterfallBrush.value) return null
-  const start = Math.min(waterfallBrush.value.start, waterfallBrush.value.current)
-  const end = Math.max(waterfallBrush.value.start, waterfallBrush.value.current)
-  return {
-    left: `${start * 100}%`,
-    width: `${(end - start) * 100}%`
-  }
-})
 let liveLifecycleGeneration = 0
 let liveSubscription: { sessionId: string; subscriptionId: string } | null = null
 
@@ -757,160 +634,6 @@ function finishColumnResize(event: PointerEvent): void {
   cancelColumnResize()
 }
 
-function setWaterfallViewport(
-  start: number,
-  end: number,
-  minimumSpan = MIN_WATERFALL_VIEWPORT
-): void {
-  const span = clamp(end - start, minimumSpan, 1)
-  const nextStart = clamp(start, 0, 1 - span)
-  waterfallViewport.value = { start: nextStart, end: nextStart + span }
-}
-
-function resetWaterfall(): void {
-  waterfallViewport.value = { start: 0, end: 1 }
-}
-
-function preserveWaterfallTimeWindow(
-  previousRange: WaterfallTimeRange | null,
-  nextRange: WaterfallTimeRange | null
-): void {
-  if (!previousRange || !nextRange) return
-  const viewport = waterfallViewport.value
-  const previousSpan = previousRange.max - previousRange.min
-  const nextSpan = nextRange.max - nextRange.min
-  const isFullRange =
-    viewport.start <= WATERFALL_EDGE_EPSILON && viewport.end >= 1 - WATERFALL_EDGE_EPSILON
-  if (isFullRange || previousSpan <= 0 || nextSpan <= 0) return
-
-  const duration = previousSpan * (viewport.end - viewport.start)
-  let startAt: number
-  let endAt: number
-  if (viewport.end >= 1 - WATERFALL_EDGE_EPSILON && nextRange.max > previousRange.max) {
-    endAt = nextRange.max
-    startAt = endAt - duration
-  } else {
-    startAt = previousRange.min + previousSpan * viewport.start
-    endAt = previousRange.min + previousSpan * viewport.end
-  }
-  if (startAt < nextRange.min) {
-    endAt += nextRange.min - startAt
-    startAt = nextRange.min
-  }
-  if (endAt > nextRange.max) {
-    startAt -= endAt - nextRange.max
-    endAt = nextRange.max
-  }
-  startAt = Math.max(startAt, nextRange.min)
-  setWaterfallViewport((startAt - nextRange.min) / nextSpan, (endAt - nextRange.min) / nextSpan, 0)
-}
-
-function zoomWaterfall(factor: number, anchor = 0.5): void {
-  const viewport = waterfallViewport.value
-  const currentSpan = viewport.end - viewport.start
-  const nextSpan = clamp(currentSpan * factor, MIN_WATERFALL_VIEWPORT, 1)
-  const boundedAnchor = clamp(anchor, 0, 1)
-  const anchorPosition = viewport.start + currentSpan * boundedAnchor
-  setWaterfallViewport(
-    anchorPosition - nextSpan * boundedAnchor,
-    anchorPosition + nextSpan * (1 - boundedAnchor)
-  )
-}
-
-function panWaterfall(delta: number): void {
-  const viewport = waterfallViewport.value
-  const span = viewport.end - viewport.start
-  setWaterfallViewport(viewport.start + delta, viewport.start + delta + span)
-}
-
-function waterfallPosition(target: HTMLElement, clientX: number): number | null {
-  const rect = target.getBoundingClientRect()
-  if (rect.width <= 0) return null
-  return clamp((clientX - rect.left) / rect.width, 0, 1)
-}
-
-function startWaterfallBrush(event: PointerEvent): void {
-  if (event.button !== 0) return
-  const target = event.currentTarget
-  if (!(target instanceof HTMLElement)) return
-  const position = waterfallPosition(target, event.clientX)
-  if (position === null) return
-  event.preventDefault()
-  cancelWaterfallBrush()
-  target.setPointerCapture?.(event.pointerId)
-  waterfallBrush.value = {
-    current: position,
-    pointerId: event.pointerId,
-    start: position,
-    target
-  }
-}
-
-function continueWaterfallBrush(event: PointerEvent): void {
-  const brush = waterfallBrush.value
-  if (!brush || brush.pointerId !== event.pointerId) return
-  const position = waterfallPosition(brush.target, event.clientX)
-  if (position !== null) brush.current = position
-}
-
-function cancelWaterfallBrush(event?: PointerEvent): void {
-  const brush = waterfallBrush.value
-  if (!brush || (event && brush.pointerId !== event.pointerId)) return
-  releasePointerCapture(brush.target, brush.pointerId)
-  waterfallBrush.value = null
-}
-
-function finishWaterfallBrush(event: PointerEvent): void {
-  const brush = waterfallBrush.value
-  if (!brush || brush.pointerId !== event.pointerId) return
-  continueWaterfallBrush(event)
-  const start = Math.min(brush.start, brush.current)
-  const end = Math.max(brush.start, brush.current)
-  cancelWaterfallBrush(event)
-  if (end - start >= MIN_WATERFALL_BRUSH) setWaterfallViewport(start, end)
-}
-
-function handleWaterfallWheel(event: WheelEvent): void {
-  const target = event.currentTarget
-  if (!(target instanceof HTMLElement)) return
-  const width = target.getBoundingClientRect().width
-  if (width <= 0) return
-  const viewport = waterfallViewport.value
-  const span = viewport.end - viewport.start
-  if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-    const pixelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-    panWaterfall((pixelDelta / width) * span)
-    return
-  }
-  const position = waterfallPosition(target, event.clientX)
-  const anchor = position === null ? 0.5 : clamp((position - viewport.start) / span, 0, 1)
-  zoomWaterfall(Math.exp(event.deltaY * 0.002), anchor)
-}
-
-function handleWaterfallKeydown(event: KeyboardEvent): void {
-  const span = waterfallViewport.value.end - waterfallViewport.value.start
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-    event.preventDefault()
-    panWaterfall(span * (event.key === 'ArrowLeft' ? -0.1 : 0.1))
-    return
-  }
-  if (event.key === '+' || event.key === '=') {
-    event.preventDefault()
-    zoomWaterfall(0.7)
-    return
-  }
-  if (event.key === '-' || event.key === '_') {
-    event.preventDefault()
-    zoomWaterfall(1.4)
-    return
-  }
-  if (event.key === 'Home' || event.key === 'Escape') {
-    event.preventDefault()
-    cancelWaterfallBrush()
-    resetWaterfall()
-  }
-}
-
 async function initialize(): Promise<void> {
   const generation = ++liveLifecycleGeneration
   followingTail.value = true
@@ -1040,6 +763,14 @@ async function selectRow(key: string): Promise<void> {
   await store.loadSelectedDetail()
 }
 
+async function selectOverviewRow(key: string): Promise<void> {
+  if (!store.revealOverviewRow(key)) return
+  await nextTick()
+  scrollToSelected()
+  gridRef.value?.focus({ preventScroll: true })
+  await store.loadSelectedDetail()
+}
+
 function scrollToSelected(): void {
   const index = store.rows.findIndex((row) => row.key === store.selectedKey)
   if (index >= 0) scrollerRef.value?.scrollToItem(index)
@@ -1126,8 +857,6 @@ watch(
   () => props.sessionId,
   () => {
     cancelColumnResize()
-    cancelWaterfallBrush()
-    resetWaterfall()
   }
 )
 
@@ -1135,12 +864,6 @@ watch(
   () => [props.sessionId, props.openRequest?.token] as const,
   () => void initialize(),
   { immediate: true }
-)
-
-watch(
-  waterfallTimeRange,
-  (nextRange, previousRange) => preserveWaterfallTimeWindow(previousRange, nextRange),
-  { flush: 'sync' }
 )
 
 watch(
@@ -1176,7 +899,6 @@ const stopHeadListener = sessionClient.onTapeInspectorHeadChanged((pulse) => {
 onBeforeUnmount(() => {
   liveLifecycleGeneration += 1
   cancelColumnResize()
-  cancelWaterfallBrush()
   stopHeadListener()
   void releaseLiveSubscription()
   store.clear()

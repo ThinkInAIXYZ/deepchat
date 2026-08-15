@@ -46,6 +46,18 @@
     "sequence": "Canonical Tape sequence position",
     "point": "Point-in-time fact; duration is unknown"
   },
+  "timeline": {
+    "title": "Overview",
+    "actual": "Time",
+    "sequence": "Sequence",
+    "session": "Session",
+    "model": "Model",
+    "tools": "Tools",
+    "duration": "Duration",
+    "point": "Point",
+    "error": "Error",
+    "earlierNotLoaded": "Earlier history not loaded"
+  },
   "detail": {
     "title": "Details",
     "selectPrompt": "Select a row to inspect its available details",

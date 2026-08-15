@@ -59,6 +59,18 @@
     "sequence": "Tape 规范序列位置",
     "point": "单时刻事实；时长未知"
   },
+  "timeline": {
+    "title": "概览",
+    "actual": "时间",
+    "sequence": "序列",
+    "session": "会话",
+    "model": "模型",
+    "tools": "工具",
+    "duration": "时段",
+    "point": "时点",
+    "error": "错误",
+    "earlierNotLoaded": "更早的历史尚未加载"
+  },
   "detail": {
     "title": "详情",
     "selectPrompt": "选择一行以查看其可用详情",

@@ -74,31 +74,6 @@
     <div class="truncate px-2 font-mono text-[11px] text-muted-foreground" role="gridcell">
       {{ durationLabel }}
     </div>
-    <div class="px-3" role="gridcell">
-      <div class="relative h-4 overflow-hidden rounded-sm bg-muted/50">
-        <span
-          v-if="sequenceMarkerStyle"
-          data-testid="tape-inspector-sequence-marker"
-          class="absolute inset-y-0 w-px bg-muted-foreground/45"
-          :style="sequenceMarkerStyle"
-          :title="sequenceTooltip"
-        />
-        <span
-          v-if="row.durationMs !== null && actualSpanStyle"
-          data-testid="tape-inspector-actual-span"
-          class="absolute inset-y-1 rounded-sm bg-foreground/55"
-          :style="actualSpanStyle"
-          :title="timingTooltip"
-        />
-        <span
-          v-else-if="actualPointStyle"
-          data-testid="tape-inspector-actual-point"
-          class="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-foreground/60"
-          :style="actualPointStyle"
-          :title="timingTooltip"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -118,15 +93,11 @@ const props = withDefaults(
     selected: boolean
     gridTemplateColumns?: string
     tableMinWidth?: number
-    waterfallStart?: number
-    waterfallEnd?: number
     ariaRowIndex?: number
   }>(),
   {
-    gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px minmax(180px, 1fr)',
-    tableMinWidth: 860,
-    waterfallStart: 0,
-    waterfallEnd: 1
+    gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px',
+    tableMinWidth: 630
   }
 )
 
@@ -142,33 +113,6 @@ const rowGridStyle = computed<CSSProperties>(() => ({
   gridTemplateColumns: props.gridTemplateColumns,
   minWidth: `${props.tableMinWidth}px`
 }))
-const waterfallSpan = computed(() => Math.max(0.0001, props.waterfallEnd - props.waterfallStart))
-
-function viewportPosition(position: number): number | null {
-  if (position < props.waterfallStart || position > props.waterfallEnd) return null
-  return (position - props.waterfallStart) / waterfallSpan.value
-}
-
-const sequenceMarkerStyle = computed<CSSProperties | null>(() => {
-  if (props.row.sequenceEntryId === null) return null
-  const position = viewportPosition(props.row.sequenceStart)
-  return position === null ? null : { left: `${position * 100}%` }
-})
-const actualPointStyle = computed<CSSProperties | null>(() => {
-  if (props.row.actualStartAt === null) return null
-  const position = viewportPosition(props.row.actualStart)
-  return position === null ? null : { left: `${position * 100}%` }
-})
-const actualSpanStyle = computed<CSSProperties | null>(() => {
-  if (props.row.durationMs === null) return null
-  const visibleStart = Math.max(props.row.actualStart, props.waterfallStart)
-  const visibleEnd = Math.min(props.row.actualStart + props.row.actualWidth, props.waterfallEnd)
-  if (visibleEnd < visibleStart) return null
-  return {
-    left: `${((visibleStart - props.waterfallStart) / waterfallSpan.value) * 100}%`,
-    width: `max(${((visibleEnd - visibleStart) / waterfallSpan.value) * 100}%, 3px)`
-  }
-})
 
 const isCollapsible = computed(
   () => props.row.recordType === 'group' || props.row.recordType === 'evidence_lane'
@@ -273,27 +217,6 @@ const durationLabel = computed(() => {
   if (duration === null) return t('tapeInspector.states.unknown')
   if (duration < 1_000) return `${duration} ms`
   return `${(duration / 1_000).toFixed(2)} s`
-})
-const sequenceTooltip = computed(() => {
-  const entryId = props.row.sequenceEntryId
-  return entryId === null
-    ? t('tapeInspector.waterfall.sequence')
-    : `${t('tapeInspector.waterfall.sequence')} · #${entryId}`
-})
-const timingTooltip = computed(() => {
-  const startAt = props.row.actualStartAt
-  if (startAt === null) return t('tapeInspector.states.unknown')
-  const endAt = props.row.actualEndAt
-  const range = `${new Date(startAt).toISOString()}${
-    endAt === null ? '' : ` → ${new Date(endAt).toISOString()}`
-  }`
-  const lines = [`${t('tapeInspector.columns.start')}: ${range}`]
-  if (props.row.durationMs !== null) {
-    lines.push(`${t('tapeInspector.columns.duration')}: ${durationLabel.value}`)
-  } else {
-    lines.push(t('tapeInspector.waterfall.point'))
-  }
-  return lines.join('\n')
 })
 const rowIcon = computed(() => {
   if (props.row.recordType === 'evidence') return 'lucide:radio'

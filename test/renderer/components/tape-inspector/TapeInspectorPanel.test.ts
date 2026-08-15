@@ -13,6 +13,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   records: [] as Array<{ entryId: number; createdAt: number }>,
   evidence: [],
   rows: [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }],
+  overviewRows: [] as Array<{ key: string; recordType: string }>,
   selectedKey: null,
   selectedRow: null,
   selectedDetail: null,
@@ -48,6 +49,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   toggleCollapsed: vi.fn(),
   setPrependScrollAnchor: vi.fn(),
   selectRow: vi.fn(),
+  revealOverviewRow: vi.fn(() => true),
   moveSelection: vi.fn(() => null),
   loadSelectedDetail: vi.fn(async () => true),
   clear: vi.fn()
@@ -173,6 +175,16 @@ vi.mock('@/components/tape-inspector/TapeInspectorDetailPane.vue', () => ({
   })
 }))
 
+vi.mock('@/components/tape-inspector/TapeInspectorTimeline.vue', () => ({
+  default: defineComponent({
+    name: 'TapeInspectorTimeline',
+    props: ['rows', 'selectedKey', 'hasUnloadedHistory'],
+    emits: ['select'],
+    template:
+      '<button data-testid="timeline" @click="$emit(\'select\', rows[0]?.key)">timeline</button>'
+  })
+}))
+
 import TapeInspectorPanel from '@/components/tape-inspector/TapeInspectorPanel.vue'
 
 describe('TapeInspectorPanel', () => {
@@ -183,6 +195,7 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.records = []
     inspectorStore.evidence = []
     inspectorStore.rows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
+    inspectorStore.overviewRows = []
     inspectorStore.selectedKey = null
     inspectorStore.hasOlder = false
     inspectorStore.loadingOlder = false
@@ -399,7 +412,8 @@ describe('TapeInspectorPanel', () => {
     expect(resize.attributes('aria-valuenow')).toBe('560')
   })
 
-  it('zooms, pans, brushes, and resets the waterfall viewport', async () => {
+  it('reveals and selects a record from the overview timeline', async () => {
+    inspectorStore.overviewRows = [{ key: 'fact:incarnation:entry:1', recordType: 'fact' }]
     const wrapper = mount(TapeInspectorPanel, {
       props: {
         sessionId: 'session-1',
@@ -407,119 +421,12 @@ describe('TapeInspectorPanel', () => {
       }
     })
     await flushPromises()
-    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
-    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 16,
-      width: 200,
-      height: 16,
-      toJSON: () => ({})
-    })
 
-    expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
-    await viewport.trigger('keydown', { key: '+' })
-    expect(viewport.attributes('aria-valuetext')).toBe('15%–85%')
-    await viewport.trigger('keydown', { key: 'ArrowRight' })
-    expect(viewport.attributes('aria-valuetext')).toBe('22%–92%')
-
-    await viewport.trigger('pointerdown', { button: 0, pointerId: 11, clientX: 40 })
-    await viewport.trigger('pointermove', { pointerId: 11, clientX: 120 })
-    await viewport.trigger('pointerup', { pointerId: 11, clientX: 120 })
-    expect(viewport.attributes('aria-valuetext')).toBe('20%–60%')
-
-    viewport.element.dispatchEvent(
-      new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 100,
-        deltaX: 20,
-        deltaY: 0
-      })
-    )
+    await wrapper.get('[data-testid="timeline"]').trigger('click')
     await flushPromises()
-    expect(viewport.attributes('aria-valuetext')).toBe('24%–64%')
 
-    await wrapper.get('button[title="common.reset"]').trigger('click')
-    expect(viewport.attributes('aria-valuetext')).toBe('0%–100%')
-  })
-
-  it('keeps the selected waterfall time window when the loaded range changes', async () => {
-    inspectorStore.records = [
-      { entryId: 1, createdAt: 100 },
-      { entryId: 2, createdAt: 200 }
-    ]
-    const wrapper = mount(TapeInspectorPanel, {
-      props: {
-        sessionId: 'session-1',
-        openRequest: null
-      }
-    })
-    await flushPromises()
-    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
-    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 200,
-      bottom: 16,
-      width: 200,
-      height: 16,
-      toJSON: () => ({})
-    })
-    await viewport.trigger('pointerdown', { button: 0, pointerId: 13, clientX: 40 })
-    await viewport.trigger('pointermove', { pointerId: 13, clientX: 120 })
-    await viewport.trigger('pointerup', { pointerId: 13, clientX: 120 })
-    expect(viewport.attributes('aria-valuetext')).toBe('20%–60%')
-
-    inspectorStore.records = [
-      { entryId: 0, createdAt: 0 },
-      { entryId: 1, createdAt: 100 },
-      { entryId: 2, createdAt: 200 }
-    ]
-    await flushPromises()
-    expect(viewport.attributes('aria-valuetext')).toBe('60%–80%')
-
-    inspectorStore.records = [
-      { entryId: 0, createdAt: 0 },
-      { entryId: 1, createdAt: 100 },
-      { entryId: 2, createdAt: 200 },
-      { entryId: 3, createdAt: 400 }
-    ]
-    await flushPromises()
-    expect(viewport.attributes('aria-valuetext')).toBe('30%–40%')
-  })
-
-  it('keeps a waterfall viewport anchored to the live time tail', async () => {
-    inspectorStore.records = [
-      { entryId: 1, createdAt: 100 },
-      { entryId: 2, createdAt: 200 }
-    ]
-    const wrapper = mount(TapeInspectorPanel, {
-      props: {
-        sessionId: 'session-1',
-        openRequest: null
-      }
-    })
-    await flushPromises()
-    const viewport = wrapper.get('[data-testid="tape-inspector-waterfall-brush"]')
-    await viewport.trigger('keydown', { key: '+' })
-    await viewport.trigger('keydown', { key: 'ArrowRight' })
-    await viewport.trigger('keydown', { key: 'ArrowRight' })
-    await viewport.trigger('keydown', { key: 'ArrowRight' })
-    expect(viewport.attributes('aria-valuetext')).toBe('30%–100%')
-
-    inspectorStore.records = [
-      { entryId: 1, createdAt: 100 },
-      { entryId: 2, createdAt: 200 },
-      { entryId: 3, createdAt: 300 }
-    ]
-    await flushPromises()
-    expect(viewport.attributes('aria-valuetext')).toBe('65%–100%')
+    expect(inspectorStore.revealOverviewRow).toHaveBeenCalledWith('fact:incarnation:entry:1')
+    expect(inspectorStore.loadSelectedDetail).toHaveBeenCalledOnce()
   })
 
   it('restores the same visible key and pixel offset after prepending older rows', async () => {

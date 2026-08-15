@@ -134,6 +134,38 @@ describe('Tape Inspector store', () => {
     )
   })
 
+  it('reveals only the collapsed ancestors of a timeline selection', async () => {
+    client.listTapeInspectorPage.mockResolvedValueOnce(
+      page([
+        fact(20, {
+          runId: 'run-1',
+          messageId: 'message-1',
+          requestSeq: 4,
+          physicalAttempt: 0
+        })
+      ])
+    )
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+    const run = store.overviewRows.find(
+      (row) => row.recordType === 'group' && row.group.kind === 'run'
+    )
+    const request = store.overviewRows.find(
+      (row) => row.recordType === 'group' && row.group.kind === 'request'
+    )
+    const factKey = 'fact:incarnation-1:entry:20'
+    if (!run || !request) throw new Error('Expected run and request groups')
+    store.toggleCollapsed(run.key)
+    store.toggleCollapsed(request.key)
+
+    expect(store.rows.some((row) => row.key === factKey)).toBe(false)
+    expect(store.revealOverviewRow(factKey)).toBe(true)
+    expect(store.selectedRow?.key).toBe(factKey)
+    expect(store.collapsedKeys.has(run.key)).toBe(false)
+    expect(store.collapsedKeys.has(request.key)).toBe(false)
+  })
+
   it('polls bounded newer evidence while active and stops when paused or cleared', async () => {
     vi.useFakeTimers()
     const store = useTapeInspectorStore()
