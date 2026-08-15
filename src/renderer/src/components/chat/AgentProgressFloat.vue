@@ -5,31 +5,30 @@
       'pointer-events-auto relative w-full overflow-hidden text-foreground',
       props.embedded
         ? ''
-        : 'agent-progress-float ml-auto max-w-[25rem] rounded-[20px] border border-transparent bg-transparent'
+        : 'agent-progress-float ml-auto max-w-[25rem] rounded-xl border border-transparent bg-transparent'
     ]"
     data-testid="agent-progress-float"
   >
     <div v-if="!props.embedded" class="agent-progress-float__backdrop" aria-hidden="true" />
 
-    <div class="relative flex items-center gap-1.5 px-3 pb-2.5 pt-2.5">
+    <div v-if="!props.embedded" class="relative flex items-center gap-1.5 px-3 pb-2.5 pt-2.5">
       <button
         type="button"
-        class="agent-progress-trigger group flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-all duration-200 hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+        class="agent-progress-trigger group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-all duration-200 hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
         data-testid="agent-progress-float-trigger"
         :aria-expanded="!collapsed"
         :aria-controls="panelId"
         :aria-label="t('chat.workspace.plan.section')"
         @click="emit('toggle-collapse')"
       >
-        <span
-          class="agent-progress-trigger-icon flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner shadow-primary/10 transition-transform duration-200 dark:border-primary/25 dark:bg-primary/15"
-        >
-          <Icon icon="lucide:list-checks" class="h-4 w-4" />
+        <!-- Same 20px slot as the step badges below so icon and title columns align. -->
+        <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary">
+          <Icon icon="lucide:list-checks" class="h-3.5 w-3.5" />
         </span>
 
         <span class="min-w-0 flex-1">
           <span class="flex min-w-0 items-center gap-1.5">
-            <span class="min-w-0 truncate text-[13px] font-semibold tracking-[0.01em]">
+            <span class="min-w-0 truncate text-xs font-medium">
               {{ t('chat.workspace.plan.section') }}
             </span>
             <span
@@ -46,7 +45,7 @@
 
           <span
             v-if="snapshot.explanation"
-            class="agent-progress-summary mt-0.5 block text-sm leading-4 text-muted-foreground"
+            class="agent-progress-summary mt-0.5 block text-xs leading-4 text-muted-foreground"
           >
             {{ snapshot.explanation }}
           </span>
@@ -69,17 +68,25 @@
       <div
         :id="panelId"
         v-show="!collapsed"
-        class="agent-progress-panel relative border-t border-border/60 px-3 pb-3 pt-2.5"
+        :class="[
+          'agent-progress-panel relative',
+          props.embedded ? 'px-2 pb-2.5 pt-2' : 'border-t border-border/60 px-3 pb-3 pt-2.5'
+        ]"
         data-testid="agent-progress-float-body"
         role="status"
         aria-live="polite"
       >
-        <div class="space-y-2">
+        <div class="space-y-1">
+          <!-- Embedded: badges sit in the dock header's icon column (44px) and
+               text in its label column (70px); the chevron column stays empty. -->
           <div
             v-for="(entry, index) in entries"
             :key="`${entry.status}-${index}-${entry.step}`"
-            class="agent-progress-item flex items-center gap-2.5 rounded-2xl px-2.5 py-1 text-[13px] leading-5"
-            :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).textClass"
+            :class="[
+              'agent-progress-item flex items-center rounded-lg py-1 text-[13px] leading-5',
+              props.embedded ? 'gap-1.5 pl-9 pr-2.5' : 'gap-2.5 px-2.5',
+              resolveStepPresentation(entry.status, { terminal: isTerminal }).textClass
+            ]"
             :aria-label="getEntryAriaLabel(entry)"
           >
             <span
@@ -145,14 +152,14 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
-    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+    color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+    color-mix(in srgb, white 84%, hsl(var(--background)) 16%) 100%
   );
   box-shadow:
-    0 20px 40px -30px rgb(15 23 42 / 0.2),
-    0 8px 18px -18px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
-    inset 0 -10px 20px -18px rgb(148 163 184 / 0.18);
+    0 24px 48px -12px rgb(15 23 42 / 0.16),
+    0 8px 20px -8px rgb(15 23 42 / 0.1),
+    0 2px 6px -2px rgb(15 23 42 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
 }
 
 .agent-progress-float::before {
@@ -171,8 +178,8 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
-      color-mix(in srgb, white 64%, hsl(var(--muted)) 36%) 100%
+      color-mix(in srgb, white 92%, hsl(var(--background)) 8%) 0%,
+      color-mix(in srgb, white 72%, hsl(var(--muted)) 28%) 100%
     );
   opacity: 0.92;
 }
@@ -185,9 +192,8 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 22%, hsl(var(--border)) 78%),
-    inset 0 1px 0 rgb(255 255 255 / 0.24);
-  opacity: 0.82;
+    inset 0 0 0 1px color-mix(in srgb, white 10%, hsl(var(--border)) 90%),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
 
 .agent-progress-float > :not(.agent-progress-float__backdrop) {
@@ -212,7 +218,7 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
       transparent 42%
     );
   filter: saturate(1.06);
-  opacity: 0.92;
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -220,14 +226,14 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   border-color: transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
     color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
   );
   box-shadow:
-    0 24px 48px -34px rgb(0 0 0 / 0.48),
-    0 12px 24px -22px rgb(0 0 0 / 0.26),
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 -14px 24px -22px rgb(0 0 0 / 0.36);
+    0 24px 48px -12px rgb(0 0 0 / 0.6),
+    0 10px 24px -10px rgb(0 0 0 / 0.4),
+    0 2px 6px -2px rgb(0 0 0 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
 .dark .agent-progress-float::before {
@@ -243,14 +249,13 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
       color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
       color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
     );
-  opacity: 0.88;
+  opacity: 0.94;
 }
 
 .dark .agent-progress-float::after {
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 8%, hsl(var(--border)) 92%),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  opacity: 0.74;
+    inset 0 0 0 1px color-mix(in srgb, white 14%, hsl(var(--border)) 86%),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .dark .agent-progress-float__backdrop {
@@ -263,7 +268,7 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
     radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
     radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
   filter: saturate(1.08);
-  opacity: 0.84;
+  opacity: 0.6;
 }
 
 .agent-progress-summary {
@@ -289,12 +294,6 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, hsl(var(--foreground)) 6%, transparent),
     0 0 0 1px color-mix(in srgb, hsl(var(--primary)) 24%, transparent);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .agent-progress-trigger:hover .agent-progress-trigger-icon {
-    transform: scale(0.98);
-  }
 }
 
 .agent-progress-action:active,

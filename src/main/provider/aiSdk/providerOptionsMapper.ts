@@ -1,7 +1,11 @@
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { ModelMessage } from 'ai'
-import { applyRequestParameterPolicy, type ModelRequestPolicy } from '@shared/modelRequestPolicy'
+import {
+  applyRequestParameterPolicy,
+  isMiniMaxM3AdaptiveThinkingModel,
+  type ModelRequestPolicy
+} from '@shared/modelRequestPolicy'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
@@ -158,20 +162,14 @@ function supportsGrokReasoningEffort(modelId: string): boolean {
   return unqualifiedModelId === 'grok-3-mini' || unqualifiedModelId.startsWith('grok-3-mini-')
 }
 
-function normalizeMiniMaxModelId(modelId: string): string {
-  const normalized = modelId.trim().toLowerCase()
-  return normalized.includes('/') ? normalized.slice(normalized.lastIndexOf('/') + 1) : normalized
-}
-
 function supportsMiniMaxAdaptiveThinking(
   providerId: string,
   capabilityProviderId: string,
   modelId: string
 ): boolean {
-  const providerIds = [providerId, capabilityProviderId].map((id) => id.trim().toLowerCase())
   return (
-    providerIds.some((id) => id === 'minimax' || id === 'minimax-cn') &&
-    normalizeMiniMaxModelId(modelId) === 'minimax-m3'
+    isMiniMaxM3AdaptiveThinkingModel(providerId, modelId) ||
+    isMiniMaxM3AdaptiveThinkingModel(capabilityProviderId, modelId)
   )
 }
 

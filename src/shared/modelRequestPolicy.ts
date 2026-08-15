@@ -1,6 +1,7 @@
-import { normalizeCanonicalModelId, normalizeModelIdText } from './modelId'
+import { getUnqualifiedModelId, normalizeCanonicalModelId, normalizeModelIdText } from './modelId'
 
 const THINKING_SUFFIX = ':thinking'
+const MINIMAX_ADAPTIVE_THINKING_PROVIDER_IDS = new Set(['minimax', 'minimax-cn', 'minimax-global'])
 const FIXED_TEMPERATURE_MODELS = new Set([
   'kimi-k2.5',
   'kimi-k2.6',
@@ -68,6 +69,18 @@ export const isKimiK3ModelId = (modelId: string | null | undefined): boolean => 
   return /^(?:coding-)?kimi-k3(?:-free)?$/.test(canonicalModelId)
 }
 
+export const isMiniMaxM3AdaptiveThinkingModel = (
+  providerId: string | null | undefined,
+  modelId: string | null | undefined
+): boolean => {
+  const normalizedProviderId = providerId?.trim().toLowerCase()
+  if (!normalizedProviderId || !MINIMAX_ADAPTIVE_THINKING_PROVIDER_IDS.has(normalizedProviderId)) {
+    return false
+  }
+
+  return getUnqualifiedModelId(modelId) === 'minimax-m3'
+}
+
 export const getMoonshotKimiTemperaturePolicy = (
   _providerId: string | null | undefined,
   modelId: string | null | undefined
@@ -129,6 +142,15 @@ export const resolveModelRequestPolicy = (
       topP: { mode: 'omit' },
       reasoning: { mode: 'fixed', value: true },
       legacyThinking: { mode: 'omit' }
+    }
+  }
+
+  if (isMiniMaxM3AdaptiveThinkingModel(providerId, modelId) && reasoningEnabled === true) {
+    return {
+      temperature: { mode: 'omit' },
+      topP: passthrough(),
+      reasoning: passthrough(),
+      legacyThinking: passthrough()
     }
   }
 

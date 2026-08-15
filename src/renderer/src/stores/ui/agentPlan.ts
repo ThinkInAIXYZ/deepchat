@@ -18,8 +18,10 @@ type AgentPlanViewStatePatch = Omit<Partial<AgentPlanViewState>, 'dismissedMessa
 const VIEW_STATE_STORAGE_KEY = 'agent-plan-view-state'
 const LEGACY_COLLAPSED_STORAGE_KEY = 'agent-plan-collapsed'
 
+// Plan floats start collapsed: the dock bar is the default surface and the
+// panel only expands on explicit user intent.
 const defaultViewState = (): AgentPlanViewState => ({
-  collapsed: false
+  collapsed: true
 })
 
 const hasOpenStep = (snapshot: AgentPlanViewSnapshot): boolean =>
@@ -44,7 +46,7 @@ export const useAgentPlanStore = defineStore('agentPlan', () => {
     }
 
     return {
-      collapsed: typeof current.collapsed === 'boolean' ? current.collapsed : false,
+      collapsed: typeof current.collapsed === 'boolean' ? current.collapsed : true,
       ...(typeof current.dismissedMessageId === 'string' && current.dismissedMessageId
         ? { dismissedMessageId: current.dismissedMessageId }
         : {})
@@ -91,7 +93,7 @@ export const useAgentPlanStore = defineStore('agentPlan', () => {
 
     if (isNewMessage) {
       setViewState(snapshot.sessionId, {
-        collapsed: false,
+        collapsed: true,
         dismissedMessageId: null
       })
       return

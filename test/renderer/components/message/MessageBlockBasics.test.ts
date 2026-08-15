@@ -224,11 +224,11 @@ describe('MessageBlock basics', () => {
     expect(wrapper.text()).toContain('# Draft body')
     expect(wrapper.text()).toContain('安装为 Skill')
 
-    const installButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('安装为 Skill'))
-    expect(installButton).toBeTruthy()
-    await installButton!.trigger('click')
+    const installOption = wrapper
+      .findAll('[data-testid="dc-choice-option"]')
+      .find((option) => option.text().includes('安装为 Skill'))
+    expect(installOption).toBeTruthy()
+    await installOption!.trigger('click')
 
     expect(wrapper.emitted('respond')).toEqual([
       [{ kind: 'question_option', optionLabel: 'chat.skillDraft.actions.install' }]
