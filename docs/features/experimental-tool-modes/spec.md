@@ -54,6 +54,8 @@ Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发�
 - 两者在当前会话可用时，作为独立顶层 Provider tools 与 code 入口并列暴露，继续走原有 Loop；
 - `update_plan`、CronJob、文件、MCP、插件等其余已启用能力仍作为 subtools，只能在 code 入口
   内通过 `tools.<name>(...)` 调用。
+- 计划提示按模式投影：Agent Mode 和 Minimal Mode 直接调用顶层 `update_plan`；Code Mode 只在
+  code 入口内调用 `tools.update_plan(...)`，并继续发送完整计划快照。
 
 Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求。这不是把
 UtilityProcess 当成安全沙箱，而是避免一个任意组合程序在普通逐工具审批语义下造成错误预期。

@@ -2,6 +2,7 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { formatCommandShellForModel, type ResolvedCommandShell } from '@shared/commandShell'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
 import { QUESTION_TOOL_NAME } from '../agentTools/questionTool'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
@@ -27,6 +28,41 @@ export function filterCodeModeExecutionCatalog(
   })
 }
 
+function renderCodeModeToolBoundary(
+  frontend: 'codex' | 'function',
+  executionCatalog: readonly MCPToolDefinition[]
+): string {
+  const directToolNames = executionCatalog
+    .map((tool) => tool.function.name.trim())
+    .filter(isCodeModeDirectToolName)
+    .sort((left, right) => left.localeCompare(right))
+  const topLevelToolNames = [
+    ...(frontend === 'codex'
+      ? [CODE_MODE_EXEC_TOOL_NAME, CODE_MODE_WAIT_TOOL_NAME]
+      : [RUN_CODE_TOOL_NAME]),
+    ...directToolNames
+  ]
+
+  return [
+    '## Code Mode Tool Boundary',
+    `Top-level tools for this turn: ${topLevelToolNames.map((name) => `\`${name}\``).join(', ')}.`,
+    'Every other enabled tool is a Code Mode subtool. Subtools are available only inside the code entrypoint through `await tools.name(args)` and must never be issued as top-level tool calls.'
+  ].join('\n')
+}
+
+function renderCodeModeProgressPrompt(executionCatalog: readonly MCPToolDefinition[]): string {
+  if (!executionCatalog.some((tool) => tool.function.name.trim() === UPDATE_PLAN_TOOL_NAME)) {
+    return ''
+  }
+
+  return [
+    '## Progress Checklist in Code Mode',
+    `Use the \`${UPDATE_PLAN_TOOL_NAME}\` subtool for non-trivial multi-step tasks by calling \`await tools.${UPDATE_PLAN_TOOL_NAME}(args)\` inside the code entrypoint.`,
+    'Each call must provide the complete current checklist snapshot with at most one step in_progress.',
+    'Keep the checklist current as work progresses and reconcile it before ending the turn.'
+  ].join('\n')
+}
+
 const RUN_CODE_DESCRIPTION =
   'Execute a TypeScript program against Code Mode subtools. `run_code` is the only code entrypoint; call any separately exposed top-level tools directly and never call a subtool directly. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Invoke subtools only inside `code` as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return comes back — curate it.'
 
@@ -35,8 +71,7 @@ const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION =
 
 const CODE_MODE_EXEC_DESCRIPTION = `Run JavaScript code to orchestrate/compose tool calls
 - Evaluates the provided JavaScript code in a fresh V8 isolate as an async module.
-- Code Mode subtools are available only inside this program on the global \`tools\` object, for example \`await tools.exec_command(...)\`. Never issue a subtool as a top-level tool call. Subtool names are exposed as normalized JavaScript identifiers, for example \`await tools.mcp__ologs__get_profile(...)\`.
-- Call any separately exposed top-level tools directly; they are not available on the \`tools\` object.
+- Invoke SDK-declared subtools only inside this program on the global \`tools\` object through \`await tools.name(args)\`. Subtool names are exposed as normalized JavaScript identifiers, for example \`await tools.mcp__ologs__get_profile(...)\`.
 - Subtool methods take either a string or an object as their input argument.
 - Subtools return either an object or a string, based on the description.
 - Runs raw JavaScript -- no Node, no file system, no network access, no console.
@@ -167,6 +202,8 @@ export function createCodexCodeModeToolDefinitions(
   executionCatalog: readonly MCPToolDefinition[]
 ): MCPToolDefinition[] {
   const nestedReference = renderCodexNestedToolReference(executionCatalog)
+  const toolBoundary = renderCodeModeToolBoundary('codex', executionCatalog)
+  const progressPrompt = renderCodeModeProgressPrompt(executionCatalog)
   return [
     {
       execution: TOOL_EXECUTION.write,
@@ -178,7 +215,9 @@ export function createCodexCodeModeToolDefinitions(
       },
       function: {
         name: CODE_MODE_EXEC_TOOL_NAME,
-        description: [CODE_MODE_EXEC_DESCRIPTION, nestedReference].filter(Boolean).join('\n\n'),
+        description: [CODE_MODE_EXEC_DESCRIPTION, toolBoundary, progressPrompt, nestedReference]
+          .filter(Boolean)
+          .join('\n\n'),
         parameters: { type: 'object', properties: {} }
       },
       server: {
@@ -388,9 +427,11 @@ export function renderCodeModeSdk(
   frontend: 'codex' | 'function',
   executionCatalog: readonly MCPToolDefinition[]
 ): string {
+  const toolBoundary = renderCodeModeToolBoundary(frontend, executionCatalog)
   const tools = filterCodeModeExecutionCatalog(executionCatalog).sort((left, right) =>
     left.function.name.localeCompare(right.function.name)
   )
+  const progressPrompt = renderCodeModeProgressPrompt(tools)
   const argumentMembers = tools.map((tool) => {
     return [
       ...renderToolDescriptionComment(tool.function.description, '  '),
@@ -427,11 +468,13 @@ export function renderCodeModeSdk(
   if (frontend === 'codex') {
     return `## Writing code for exec
 
-\`exec\` and \`wait\` are the Code Mode entrypoints. Any tools separately exposed alongside them are direct top-level tools and never subtools. Only those entrypoints and separately exposed direct tools are valid top-level calls. The declarations below are subtools and must be invoked inside the top-level \`exec\` through \`await tools.name(args)\`.
+${toolBoundary}
 
 \`exec\` runs the body of an async JavaScript module. Only values passed to the output helpers or returned by the module enter the tool result. Use \`yield_control()\` only when the cell must be resumed later with \`wait\`.
 
 The top-level \`exec\` starts a Code Mode cell; \`tools.exec\` inside that cell runs the selected Shell command subtool.
+
+${progressPrompt}
 
 \`\`\`ts
 ${codexDeclaration}
@@ -446,7 +489,7 @@ declare function yield_control(): Promise<void>
 
   return `## Writing code for run_code
 
-\`run_code\` is the only code entrypoint. Any tools separately exposed alongside it are direct top-level tools and never subtools. The declarations below are Code Mode subtools, not top-level tools. Never issue a direct tool call to a subtool such as \`exec\` or \`read\`; those names may appear only after \`tools.\` inside the \`code\` argument.
+${toolBoundary}
 
 \`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. Inside the program:
 
@@ -454,6 +497,8 @@ declare function yield_control(): Promise<void>
 - A FAILED subtool call rejects with \`ToolCallError\`, whose \`toolName\` identifies the failed subtool and whose \`message\` is human-readable — \`try/catch\` it to handle and continue.
 - Independent read-only calls MAY overlap under \`Promise.all\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
 - Emit results with \`return\` and/or \`console.log(...)\`. ONLY what you print or return comes back to you — intermediate subtool results never enter the conversation, so extract just what you need.
+
+${progressPrompt}
 
 Available Code Mode subtools (only callable inside \`run_code.code\` through \`tools\`):
 

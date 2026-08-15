@@ -1285,8 +1285,20 @@ describe('ToolService', () => {
       ...buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'agent-core'),
       source: 'agent' as const
     }
+    const updatePlan = {
+      ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
     const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
-    const executionCatalog = [exec, ...detailedFilesystem, process, question, subagents, remote]
+    const executionCatalog = [
+      exec,
+      ...detailedFilesystem,
+      process,
+      question,
+      subagents,
+      updatePlan,
+      remote
+    ]
     const commandShell = {
       profile: 'zsh',
       dialect: 'posix',
@@ -1313,6 +1325,7 @@ describe('ToolService', () => {
       'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
@@ -1332,6 +1345,7 @@ describe('ToolService', () => {
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME
     ])
+    expect(code.map((definition) => definition.function.name)).not.toContain(UPDATE_PLAN_TOOL_NAME)
     expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
     const codexCode = toolService.configureToolMode({
       conversationId: 'session-1',
@@ -1346,6 +1360,12 @@ describe('ToolService', () => {
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME
     ])
+    expect(codexCode.map((definition) => definition.function.name)).not.toContain(
+      UPDATE_PLAN_TOOL_NAME
+    )
+    expect(codexCode[0].function.description).toContain(
+      'Use the `update_plan` subtool for non-trivial multi-step tasks'
+    )
     await expect(
       toolService.callTool({
         id: 'direct-question',
@@ -1386,6 +1406,7 @@ describe('ToolService', () => {
       'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(
@@ -1405,8 +1426,16 @@ describe('ToolService', () => {
       'str_replace_editor',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
+    expect(minimal.map((definition) => definition.function.name)).toContain(UPDATE_PLAN_TOOL_NAME)
+    expect(
+      toolService.buildToolSystemPrompt({
+        conversationId: 'session-1',
+        toolDefinitions: minimal
+      })
+    ).toContain('Use `update_plan` for non-trivial multi-step tasks.')
     expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
       'Code Mode subtools'
     )
@@ -1424,6 +1453,7 @@ describe('ToolService', () => {
       'apply_patch',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(() =>

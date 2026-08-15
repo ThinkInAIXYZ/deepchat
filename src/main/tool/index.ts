@@ -627,7 +627,7 @@ export class ToolService implements ToolServicePort {
     if (input.mode === 'agent') return executionCatalog
     const codeEntryTools =
       frontend === 'codex'
-        ? createCodexCodeModeToolDefinitions(executionCatalog)
+        ? createCodexCodeModeToolDefinitions(decoratedCatalog)
         : [createRunCodeToolDefinition()]
     return [...codeEntryTools, ...codeModeDirectTools]
   }

@@ -61,9 +61,8 @@ describe('Tool Mode provider contracts', () => {
     expect(definitions[0].function.description).toContain(
       'declare const tools: { mcp_demo_read_file(args: { "path": string }): Promise<{ "content": string }>; };'
     )
-    expect(sdk).toContain(
-      'Only those entrypoints and separately exposed direct tools are valid top-level calls.'
-    )
+    expect(sdk).toContain('Top-level tools for this turn: `exec`, `wait`.')
+    expect(sdk).toContain('Every other enabled tool is a Code Mode subtool.')
     expect(sdk).toContain(
       'The top-level `exec` starts a Code Mode cell; `tools.exec` inside that cell runs the selected Shell command subtool.'
     )
@@ -126,10 +125,8 @@ describe('Tool Mode provider contracts', () => {
     expect(sdk).toContain('"mcp-demo/read-file": { "path": string };')
     expect(sdk).toContain('"mcp-demo/read-file": { "content": string };')
     expect(sdk).toContain('declare class ToolCallError extends Error')
-    expect(sdk).toContain('The declarations below are Code Mode subtools')
-    expect(sdk).toContain(
-      'Any tools separately exposed alongside it are direct top-level tools and never subtools'
-    )
+    expect(sdk).toContain('Top-level tools for this turn: `run_code`.')
+    expect(sdk).toContain('Every other enabled tool is a Code Mode subtool.')
     expect(sdk).toContain(
       'Available Code Mode subtools (only callable inside `run_code.code` through `tools`)'
     )
@@ -153,10 +150,38 @@ describe('Tool Mode provider contracts', () => {
       subagents
     ])[0].function.description
 
-    expect(sdk).not.toContain('deepchat_question')
-    expect(sdk).not.toContain('deepchat_subagents')
-    expect(codexDescription).not.toContain('deepchat_question')
-    expect(codexDescription).not.toContain('deepchat_subagents')
+    expect(sdk).toContain(
+      'Top-level tools for this turn: `run_code`, `deepchat_question`, `deepchat_subagents`.'
+    )
+    expect(sdk).not.toContain('deepchat_question:')
+    expect(sdk).not.toContain('deepchat_subagents:')
+    expect(codexDescription).toContain(
+      'Top-level tools for this turn: `exec`, `wait`, `deepchat_question`, `deepchat_subagents`.'
+    )
+    expect(codexDescription).not.toContain('### `deepchat_question`')
+    expect(codexDescription).not.toContain('### `deepchat_subagents`')
+  })
+
+  it('renders a mode-aware progress strategy for the update_plan subtool', () => {
+    const updatePlan = {
+      ...nestedTool,
+      source: 'agent' as const,
+      function: { ...nestedTool.function, name: 'update_plan' },
+      raw: { ...nestedTool.raw, name: 'update_plan' }
+    }
+
+    const functionSdk = renderCodeModeSdk('function', [updatePlan])
+    const codexDescription = createCodexCodeModeToolDefinitions([updatePlan])[0].function
+      .description
+
+    for (const prompt of [functionSdk, codexDescription]) {
+      expect(prompt).toContain('## Progress Checklist in Code Mode')
+      expect(prompt).toContain(
+        'Use the `update_plan` subtool for non-trivial multi-step tasks by calling `await tools.update_plan(args)` inside the code entrypoint.'
+      )
+    }
+    expect(functionSdk).toContain('Top-level tools for this turn: `run_code`.')
+    expect(codexDescription).toContain('Top-level tools for this turn: `exec`, `wait`.')
   })
 
   it('uses trimmed names for both SDK declarations and runtime bindings', () => {
