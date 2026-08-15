@@ -394,7 +394,7 @@ const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
   'exec',
   'process'
 ])
-const CODE_MODE_DIRECT_AGENT_TOOLS = new Set(['deepchat_question', 'deepchat_subagents'])
+const MODE_FIXED_AGENT_TOOLS = new Set(['deepchat_question', 'deepchat_subagents'])
 
 const props = withDefaults(
   defineProps<{
@@ -659,13 +659,16 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
   if (resolvedToolMode.value === 'minimal') {
     const editor = currentProviderId.value === 'openai-codex' ? 'apply_patch' : 'str_replace_editor'
     const retainedGroups = groupedAgentTools.value
-      .map((group) => ({
-        ...group,
-        items:
+      .map((group) => {
+        const retainedItems =
           group.name === 'agent-filesystem'
             ? group.items.filter((item) => !MINIMAL_AGENT_FILESYSTEM_TOOLS.has(item.toolName))
             : group.items
-      }))
+        const items = retainedItems.map((item) =>
+          MODE_FIXED_AGENT_TOOLS.has(item.toolName) ? { ...item, configurable: false } : item
+        )
+        return { ...group, items, configurable: items.some((item) => item.configurable) }
+      })
       .filter((group) => group.items.length > 0)
     return [
       fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), [
@@ -688,11 +691,12 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
     const directToolItems = groupedAgentTools.value
       .flatMap((group) => group.items)
       .filter((item) => item.toolName === 'deepchat_question')
+      .map((item) => ({ ...item, configurable: false }))
     if (props.subagentsAvailable) directToolItems.push(createSubagentToolItem())
     const codeCallableGroups = groupedAgentTools.value
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => !CODE_MODE_DIRECT_AGENT_TOOLS.has(item.toolName)),
+        items: group.items.filter((item) => !MODE_FIXED_AGENT_TOOLS.has(item.toolName)),
         label: `${codeCallableLabel} · ${group.label}`
       }))
       .filter((group) => group.items.length > 0)

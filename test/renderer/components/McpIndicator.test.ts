@@ -521,19 +521,14 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).toContain('deepchat_question')
     expect(wrapper.text()).toContain('deepchat_subagents')
-    const runCodeItem = wrapper.findAll('span').find((item) => item.text() === 'run_code')
-    const subagentItem = wrapper
+    const fixedToolNames = ['run_code', 'deepchat_question', 'deepchat_subagents']
+    const fixedToolItems = wrapper
       .findAll('span')
-      .find((item) => item.text() === 'deepchat_subagents')
-    expect(runCodeItem?.classes()).toContain('bg-primary')
-    expect(subagentItem?.classes()).toContain('bg-primary')
-    expect(
-      wrapper
-        .findAll('button')
-        .find((button) => button.text() === 'deepchat_question')
-        ?.attributes('disabled')
-    ).toBeUndefined()
-    await subagentItem!.trigger('click')
+      .filter((item) => fixedToolNames.includes(item.text()))
+    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
+    expect(fixedToolItems.every((item) => item.classes().includes('bg-primary'))).toBe(true)
+    await fixedToolItems[1].trigger('click')
+    await fixedToolItems[2].trigger('click')
     await flushPromises()
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('demo-server')
@@ -560,13 +555,20 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('deepchat_subagents')
     expect(wrapper.text()).toContain('demo-server')
     expect(wrapper.text()).toContain('CUA Driver')
-    const fixedToolNames = ['exec', 'process', 'str_replace_editor', 'deepchat_subagents']
+    const fixedToolNames = [
+      'exec',
+      'process',
+      'str_replace_editor',
+      'deepchat_question',
+      'deepchat_subagents'
+    ]
     const fixedToolItems = wrapper
       .findAll('span')
       .filter((item) => fixedToolNames.includes(item.text()))
     expect(fixedToolItems).toHaveLength(fixedToolNames.length)
     expect(fixedToolItems.every((item) => item.classes().includes('bg-primary'))).toBe(true)
-    await fixedToolItems[0].trigger('click')
+    await fixedToolItems[3].trigger('click')
+    await fixedToolItems[4].trigger('click')
     await flushPromises()
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
