@@ -73,9 +73,11 @@ rows, or treat its grouping and status projections as durable state.
 - **Tape incarnation**: the UUID on the canonical `session/start` bootstrap anchor.
 - **Canonical order**: ascending `entryId` within one Tape incarnation.
 - **Bound evidence**: trace evidence with an exact authoritative parent identity.
-- **Legacy/unattributed evidence**: trace evidence lacking `physicalAttempt`; it belongs to a
-  request group but not to a physical attempt.
-- **Unbound evidence**: trace evidence that cannot be associated with a current Tape request group.
+- **Request-scoped evidence**: trace evidence lacking `physicalAttempt`; it belongs to a request
+  group but not to a physical attempt.
+- **Diagnostic evidence**: the `requestSeq = 0` sentinel that intentionally has no request identity.
+- **Unresolved evidence**: trace evidence that cannot be associated with a currently loaded Tape
+  request group.
 - **Fact status**: a status or outcome explicitly present on one immutable fact.
 - **Group status**: a renderer projection from matched facts currently loaded.
 - **Online status**: current state supplied by Runtime, when a future view explicitly joins it.
@@ -91,7 +93,9 @@ rows, or treat its grouping and status projections as durable state.
 7. Grouping changes row visibility only. It never creates a second fact hierarchy.
 8. Duration, status, and evidence binding are never inferred from adjacency or coincident
    timestamps.
-9. Missing, reversed, incomplete, or unverifiable timing is explicit `unknown`.
+9. Missing, reversed, incomplete, or unverifiable timing for a row that owns an authoritative span
+   is explicit and never clamped to zero. Point facts and rows without a timing contract are
+   `not-applicable`, not `unknown`.
 10. List responses contain bounded metadata, not prose summaries or raw payloads.
 11. All visible copy is assembled in the renderer through vue-i18n.
 12. Pause affects follow only. It never pauses execution or changes durable data.
@@ -101,7 +105,7 @@ The no-inference discipline applies uniformly:
 
 - no neighboring-fact duration inference;
 - no `started-without-terminal` to `running` status inference;
-- no legacy trace to physical-attempt binding inference.
+- no request-scoped trace to physical-attempt binding inference.
 
 ## Data Model
 
@@ -204,13 +208,19 @@ The list record never contains endpoint, headers, body, or another payload previ
 
 Evidence association follows exact identities:
 
-- `requestSeq = 0`: persisted diagnostic sentinel without request identity; keep it in the unbound
-  evidence lane;
+- `requestSeq = 0`: persisted diagnostic sentinel without request identity; keep it in a dedicated,
+  default-collapsed diagnostics lane;
 - non-null `physicalAttempt`: bind to `(messageId, requestSeq, physicalAttempt)`;
-- null `physicalAttempt`: bind only to `(messageId, requestSeq)` and label
-  `legacy/unattributed`;
+- null `physicalAttempt`: bind only to `(messageId, requestSeq)` and present it neutrally as
+  request-scoped evidence; the UI never claims that every such record is legacy;
 - never coalesce null to zero;
-- evidence not matching a current request group appears in a session-level unbound lane.
+- evidence not matching a currently loaded request group appears in a session-level unresolved
+  lane. This is a loaded-window statement, not proof that the durable parent is absent.
+
+Diagnostics, request-scoped evidence, and unresolved evidence remain separate presentation
+categories. Diagnostic records retain their individual trace identities and on-demand detail, but
+the ledger summarizes them behind one collapsed lane so repeated diagnostics do not dominate the
+chronological facts.
 
 Within the evidence domain, order physical attempts deterministically, then use `createdAt` and
 `traceId` as stable tie-breakers. These fields do not create a Tape identity or cross-domain total
@@ -275,8 +285,20 @@ Server filtering applies only to explicit per-fact fields:
 - other recognized fact-local status codes.
 
 Group status is renderer-only and may be incomplete while a counterpart lies outside loaded pages.
-A missing terminal fact produces `open/unknown`, not `running`. Runtime online status remains a
-separate authority and is not synthesized from Tape absence.
+A missing terminal fact produces an unresolved historical group, not `running`. Runtime online
+status remains a separate authority and is not synthesized from Tape absence.
+
+Status presentation distinguishes three cases:
+
+- an explicit fact or authoritative group outcome displays its code;
+- a fact, evidence row, or synthetic lane without a status contract displays a quiet
+  not-applicable mark;
+- a status-bearing group whose authoritative fact is not loaded remains unresolved without being
+  presented as online or running.
+
+`execution/tool_outcome` maps explicit `isError = false` to success and `isError = true` to error.
+Request and attempt groups derive status from their provider-attempt facts, not from a vocabulary
+mix of unrelated child facts.
 
 ## Timing Semantics
 
@@ -294,8 +316,13 @@ Rules:
 - run and tool spans appear only after both authoritative endpoints are loaded;
 - attempt and trace records render as `◆` in P1;
 - an endpoint arriving in a later page upgrades the existing row by stable key;
-- absent or reversed endpoints render `unknown` and never clamp to zero;
-- group totals use the same matched endpoints and remain `unknown` when incomplete.
+- absent or reversed endpoints on run and tool groups render an explicit unresolved pairing state
+  and never clamp to zero;
+- request groups, attempt groups, individual facts, and evidence rows do not own a duration and
+  render a quiet not-applicable mark in the Duration column;
+- run and tool totals use the same matched endpoints and remain unresolved when incomplete;
+- authoritative duration belongs to the synthetic run or tool group only. Start and end fact rows
+  remain point facts and do not duplicate the group duration.
 
 ## Tape Pagination Contract
 
@@ -368,8 +395,8 @@ selection, cursors, and scroll anchors before bootstrapping again.
 ## Evidence Pagination Contract
 
 Session trace metadata uses an independent bounded page route and composite keyset cursor. It may
-filter by `messageId`, `requestSeq`, and `physicalAttempt` for lazy group expansion. The unbound lane
-uses the session-wide form.
+filter by `messageId`, `requestSeq`, and `physicalAttempt` for lazy group expansion. The diagnostics
+and unresolved lanes use the session-wide form.
 
 `older` pages are ordered by `(createdAt, traceId)` descending for history expansion. `newer` pages
 use a read-side append cursor backed by the trace row ID and return append order ascending. The
@@ -603,7 +630,10 @@ viewport:
 
 Wide-mode columns remain resizable. Hidden compact-mode columns do not reserve grid tracks or
 produce a horizontal scrollbar. Numeric time, duration, and count values use tabular alignment.
-Unknown status is quiet text rather than a repeated high-weight badge.
+Empty status and duration cells use a quiet not-applicable mark rather than repeating `unknown`.
+Only incomplete run or tool spans show an unresolved pairing label. Numeric Start and Duration
+columns are right-aligned. The diagnostics lane is collapsed by default; expanding it is an
+explicit request to inspect the individual evidence rows.
 
 All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points.
 
@@ -659,8 +689,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 ## Resolved Decisions
 
 1. Tape is the sole chronological spine; traces are evidence rows, not Tape facts.
-2. Request traces appear in the correlated view as lazy evidence children or in the unbound lane.
-3. Legacy traces never bind to a physical attempt without `physicalAttempt`.
+2. Request traces appear in the correlated view as lazy evidence children or in the unresolved
+   lane; diagnostic sentinels remain in a separate diagnostics lane.
+3. Request-scoped traces never bind to a physical attempt without `physicalAttempt`.
 4. Semantic family mapping is total and has an `other` fallback.
 5. Context rows remain in the spine while their bodies are withheld.
 6. Grouping is a renderer identity overlay, not a durable tree.
@@ -677,7 +708,7 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 17. Non-canonical server sorting uses composite keysets and flat result presentation.
 18. Tape Live uses a demand-driven committed-head watcher with no Tape write-path changes; evidence
     inserts only reserve the table's internal row-ID append token.
-19. ACP's sparse Tape spine and unbound evidence are expected states.
+19. ACP's sparse Tape spine and unresolved evidence are expected states.
 20. The Inspector has no write or permission-authority behavior.
 21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
 22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
@@ -695,6 +726,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
     usable.
 31. Detail is on demand: wide containers use a side pane, compact containers use an in-panel
     overlay, and closing it restores ledger context.
+32. Not-applicable status or duration is distinct from an unresolved authoritative state.
+33. Diagnostic evidence is default-collapsed and never presented as a legacy provider request.
 
 ## Acceptance Criteria
 
@@ -704,10 +737,11 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Every committed Tape kind, nullable name, and unknown fact remains represented exactly once.
 - Tape facts, execution journal facts, provider attempts, view facts, and request evidence appear in
   one correlated view when available.
-- Evidence never acquires a Tape identity, and legacy evidence never acquires an inferred attempt.
+- Evidence never acquires a Tape identity, and request-scoped evidence never acquires an inferred
+  attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.
 - The synchronized overview supports sequence and actual-time modes, pan/zoom, range brushing,
-  selection linkage, and explicit unknown timing.
+  selection linkage, explicit points, and unresolved authoritative spans.
 - The supported 360, 520, 760, and 960 px Inspector widths do not require horizontal ledger
   scrolling, and localized summaries retain their primary identity.
 - Live append is deterministic, payload-free, incarnation-safe, and does not steal selection.

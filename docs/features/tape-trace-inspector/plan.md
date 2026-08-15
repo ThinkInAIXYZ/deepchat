@@ -3,9 +3,10 @@
 ## Status
 
 The core implementation is complete on `feat/tape-trace-inspector`. The P1 read model and UI, P2
-committed follow, and P3 sorting, export, and large-session work have landed. A renderer usability
-refinement is in progress after the manual presentation pass exposed unavoidable horizontal
-overflow and weak event scanability at supported side-panel widths. The data, identity, Live,
+committed follow, and P3 sorting, export, and large-session work have landed. Container-responsive
+layout and the overview timeline have also landed. A final semantic presentation refinement is in
+progress after manual screenshots showed that not-applicable facts, incomplete span pairs, and
+diagnostic evidence were all rendered as the same `unknown` state. The authority, identity, Live,
 pagination, and security contracts remain unchanged.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
@@ -67,8 +68,8 @@ view or omitting any physical Tape row.
 - [x] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
 - [x] Define the row-to-detail capability matrix in the renderer client.
 
-Completion condition: bound and unbound evidence are discoverable without payloads, and every fact
-selection has a safe, explicit detail result.
+Completion condition: bound, diagnostic, and unresolved evidence are discoverable without payloads,
+and every fact selection has a safe, explicit detail result.
 
 ## 4. P1 Typed Session Routes
 
@@ -87,7 +88,7 @@ IPC path.
 - [x] Implement stable fact/evidence maps, canonical keys, request generations, cursors, and
   incarnation reset.
 - [x] Implement total identity grouping and renderer-only group rows.
-- [x] Bind non-legacy evidence exactly; keep legacy evidence at request level; expose unbound
+- [x] Bind attempt evidence exactly; keep null-attempt evidence at request level; expose unmatched
   evidence separately.
 - [x] Pair run and tool timing by full identity; render attempts/evidence as points.
 - [x] Implement loaded-scope text search and documented server filters.
@@ -108,7 +109,8 @@ from timestamps or adjacency.
   the existing Trace dialog action. Message-only actions select a request only when the identity is
   unambiguous; an explicit `requestSeq` is never guessed or replaced.
 - [x] Add vue-i18n copy for every supported locale.
-- [x] Provide explicit sparse-Tape and unbound-evidence states for ACP sessions.
+- [x] Provide explicit sparse-Tape, diagnostic-evidence, and unresolved-evidence states for ACP
+  sessions.
 
 Completion condition: historical sessions are useful without Live and large loaded windows remain
 virtualized.
@@ -121,8 +123,8 @@ virtualized.
   cursors, snapshot consistency, and incarnation mismatch.
 - [x] Add detail disclosure tests for allowlist order, unknown fail-closed behavior, and stored-string
   hashes.
-- [x] Add renderer model tests for equal timestamps, retries, nested identities, legacy evidence,
-  delayed endpoint pairing, reset, prepend anchoring, and stale response rejection.
+- [x] Add renderer model tests for equal timestamps, retries, nested identities, request-scoped
+  evidence, delayed endpoint pairing, reset, prepend anchoring, and stale response rejection.
 - [x] Add focused component tests for entry points, virtualization contract, keyboard selection, and
   retained Trace dialog access.
 
@@ -187,7 +189,8 @@ recorded in `spec.md`.
 - [x] Run `pnpm run typecheck`.
 - [x] Run focused Tape, session route/query, renderer model, and component suites.
 - [ ] Manually verify light/dark presentation, keyboard navigation, session/message entry points,
-  legacy/unbound evidence, sparse ACP Tape, reset, pause/resume, and large-session scrolling.
+  request-scoped/diagnostic/unresolved evidence, sparse ACP Tape, reset, pause/resume, and
+  large-session scrolling.
 
 Baseline condition: all previously selected checks passed, or an unrelated pre-existing failure was
 recorded with evidence before the renderer usability refinement began.
@@ -199,34 +202,58 @@ desktop session and does not change the read, identity, or security contracts ab
 
 ## 13. Renderer Usability Refinement
 
-- [ ] Replace the per-row waterfall column with a bounded three-lane overview above the ledger.
-- [ ] Separate actual-time and canonical-sequence modes while preserving authoritative timing and
+- [x] Replace the per-row waterfall column with a bounded three-lane overview above the ledger.
+- [x] Separate actual-time and canonical-sequence modes while preserving authoritative timing and
   explicit point semantics.
-- [ ] Promote approved structured facts into localized row and group summaries without extending
+- [x] Promote approved structured facts into localized row and group summaries without extending
   list IPC or exposing payloads.
-- [ ] Make the ledger container-responsive at 360, 520, 760, and 960 px without horizontal
+- [x] Make the ledger container-responsive at 360, 520, 760, and 960 px without horizontal
   scrolling; retain wide-mode column sorting and resizing.
-- [ ] Make toolbar controls deterministic in compact widths and expose the existing side-panel
+- [x] Make toolbar controls deterministic in compact widths and expose the existing side-panel
   maximize pattern for focused inspection.
-- [ ] Show detail only after selection, as a wide side pane or compact in-panel overlay, with
+- [x] Show detail only after selection, as a wide side pane or compact in-panel overlay, with
   keyboard-safe close and focus restoration.
-- [ ] Bound timeline rendering independently from the number of loaded records and preserve
+- [x] Bound timeline rendering independently from the number of loaded records and preserve
   selection, pagination anchors, collapse, filtering, and Live follow.
-- [ ] Add the smallest durable renderer coverage for semantic summaries, timeline projection,
+- [x] Add the smallest durable renderer coverage for semantic summaries, timeline projection,
   responsive structure, and detail open/close behavior.
-- [ ] Run a full staged review for side effects, compatibility, edge cases, performance, security,
+- [x] Run a full staged review for side effects, compatibility, edge cases, performance, security,
   naming, test sufficiency, and maintenance cost before each commit.
-- [ ] Re-run format, i18n, lint, typecheck, focused renderer suites, and the manual presentation
-  matrix after implementation.
+- [ ] Re-run the manual presentation matrix after implementation. Automated format, i18n, lint,
+  typecheck, focused renderer suites, and production build checks have passed.
 
 Completion condition: the Inspector preserves every existing contract while a first-time user can
 orient, scan, and inspect records at every supported side-panel width without horizontal ledger
 navigation.
 
+## 14. Semantic State and Evidence Refinement
+
+- [ ] Separate explicit status, not-applicable status, and unresolved group status in renderer
+  presentation.
+- [ ] Map explicit successful tool outcomes without mixing unrelated child status vocabularies into
+  request or attempt group status.
+- [ ] Keep duration on run and tool groups only; present fact, attempt, request, and evidence rows as
+  point or not-applicable records without repeated `unknown` text.
+- [ ] Split diagnostic sentinel evidence from unresolved provider evidence and default-collapse the
+  diagnostics lane without changing trace identity or detail access.
+- [ ] Rename null-attempt evidence as request-scoped rather than claiming it is always legacy, and
+  describe unmatched evidence as unresolved in the loaded range.
+- [ ] Right-align tabular time and duration values and keep placeholders visually quiet at all row
+  breakpoints.
+- [ ] Add durable renderer tests for explicit outcome status, group-only timing, evidence category
+  separation, default diagnostic collapse, and quiet not-applicable cells.
+- [ ] Review the full staged change for hidden side effects, compatibility, boundary behavior,
+  performance, security, naming, test sufficiency, and maintenance cost before each commit.
+- [ ] Run format, i18n, lint, typecheck, focused renderer suites, production build, and the manual
+  screenshot matrix after implementation.
+
+Completion condition: the ledger reserves visual emphasis for authoritative states and actionable
+gaps, while point facts and diagnostics remain discoverable without dominating routine scanning.
+
 ## Delivery Notes
 
-- Legacy evidence remains request-scoped when `physicalAttempt` is null; null is never treated as
-  zero.
+- Evidence remains request-scoped when `physicalAttempt` is null; null is never treated as zero and
+  the UI does not claim that every request-scoped record is legacy.
 - Group identities include the Tape incarnation, and run/request bridges remain stable regardless
   of pagination traversal order.
 - Pause and resume preserve the durable Tape cursor and the independent evidence cursor;
