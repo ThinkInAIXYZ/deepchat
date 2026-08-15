@@ -8,6 +8,8 @@ import {
   LIVE_DELEGATION_HANDOFF_TOKEN_BUDGET,
   LIVE_DELEGATION_MAX_WAITS_PER_PARENT,
   LIVE_DELEGATION_MAX_HANDOFF_BYTES,
+  LIVE_DELEGATION_WAIT_DEFAULT_TIMEOUT_MS,
+  LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS,
   LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
   LIVE_DELEGATION_RESULT_PAGE_DEFAULT_TOKENS,
   LIVE_DELEGATION_RESULT_PAGE_MAX_BYTES,
@@ -71,8 +73,6 @@ import {
 import { extractMarkdownLevelTwoSection } from '@shared/orchestration/liveDelegationMarkdown'
 
 const MAX_WAITERS = 32
-const DEFAULT_WAIT_TIMEOUT_MS = 30_000
-const MAX_WAIT_TIMEOUT_MS = 60_000
 const MAX_MODEL_PREVIEW_BYTES = 2 * 1024
 const MAX_MODEL_EVENT_BYTES = 16 * 1024
 const MAX_MODEL_WAIT_CONTENT_BYTES = 32 * 1024
@@ -795,8 +795,8 @@ export class LiveDelegationService {
     if (existing.length > 0) return createWaitResult(existing, after, false)
 
     const timeoutMs = Math.min(
-      Math.max(0, Math.floor(options?.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)),
-      MAX_WAIT_TIMEOUT_MS
+      Math.max(0, Math.floor(options?.timeoutMs ?? LIVE_DELEGATION_WAIT_DEFAULT_TIMEOUT_MS)),
+      LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS
     )
     if (timeoutMs === 0) return createWaitResult([], after, true)
     options?.signal?.throwIfAborted()

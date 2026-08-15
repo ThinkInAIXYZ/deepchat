@@ -14,7 +14,9 @@ import {
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
   LIVE_DELEGATION_MAX_PROMPT_BYTES,
   LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
-  LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS
+  LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS,
+  LIVE_DELEGATION_WAIT_DEFAULT_TIMEOUT_MS,
+  LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS
 } from '@shared/orchestration/liveDelegation'
 import { createChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 import type {
@@ -46,7 +48,7 @@ const liveDelegationSchema = z
     task: utf8BoundedString(LIVE_DELEGATION_MAX_PROMPT_BYTES, 'Task').optional(),
     delegationIds: z.array(z.string().trim().min(1).max(256)).max(20).optional(),
     after: z.number().int().nonnegative().optional(),
-    timeoutMs: z.number().int().min(0).max(60_000).optional(),
+    timeoutMs: z.number().int().min(0).max(LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS).optional(),
     limit: z.number().int().min(1).max(100).optional()
   })
   .strict()
@@ -155,8 +157,8 @@ export class LiveDelegationAgentTool {
             timeoutMs: {
               type: 'number',
               minimum: 0,
-              maximum: 60_000,
-              description: 'Bounded wait duration. Defaults to 30000.'
+              maximum: LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS,
+              description: `Wait duration in milliseconds for operation=wait. Defaults to ${LIVE_DELEGATION_WAIT_DEFAULT_TIMEOUT_MS} ms; maximum ${LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS} ms (10 minutes). Use 0 to poll without waiting.`
             },
             limit: {
               type: 'number',

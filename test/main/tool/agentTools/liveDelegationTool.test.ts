@@ -58,6 +58,13 @@ describe('LiveDelegationAgentTool', () => {
       'use list or inspect instead of wait to check permission or question states'
     )
     expect(definition?.function.description).toContain('never merely to avoid waiting')
+    expect(definition?.function.parameters.properties?.timeoutMs).toMatchObject({
+      minimum: 0,
+      maximum: 600_000
+    })
+    expect(definition?.function.parameters.properties?.timeoutMs?.description).toContain(
+      'Defaults to 30000 ms; maximum 600000 ms (10 minutes)'
+    )
   })
 
   it('validates operation-specific fields before invoking the service', async () => {
@@ -194,7 +201,7 @@ describe('LiveDelegationAgentTool', () => {
         operation: 'wait',
         delegationIds: ['delegation-1'],
         after: 4,
-        timeoutMs: 500
+        timeoutMs: 600_000
       },
       'parent-1',
       { signal: controller.signal }
@@ -203,9 +210,11 @@ describe('LiveDelegationAgentTool', () => {
     expect(port.wait).toHaveBeenCalledWith('parent-1', {
       delegationIds: ['delegation-1'],
       after: 4,
-      timeoutMs: 500,
+      timeoutMs: 600_000,
       signal: controller.signal
     })
+    await expect(tool.call({ operation: 'wait', timeoutMs: 600_001 }, 'parent-1')).rejects.toThrow()
+    expect(port.wait).toHaveBeenCalledTimes(1)
   })
 
   it('forwards bounded full-result page requests without starting another child turn', async () => {
