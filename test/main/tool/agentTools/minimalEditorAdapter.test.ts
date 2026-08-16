@@ -73,6 +73,19 @@ describe('minimal editor adapters', () => {
     ).toBe('start\nfirst\nsecond\n')
   })
 
+  it('inserts append-only chunks after their change context', () => {
+    expect(
+      applyUpdateChunks('before\nsection\nafter\n', 'file.txt', [
+        {
+          changeContext: 'section',
+          oldLines: [],
+          newLines: ['inserted'],
+          endOfFile: false
+        }
+      ])
+    ).toBe('before\nsection\ninserted\nafter\n')
+  })
+
   it('finds every literal match and reports one-based line numbers', () => {
     const content = 'alpha\nbeta alpha\nalpha\n'
     const offsets = matchOffsets(content, 'alpha')

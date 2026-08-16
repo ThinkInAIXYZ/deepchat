@@ -1347,6 +1347,24 @@ describe('ToolService', () => {
     ])
     expect(code.map((definition) => definition.function.name)).not.toContain(UPDATE_PLAN_TOOL_NAME)
     expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
+    await expect(
+      toolService.callTool(
+        {
+          id: 'run-code-default-permission',
+          type: 'function',
+          function: { name: 'run_code', arguments: JSON.stringify({ code: 'return true' }) },
+          conversationId: 'session-1'
+        },
+        { permissionMode: 'default' }
+      )
+    ).resolves.toMatchObject({
+      content: 'Code Mode requires Full Access permission mode.',
+      rawData: {
+        toolCallId: 'run-code-default-permission',
+        content: 'Code Mode requires Full Access permission mode.',
+        isError: true
+      }
+    })
     const codexCode = toolService.configureToolMode({
       conversationId: 'session-1',
       mode: 'code',
@@ -1439,6 +1457,22 @@ describe('ToolService', () => {
     expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
       'Code Mode subtools'
     )
+
+    const minimalWithoutRead = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: executionCatalog.filter((definition) => definition.function.name !== 'read')
+    })
+    expect(minimalWithoutRead.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'process',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
 
     const codexMinimal = toolService.configureToolMode({
       conversationId: 'session-1',

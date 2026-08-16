@@ -132,6 +132,7 @@ type ActiveCell = {
   startupRssBytes: number | null
   heartbeatTimer: NodeJS.Timeout | null
   rssTimer: NodeJS.Timeout | null
+  executionDeadlineTimer: NodeJS.Timeout | null
   yieldLeaseTimer: NodeJS.Timeout | null
   forceKillTimer: NodeJS.Timeout | null
   runtimeAbortController: AbortController
@@ -146,6 +147,7 @@ type ActiveCell = {
 
 const READY_TIMEOUT_MS = 5_000
 const HEARTBEAT_TIMEOUT_MS = 3_500
+const CELL_EXECUTION_DEADLINE_MS = 5 * 60_000
 const YIELD_LEASE_MS = 60_000
 const MAX_JOURNALED_NESTED_CALLS = Math.min(
   RUN_CODE_MAX_NESTED_CALLS,
@@ -483,6 +485,7 @@ export class RunCodeRuntimeManager {
       startupRssBytes: null,
       heartbeatTimer: null,
       rssTimer: null,
+      executionDeadlineTimer: null,
       yieldLeaseTimer: null,
       forceKillTimer: null,
       runtimeAbortController: new AbortController(),
@@ -511,6 +514,11 @@ export class RunCodeRuntimeManager {
       }
     }, 1_000)
     cell.rssTimer = setInterval(() => this.inspectRss(cell), 1_000)
+    cell.executionDeadlineTimer = setTimeout(
+      () => this.failAndCleanup(cell, new Error('Code cell execution deadline exceeded.')),
+      CELL_EXECUTION_DEADLINE_MS
+    )
+    cell.executionDeadlineTimer.unref?.()
 
     this.bindAbortSignal(cell, cell.options.signal)
   }
@@ -682,14 +690,7 @@ export class RunCodeRuntimeManager {
         stringifyResult(response.rawData.content ?? response.content),
         response.rawData.isError === true
       )
-      this.post(cell, {
-        type: 'NESTED_RESULT',
-        version: RUN_CODE_PROTOCOL_VERSION,
-        cellId: cell.id,
-        callId: message.callId,
-        ok: true,
-        result: getNestedToolResult(response)
-      })
+      this.postNestedResponse(cell, message.callId, response)
     } catch (error) {
       if (cell.terminal) return
       this.completeNestedFailure(cell, child, toError(error))
@@ -743,14 +744,7 @@ export class RunCodeRuntimeManager {
       )
       cell.pendingPermission = null
       cell.state = 'running'
-      this.post(cell, {
-        type: 'NESTED_RESULT',
-        version: RUN_CODE_PROTOCOL_VERSION,
-        cellId: cell.id,
-        callId: pending.hostCallId,
-        ok: true,
-        result: getNestedToolResult(response)
-      })
+      this.postNestedResponse(cell, pending.hostCallId, response)
       this.scheduleYield(cell)
     } catch (error) {
       if (cell.terminal || cell.state === 'stopping') return
@@ -878,6 +872,29 @@ export class RunCodeRuntimeManager {
     })
   }
 
+  private postNestedResponse(
+    cell: ActiveCell,
+    callId: string,
+    response: { content: unknown; rawData: MCPToolResponse }
+  ): void {
+    if (response.rawData.isError === true) {
+      this.postNestedError(
+        cell,
+        callId,
+        stringifyResult(response.rawData.content ?? response.content)
+      )
+      return
+    }
+    this.post(cell, {
+      type: 'NESTED_RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: cell.id,
+      callId,
+      ok: true,
+      result: getNestedToolResult(response)
+    })
+  }
+
   private post(cell: ActiveCell, message: RunCodeParentMessage): void {
     try {
       cell.host.postMessage(message)
@@ -904,10 +921,12 @@ export class RunCodeRuntimeManager {
     }
     if (cell.heartbeatTimer) clearInterval(cell.heartbeatTimer)
     if (cell.rssTimer) clearInterval(cell.rssTimer)
+    if (cell.executionDeadlineTimer) clearTimeout(cell.executionDeadlineTimer)
     if (cell.yieldTimer) clearTimeout(cell.yieldTimer)
     if (cell.yieldLeaseTimer) clearTimeout(cell.yieldLeaseTimer)
     cell.heartbeatTimer = null
     cell.rssTimer = null
+    cell.executionDeadlineTimer = null
     cell.yieldTimer = null
     cell.yieldLeaseTimer = null
     cell.runtimeAbortController.abort(new DOMException(reason, 'AbortError'))

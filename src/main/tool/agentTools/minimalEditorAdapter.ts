@@ -194,9 +194,10 @@ export function applyUpdateChunks(
 ): string {
   const lines = content.replace(/\r\n/g, '\n').split('\n')
   if (lines.at(-1) === '') lines.pop()
-  const replacements: Array<{ index: number; count: number; lines: string[] }> = []
+  const replacements: Array<{ index: number; count: number; lines: string[]; order: number }> = []
   const appendedLines: string[] = []
   let lineIndex = 0
+  let replacementOrder = 0
 
   for (const chunk of chunks) {
     if (chunk.changeContext !== undefined) {
@@ -207,18 +208,34 @@ export function applyUpdateChunks(
       lineIndex = contextIndex + 1
     }
     if (chunk.oldLines.length === 0) {
-      appendedLines.push(...chunk.newLines)
+      if (chunk.changeContext === undefined) {
+        appendedLines.push(...chunk.newLines)
+      } else {
+        replacements.push({
+          index: lineIndex,
+          count: 0,
+          lines: chunk.newLines,
+          order: replacementOrder++
+        })
+      }
       continue
     }
     const found = findSequence(lines, chunk.oldLines, lineIndex, chunk.endOfFile)
     if (found < 0) {
       throw new Error(`Failed to find expected lines in ${path}:\n${chunk.oldLines.join('\n')}`)
     }
-    replacements.push({ index: found, count: chunk.oldLines.length, lines: chunk.newLines })
+    replacements.push({
+      index: found,
+      count: chunk.oldLines.length,
+      lines: chunk.newLines,
+      order: replacementOrder++
+    })
     lineIndex = found + chunk.oldLines.length
   }
 
-  for (const replacement of replacements.sort((left, right) => right.index - left.index)) {
+  for (const replacement of replacements.sort(
+    (left, right) => right.index - left.index || right.order - left.order
+  )) {
     lines.splice(replacement.index, replacement.count, ...replacement.lines)
   }
   lines.push(...appendedLines)

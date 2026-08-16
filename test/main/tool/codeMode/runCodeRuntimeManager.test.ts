@@ -172,6 +172,55 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
+  it('expires unresolved async execution despite healthy heartbeats', async () => {
+    vi.useFakeTimers()
+    try {
+      const host = new FakeUtilityProcess(false)
+      Object.defineProperty(host, 'pid', { value: 0 })
+      const manager = createManager(host)
+      const execution = manager.execute({
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        frontend: 'function',
+        source: 'await new Promise(() => {})',
+        executionCatalog: [tool('exec')],
+        outerDispatch: outerDispatch(),
+        options: {}
+      })
+      const executionFailure = expect(execution).rejects.toThrow(
+        'Code cell execution deadline exceeded.'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const start = host.messages.find(
+        (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+          message.type === 'START'
+      )!
+
+      const heartbeat = setInterval(() => {
+        host.emit('message', {
+          type: 'HEARTBEAT',
+          version: RUN_CODE_PROTOCOL_VERSION,
+          cellId: start.cellId,
+          now: Date.now()
+        })
+      }, 1_000)
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 1)
+      clearInterval(heartbeat)
+
+      await executionFailure
+      expect(host.messages).toContainEqual(
+        expect.objectContaining({
+          type: 'STOP',
+          cellId: start.cellId,
+          reason: 'Code cell execution deadline exceeded.'
+        })
+      )
+      await manager.shutdown()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('normalizes Codex binding names and serializes mutating tools', async () => {
     const host = new FakeUtilityProcess(true)
     const manager = createManager(host)
@@ -260,6 +309,57 @@ describe('RunCodeRuntimeManager', () => {
     })
 
     await expect(execution).resolves.toMatchObject({ content: expect.stringContaining('42') })
+    await manager.shutdown()
+  })
+
+  it('sends nested tool failures to the code cell as rejected envelopes', async () => {
+    const host = new FakeUtilityProcess(false)
+    const manager = createManager(
+      host,
+      vi.fn(async () => ({
+        content: 'nested failure',
+        rawData: { content: 'nested failure', isError: true }
+      }))
+    )
+    const execution = manager.execute({
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function',
+      source: 'return await tools.lookup({})',
+      executionCatalog: [tool('lookup')],
+      outerDispatch: outerDispatch(),
+      options: {}
+    })
+    await vi.waitFor(() =>
+      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+    )
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested-1',
+      bindingId: start.bindings[0].id,
+      arguments: {}
+    })
+    await vi.waitFor(() =>
+      expect(
+        host.messages.some(
+          (message) =>
+            message.type === 'NESTED_RESULT' &&
+            message.callId === 'nested-1' &&
+            !message.ok &&
+            message.error === 'nested failure'
+        )
+      ).toBe(true)
+    )
+
+    manager.cancelSession('session-1', 'test complete')
+    await expect(execution).rejects.toThrow('test complete')
     await manager.shutdown()
   })
 
@@ -557,6 +657,84 @@ describe('RunCodeRuntimeManager', () => {
     })
 
     await expect(retriedExecution).resolves.toEqual({ content: 'clean' })
+    await manager.shutdown()
+  })
+
+  it('rejects a nested tool failure returned after permission retry', async () => {
+    const host = new FakeUtilityProcess(false)
+    const executeNested = vi
+      .fn<RunCodeRuntimeManagerOptions['executeNested']>()
+      .mockResolvedValueOnce({
+        content: 'permission required',
+        rawData: {
+          content: 'permission required',
+          requiresPermission: true,
+          permissionRequest: {
+            toolName: 'exec',
+            permissionType: 'command',
+            command: 'git status --short'
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        content: 'nested failure',
+        rawData: { content: 'nested failure', isError: true }
+      })
+    const manager = createManager(host, executeNested)
+    const input = {
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function' as const,
+      source: 'return await tools.exec({ command: "git status --short" })',
+      executionCatalog: [tool('exec')],
+      outerDispatch: outerDispatch(),
+      options: {}
+    }
+    const firstExecution = manager.execute(input)
+    await vi.waitFor(() =>
+      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+    )
+    const start = host.messages.find(
+      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+        message.type === 'START'
+    )!
+
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested-1',
+      bindingId: start.bindings[0].id,
+      arguments: { command: 'git status --short' }
+    })
+    await expect(firstExecution).resolves.toMatchObject({
+      rawData: { requiresPermission: true }
+    })
+
+    const retriedExecution = manager.execute({
+      ...input,
+      options: { oneShotCommandGrantId: 'grant-1' }
+    })
+    await vi.waitFor(() =>
+      expect(
+        host.messages.some(
+          (message) =>
+            message.type === 'NESTED_RESULT' &&
+            message.callId === 'nested-1' &&
+            !message.ok &&
+            message.error === 'nested failure'
+        )
+      ).toBe(true)
+    )
+
+    host.emit('message', {
+      type: 'ERROR',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      error: 'nested failure',
+      output: []
+    })
+    await expect(retriedExecution).rejects.toThrow('nested failure')
     await manager.shutdown()
   })
 

@@ -57,7 +57,8 @@ Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发�
 - 计划提示按模式投影：Agent Mode 和 Minimal Mode 直接调用顶层 `update_plan`；Code Mode 只在
   code 入口内调用 `tools.update_plan(...)`，并继续发送完整计划快照。
 
-Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求。这不是把
+Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求；其他权限模式下
+code 入口返回可恢复的工具错误且不启动 cell。这不是把
 UtilityProcess 当成安全沙箱，而是避免一个任意组合程序在普通逐工具审批语义下造成错误预期。
 嵌套调用仍然通过 `ToolService`、现有 authority 检查、permission broker、effect observer、
 handler、输出限制和取消信号执行，UtilityProcess 不能直接访问工具 handler。
@@ -90,8 +91,9 @@ Minimal Mode 简化的是内置文件操作面，不是整个 Agent 能力面。
 除上述文件工具替换外，当前已启用的非文件能力继续直接投影，包括 `deepchat_subagents`、
 `cronjob`、plan、question、memory、browser、image、skills、MCP 和插件工具。Minimal Mode 不会
 强制启用被 Session、Agent 或用户禁用的能力，也不会扩大 MCP allowlist 或权限；它只改变文件
-工具的选择。`exec` 或其 `process` 配套能力不可用时 fail closed，避免后台命令返回无法继续管理
-的 session ID。
+工具的选择。只有原始 `read`、`write`、`edit` 三项都处于启用状态时才合成对应编辑工具，任一项
+被禁用时不暴露这个能力更大的替代入口。`exec` 或其 `process` 配套能力不可用时 fail closed，
+避免后台命令返回无法继续管理的 session ID。
 
 `apply_patch` 使用 V4A patch 格式，支持 add、delete、update、move 和多 hunk 顺序应用。
 `str_replace_editor` 保持 `view | create | str_replace | insert` schema、绝对路径和唯一 literal
@@ -186,6 +188,7 @@ IPC allowlist、V8 内存限制、heartbeat 和强制回收的组合。
 | READY | 5 秒 |
 | heartbeat 丢失 | 约 3.5 秒后终止 |
 | VM 同步执行 slice | 2 秒 |
+| cell 总执行时间 | 5 分钟 |
 | yielded / permission cell lease | 60 秒 |
 | RSS hard ceiling | 512 MiB |
 | STOP grace | 500 ms 后 `kill()` |

@@ -394,6 +394,7 @@ const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
   'exec',
   'process'
 ])
+const MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS = ['read', 'write', 'edit'] as const
 const MODE_FIXED_AGENT_TOOLS = new Set(['deepchat_question', 'deepchat_subagents'])
 
 const props = withDefaults(
@@ -658,6 +659,9 @@ const includeSubagentTool = (groups: ToolGroup[], fallbackLabel: string): ToolGr
 const visibleToolGroups = computed<ToolGroup[]>(() => {
   if (resolvedToolMode.value === 'minimal') {
     const editor = currentProviderId.value === 'openai-codex' ? 'apply_patch' : 'str_replace_editor'
+    const editorAvailable = MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS.every(
+      (toolName) => !disabledToolNames.value.includes(toolName)
+    )
     const retainedGroups = groupedAgentTools.value
       .map((group) => {
         const retainedItems =
@@ -674,7 +678,7 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
       fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), [
         'exec',
         'process',
-        editor
+        ...(editorAvailable ? [editor] : [])
       ]),
       ...includeSubagentTool(retainedGroups, getGroupLabel('agent-core'))
     ]

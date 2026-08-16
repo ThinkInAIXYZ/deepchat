@@ -573,6 +573,17 @@ describe('McpIndicator', () => {
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
+  it('hides the Minimal editor when a required filesystem tool is disabled', async () => {
+    const { wrapper } = await setup({
+      toolModeOverride: 'minimal',
+      disabledAgentTools: ['read']
+    })
+
+    expect(wrapper.text()).toContain('exec')
+    expect(wrapper.text()).toContain('process')
+    expect(wrapper.text()).not.toContain('str_replace_editor')
+  })
+
   it('disables Tool Mode changes while the session is working', async () => {
     const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
     const radios = wrapper.findAll('[role="radio"]')

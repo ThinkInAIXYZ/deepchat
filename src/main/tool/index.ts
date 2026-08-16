@@ -164,6 +164,7 @@ interface ToolServiceOptions {
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
 const MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS = new Set(['read', 'write', 'edit', 'glob', 'grep'])
+const MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS = ['read', 'write', 'edit'] as const
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
@@ -595,14 +596,23 @@ export class ToolService implements ToolServicePort {
       if (!processDefinition) {
         throw new Error('Minimal Mode requires the built-in process tool.')
       }
-      const editorDefinition =
-        frontend === 'codex'
+      const editorAvailable = MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS.every((toolName) =>
+        decoratedCatalog.some(
+          (definition) =>
+            definition.source === 'agent' &&
+            definition.server.name === 'agent-filesystem' &&
+            definition.function.name === toolName
+        )
+      )
+      const editorDefinition = editorAvailable
+        ? frontend === 'codex'
           ? createApplyPatchToolDefinition()
           : createStrReplaceEditorToolDefinition()
+        : null
       const minimalCatalog = [
         execDefinition,
         processDefinition,
-        editorDefinition,
+        ...(editorDefinition ? [editorDefinition] : []),
         ...retainedCatalog.filter(
           (definition) => definition !== execDefinition && definition !== processDefinition
         )
@@ -1250,7 +1260,11 @@ export class ToolService implements ToolServicePort {
     const isRunCode = context.frontend === 'function' && toolName === RUN_CODE_TOOL_NAME
     if (!isExec && !isWait && !isRunCode) return null
     if (options?.permissionMode !== 'full_access') {
-      throw new Error('Code Mode requires Full Access permission mode.')
+      const content = 'Code Mode requires Full Access permission mode.'
+      return {
+        content,
+        rawData: { toolCallId: request.id, content, isError: true }
+      }
     }
 
     const waitInput = isWait ? this.requireCodeModeWaitInput(request.function.arguments) : null
