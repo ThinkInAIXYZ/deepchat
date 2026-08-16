@@ -639,6 +639,7 @@ export const OllamaModelSchema = z.looseObject({
   size: z.number(),
   digest: z.string(),
   modified_at: z.union([z.string(), z.date()]),
+  runtimeContextLength: z.number().int().positive().optional(),
   details: z.looseObject({
     format: z.string(),
     family: z.string(),

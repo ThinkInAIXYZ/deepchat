@@ -185,6 +185,7 @@ export interface OllamaModel {
   size: number
   digest: string
   modified_at: string | Date
+  runtimeContextLength?: number
   details: {
     format: string
     family: string
@@ -238,6 +239,11 @@ export interface ProviderStreamOptions {
 export interface ProviderRuntimePort {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
+  getRuntimeContextLimitTokens(
+    providerId: string,
+    modelId: string,
+    signal?: AbortSignal
+  ): Promise<number | undefined>
   streamChat(
     providerId: string,
     messages: ChatMessage[],
@@ -378,7 +384,11 @@ export interface ProviderRuntimePort {
 
 export type ProviderExecutionPort = Pick<
   ProviderRuntimePort,
-  'streamChat' | 'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateText'
+  | 'getRuntimeContextLimitTokens'
+  | 'streamChat'
+  | 'executeWithRateLimit'
+  | 'generateCompletionStandalone'
+  | 'generateText'
 >
 
 export type ModelConfigSource = 'user' | 'provider' | 'system'

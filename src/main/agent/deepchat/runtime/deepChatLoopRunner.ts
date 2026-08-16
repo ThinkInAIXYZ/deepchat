@@ -1443,15 +1443,46 @@ export class DeepChatLoopRunner {
           const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
           // ACP and non-chat media routes are not safe to replay before their first visible event.
           const allowTransientRetry = !requestBypassesContextBudget && !isTtsRequest
+          let runtimeContextLimitTokens: number | undefined
+          if (!requestBypassesContextBudget) {
+            try {
+              runtimeContextLimitTokens = await awaitWithAbort(
+                ports.providerRuntime.getRuntimeContextLimitTokens(
+                  state.providerId,
+                  requestModelId,
+                  abortSignal
+                ),
+                abortSignal
+              )
+            } catch (error) {
+              abortSignal.throwIfAborted()
+              logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
+                providerId: state.providerId,
+                modelId: requestModelId,
+                error: error instanceof Error ? error.message : String(error)
+              })
+            }
+            resourceScope.assertCurrent()
+          }
           const getEffectiveContextBudget = (requestedMaxTokens: number) => {
             const observation = resourceInstance.getContextWindowObservation(
               state.providerId,
               requestModelId
             )
+            const effectiveProviderContextLimits = [
+              runtimeContextLimitTokens,
+              observation?.providerContextLimitTokens
+            ].filter(
+              (value): value is number =>
+                typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+            )
             return resolveEffectiveContextBudget({
               configuredContextLength: requestModelConfig.contextLength,
               requestedMaxTokens,
-              providerContextLimitTokens: observation?.providerContextLimitTokens,
+              providerContextLimitTokens:
+                effectiveProviderContextLimits.length > 0
+                  ? Math.min(...effectiveProviderContextLimits)
+                  : undefined,
               providerPromptLimitTokens: observation?.providerPromptLimitTokens
             })
           }
@@ -1568,6 +1599,8 @@ export class DeepChatLoopRunner {
               : {}),
             budget: {
               estimateToolReserveTokens,
+              getEffectiveContextLength: (requestedMaxTokens) =>
+                getEffectiveContextBudget(requestedMaxTokens).contextLength,
               preflight: ({ messages, tools, requestedMaxTokens, promptTokenEstimate }) => {
                 const budget = getEffectiveContextBudget(requestedMaxTokens)
                 return preflightRequestContext({

@@ -835,6 +835,7 @@ function createMockProviderRuntime() {
           .coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools, options)
     ),
     resolveAgentPermission: vi.fn().mockResolvedValue(undefined),
+    getRuntimeContextLimitTokens: vi.fn().mockResolvedValue(undefined),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateImageStandalone: vi.fn(),
@@ -12213,6 +12214,91 @@ describe('DeepChatAgentHarness', () => {
       ])
       expect(JSON.stringify(events)).not.toContain('context window exceeded')
       expect(llmProvider.generateText).not.toHaveBeenCalled()
+    })
+
+    it('fits Ollama continuation when a running context invalidates truncated usage', async () => {
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      llmProvider.getRuntimeContextLimitTokens
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(8192)
+      await agent.initSession('s1', {
+        providerId: 'ollama',
+        modelId: 'qwen3:8b',
+        generationSettings: {
+          contextLength: 262144,
+          maxTokens: 2048
+        }
+      })
+      await agent.processMessage('s1', 'Original task')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.providerInstance.coreStream
+      providerCoreStream.mockReset()
+      let providerRound = 0
+      providerCoreStream.mockImplementation(async function* () {
+        providerRound += 1
+        if (providerRound === 1) {
+          yield {
+            type: 'usage',
+            usage: { prompt_tokens: 6000, completion_tokens: 0, total_tokens: 6000 }
+          }
+        } else {
+          yield { type: 'text', content: 'Continuing the original task' }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      const oversizedOldTurn = `obsolete:${makeTextWithEstimatedTokens(9000)}`
+      const requestMessages = [
+        { role: 'system' as const, content: 'System instructions' },
+        { role: 'user' as const, content: oversizedOldTurn },
+        { role: 'assistant' as const, content: 'Old answer' },
+        { role: 'user' as const, content: 'Original task: inspect the repository' }
+      ]
+
+      await collectProviderEvents(callArgs, requestMessages, [])
+
+      requestMessages.push(
+        {
+          role: 'assistant' as const,
+          content: '',
+          tool_calls: [
+            {
+              id: 'tool-call-1',
+              type: 'function' as const,
+              function: { name: 'run_command', arguments: '{"command":"bad || command"}' }
+            }
+          ]
+        },
+        {
+          role: 'tool' as const,
+          tool_call_id: 'tool-call-1',
+          content: 'PowerShell does not support ||'
+        }
+      )
+
+      await collectProviderEvents(callArgs, requestMessages, [])
+
+      const sentMessages = providerCoreStream.mock.calls[1][0] as ChatMessage[]
+      const sentText = JSON.stringify(sentMessages)
+      const manifests = getViewManifests()
+      expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenNthCalledWith(
+        2,
+        'ollama',
+        'qwen3:8b',
+        expect.any(AbortSignal)
+      )
+      expect(callArgs.modelConfig.contextLength).toBe(262144)
+      expect(manifests.map((manifest: any) => manifest.tokenBudget.contextLength)).toEqual([
+        262144, 8192
+      ])
+      expect(sentText).toContain('Original task: inspect the repository')
+      expect(sentText).toContain('PowerShell does not support ||')
+      expect(sentText).not.toContain('obsolete:')
+      expect(
+        estimateMessagesTokens(sentMessages) + providerCoreStream.mock.calls[1][4]
+      ).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
     it('uses an explicit provider limit as a runtime ceiling without retrying protected input', async () => {

@@ -75,6 +75,7 @@ export const MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN = 3
 export interface LoopRunPromptUsageAnchor {
   readonly providerId: string
   readonly modelId: string
+  readonly effectiveContextLength: number
   readonly generationConfigHash: string
   readonly toolDefinitionsHash: string
   readonly messageCount: number

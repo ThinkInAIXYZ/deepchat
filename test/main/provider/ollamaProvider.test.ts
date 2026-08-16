@@ -317,6 +317,90 @@ describe('OllamaProvider.fetchModels', () => {
     })
   })
 
+  it('keeps the running context separate from theoretical model metadata', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    let runtimeContextLength: unknown = 8192
+    const ps = vi.fn(async () => ({
+      models: [
+        {
+          ...createModel('qwen3:8b', { family: 'qwen', contextLength: 8192 }),
+          context_length: runtimeContextLength
+        }
+      ]
+    }))
+    const show = vi.fn(async () => ({
+      details: {},
+      model_info: {
+        'general.architecture': 'qwen',
+        'qwen.context_length': 262144
+      },
+      capabilities: ['chat']
+    }))
+    ;(ollamaProvider as any).ollama = { ps, show }
+
+    const runningModels = await ollamaProvider.listRunningModels()
+
+    expect(runningModels[0]).toMatchObject({
+      name: 'qwen3:8b',
+      context_length: 8192,
+      runtimeContextLength: 8192,
+      model_info: { context_length: 262144 }
+    })
+    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBe(8192)
+    runtimeContextLength = 16384
+    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBe(16384)
+    runtimeContextLength = 0
+    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBeUndefined()
+    expect(show).toHaveBeenCalledTimes(1)
+    expect(ps).toHaveBeenCalledTimes(4)
+  })
+
+  it('reports no runtime context when ps has no usable running-model fact', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ps = vi
+      .fn()
+      .mockResolvedValueOnce({ models: [] })
+      .mockRejectedValueOnce(new Error('ps unavailable'))
+    ;(ollamaProvider as any).ollama = { ps }
+
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
+    expect(ps).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds a stalled runtime context query without loading the model', async () => {
+    vi.useFakeTimers()
+    try {
+      const ollamaProvider = new OllamaProvider(provider, providerSettings)
+      const ps = vi.fn(() => new Promise(() => {}))
+      ;(ollamaProvider as any).ollama = { ps }
+
+      const limitPromise = ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(limitPromise).resolves.toBeUndefined()
+      expect(ps).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('propagates cancellation of a stalled runtime context query', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ps = vi.fn(() => new Promise(() => {}))
+    const abortController = new AbortController()
+    ;(ollamaProvider as any).ollama = { ps }
+
+    const limitPromise = ollamaProvider.getRuntimeContextLimitTokens(
+      'qwen3:8b',
+      abortController.signal
+    )
+    abortController.abort()
+
+    await expect(limitPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(ps).toHaveBeenCalledTimes(1)
+  })
+
   it('confirms pull success against the ollama list model set', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {

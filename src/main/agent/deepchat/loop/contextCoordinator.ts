@@ -130,6 +130,7 @@ export interface RequestContextPreflight {
 
 export interface ProviderAttemptBudgetPort {
   estimateToolReserveTokens(tools: MCPToolDefinition[]): number
+  getEffectiveContextLength(requestedMaxTokens: number): number
   preflight(input: {
     messages: ChatMessage[]
     tools: MCPToolDefinition[]
@@ -601,18 +602,27 @@ export interface ProviderAttemptInput<TSelection> {
 function buildPromptUsageEnvelope(input: {
   providerId: string
   modelId: string
+  effectiveContextLength: number
   modelConfig: ModelConfig
   temperature: number
   maxTokens: number
   tools: MCPToolDefinition[]
 }): Pick<
   LoopRunPromptUsageAnchor,
-  'providerId' | 'modelId' | 'generationConfigHash' | 'toolDefinitionsHash'
+  | 'providerId'
+  | 'modelId'
+  | 'effectiveContextLength'
+  | 'generationConfigHash'
+  | 'toolDefinitionsHash'
 > | null {
+  if (!Number.isSafeInteger(input.effectiveContextLength) || input.effectiveContextLength <= 0) {
+    return null
+  }
   try {
     return {
       providerId: input.providerId,
       modelId: input.modelId,
+      effectiveContextLength: input.effectiveContextLength,
       generationConfigHash: buildEffectiveGenerationConfigHash({
         modelConfig: input.modelConfig,
         temperature: input.temperature,
@@ -626,7 +636,7 @@ function buildPromptUsageEnvelope(input: {
 }
 
 function projectPromptTokensFromUsageAnchor(input: {
-  anchor: LoopRunPromptUsageAnchor | null
+  run: LoopRun<unknown>
   providerId: string
   modelId: string
   modelConfig: ModelConfig
@@ -634,26 +644,49 @@ function projectPromptTokensFromUsageAnchor(input: {
   maxTokens: number
   tools: MCPToolDefinition[]
   messages: ChatMessage[]
+  budget: ProviderAttemptBudgetPort
 }): number | null {
-  const { anchor } = input
-  if (!anchor || input.messages.length < anchor.messageCount) return null
-  const envelope = buildPromptUsageEnvelope(input)
+  const anchor = input.run.promptUsageAnchor
+  if (!anchor) return null
+  if (input.messages.length < anchor.messageCount) {
+    input.run.promptUsageAnchor = null
+    return null
+  }
+  let effectiveContextLength: number
+  try {
+    effectiveContextLength = input.budget.getEffectiveContextLength(input.maxTokens)
+  } catch {
+    input.run.promptUsageAnchor = null
+    return null
+  }
+  const envelope = buildPromptUsageEnvelope({
+    ...input,
+    effectiveContextLength
+  })
   if (
     !envelope ||
     envelope.providerId !== anchor.providerId ||
     envelope.modelId !== anchor.modelId ||
+    envelope.effectiveContextLength !== anchor.effectiveContextLength ||
     envelope.generationConfigHash !== anchor.generationConfigHash ||
     envelope.toolDefinitionsHash !== anchor.toolDefinitionsHash
   ) {
+    input.run.promptUsageAnchor = null
     return null
   }
   try {
     const anchoredPrefix = input.messages.slice(0, anchor.messageCount)
-    if (buildProviderMessagesHash(anchoredPrefix) !== anchor.messagesHash) return null
+    if (buildProviderMessagesHash(anchoredPrefix) !== anchor.messagesHash) {
+      input.run.promptUsageAnchor = null
+      return null
+    }
     const projected =
       anchor.promptTokens + estimateMessagesTokens(input.messages.slice(anchor.messageCount))
-    return Number.isSafeInteger(projected) && projected >= 0 ? projected : null
+    if (Number.isSafeInteger(projected) && projected >= 0) return projected
+    input.run.promptUsageAnchor = null
+    return null
   } catch {
+    input.run.promptUsageAnchor = null
     return null
   }
 }
@@ -669,6 +702,7 @@ function updatePromptUsageAnchor(input: {
   tools: MCPToolDefinition[]
   messages: ChatMessage[]
   continuationMessages: ChatMessage[]
+  budget: ProviderAttemptBudgetPort
 }): void {
   if (
     !input.usage ||
@@ -681,8 +715,18 @@ function updatePromptUsageAnchor(input: {
   ) {
     return
   }
-  const envelope = buildPromptUsageEnvelope(input)
-  if (!envelope) return
+  let effectiveContextLength: number
+  try {
+    effectiveContextLength = input.budget.getEffectiveContextLength(input.maxTokens)
+  } catch {
+    input.run.promptUsageAnchor = null
+    return
+  }
+  const envelope = buildPromptUsageEnvelope({ ...input, effectiveContextLength })
+  if (!envelope) {
+    input.run.promptUsageAnchor = null
+    return
+  }
   try {
     const messagesHash = buildProviderMessagesHash(input.messages)
     input.run.promptUsageAnchor = {
@@ -887,14 +931,15 @@ export class DeepChatContextCoordinator {
         }
 
         const promptTokenEstimate = projectPromptTokensFromUsageAnchor({
-          anchor: input.run.promptUsageAnchor,
+          run: input.run,
           providerId: input.providerId,
           modelId: input.modelId,
           modelConfig: input.modelConfig,
           temperature: input.temperature,
           maxTokens: requestedMaxTokens,
           tools: requestTools,
-          messages: input.requestMessages
+          messages: input.requestMessages,
+          budget: input.budget
         })
         let requestPreflight = input.budget.preflight({
           messages: input.requestMessages,
@@ -1478,7 +1523,8 @@ export class DeepChatContextCoordinator {
                 maxTokens: input.maxTokens,
                 tools,
                 messages: providerMessages,
-                continuationMessages: input.requestMessages
+                continuationMessages: input.requestMessages,
+                budget: input.budget
               })
               resetContextRecoverySequence(input.run)
             }

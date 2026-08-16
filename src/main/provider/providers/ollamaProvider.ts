@@ -31,8 +31,10 @@ import {
 import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
 import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 import { buildResolvedCapabilitySnapshot, resolveCapabilityIdentity } from '../capabilityIdentity'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
+const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 1000
 
 export class OllamaProvider extends BaseLLMProvider {
   private static readonly CONFIG_DRAIN_TIMEOUT_MS = 1500
@@ -283,6 +285,22 @@ export class OllamaProvider extends BaseLLMProvider {
       actualModelName === requestedModelName ||
       (!requestedModelName.includes(':') && actualModelName === `${requestedModelName}:latest`)
     )
+  }
+
+  private normalizeRuntimeContextLength(value: unknown): number | undefined {
+    return Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : undefined
+  }
+
+  private async listRuntimeModels(): Promise<OllamaModel[]> {
+    const response = await this.ollama.ps()
+    return response.models.map((rawModel) => {
+      const model = rawModel as unknown as OllamaModel & { context_length?: unknown }
+      const runtimeContextLength = this.normalizeRuntimeContextLength(model.context_length)
+      return {
+        ...model,
+        ...(runtimeContextLength !== undefined ? { runtimeContextLength } : {})
+      }
+    })
   }
 
   private mergeModelInfo(
@@ -681,11 +699,38 @@ export class OllamaProvider extends BaseLLMProvider {
 
   public async listRunningModels(): Promise<OllamaModel[]> {
     try {
-      const response = await this.ollama.ps()
-      const runningModels = response.models as unknown as OllamaModel[]
+      const runningModels = await this.listRuntimeModels()
       return await Promise.all(runningModels.map(async (model) => this.attachModelInfo(model)))
     } catch {
       return []
+    }
+  }
+
+  public override async getRuntimeContextLimitTokens(
+    modelId: string,
+    signal?: AbortSignal
+  ): Promise<number | undefined> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    try {
+      const runningModels = await awaitWithAbort(
+        Promise.race([
+          this.listRuntimeModels(),
+          new Promise<OllamaModel[]>((resolve) => {
+            timeoutId = setTimeout(() => resolve([]), OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
+          })
+        ]),
+        signal
+      )
+      const matchingLimits = runningModels
+        .filter((model) => this.matchesRequestedModelName(model.name, modelId))
+        .map((model) => model.runtimeContextLength)
+        .filter((value): value is number => value !== undefined)
+      return matchingLimits.length > 0 ? Math.min(...matchingLimits) : undefined
+    } catch {
+      signal?.throwIfAborted()
+      return undefined
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
     }
   }
 
