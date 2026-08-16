@@ -200,7 +200,7 @@ const evidenceAssociationLabel = computed(() => {
   if (
     props.row.recordType !== 'evidence' ||
     props.row.association === 'attempt' ||
-    props.row.association === 'context_unloaded'
+    props.row.association === 'unmatched'
   ) {
     return null
   }
@@ -243,7 +243,7 @@ const semanticSummaryLabel = computed(() => {
         `${t(`tapeInspector.activity.${props.messagePreview.role}`)}: ${props.messagePreview.text}`
       )
     } else if (parts.length === 0) {
-      parts.push(row.record.family)
+      parts.push(t(`tapeInspector.families.${row.record.family}`))
     }
   } else if (row.recordType === 'evidence') {
     parts.push(`#${row.record.requestSeq}`)
@@ -255,13 +255,10 @@ const semanticSummaryLabel = computed(() => {
         activity.preview ? `${relation} · ${label}: ${activity.preview}` : `${relation} · ${label}`
       )
     }
-    if (row.association === 'context_unloaded') {
-      parts.push(t('tapeInspector.evidence.contextNotLoaded'))
-    }
   } else if (row.recordType === 'evidence_lane') {
     return row.laneKind === 'diagnostic'
       ? t('tapeInspector.evidence.scope.diagnostic')
-      : t('tapeInspector.kinds.lane')
+      : t('tapeInspector.evidence.unmatchedSummary')
   } else {
     appendFactSummary(parts, row.summary)
     parts.push(`${t('tapeInspector.fields.records')}: ${row.summary.factCount}`)

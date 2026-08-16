@@ -221,7 +221,7 @@ describe('TapeInspectorDetailPane', () => {
             truncated: false
           },
           parentGroupKey: null,
-          association: 'context_unloaded',
+          association: 'unmatched',
           depth: 1,
           status: null,
           statusState: 'not_applicable',
@@ -306,6 +306,49 @@ describe('TapeInspectorDetailPane', () => {
     )
     const payload = wrapper.text().slice(wrapper.text().indexOf('tapeInspector.detail.payload'))
     expect(payload.indexOf('"body"')).toBeLessThan(payload.indexOf('"headers"'))
+  })
+
+  it('explains unmatched model requests once on the request lane', () => {
+    const wrapper = mount(TapeInspectorDetailPane, {
+      props: {
+        row: {
+          recordType: 'evidence_lane',
+          key: 'evidence-lane:request',
+          laneKind: 'request',
+          count: 3,
+          collapsed: false,
+          depth: 0,
+          status: null,
+          statusState: 'not_applicable',
+          durationMs: null,
+          timingState: 'not_applicable',
+          sequenceEntryId: null,
+          sequenceStart: 1,
+          actualStartAt: null,
+          actualEndAt: null,
+          actualStart: 1,
+          actualWidth: 0
+        },
+        detail: { source: 'evidence_lane', laneKind: 'request', count: 3 },
+        capabilities: {
+          source: 'derived',
+          summary: true,
+          payload: false,
+          timing: false,
+          provenance: false,
+          integrity: false,
+          raw: false,
+          messageDiagnostics: false
+        },
+        loading: false,
+        errorCode: null
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tape-inspector-unmatched-request-hint"]').text()).toBe(
+      'tapeInspector.evidence.unmatchedHint'
+    )
+    expect(wrapper.text().match(/tapeInspector\.evidence\.unmatchedHint/g)).toHaveLength(1)
   })
 
   it('focuses an overlay detail and closes it with Escape', async () => {

@@ -32,11 +32,7 @@ export interface TapeInspectorGroupSummary {
 
 export type TapeInspectorStatusState = 'explicit' | 'not_applicable' | 'unresolved'
 export type TapeInspectorTimingState = 'span' | 'point' | 'not_applicable' | 'unresolved'
-export type TapeInspectorEvidenceAssociation =
-  | 'attempt'
-  | 'request'
-  | 'diagnostic'
-  | 'context_unloaded'
+export type TapeInspectorEvidenceAssociation = 'attempt' | 'request' | 'diagnostic' | 'unmatched'
 export type TapeInspectorEvidenceLaneKind = 'request' | 'diagnostic'
 
 interface TapeInspectorRowBase {
@@ -774,7 +770,7 @@ export function buildTapeInspectorRows(input: {
     input.collapsedKeys,
     minCreatedAt,
     maxCreatedAt,
-    () => 'context_unloaded'
+    () => 'unmatched'
   )
   return result
 }

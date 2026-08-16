@@ -6,7 +6,7 @@ The core implementation is complete on `feat/tape-trace-inspector`. The P1 read 
 committed follow, and P3 sorting, export, and large-session work have landed. Container-responsive
 layout and the overview timeline have also landed. Final semantic and activity-context refinements
 are in progress after manual inspection showed that inapplicable values looked unresolved, model
-requests without a loaded Tape parent looked invalid, and message facts required unnecessary detail
+requests without a loaded Tape parent looked invalid, and message Entries required unnecessary detail
 navigation. Request-result projection is now in progress so model requests expose their final
 accumulated Transcript blocks without claiming unavailable chunk replay. The authority, Live,
 pagination, and security contracts remain unchanged.
@@ -24,7 +24,7 @@ Runtime, Transcript, and request-evidence authority boundaries.
 ## Ownership
 
 - Tape infrastructure owns bounded physical row reads and snapshot consistency.
-- Tape application owns total fact projection and sanitized detail projection.
+- Tape application owns total Entry projection and sanitized detail projection.
 - A narrow Tape inspection capability exposes the projection to session queries.
 - Session routes own typed renderer-facing page, evidence, detail, and subscription contracts.
 - The renderer feature owns grouping, timing, search, selection, pagination, and presentation.
@@ -36,7 +36,7 @@ Runtime, Transcript, and request-evidence authority boundaries.
 - [x] Confirm every resolved decision has an implementation owner and no unresolved marker.
 
 Completion condition: the committed SDD is sufficient to reject an implementation that drops
-facts, leaks payloads, invents identity, or relies on unbounded reads.
+Entries, leaks payloads, invents identity, or relies on unbounded reads.
 
 ## 2. P1 Tape Read Model
 
@@ -70,8 +70,8 @@ view or omitting any physical Tape row.
 - [x] Return hash/size-only detail for unknown event/anchor schemas and all context/Skill bodies.
 - [x] Define the row-to-detail capability matrix in the renderer client.
 
-Completion condition: bound requests, diagnostics, and requests with unloaded Tape context are
-discoverable without payloads, and every fact selection has a safe, explicit detail result.
+Completion condition: bound requests, diagnostics, and unmatched model requests are discoverable
+without list payloads, and every Entry selection has a safe, explicit detail result.
 
 ## 4. P1 Typed Session Routes
 
@@ -90,8 +90,8 @@ IPC path.
 - [x] Implement stable fact/evidence maps, canonical keys, request generations, cursors, and
   incarnation reset.
 - [x] Implement total identity grouping and renderer-only group rows.
-- [x] Bind attempt evidence exactly; keep null-attempt evidence at request level; expose model
-  requests with unloaded Tape context separately.
+- [x] Bind attempt evidence exactly; keep null-attempt evidence at request level; expose unmatched
+  model requests separately without claiming that an execution context is missing.
 - [x] Pair run and tool timing by full identity; render attempts/evidence as points.
 - [x] Implement loaded-scope text search and documented server filters.
 - [x] Preserve selection during upsert, collapse, filter, and timing upgrades.
@@ -111,7 +111,7 @@ from timestamps or adjacency.
   the existing Trace dialog action. Message-only actions select a request only when the identity is
   unambiguous; an explicit `requestSeq` is never guessed or replaced.
 - [x] Add vue-i18n copy for every supported locale.
-- [x] Provide explicit sparse-Tape, diagnostics, and context-unloaded model-request states for ACP
+- [x] Provide explicit sparse-Tape, diagnostics, and unmatched model-request states for ACP
   sessions.
 
 Completion condition: historical sessions are useful without Live and large loaded windows remain
@@ -191,7 +191,7 @@ recorded in `spec.md`.
 - [x] Run `pnpm run typecheck`.
 - [x] Run focused Tape, session route/query, renderer model, and component suites.
 - [ ] Manually verify light/dark presentation, keyboard navigation, session/message entry points,
-  request-scoped/diagnostic/context-unloaded requests, sparse ACP Tape, reset, pause/resume, and
+  request-scoped/diagnostic/unmatched requests, sparse ACP Tape, reset, pause/resume, and
   large-session scrolling.
 
 Baseline condition: all previously selected checks passed, or an unrelated pre-existing failure was
@@ -239,7 +239,7 @@ navigation.
 - [x] Split diagnostic sentinel evidence from ordinary model requests and default-collapse the
   diagnostics lane without changing trace identity or detail access.
 - [x] Rename null-attempt evidence as request-scoped rather than claiming it is always legacy, and
-  describe a missing loaded parent as unavailable execution context rather than unresolved data.
+  describe evidence without a loaded parent as unmatched rather than missing execution context.
 - [x] Right-align tabular time and duration values and keep placeholders visually quiet at all row
   breakpoints.
 - [x] Add durable renderer tests for explicit outcome status, group-only timing, evidence category
@@ -312,6 +312,25 @@ inspection exposes the useful normalized request context, and reusable credentia
 Completion condition: a developer can scan what each model request ultimately produced and inspect
 its bounded final blocks without mistaking temporal fallback for binding or final snapshots for
 token-by-token replay.
+
+## 18. Tape Terminology and Historical Loading Feedback
+
+- [x] Align user-facing nouns with the Tape core primitives: Tape, Entry, Anchor, and View.
+- [x] Keep DeepChat run, request, attempt, journal, contract, message, tool, and lineage terms
+  explicitly scoped to implementation semantics or derived groups.
+- [x] Preserve established wire identifiers such as `FactRecord` for compatibility while calling
+  durable rows Tape Entries in the UI.
+- [x] Rename the unmatched association state so it does not conflate a Tape Entry, assembled View,
+  and runtime execution context.
+- [x] Explain at lane/detail level that a matching Entry may be outside the loaded window or that
+  older evidence may lack stable identity; never infer a parent from timestamp proximity.
+- [x] Preserve the prepend scroll anchor and add accessible result feedback for loaded Entries,
+  bounded ranges without matches, reaching the beginning of Tape, and failed reads.
+- [x] Add focused renderer coverage for unmatched ordering, non-repeated lane guidance, prepend
+  anchoring, successful load feedback, and failure cleanup.
+
+Completion condition: the Inspector uses Tape terms without overstating DeepChat-specific concepts,
+and every older-page action has an observable result while preserving reading position.
 
 ## Delivery Notes
 

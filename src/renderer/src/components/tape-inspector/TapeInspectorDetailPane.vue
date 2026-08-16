@@ -74,6 +74,14 @@
         </template>
       </dl>
 
+      <p
+        v-if="detail.source === 'evidence_lane' && detail.laneKind === 'request'"
+        data-testid="tape-inspector-unmatched-request-hint"
+        class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
+      >
+        {{ t('tapeInspector.evidence.unmatchedHint') }}
+      </p>
+
       <section
         v-if="detail.source === 'request' && observedActivities.length > 0"
         data-testid="tape-inspector-request-result"
@@ -300,7 +308,10 @@ const summaryFields = computed(() => {
     const record = detail.detail.record
     return [
       { label: t('tapeInspector.fields.entryId'), value: String(record.entryId) },
-      { label: t('tapeInspector.fields.family'), value: record.family },
+      {
+        label: t('tapeInspector.fields.family'),
+        value: t(`tapeInspector.families.${record.family}`)
+      },
       { label: t('tapeInspector.fields.name'), value: record.name ?? '—' },
       { label: t('tapeInspector.fields.kind'), value: record.kind },
       { label: t('tapeInspector.fields.disclosure'), value: detail.detail.disclosure }
@@ -322,7 +333,10 @@ const summaryFields = computed(() => {
   }
   if (detail.source === 'derived') {
     return [
-      { label: t('tapeInspector.fields.group'), value: detail.group.kind },
+      {
+        label: t('tapeInspector.fields.group'),
+        value: t(`tapeInspector.groups.${detail.group.kind}`)
+      },
       { label: t('tapeInspector.fields.identity'), value: json(detail.group) }
     ]
   }

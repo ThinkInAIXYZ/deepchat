@@ -37,7 +37,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   loadingNewer: false,
   loadingEvidence: false,
   loadingDetail: false,
-  errorCode: null,
+  errorCode: null as string | null,
   livePaused: false,
   liveSyncing: false,
   liveEvidenceRevision: 0,
@@ -247,6 +247,7 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.selectedCapabilities = null
     inspectorStore.hasOlder = false
     inspectorStore.loadingOlder = false
+    inspectorStore.errorCode = null
     inspectorStore.liveSyncing = false
     inspectorStore.livePaused = false
     inspectorStore.liveEvidenceRevision = 0
@@ -416,7 +417,7 @@ describe('TapeInspectorPanel', () => {
       {
         key: 'trace:trace-1',
         recordType: 'evidence',
-        association: 'context_unloaded',
+        association: 'unmatched',
         record: inspectorStore.evidence[0]
       }
     ] as typeof inspectorStore.rows
@@ -494,7 +495,7 @@ describe('TapeInspectorPanel', () => {
       {
         key: 'trace:trace-1',
         recordType: 'evidence',
-        association: 'context_unloaded',
+        association: 'unmatched',
         record: inspectorStore.evidence[0]
       }
     ] as typeof inspectorStore.rows
@@ -744,12 +745,24 @@ describe('TapeInspectorPanel', () => {
 
   it('restores the same visible key and pixel offset after prepending older rows', async () => {
     inspectorStore.hasOlder = true
+    inspectorStore.records = [
+      { entryId: 10, createdAt: 10 },
+      { entryId: 11, createdAt: 11 },
+      { entryId: 12, createdAt: 12 }
+    ]
     inspectorStore.rows = [
       panelFactRow('fact:incarnation:entry:10'),
       panelFactRow('fact:incarnation:entry:11'),
       panelFactRow('fact:incarnation:entry:12')
     ]
     inspectorStore.loadOlderPage.mockImplementationOnce(async () => {
+      inspectorStore.records = [
+        { entryId: 8, createdAt: 8 },
+        { entryId: 9, createdAt: 9 },
+        { entryId: 10, createdAt: 10 },
+        { entryId: 11, createdAt: 11 },
+        { entryId: 12, createdAt: 12 }
+      ]
       inspectorStore.rows = [
         panelFactRow('fact:incarnation:entry:8'),
         panelFactRow('fact:incarnation:entry:9'),
@@ -781,6 +794,62 @@ describe('TapeInspectorPanel', () => {
       offset: 12
     })
     expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(156)
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
+    expect(wrapper.get('[data-testid="tape-inspector-older-load-notice"]').text()).toBe(
+      'tapeInspector.states.pageLoaded'
+    )
+  })
+
+  it('reports an older-page failure without losing the scroll anchor cleanup', async () => {
+    inspectorStore.hasOlder = true
+    inspectorStore.records = [{ entryId: 10, createdAt: 10 }]
+    inspectorStore.loadOlderPage.mockImplementationOnce(async () => {
+      inspectorStore.errorCode = 'load_failed'
+      return false
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const loadOlder = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'tapeInspector.actions.loadOlder')
+    if (!loadOlder) throw new Error('Expected the load-older action')
+
+    await loadOlder.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="tape-inspector-older-load-notice"]').text()).toBe(
+      'tapeInspector.errors.load_failed'
+    )
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
+  })
+
+  it('reports a bounded older range without matching Tape Entries', async () => {
+    inspectorStore.hasOlder = true
+    inspectorStore.records = [{ entryId: 10, createdAt: 10 }]
+    inspectorStore.loadOlderPage.mockImplementationOnce(async () => true)
+    const wrapper = mount(TapeInspectorPanel, {
+      props: {
+        sessionId: 'session-1',
+        openRequest: null
+      }
+    })
+    await flushPromises()
+    const loadOlder = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'tapeInspector.actions.loadOlder')
+    if (!loadOlder) throw new Error('Expected the load-older action')
+
+    await loadOlder.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="tape-inspector-older-load-notice"]').text()).toBe(
+      'tapeInspector.states.pageNoMatches'
+    )
     expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
   })
 

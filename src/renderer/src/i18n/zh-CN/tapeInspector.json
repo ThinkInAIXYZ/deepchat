@@ -5,7 +5,7 @@
     "expand": "展开",
     "collapse": "折叠",
     "refresh": "刷新",
-    "loadOlder": "加载更早记录",
+    "loadOlder": "加载更早的 Tape Entry",
     "loadMore": "加载更多",
     "loadEvidence": "加载更多模型请求",
     "openSession": "打开 Tape 检查器",
@@ -22,8 +22,8 @@
     "waterfall": "瀑布图"
   },
   "search": {
-    "loadedLabel": "搜索已加载记录",
-    "loadedPlaceholder": "搜索已加载记录",
+    "loadedLabel": "搜索已加载的 Tape Entry 和模型请求",
+    "loadedPlaceholder": "搜索已加载的 Tape Entry 和模型请求",
     "loadedScope": "文本搜索仅覆盖已加载范围"
   },
   "filters": {
@@ -32,10 +32,22 @@
     "errorsOnly": "仅显示错误"
   },
   "groups": {
-    "run": "运行",
-    "request": "请求",
-    "attempt": "尝试",
+    "run": "执行",
+    "request": "模型请求",
+    "attempt": "Provider 尝试",
     "tool": "工具操作"
+  },
+  "families": {
+    "context": "上下文材料",
+    "journal": "执行日志",
+    "contract": "任务契约",
+    "view": "View",
+    "attempt": "Provider 尝试",
+    "anchor": "Anchor",
+    "message": "消息",
+    "lineage": "谱系",
+    "tool": "工具",
+    "other": "其他"
   },
   "activity": {
     "userMessage": "用户消息",
@@ -52,9 +64,10 @@
   },
   "evidence": {
     "request": "模型请求",
-    "contextNotLoaded": "对应执行记录尚未加载",
+    "unmatchedSummary": "尚未匹配到已加载的 Tape Entry",
+    "unmatchedHint": "模型请求 trace 与 Tape 分开存储。只有加载了具有相同消息、请求序号和尝试身份的 Entry，它才会归入对应分组。旧数据如果从未记录这些身份，会继续在这里独立显示。",
     "lanes": {
-      "request": "模型请求（{count}）",
+      "request": "独立显示的模型请求（{count}）",
       "diagnostic": "内部诊断（{count}）"
     },
     "scope": {
@@ -69,18 +82,22 @@
   },
   "states": {
     "unknown": "未知",
-    "statusPending": "结果尚未载入",
-    "timingPending": "起止尚未配对",
-    "notApplicable": "此记录不适用",
-    "empty": "没有匹配的 Tape 事实或模型请求",
-    "loadedCounts": "{facts} 条事实 · {evidence} 条模型请求",
+    "statusPending": "结果 Entry 尚未加载",
+    "timingPending": "起止 Entry 尚未配对",
+    "notApplicable": "此项目不适用",
+    "empty": "没有匹配的 Tape Entry 或模型请求",
+    "loadedCounts": "{entries} 个 Tape Entry · {evidence} 个模型请求",
+    "pageLoaded": "已加载 {count} 个 Tape Entry。当前位置已保留，请继续滚动查看。",
+    "pageLoadedComplete": "已加载 {count} 个 Tape Entry，现已到达 Tape 起点。",
+    "pageNoMatches": "已扫描下一段有界范围，但没有符合当前条件的 Tape Entry。",
+    "pageNoMatchesComplete": "已到达 Tape 起点，没有更早且符合当前条件的 Entry。",
     "live": "实时",
     "paused": "已暂停",
     "liveUnavailable": "实时更新不可用"
   },
   "waterfall": {
-    "sequence": "Tape 规范序列位置",
-    "point": "单时刻事实；不计算时长"
+    "sequence": "Tape 追加顺序中的位置（entryId）",
+    "point": "单时刻项目，不计算时长"
   },
   "timeline": {
     "title": "概览",
@@ -92,7 +109,7 @@
     "duration": "时段",
     "point": "时点",
     "error": "错误",
-    "earlierNotLoaded": "更早的历史尚未加载"
+    "earlierNotLoaded": "更早的 Tape Entry 尚未加载"
   },
   "detail": {
     "title": "详情",
@@ -111,17 +128,17 @@
     "truncated": "已截断",
     "hashes": "哈希与大小",
     "sources": {
-      "tape": "Tape 事实",
+      "tape": "Tape Entry",
       "message_trace": "模型请求",
-      "derived": "派生视图"
+      "derived": "派生 View"
     }
   },
   "fields": {
-    "entryId": "条目 ID",
+    "entryId": "Entry ID",
     "family": "类别",
     "name": "名称",
     "kind": "类型",
-    "status": "事实状态",
+    "status": "Entry 状态",
     "disclosure": "披露级别",
     "traceId": "Trace ID",
     "messageId": "消息 ID",
@@ -132,7 +149,7 @@
     "endpoint": "端点",
     "group": "分组",
     "identity": "身份",
-    "records": "记录数"
+    "records": "项目数"
   },
   "integrity": {
     "valid": "有效",
@@ -140,8 +157,8 @@
     "unverified": "未验证"
   },
   "errors": {
-    "load_failed": "无法加载检查器记录",
-    "detail_failed": "无法加载记录详情",
-    "record_not_found": "所选记录已不可用"
+    "load_failed": "无法加载检查器数据",
+    "detail_failed": "无法加载项目详情",
+    "record_not_found": "所选项目已不可用"
   }
 }

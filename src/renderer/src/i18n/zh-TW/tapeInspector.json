@@ -5,7 +5,7 @@
     "expand": "展開",
     "collapse": "收合",
     "refresh": "重新整理",
-    "loadOlder": "載入更早記錄",
+    "loadOlder": "載入更早的 Tape Entry",
     "loadMore": "載入更多",
     "loadEvidence": "載入更多模型請求",
     "openSession": "開啟 Tape 檢查器",
@@ -22,8 +22,8 @@
     "waterfall": "瀑布圖"
   },
   "search": {
-    "loadedLabel": "搜尋已載入記錄",
-    "loadedPlaceholder": "搜尋已載入記錄",
+    "loadedLabel": "搜尋已載入的 Tape Entry 和模型請求",
+    "loadedPlaceholder": "搜尋已載入的 Tape Entry 和模型請求",
     "loadedScope": "文字搜尋僅涵蓋已載入範圍"
   },
   "filters": {
@@ -33,9 +33,21 @@
   },
   "groups": {
     "run": "執行",
-    "request": "請求",
-    "attempt": "嘗試",
+    "request": "模型請求",
+    "attempt": "Provider 嘗試",
     "tool": "工具操作"
+  },
+  "families": {
+    "context": "上下文材料",
+    "journal": "執行日誌",
+    "contract": "任務契約",
+    "view": "View",
+    "attempt": "Provider 嘗試",
+    "anchor": "Anchor",
+    "message": "訊息",
+    "lineage": "譜系",
+    "tool": "工具",
+    "other": "其他"
   },
   "activity": {
     "userMessage": "使用者訊息",
@@ -52,9 +64,10 @@
   },
   "evidence": {
     "request": "模型請求",
-    "contextNotLoaded": "對應執行記錄尚未載入",
+    "unmatchedSummary": "尚未配對到已載入的 Tape Entry",
+    "unmatchedHint": "模型請求 trace 與 Tape 分開儲存。只有載入具有相同訊息、請求序號和嘗試識別的 Entry，它才會歸入對應群組。舊資料若從未記錄這些識別，會繼續在此獨立顯示。",
     "lanes": {
-      "request": "模型請求（{count}）",
+      "request": "獨立顯示的模型請求（{count}）",
       "diagnostic": "內部診斷（{count}）"
     },
     "scope": {
@@ -69,18 +82,22 @@
   },
   "states": {
     "unknown": "未知",
-    "statusPending": "結果尚未載入",
-    "timingPending": "起訖尚未配對",
-    "notApplicable": "此記錄不適用",
-    "empty": "沒有相符的 Tape 事實或模型請求",
-    "loadedCounts": "{facts} 筆事實 · {evidence} 筆模型請求",
+    "statusPending": "結果 Entry 尚未載入",
+    "timingPending": "起訖 Entry 尚未配對",
+    "notApplicable": "此項目不適用",
+    "empty": "沒有相符的 Tape Entry 或模型請求",
+    "loadedCounts": "{entries} 個 Tape Entry · {evidence} 個模型請求",
+    "pageLoaded": "已載入 {count} 個 Tape Entry。原位置已保留，請繼續捲動查看。",
+    "pageLoadedComplete": "已載入 {count} 個 Tape Entry，現已到達 Tape 起點。",
+    "pageNoMatches": "已掃描下一段有界範圍，但沒有符合目前條件的 Tape Entry。",
+    "pageNoMatchesComplete": "已到達 Tape 起點，沒有更早且符合目前條件的 Entry。",
     "live": "即時",
     "paused": "已暫停",
     "liveUnavailable": "即時更新無法使用"
   },
   "waterfall": {
-    "sequence": "Tape 標準序列位置",
-    "point": "單一時間點事實；不計算持續時間"
+    "sequence": "Tape 追加順序中的位置（entryId）",
+    "point": "單一時間點項目，不計算持續時間"
   },
   "timeline": {
     "title": "概覽",
@@ -92,7 +109,7 @@
     "duration": "時段",
     "point": "時點",
     "error": "錯誤",
-    "earlierNotLoaded": "較早的歷史尚未載入"
+    "earlierNotLoaded": "較早的 Tape Entry 尚未載入"
   },
   "detail": {
     "title": "詳細資料",
@@ -111,17 +128,17 @@
     "truncated": "已截斷",
     "hashes": "雜湊與大小",
     "sources": {
-      "tape": "Tape 事實",
+      "tape": "Tape Entry",
       "message_trace": "模型請求",
-      "derived": "衍生檢視"
+      "derived": "衍生 View"
     }
   },
   "fields": {
-    "entryId": "項目 ID",
+    "entryId": "Entry ID",
     "family": "類別",
     "name": "名稱",
     "kind": "類型",
-    "status": "事實狀態",
+    "status": "Entry 狀態",
     "disclosure": "揭露層級",
     "traceId": "Trace ID",
     "messageId": "訊息 ID",
@@ -132,7 +149,7 @@
     "endpoint": "端點",
     "group": "群組",
     "identity": "識別資訊",
-    "records": "記錄數"
+    "records": "項目數"
   },
   "integrity": {
     "valid": "有效",
@@ -140,8 +157,8 @@
     "unverified": "未驗證"
   },
   "errors": {
-    "load_failed": "無法載入檢查器記錄",
-    "detail_failed": "無法載入記錄詳細資料",
-    "record_not_found": "選取的記錄已無法使用"
+    "load_failed": "無法載入檢查器資料",
+    "detail_failed": "無法載入項目詳細資料",
+    "record_not_found": "選取的項目已無法使用"
   }
 }

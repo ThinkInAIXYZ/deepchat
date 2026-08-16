@@ -140,7 +140,7 @@ describe('Tape Inspector store', () => {
     client.listTapeInspectorEvidence.mockResolvedValueOnce(
       evidencePage([
         evidence('diagnostic', { requestSeq: 0, physicalAttempt: undefined }),
-        evidence('context-unloaded', { requestSeq: 9, physicalAttempt: 2 })
+        evidence('unmatched', { requestSeq: 9, physicalAttempt: 2 })
       ])
     )
     const store = useTapeInspectorStore()
@@ -150,7 +150,7 @@ describe('Tape Inspector store', () => {
     expect(store.collapsedKeys.has(DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(store.rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(false)
-    expect(store.rows.some((row) => row.key === 'trace:context-unloaded')).toBe(true)
+    expect(store.rows.some((row) => row.key === 'trace:unmatched')).toBe(true)
 
     store.toggleCollapsed(DIAGNOSTIC_EVIDENCE_LANE_KEY)
     expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(true)

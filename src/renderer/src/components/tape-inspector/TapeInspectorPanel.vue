@@ -53,7 +53,7 @@
             >
               <option value="">{{ t('tapeInspector.filters.allFamilies') }}</option>
               <option v-for="family in familyOptions" :key="family" :value="family">
-                {{ family }}
+                {{ t(`tapeInspector.families.${family}`) }}
               </option>
             </select>
           </label>
@@ -168,7 +168,7 @@
       <span class="shrink-0">
         {{
           t('tapeInspector.states.loadedCounts', {
-            facts: store.records.length,
+            entries: store.records.length,
             evidence: store.evidence.length
           })
         }}
@@ -374,6 +374,19 @@
             </div>
           </div>
 
+          <div
+            v-if="olderLoadNoticeLabel"
+            data-testid="tape-inspector-older-load-notice"
+            class="shrink-0 border-t px-2 py-1 text-[10px] leading-4"
+            :class="
+              olderLoadNotice?.kind === 'failed' ? 'text-destructive' : 'text-muted-foreground'
+            "
+            role="status"
+            aria-live="polite"
+          >
+            {{ olderLoadNoticeLabel }}
+          </div>
+
           <div class="flex h-9 shrink-0 items-center justify-between border-t px-2">
             <DcButton
               size="sm"
@@ -495,6 +508,11 @@ interface ColumnResizeState {
   target: HTMLElement
 }
 
+type OlderLoadNotice =
+  | { kind: 'loaded'; count: number; reachedStart: boolean }
+  | { kind: 'no_match'; reachedStart: boolean }
+  | { kind: 'failed' }
+
 const props = withDefaults(
   defineProps<{
     sessionId: string
@@ -542,6 +560,7 @@ const draftMessageId = ref('')
 const draftErrorsOnly = ref(false)
 const exporting = ref(false)
 const exportFailed = ref(false)
+const olderLoadNotice = ref<OlderLoadNotice | null>(null)
 const columnLimits: Record<InspectorColumn, { min: number; max: number }> = {
   name: { min: 180, max: 560 },
   kind: { min: 80, max: 240 },
@@ -716,6 +735,24 @@ const liveStatusIcon = computed(() =>
       : 'lucide:radio'
     : 'lucide:radio-tower'
 )
+const olderLoadNoticeLabel = computed(() => {
+  const notice = olderLoadNotice.value
+  if (!notice) return ''
+  if (notice.kind === 'failed') return t('tapeInspector.errors.load_failed')
+  if (notice.kind === 'no_match') {
+    return t(
+      notice.reachedStart
+        ? 'tapeInspector.states.pageNoMatchesComplete'
+        : 'tapeInspector.states.pageNoMatches'
+    )
+  }
+  return t(
+    notice.reachedStart
+      ? 'tapeInspector.states.pageLoadedComplete'
+      : 'tapeInspector.states.pageLoaded',
+    { count: notice.count }
+  )
+})
 const detailErrorCode = computed<TapeInspectorErrorCode>(() => {
   return store.errorCode === 'detail_failed' || store.errorCode === 'record_not_found'
     ? store.errorCode
@@ -831,6 +868,7 @@ function finishColumnResize(event: PointerEvent): void {
 async function initialize(): Promise<void> {
   const generation = ++liveLifecycleGeneration
   detailOpen.value = false
+  olderLoadNotice.value = null
   followingTail.value = true
   exporting.value = false
   exportFailed.value = false
@@ -1014,6 +1052,8 @@ async function toggleLivePaused(): Promise<void> {
 }
 
 async function loadOlder(): Promise<void> {
+  const previousRecordCount = store.records.length
+  olderLoadNotice.value = null
   const element = scrollerRef.value?.$el
   const firstVisibleIndex = element ? Math.max(0, Math.floor(element.scrollTop / ROW_HEIGHT)) : 0
   const anchor = store.rows[firstVisibleIndex]
@@ -1021,7 +1061,16 @@ async function loadOlder(): Promise<void> {
   store.setPrependScrollAnchor(anchor ? { key: anchor.key, offset } : null)
   try {
     const loaded = await store.loadOlderPage()
-    if (!loaded || !anchor) return
+    if (!loaded) {
+      if (store.errorCode === 'load_failed') olderLoadNotice.value = { kind: 'failed' }
+      return
+    }
+    const loadedCount = Math.max(0, store.records.length - previousRecordCount)
+    olderLoadNotice.value =
+      loadedCount > 0
+        ? { kind: 'loaded', count: loadedCount, reachedStart: !store.hasOlder }
+        : { kind: 'no_match', reachedStart: !store.hasOlder }
+    if (!anchor) return
     await nextTick()
     const newIndex = store.rows.findIndex((row) => row.key === anchor.key)
     if (newIndex >= 0) scrollerRef.value?.scrollToPosition(newIndex * ROW_HEIGHT + offset)

@@ -178,13 +178,13 @@ describe('Tape Inspector renderer projection', () => {
     expect(requestScopedRow?.recordType === 'evidence' && requestScopedRow.association).toBe(
       'request'
     )
-    expect(missingRow?.recordType === 'evidence' && missingRow.association).toBe('context_unloaded')
+    expect(missingRow?.recordType === 'evidence' && missingRow.association).toBe('unmatched')
     expect(diagnosticRow?.recordType === 'evidence' && diagnosticRow.association).toBe('diagnostic')
     expect(rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(rows.some((row) => row.key === REQUEST_EVIDENCE_LANE_KEY)).toBe(true)
   })
 
-  it('orders model requests with unloaded execution context by their actual time', () => {
+  it('orders unmatched model requests by their actual time', () => {
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
       records: [],
@@ -201,9 +201,9 @@ describe('Tape Inspector renderer projection', () => {
         .filter((row) => row.recordType === 'evidence')
         .map((row) => [row.record.traceId, row.actualStartAt, row.association])
     ).toEqual([
-      ['earliest', 100, 'context_unloaded'],
-      ['middle', 200, 'context_unloaded'],
-      ['latest', 300, 'context_unloaded']
+      ['earliest', 100, 'unmatched'],
+      ['middle', 200, 'unmatched'],
+      ['latest', 300, 'unmatched']
     ])
   })
 

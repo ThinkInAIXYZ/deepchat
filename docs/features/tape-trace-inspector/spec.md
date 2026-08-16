@@ -8,10 +8,10 @@ Tape Trace Inspector requested by [#2154](https://github.com/ThinkInAIXYZ/deepch
 
 ## Problem
 
-DeepChat already records durable execution evidence in Tape and provider request evidence in
+DeepChat already records durable execution evidence as Tape Entries and provider request evidence in
 `deepchat_message_traces`. The existing message-level Trace dialog exposes Request, View, Entries,
 Budget, and nested Execution diagnostics, but it does not provide a session-wide causal view of
-Tape facts, physical runs, provider attempts, tool operations, compaction, and terminal states.
+Tape Entries, physical runs, provider attempts, tool operations, compaction, and terminal states.
 
 Developers need a DevTools-style inspector that correlates these records without creating another
 source of truth, weakening redaction boundaries, or requiring a full session to cross IPC or render
@@ -24,10 +24,10 @@ repairs history.
 
 | Source | Authority |
 | --- | --- |
-| Tape | Immutable chronological history and durable execution facts |
+| Tape | Append-only chronological sequence of durable facts |
 | Runtime | Current online execution state |
 | Transcript | Renderer-facing conversation read model |
-| `deepchat_message_traces` | Redacted and bounded provider request evidence |
+| `deepchat_message_traces` | Credential-redacted and bounded provider request evidence |
 | Inspector | Correlation, grouping, timing, filtering, and presentation only |
 
 The Inspector must not add a second fact table, copy provider traces into Tape, rewrite historical
@@ -58,44 +58,61 @@ rows, or treat its grouping and status projections as durable state.
 - A writable debugger, history editor, retry control, or permission authority.
 - Adding provider request start facts or inventing durations that are not currently recorded.
 - Adding a second event log or a materialized Inspector table.
-- Exposing context/Skill bodies, raw tool arguments/results, raw provider content, or unredacted
-  request data.
+- Exposing context/Skill bodies, raw tool results, reusable credentials, or unknown-schema payloads.
 - Deleting the existing message-level Trace dialog during the migration period.
 - A standalone Electron window in the first release.
 
 ## Terminology
 
-- **Fact row**: one committed Tape entry projected into bounded list metadata.
+The Inspector follows the four core primitives documented by [Tape](https://tape.systems/) rather
+than promoting DeepChat implementation terms into the Tape vocabulary:
+
+- **Tape**: the append-only chronological sequence of facts.
+- **Entry**: one immutable fact record on a Tape. User-facing durable rows are called Tape Entries.
+- **Anchor**: a logical checkpoint from which state can be reconstructed. It is not a generic group
+  heading or a UI bookmark.
+- **View**: a task-oriented context window assembled from Tape. It is derived context, not the Tape
+  itself and not a synonym for every execution record.
+
+Append, Anchor, and Handoff are Tape mechanisms. A fact is what an Entry records; it is not a fifth
+primitive or a second row type. DeepChat's run, request, attempt, journal, contract, message, tool,
+and lineage labels are implementation semantics and renderer grouping, not additional Tape
+primitives. The wire contract retains the established `FactRecord` and `recordType: 'fact'` names
+for compatibility, but the Inspector does not expose “Fact record” as its user-facing noun.
+
+- **Tape Entry row**: one committed Entry projected into bounded list metadata.
 - **Evidence row**: one `deepchat_message_traces` record projected into bounded metadata. It is not
-  a Tape fact.
-- **Group row**: a renderer-only synthetic row for a run, request, attempt, or tool operation.
-- **Tape spine**: all fact rows in canonical `entryId` order for one Tape incarnation.
+  a Tape Entry and has its own ordering domain.
+- **Group row**: a renderer-only synthetic row for a DeepChat run, request, attempt, or tool
+  operation.
+- **Tape sequence**: all loaded Entry rows in canonical `entryId` order for one Tape incarnation.
 - **Tape incarnation**: the UUID on the canonical `session/start` bootstrap anchor.
 - **Canonical order**: ascending `entryId` within one Tape incarnation.
 - **Bound evidence**: trace evidence with an exact authoritative parent identity.
 - **Request-scoped evidence**: trace evidence lacking `physicalAttempt`; it belongs to a request
   group but not to a physical attempt.
 - **Diagnostic evidence**: the `requestSeq = 0` sentinel that intentionally has no request identity.
-- **Context-unloaded model request**: trace evidence whose corresponding Tape request or attempt
-  group is not in the loaded window. The trace remains a valid time-stamped model request; this
-  state does not claim that its durable parent is absent.
-- **Fact status**: a status or outcome explicitly present on one immutable fact.
-- **Group status**: a renderer projection from matched facts currently loaded.
+- **Unmatched request evidence**: a valid time-stamped model request that cannot currently be
+  matched to a loaded Tape Entry by exact identity. The Entry may be in an earlier page, or older
+  evidence may lack the identity required to match it at all. This is an association state, not an
+  error or a claim that an execution context is missing.
+- **Entry status**: a status or outcome explicitly present on one immutable Entry.
+- **Group status**: a renderer projection from matched Entries currently loaded.
 - **Online status**: current state supplied by Runtime, when a future view explicitly joins it.
 
 ## Core Invariants
 
-1. The Tape spine contains every committed Tape row, including context rows.
-2. Projection is total: `N` input Tape rows produce `N` fact records.
+1. The Tape sequence contains every committed Entry, including context Entries.
+2. Projection is total: `N` input Entries produce `N` list records.
 3. `entryId` is the only canonical Tape ordering key. Timestamps are never identity.
-4. Fact keys are stable only within one Tape incarnation.
-5. Context and Skill rows remain visible, but their bodies never cross Inspector IPC.
+4. Entry keys are stable only within one Tape incarnation.
+5. Context and Skill Entries remain visible, but their bodies never cross Inspector IPC.
 6. Request evidence never receives an `entryId` and never participates in a Tape cursor.
-7. Grouping changes row visibility only. It never creates a second fact hierarchy.
+7. Grouping changes row visibility only. It never creates a second Entry hierarchy.
 8. Duration, status, and evidence binding are never inferred from adjacency or coincident
    timestamps.
 9. Missing, reversed, incomplete, or unverifiable timing for a row that owns an authoritative span
-   is explicit and never clamped to zero. Point facts and rows without a timing contract are
+   is explicit and never clamped to zero. Point Entries and rows without a timing contract are
    `not-applicable`, not `unknown`.
 10. List responses contain bounded metadata, not prose summaries or raw payloads.
 11. All visible copy is assembled in the renderer through vue-i18n.
@@ -104,15 +121,15 @@ rows, or treat its grouping and status projections as durable state.
 
 The no-inference discipline applies uniformly:
 
-- no neighboring-fact duration inference;
+- no neighboring-Entry duration inference;
 - no `started-without-terminal` to `running` status inference;
 - no request-scoped trace to physical-attempt binding inference.
 
 ## Data Model
 
-### Fact list record
+### Tape Entry list record
 
-The shared typed contract exposes one bounded record per Tape row:
+The shared typed contract exposes one bounded record per Tape Entry:
 
 ```ts
 interface TapeInspectorFactRecord {
@@ -178,7 +195,7 @@ Rules:
 - `kind` retains the physical Tape kind.
 - `name` remains nullable because physical rows do not all have a name.
 - `family` is a UI semantic category, not the physical schema.
-- Unknown names, sources, and future facts use `other`; they are never omitted.
+- Unknown names, sources, and future Entries use `other`; they are never omitted.
 - `tool_call` and `tool_result` use `tool` unless a recognized semantic family is more specific.
 - `facts` contains only bounded typed code values and numbers.
 - There is no `summary`, `duration`, payload, meta object, or raw JSON in the list record.
@@ -215,13 +232,14 @@ Evidence association follows exact identities:
 - null `physicalAttempt`: bind only to `(messageId, requestSeq)` and present it neutrally as
   request-scoped evidence; the UI never claims that every such record is legacy;
 - never coalesce null to zero;
-- evidence not matching a currently loaded request group appears in a session-level model-request
-  collection ordered by `(createdAt, traceId)`. Its row may quietly state that execution context is
-  not loaded, but it is never labeled unknown, pending association, or invalid.
+- evidence not matching a currently loaded request group appears in a session-level standalone
+  model-request collection ordered by `(createdAt, traceId)`. The collection explains once that a
+  matching Entry may be outside the loaded window or that older evidence may lack stable identity;
+  individual rows are never labeled unknown, invalid, or missing execution context.
 
 Diagnostic records remain a separate presentation category. They retain their individual trace
 identities and on-demand detail, but the ledger summarizes them behind one collapsed lane so
-repeated diagnostics do not dominate the chronological facts. Ordinary model requests remain
+repeated diagnostics do not dominate the chronological Entries. Ordinary model requests remain
 visible in actual-time order whether or not the matching Tape group is in the current page window.
 
 Physical attempts remain separated by exact parent identity. Within one parent or the session-level
@@ -238,20 +256,20 @@ incarnation and full composite identity:
 - attempt: `messageId + requestSeq + physicalAttempt`;
 - tool operation: `runId + requestSeq + providerToolCallId + optional childOrdinal`.
 
-An identified request is nested under a run only when a recognized fact supplies an authoritative
+An identified request is nested under a run only when a recognized Entry supplies an authoritative
 bridge containing both identities. Message equality, Tape position, and timestamps do not create a
 run/request binding. Requests without such a bridge remain standalone groups.
 
-Facts without sufficient identity remain at their canonical position without a synthetic parent.
-Collapse hides matching fact/evidence rows; it does not move or reparent facts.
+Entries without sufficient identity remain at their canonical position without a synthetic parent.
+Collapse hides matching Entry/evidence rows; it does not move or reparent Entries.
 
 ## Total Projection and Content Boundary
 
 `traceInspectorProjection.ts` owns physical row parsing and list projection. It uses exact known
 `kind + name + schemaVersion` readers where available and falls back to `other` metadata.
 
-Projection must not use `getBySessionExcludingContext`, effective Tape views, Tape search, or
-`getTapeContext` as its source. Those APIs intentionally omit or transform facts.
+Projection must not use `getBySessionExcludingContext`, effective Tape Views, Tape search, or
+`getTapeContext` as its source. Those APIs intentionally omit or transform Entries.
 
 The projection follows this disclosure order:
 
@@ -277,34 +295,34 @@ versions.
 - No hash match is promoted into a generic integrity claim.
 - Integrity checks that are expensive or require payloads run in on-demand detail, not page lists.
 
-## Fact Status Semantics
+## Entry Status Semantics
 
-Server filtering applies only to explicit per-fact fields:
+Server filtering applies only to explicit per-Entry fields:
 
 - execution outcome `isError`;
 - provider attempt `status`, retry decision, and error code;
 - run terminal `outcome`;
-- other recognized fact-local status codes.
+- other recognized Entry-local status codes.
 
 Group status is renderer-only and may be incomplete while a counterpart lies outside loaded pages.
-A missing terminal fact produces an unresolved historical group, not `running`. Runtime online
+A missing terminal Entry produces an unresolved historical group, not `running`. Runtime online
 status remains a separate authority and is not synthesized from Tape absence.
 
 Status presentation distinguishes three cases:
 
-- an explicit fact or authoritative group outcome displays its code;
-- a fact, evidence row, or synthetic lane without a status contract displays a quiet
+- an explicit Entry or authoritative group outcome displays its code;
+- an Entry, evidence row, or synthetic lane without a status contract displays a quiet
   not-applicable mark;
-- a status-bearing group whose authoritative fact is not loaded remains unresolved without being
+- a status-bearing group whose authoritative Entry is not loaded remains unresolved without being
   presented as online or running.
 
 `execution/tool_outcome` maps explicit `isError = false` to success and `isError = true` to error.
-Request and attempt groups derive status from their provider-attempt facts, not from a vocabulary
-mix of unrelated child facts.
+Request and attempt groups derive status from their provider-attempt Entries, not from a vocabulary
+mix of unrelated child Entries.
 
 ## Timing Semantics
 
-List DTOs contain `createdAt`, never a duration. The renderer pairs exact facts:
+List DTOs contain `createdAt`, never a duration. The renderer pairs exact Entries:
 
 | Span | Start | End | Identity |
 | --- | --- | --- | --- |
@@ -320,11 +338,11 @@ Rules:
 - an endpoint arriving in a later page upgrades the existing row by stable key;
 - absent or reversed endpoints on run and tool groups render an explicit unresolved pairing state
   and never clamp to zero;
-- request groups, attempt groups, individual facts, and evidence rows do not own a duration and
+- request groups, attempt groups, individual Entries, and evidence rows do not own a duration and
   render a quiet not-applicable mark in the Duration column;
 - run and tool totals use the same matched endpoints and remain unresolved when incomplete;
-- authoritative duration belongs to the synthetic run or tool group only. Start and end fact rows
-  remain point facts and do not duplicate the group duration.
+- authoritative duration belongs to the synthetic run or tool group only. Start and end Entry rows
+  remain points and do not duplicate the group duration.
 
 ## Tape Pagination Contract
 
@@ -394,6 +412,11 @@ The renderer increments a local request generation on session, filter, sort, or 
 Responses from an older generation are discarded. On `reset`, it clears facts, evidence, groups,
 selection, cursors, and scroll anchors before bootstrapping again.
 
+Loading an older page preserves the first visible stable row and its pixel offset after prepend.
+Because this intentionally prevents a visual jump, the renderer also announces whether Entries
+were loaded, whether the beginning of Tape was reached, whether a bounded filtered range had no
+matches, or whether loading failed. Viewport preservation must never look like a no-op.
+
 ## Evidence Pagination Contract
 
 Session trace metadata uses an independent bounded page route and composite keyset cursor. It may
@@ -421,19 +444,20 @@ P1 canonical server filters:
 
 - physical kind and semantic family;
 - exact/prefix name;
-- explicit per-fact status;
+- explicit per-Entry status;
 - errors only;
 - message ID.
 
-Free text initially searches only loaded metadata and labels that the scope is loaded records. P2
-adds cancellable bounded page filling without sending payloads to the renderer.
+Free text initially searches only loaded metadata and labels that the scope is loaded Tape Entries
+and model requests. P2 adds cancellable bounded page filling without sending payloads to the
+renderer.
 
 Canonical sort is ascending `entryId`. Before #2154 closes, server-side composite-key keyset sorting
-must support the columns that advertise sorting. Name, kind, explicit fact status, and start time may
+must support the columns that advertise sorting. Name, kind, explicit Entry status, and start time may
 be supported; duration and overview position do not advertise sorting because they are
 renderer-derived and may be incomplete.
 
-Non-canonical sorting is a flat fact result mode. Correlation identities and detail navigation remain
+Non-canonical sorting is a flat Entry result mode. Correlation identities and detail navigation remain
 available, but synthetic hierarchical group rows are not shown because globally sorted group members
 are not necessarily contiguous. Returning to canonical order restores grouping without changing
 selection.
@@ -448,7 +472,7 @@ need. Any scan fallback must remain bounded and cancellable.
 
 ## Detail Contract
 
-The fact list route never carries payloads. A narrow route serves a selected Tape row:
+The Entry list route never carries payloads. A narrow route serves a selected Tape Entry:
 
 ```ts
 sessions.getTapeInspectorRecordDetail({
@@ -464,14 +488,14 @@ sanitized raw representation rather than the unfiltered database JSON.
 
 | Selection | Detail capability |
 | --- | --- |
-| Recognized Tape fact | Inspector detail route |
+| Recognized Tape Entry | Inspector detail route |
 | Provider evidence | Existing message trace diagnostics |
 | View manifest | Existing manifest diagnostics |
 | Nested execution | Existing nested execution audit |
 | Message replay/export | Existing bounded ReplaySlice route |
-| Message fact | Hash/metadata plus transcript navigation |
+| Message Entry | Hash/metadata plus transcript navigation |
 | Context/Skill | Hash and approved references only |
-| Unknown/no-message fact | Identity, provenance, hash, size, and timestamp only |
+| Unknown/no-message Entry | Identity, provenance, hash, size, and timestamp only |
 
 The detail pane exposes Summary, Payload, Timing, Provenance, Integrity, and sanitized Raw sections
 only when the selected capability supports them. Selections carrying a `messageId` can open the
@@ -493,19 +517,20 @@ sessions.exportTapeInspectorSupportTrace({
 The export is a versioned diagnostic document, not a ReplaySlice and not a lossless history dump.
 It contains two separate arrays and never invents a total order across them:
 
-- at most 200 of the most recent Tape facts, returned in chronological `entryId` order;
+- at most 200 of the most recent Tape Entries, returned in chronological `entryId` order;
 - at most 200 of the most recent request-evidence metadata records, chronological within the
   evidence domain.
 
-Tape fact details reuse the exact detail projection: allowlist, then redaction, then truncation.
-Their combined structured `data` has a 256 KiB UTF-8 budget, with the newest facts retaining data
+Tape Entry details reuse the exact detail projection: allowlist, then redaction, then truncation.
+Their combined structured `data` has a 256 KiB UTF-8 budget, with the newest Entries retaining data
 first. Rows over budget remain present with record, disclosure, provenance, hashes, and sizes.
 Context/Skill bodies and unknown-schema payloads remain metadata-only. Evidence exports identity,
 provider/model, timing point, and truncation metadata only; endpoint, headers, and body never enter
 the support document.
 
 The document reports independent `facts`, `evidence`, and `detailData` truncation flags. The Tape
-fact array, incarnation, and `snapshotMaxEntryId` share one explicit read transaction. Composition
+Entry array (named `facts` in the versioned export schema), incarnation, and `snapshotMaxEntryId`
+share one explicit read transaction. Composition
 with the evidence table is a bounded best-effort diagnostic read, not a cross-table atomic snapshot;
 the two arrays retain their own authorities and cursors. An incarnation mismatch returns `reset`
 and produces no file.
@@ -586,7 +611,7 @@ After:
 | Session  |  Model  |  Tools     synchronized overview timeline       |
 +------------------------------------------------------------------------+
 | Event / bounded summary      | Kind | Status | Start | Duration       |
-| Run completed, 12 facts                                              |
+| Run completed, 12 Entries                                            |
 |   Provider/model, completed, bounded usage                            |
 |   Tool name, target, success, 11 ms                                   |
 +--------------------------------------+---------------------------------+
@@ -609,13 +634,13 @@ The overview and ledger are synchronized:
 - filters affect both surfaces, while collapse only changes ledger row visibility;
 - an earlier-history boundary states when the overview covers only the loaded window.
 
-The ledger keeps fixed-height virtual rows and renderer-local prose assembled from existing bounded
-`facts`. Raw event names and physical kinds remain available as secondary metadata and in detail;
-tool name, provider/model, target, explicit outcome, retry decision, error code, and bounded usage
-may be promoted into the primary one-line summary. Context/Skill bodies, request payloads, tool
-arguments/results, and unknown-schema payloads never enter these summaries.
+The ledger keeps fixed-height virtual rows and renderer-local prose assembled from the DTO's
+bounded `facts` field. Raw event names and physical kinds remain available as secondary metadata
+and in detail; tool name, provider/model, target, explicit outcome, retry decision, error code, and
+bounded usage may be promoted into the primary one-line summary. Context/Skill bodies, request
+payloads, tool arguments/results, and unknown-schema payloads never enter these summaries.
 
-User and assistant message facts may add a one-line preview from the active session's existing
+User and assistant message Entries may add a one-line preview from the active session's existing
 Transcript cache. A model request row prefers the latest final Transcript block carrying the exact
 `requestSeq` and, when present on the evidence, `logicalRound` and `physicalAttempt`. New
 provider-generated blocks persist those optional identities in block metadata. This is a minimal
@@ -636,7 +661,7 @@ Transcript blocks, not token-by-token or delta replay: DeepChat does not durably
 chunks. The detail may show up to twelve reverse-ordered result blocks and eight reverse-ordered
 context blocks. Assistant content, reasoning, tool-call name and arguments, errors, and media block
 presence are represented. Tool results are excluded because they are runtime outcomes rather than
-model-generated request output and have their own Tape facts.
+model-generated request output and have their own Tape Entries.
 
 The renderer bounds row previews to 220 characters and detailed activity text to 32768 characters
 per block. The first request may fall back to the preceding cached user message when no assistant
@@ -681,9 +706,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   selected. Multiple request groups remain visibly unselected so the user can choose; the
   Inspector never guesses latest/max from timing or provider-round metadata.
 - The existing Trace dialog remains available during migration.
-- ACP sessions may have a nearly empty Tape spine; this is expected.
+- ACP sessions may have a nearly empty Tape sequence; this is expected.
 - A model request whose Tape group is not currently loaded remains visible in the model-request
-  collection and actual-time overview. The renderer never synthesizes Tape facts for ACP.
+  collection and actual-time overview. The renderer never synthesizes Tape Entries for ACP.
 
 ## Security and Privacy
 
@@ -705,7 +730,7 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   Content already assembled into an explicitly recorded provider request may appear in that request's
   on-demand evidence detail; support export remains metadata-only for request evidence.
 - Raw means sanitized projected JSON, not raw database JSON.
-- Copying a Tape fact uses the same projected detail shown in the pane; request-detail copy retains
+- Copying a Tape Entry uses the same projected detail shown in the pane; request-detail copy retains
   the existing persisted trace redaction and size boundary.
 - Support export is stricter than request detail: request evidence is metadata-only.
 - No endpoint accepts a write, delete, clear, retry, or permission mutation.
@@ -719,7 +744,7 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - The overview timeline uses bounded pixel buckets or an equivalent bounded render projection; the
   number of timeline DOM nodes must not grow linearly with every loaded point.
 - Filter fallback scans have an explicit row budget and continuation cursor.
-- Trace existence is batched per page, not queried once per fact row.
+- Trace existence is batched per page, not queried once per Entry row.
 - Integrity and payload parsing that are not needed for list metadata are deferred to detail.
 - A representative high-entry-count fixture and query-plan assertions gate completion.
 
@@ -731,21 +756,22 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Existing Tape search/context/effective-view behavior is unchanged.
 - Existing Trace dialog routes and renderer entry point remain available.
 - Provider and ACP execution behavior is unchanged.
-- Unknown future facts remain visible as `other` with fail-closed details.
+- Unknown future Entries remain visible as `other` with fail-closed details.
 - Reset and resumed runs are isolated by incarnation and stable identities rather than timestamps.
 
 ## Resolved Decisions
 
-1. Tape is the sole chronological spine; traces are evidence rows, not Tape facts.
+1. Tape is the sole chronological sequence; traces are evidence rows, not Tape Entries.
 2. Request traces appear as exact evidence children when their Tape group is loaded; otherwise they
-   remain time-ordered model requests with a quiet context-unloaded note. Diagnostic sentinels stay
-   in a separate diagnostics lane.
+   remain time-ordered model requests in a standalone lane. The lane explains that a matching Entry
+   may be outside the loaded window or that older evidence may lack stable identity. Diagnostic
+   sentinels stay in a separate diagnostics lane.
 3. Request-scoped traces never bind to a physical attempt without `physicalAttempt`.
 4. Semantic family mapping is total and has an `other` fallback.
-5. Context rows remain in the spine while their bodies are withheld.
+5. Context Entries remain in the Tape sequence while their bodies are withheld.
 6. Grouping is a renderer identity overlay, not a durable tree.
 7. Duration is renderer-derived from exact endpoint identities and absent from list DTOs.
-8. Fact, group, and Runtime statuses are distinct.
+8. Entry, group, and Runtime statuses are distinct.
 9. Tail, older, and newer reads share one incarnation-scoped page contract.
 10. Page rows, incarnation, head, and evidence counts share an explicit SQLite read transaction.
 11. Evidence metadata has a separate session-scoped cursor.
@@ -757,9 +783,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 17. Non-canonical server sorting uses composite keysets and flat result presentation.
 18. Tape Live uses a demand-driven committed-head watcher with no Tape write-path changes; evidence
     inserts only reserve the table's internal row-ID append token.
-19. ACP's sparse Tape spine and context-unloaded model requests are expected states.
+19. ACP's sparse Tape sequence and unmatched model requests are expected states.
 20. The Inspector has no write or permission-authority behavior.
-21. Session support export keeps Tape facts and request evidence in separately bounded arrays.
+21. Session support export keeps Tape Entries and request evidence in separately bounded arrays.
 22. Cross-store support export is best-effort composition, never a claimed atomic snapshot.
 23. Live evidence refresh uses its own bounded newer cursor and active-panel lifecycle.
 24. Group keys include the Tape incarnation, and run/request bridges are independent of page load
@@ -787,15 +813,18 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
     and never advertises token-by-token replay.
 38. Optional provider identity on Transcript blocks is correlation metadata only. It neither turns
     Transcript into request evidence nor permits missing attempts to coalesce with attempt zero.
+39. Historical prepend preserves the visible scroll anchor and always announces its result.
+40. User-facing durable rows use Entry; established `FactRecord` wire names remain compatibility
+    identifiers rather than additional Tape terminology.
 
 ## Acceptance Criteria
 
 - The Inspector opens for a session and from a message with the message scope selected. A request is
   preselected only when its authoritative `requestSeq` is supplied or the message has one request
   group.
-- Every committed Tape kind, nullable name, and unknown fact remains represented exactly once.
-- Tape facts, execution journal facts, provider attempts, view facts, and request evidence appear in
-  one correlated view when available.
+- Every committed Tape kind, nullable name, and unknown Entry remains represented exactly once.
+- Tape Entries, execution journal Entries, provider attempts, View Entries, and request evidence
+  appear in one correlated view when available.
 - Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
   unknown or pending association.
 - Loaded user and assistant messages can be understood from bounded inline previews without opening
@@ -808,6 +837,8 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 - Evidence never acquires a Tape identity, and request-scoped evidence never acquires an inferred
   attempt.
 - Runs, attempts, and tool operations collapse without moving the scroll anchor or selection.
+- Loading earlier Tape Entries preserves the current viewport and reports loaded, empty-range,
+  beginning-of-Tape, and failure outcomes.
 - The synchronized overview supports sequence and actual-time modes, pan/zoom, range brushing,
   selection linkage, explicit points, and unresolved authoritative spans.
 - The supported 360, 520, 760, and 960 px Inspector widths do not require horizontal ledger
