@@ -8,6 +8,7 @@
     "loadOlder": "載入更早的 Tape Entry",
     "loadMore": "載入更多",
     "loadEvidence": "載入更多模型請求",
+    "loadMatchingEntries": "載入對應 Entry",
     "openSession": "開啟 Tape 檢查器",
     "openMessage": "在 Tape 檢查器中開啟",
     "pause": "暫停即時更新",
@@ -64,15 +65,22 @@
   },
   "evidence": {
     "request": "模型請求",
-    "unmatchedSummary": "尚未配對到已載入的 Tape Entry",
-    "unmatchedHint": "模型請求 trace 與 Tape 分開儲存。只有載入具有相同訊息、請求序號和嘗試識別的 Entry，它才會歸入對應群組。舊資料若從未記錄這些識別，會繼續在此獨立顯示。",
+    "earlierSummary": "更早的 Tape 歷史中已有精確對應的父 Entry",
+    "standaloneSummary": "目前檢視中沒有可顯示的精確父 Entry",
+    "earlierHint": "這些模型請求在更早的 Tape 歷史中有精確對應的 Provider 嘗試 Entry。載入對應 Entry 會連續補入相關歷史，不會改變模型請求順序。",
+    "standaloneHint": "這些模型請求按時間順序獨立顯示，因為精確父 Entry 被目前篩選隱藏、比可見範圍更新、尚未記錄，或請求沒有嘗試識別。系統絕不會用時間戳猜測父 Entry。",
     "lanes": {
+      "earlier": "對應 Entry 位於更早歷史的模型請求（{count}）",
       "request": "獨立顯示的模型請求（{count}）",
       "diagnostic": "內部診斷（{count}）"
     },
     "scope": {
       "request": "請求層級",
-      "diagnostic": "內部診斷"
+      "diagnostic": "內部診斷",
+      "earlier": "更早的 Entry",
+      "filtered": "被目前檢視隱藏",
+      "newer": "等待即時檢視載入",
+      "not_recorded": "尚無完成 Entry"
     }
   },
   "kinds": {
@@ -91,6 +99,7 @@
     "pageLoadedComplete": "已載入 {count} 個 Tape Entry，現已到達 Tape 起點。",
     "pageNoMatches": "已掃描下一段有界範圍，但沒有符合目前條件的 Tape Entry。",
     "pageNoMatchesComplete": "已到達 Tape 起點，沒有更早且符合目前條件的 Entry。",
+    "matchingEntriesUnavailable": "請使用 Tape 順序並清除 Entry 篩選後載入對應歷史",
     "live": "即時",
     "paused": "已暫停",
     "liveUnavailable": "即時更新無法使用"

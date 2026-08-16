@@ -35,7 +35,9 @@ import type {
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorEvidenceOutput,
   ListTapeInspectorPageInput,
-  ListTapeInspectorPageOutput
+  ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput
 } from '@shared/types/tape-inspector'
 import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@shared/types/tape-inspector'
 import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
@@ -213,6 +215,13 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
   ): Promise<ListTapeInspectorPageOutput> {
     this.requireSession(input.sessionId)
     return await this.dependencies.tape.listTapeInspectorPage(input)
+  }
+
+  async resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ): Promise<ResolveTapeInspectorEvidenceEntriesOutput> {
+    this.requireSession(input.sessionId)
+    return await this.dependencies.tape.resolveTapeInspectorEvidenceEntries(input)
   }
 
   async getTapeInspectorRecordDetail(input: {

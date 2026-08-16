@@ -24,6 +24,8 @@ import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorHead
 } from '@shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
@@ -471,6 +473,12 @@ export class SessionTape
 
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput {
     return this.traceInspector.listPage(input)
+  }
+
+  resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ): ResolveTapeInspectorEvidenceEntriesOutput {
+    return this.traceInspector.resolveEvidenceEntries(input)
   }
 
   getTapeInspectorRecordDetail(input: {

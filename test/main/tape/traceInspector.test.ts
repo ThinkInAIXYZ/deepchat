@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { hashString } from '@/tape/domain/replay'
 import {
+  buildTapeProviderAttemptProvenanceKey,
   buildTapeProviderAttemptEvent,
   TAPE_PROVIDER_ATTEMPT_EVENT_NAME
 } from '@/tape/domain/providerAttempt'
+import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 import {
   buildDispatchData,
   buildExecutionJournalMeta,
@@ -352,6 +354,129 @@ describe('Tape Trace Inspector storage contracts', () => {
           mode: 'tail'
         })
       ).toMatchObject({ status: 'reset', snapshotMaxEntryId: 6 })
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('resolves exact provider-attempt parents with one metadata-only batch', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const tape = new DeepChatTapeEntriesTable(db)
+      const traces = new DeepChatMessageTracesTable(db)
+      tape.createTable()
+      traces.createTable()
+      const attempts = new TapeProviderAttemptService({ getEntryStore: () => tape })
+      const appendAttempt = (physicalAttempt: number) =>
+        attempts.appendProviderAttempt({
+          sessionId: 'session-1',
+          messageId: 'message-1',
+          logicalRound: 1,
+          requestSeq: 3,
+          physicalAttempt,
+          requestOrigin: 'initial',
+          attemptOrigin: physicalAttempt === 0 ? 'initial' : 'transient_retry',
+          providerId: 'provider-1',
+          modelId: 'model-1',
+          status: 'completed',
+          stopReason: 'complete',
+          failureClassification: null,
+          retryDecision: 'none',
+          httpStatus: 200,
+          errorCode: null,
+          retryDelayMs: null,
+          usage: null
+        })
+      const attemptZero = appendAttempt(0)
+      const attemptTwo = appendAttempt(2)
+      const inspector = new TapeTraceInspectorService({
+        getEntryStore: () => tape,
+        getMessageTraceReader: () => traces
+      })
+      const head = inspector.getHead('session-1')
+      if (!head) throw new Error('Expected a Tape head')
+
+      const output = inspector.resolveEvidenceEntries({
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: head.tapeIncarnationId,
+        identities: [
+          { messageId: 'message-1', requestSeq: 3, physicalAttempt: 0 },
+          { messageId: 'message-1', requestSeq: 3, physicalAttempt: 1 },
+          { messageId: 'message-1', requestSeq: 3, physicalAttempt: 2 },
+          { messageId: 'message-1', requestSeq: 3, physicalAttempt: 0 }
+        ]
+      })
+
+      expect(output).toEqual({
+        status: 'ok',
+        tapeIncarnationId: head.tapeIncarnationId,
+        resolutions: [
+          {
+            messageId: 'message-1',
+            requestSeq: 3,
+            physicalAttempt: 0,
+            entryId: attemptZero.entry_id
+          },
+          {
+            messageId: 'message-1',
+            requestSeq: 3,
+            physicalAttempt: 1,
+            entryId: null
+          },
+          {
+            messageId: 'message-1',
+            requestSeq: 3,
+            physicalAttempt: 2,
+            entryId: attemptTwo.entry_id
+          }
+        ]
+      })
+      const refs = tape.getEntryRefsByProvenanceKeys('session-1', [
+        buildTapeProviderAttemptProvenanceKey({
+          sessionId: 'session-1',
+          messageId: 'message-1',
+          requestSeq: 3,
+          physicalAttempt: 0
+        })
+      ])
+      expect(refs).toEqual([
+        {
+          entryId: attemptZero.entry_id,
+          provenanceKey: attemptZero.provenance_key
+        }
+      ])
+      expect(Object.keys(refs[0] ?? {}).sort()).toEqual(['entryId', 'provenanceKey'])
+      const queryPlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT entry_id, provenance_key
+           FROM deepchat_tape_entries
+           WHERE session_id = ? AND provenance_key IN (?, ?)`
+        )
+        .all('session-1', attemptZero.provenance_key, attemptTwo.provenance_key) as Array<{
+        detail: string
+      }>
+      expect(queryPlan.map((step) => step.detail).join('\n')).toContain(
+        'idx_deepchat_tape_entries_session_provenance'
+      )
+      expect(
+        inspector.resolveEvidenceEntries({
+          sessionId: 'session-1',
+          expectedTapeIncarnationId: 'stale-incarnation',
+          identities: []
+        })
+      ).toEqual({ status: 'reset', tapeIncarnationId: head.tapeIncarnationId })
+      expect(
+        inspector.resolveEvidenceEntries({
+          sessionId: 'session-1',
+          expectedTapeIncarnationId: head.tapeIncarnationId,
+          identities: []
+        })
+      ).toEqual({
+        status: 'ok',
+        tapeIncarnationId: head.tapeIncarnationId,
+        resolutions: []
+      })
     } finally {
       db.close()
     }

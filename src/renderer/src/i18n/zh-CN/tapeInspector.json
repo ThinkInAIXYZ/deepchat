@@ -8,6 +8,7 @@
     "loadOlder": "加载更早的 Tape Entry",
     "loadMore": "加载更多",
     "loadEvidence": "加载更多模型请求",
+    "loadMatchingEntries": "加载对应 Entry",
     "openSession": "打开 Tape 检查器",
     "openMessage": "在 Tape 检查器中打开",
     "pause": "暂停实时更新",
@@ -64,15 +65,22 @@
   },
   "evidence": {
     "request": "模型请求",
-    "unmatchedSummary": "尚未匹配到已加载的 Tape Entry",
-    "unmatchedHint": "模型请求 trace 与 Tape 分开存储。只有加载了具有相同消息、请求序号和尝试身份的 Entry，它才会归入对应分组。旧数据如果从未记录这些身份，会继续在这里独立显示。",
+    "earlierSummary": "更早的 Tape 历史中已有精确对应的父 Entry",
+    "standaloneSummary": "当前视图中没有可显示的精确父 Entry",
+    "earlierHint": "这些模型请求在更早的 Tape 历史中有精确对应的 Provider 尝试 Entry。加载对应 Entry 会连续补入相关历史，不会改变模型请求顺序。",
+    "standaloneHint": "这些模型请求按时间顺序独立显示，因为精确父 Entry 被当前筛选隐藏、比可见范围更新、尚未记录，或请求没有尝试身份。系统绝不会用时间戳猜测父 Entry。",
     "lanes": {
+      "earlier": "对应 Entry 位于更早历史的模型请求（{count}）",
       "request": "独立显示的模型请求（{count}）",
       "diagnostic": "内部诊断（{count}）"
     },
     "scope": {
       "request": "请求级",
-      "diagnostic": "内部诊断"
+      "diagnostic": "内部诊断",
+      "earlier": "更早的 Entry",
+      "filtered": "被当前视图隐藏",
+      "newer": "等待实时视图载入",
+      "not_recorded": "尚无完成 Entry"
     }
   },
   "kinds": {
@@ -91,6 +99,7 @@
     "pageLoadedComplete": "已加载 {count} 个 Tape Entry，现已到达 Tape 起点。",
     "pageNoMatches": "已扫描下一段有界范围，但没有符合当前条件的 Tape Entry。",
     "pageNoMatchesComplete": "已到达 Tape 起点，没有更早且符合当前条件的 Entry。",
+    "matchingEntriesUnavailable": "请使用 Tape 顺序并清除 Entry 筛选后加载对应历史",
     "live": "实时",
     "paused": "已暂停",
     "liveUnavailable": "实时更新不可用"

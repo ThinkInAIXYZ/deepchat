@@ -40,6 +40,7 @@ import {
   sessionsListRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
+  sessionsResolveTapeInspectorEvidenceEntriesRoute,
   sessionsSubscribeTapeInspectorHeadRoute,
   sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
@@ -98,6 +99,7 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
     | 'getTapeContext'
     | 'listTapeInspectorPage'
     | 'listTapeInspectorEvidence'
+    | 'resolveTapeInspectorEvidenceEntries'
     | 'getTapeInspectorRecordDetail'
     | 'exportTapeInspectorSupportTrace'
     | 'listMessageTraces'
@@ -454,6 +456,15 @@ export function createSessionRoutes(deps: {
         const input = sessionsListTapeInspectorEvidenceRoute.input.parse(rawInput)
         return sessionsListTapeInspectorEvidenceRoute.output.parse(
           await deps.projection.listTapeInspectorEvidence(input)
+        )
+      }
+    ],
+    [
+      sessionsResolveTapeInspectorEvidenceEntriesRoute.name,
+      async (rawInput) => {
+        const input = sessionsResolveTapeInspectorEvidenceEntriesRoute.input.parse(rawInput)
+        return sessionsResolveTapeInspectorEvidenceEntriesRoute.output.parse(
+          await deps.projection.resolveTapeInspectorEvidenceEntries(input)
         )
       }
     ],

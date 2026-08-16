@@ -221,7 +221,7 @@ describe('TapeInspectorDetailPane', () => {
             truncated: false
           },
           parentGroupKey: null,
-          association: 'unmatched',
+          association: 'request',
           depth: 1,
           status: null,
           statusState: 'not_applicable',
@@ -308,7 +308,7 @@ describe('TapeInspectorDetailPane', () => {
     expect(payload.indexOf('"body"')).toBeLessThan(payload.indexOf('"headers"'))
   })
 
-  it('explains unmatched model requests once on the request lane', () => {
+  it('explains standalone model requests once on the request lane', () => {
     const wrapper = mount(TapeInspectorDetailPane, {
       props: {
         row: {
@@ -345,10 +345,10 @@ describe('TapeInspectorDetailPane', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tape-inspector-unmatched-request-hint"]').text()).toBe(
-      'tapeInspector.evidence.unmatchedHint'
+    expect(wrapper.get('[data-testid="tape-inspector-standalone-request-hint"]').text()).toBe(
+      'tapeInspector.evidence.standaloneHint'
     )
-    expect(wrapper.text().match(/tapeInspector\.evidence\.unmatchedHint/g)).toHaveLength(1)
+    expect(wrapper.text().match(/tapeInspector\.evidence\.standaloneHint/g)).toHaveLength(1)
   })
 
   it('focuses an overlay detail and closes it with Escape', async () => {

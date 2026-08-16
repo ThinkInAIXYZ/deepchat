@@ -36,6 +36,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   loadingOlder: false,
   loadingNewer: false,
   loadingEvidence: false,
+  loadingEvidenceParents: false,
   loadingDetail: false,
   errorCode: null as string | null,
   livePaused: false,
@@ -44,6 +45,8 @@ const inspectorStoreData = vi.hoisted(() => ({
   canLoadNewer: true,
   hasOlder: false,
   hasMoreEvidence: false,
+  hasEarlierEvidenceEntries: false,
+  canLoadEvidenceParents: false,
   initialize: vi.fn(async (sessionId: string) => {
     inspectorStore.sessionId = sessionId
     return true
@@ -55,6 +58,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   }),
   loadOlderPage: vi.fn(async () => false),
   loadNewerPage: vi.fn(async () => true),
+  loadEarlierEvidenceEntries: vi.fn(async () => false),
   loadMoreEvidence: vi.fn(async () => false),
   startEvidenceRefresh: vi.fn(),
   applyServerFilters: vi.fn(async () => true),
@@ -198,15 +202,24 @@ vi.mock('@dc-ui/components/popover', () => ({
 vi.mock('@/components/tape-inspector/TapeInspectorRow.vue', () => ({
   default: defineComponent({
     name: 'TapeInspectorRow',
-    props: ['row', 'selected', 'ariaRowIndex', 'layout', 'messagePreview', 'requestActivity'],
-    emits: ['select'],
+    props: [
+      'row',
+      'selected',
+      'ariaRowIndex',
+      'layout',
+      'messagePreview',
+      'requestActivity',
+      'canLoadEvidenceParents'
+    ],
+    emits: ['select', 'loadEvidenceParents'],
     computed: {
       rowDomId() {
         return `tape-inspector-row-${encodeURIComponent(this.row.key)}`
       }
     },
-    template:
-      '<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :data-request-activity="requestActivity?.activity.preview" :data-request-relation="requestActivity?.relation" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit(\'select\', row.key)" />'
+    template: `<div :id="rowDomId" data-testid="tape-inspector-row" :data-layout="layout" :data-message-preview="messagePreview?.text" :data-request-activity="requestActivity?.activity.preview" :data-request-relation="requestActivity?.relation" :aria-selected="selected" :aria-rowindex="ariaRowIndex" @click="$emit('select', row.key)">
+      <button v-if="row.recordType === 'evidence_lane' && row.laneKind === 'earlier'" data-testid="load-evidence-parents" :disabled="!canLoadEvidenceParents" @click.stop="$emit('loadEvidenceParents')" />
+    </div>`
   })
 }))
 
@@ -246,7 +259,10 @@ describe('TapeInspectorPanel', () => {
     inspectorStore.selectedDetail = null
     inspectorStore.selectedCapabilities = null
     inspectorStore.hasOlder = false
+    inspectorStore.hasEarlierEvidenceEntries = false
+    inspectorStore.canLoadEvidenceParents = false
     inspectorStore.loadingOlder = false
+    inspectorStore.loadingEvidenceParents = false
     inspectorStore.errorCode = null
     inspectorStore.liveSyncing = false
     inspectorStore.livePaused = false
@@ -275,6 +291,7 @@ describe('TapeInspectorPanel', () => {
       }
     })
     inspectorStore.loadOlderPage.mockResolvedValue(false)
+    inspectorStore.loadEarlierEvidenceEntries.mockResolvedValue(false)
   })
 
   it('initializes a matching message request without inventing a request sequence', async () => {
@@ -417,7 +434,7 @@ describe('TapeInspectorPanel', () => {
       {
         key: 'trace:trace-1',
         recordType: 'evidence',
-        association: 'unmatched',
+        association: 'request',
         record: inspectorStore.evidence[0]
       }
     ] as typeof inspectorStore.rows
@@ -495,7 +512,7 @@ describe('TapeInspectorPanel', () => {
       {
         key: 'trace:trace-1',
         recordType: 'evidence',
-        association: 'unmatched',
+        association: 'request',
         record: inspectorStore.evidence[0]
       }
     ] as typeof inspectorStore.rows
@@ -794,6 +811,49 @@ describe('TapeInspectorPanel', () => {
       offset: 12
     })
     expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(156)
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
+    expect(wrapper.get('[data-testid="tape-inspector-older-load-notice"]').text()).toBe(
+      'tapeInspector.states.pageLoaded'
+    )
+  })
+
+  it('preserves the visible row while loading exact earlier evidence parents', async () => {
+    inspectorStore.hasOlder = true
+    inspectorStore.hasEarlierEvidenceEntries = true
+    inspectorStore.canLoadEvidenceParents = true
+    inspectorStore.records = [{ entryId: 10, createdAt: 10 }]
+    inspectorStore.rows = [
+      panelFactRow('fact:incarnation:entry:10'),
+      { key: 'lane:earlier-evidence', recordType: 'evidence_lane', laneKind: 'earlier' }
+    ] as typeof inspectorStore.rows
+    inspectorStore.loadEarlierEvidenceEntries.mockImplementationOnce(async () => {
+      inspectorStore.records = [
+        { entryId: 8, createdAt: 8 },
+        { entryId: 9, createdAt: 9 },
+        { entryId: 10, createdAt: 10 }
+      ]
+      inspectorStore.rows = [
+        panelFactRow('fact:incarnation:entry:8'),
+        panelFactRow('fact:incarnation:entry:9'),
+        panelFactRow('fact:incarnation:entry:10')
+      ]
+      inspectorStore.hasEarlierEvidenceEntries = false
+      inspectorStore.canLoadEvidenceParents = false
+      return true
+    })
+    const wrapper = mount(TapeInspectorPanel, {
+      props: { sessionId: 'session-1', openRequest: null }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="load-evidence-parents"]').trigger('click')
+    await flushPromises()
+
+    expect(inspectorStore.setPrependScrollAnchor).toHaveBeenNthCalledWith(1, {
+      key: 'fact:incarnation:entry:10',
+      offset: 0
+    })
+    expect(scrollerMethods.scrollToPosition).toHaveBeenCalledWith(96)
     expect(inspectorStore.setPrependScrollAnchor).toHaveBeenLastCalledWith(null)
     expect(wrapper.get('[data-testid="tape-inspector-older-load-notice"]').text()).toBe(
       'tapeInspector.states.pageLoaded'

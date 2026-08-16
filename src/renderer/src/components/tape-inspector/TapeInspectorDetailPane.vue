@@ -75,11 +75,17 @@
       </dl>
 
       <p
-        v-if="detail.source === 'evidence_lane' && detail.laneKind === 'request'"
-        data-testid="tape-inspector-unmatched-request-hint"
+        v-if="detail.source === 'evidence_lane' && detail.laneKind !== 'diagnostic'"
+        data-testid="tape-inspector-standalone-request-hint"
         class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
       >
-        {{ t('tapeInspector.evidence.unmatchedHint') }}
+        {{
+          t(
+            detail.laneKind === 'earlier'
+              ? 'tapeInspector.evidence.earlierHint'
+              : 'tapeInspector.evidence.standaloneHint'
+          )
+        }}
       </p>
 
       <section

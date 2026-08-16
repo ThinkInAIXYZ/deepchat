@@ -32,8 +32,16 @@ export interface TapeInspectorGroupSummary {
 
 export type TapeInspectorStatusState = 'explicit' | 'not_applicable' | 'unresolved'
 export type TapeInspectorTimingState = 'span' | 'point' | 'not_applicable' | 'unresolved'
-export type TapeInspectorEvidenceAssociation = 'attempt' | 'request' | 'diagnostic' | 'unmatched'
-export type TapeInspectorEvidenceLaneKind = 'request' | 'diagnostic'
+export type TapeInspectorEvidenceAssociation =
+  | 'attempt'
+  | 'request'
+  | 'diagnostic'
+  | 'earlier'
+  | 'filtered'
+  | 'newer'
+  | 'not_recorded'
+  | 'unresolved'
+export type TapeInspectorEvidenceLaneKind = 'earlier' | 'request' | 'diagnostic'
 
 interface TapeInspectorRowBase {
   key: string
@@ -118,6 +126,7 @@ export interface TapeInspectorMessageDiagnosticsTarget {
 }
 
 const REQUEST_EVIDENCE_LANE_KEY = 'lane:request-evidence'
+const EARLIER_EVIDENCE_LANE_KEY = 'lane:earlier-evidence'
 const DIAGNOSTIC_EVIDENCE_LANE_KEY = 'lane:diagnostic-evidence'
 
 function groupKey(
@@ -130,6 +139,13 @@ function groupKey(
 
 export function getTapeInspectorRowDomId(key: string): string {
   return `tape-inspector-row-${encodeURIComponent(key)}`
+}
+
+export function getTapeInspectorEvidenceEntryIdentityKey(
+  evidence: Pick<TapeInspectorEvidenceRecord, 'messageId' | 'requestSeq' | 'physicalAttempt'>
+): string | null {
+  if (evidence.requestSeq === 0 || evidence.physicalAttempt === undefined) return null
+  return JSON.stringify([evidence.messageId, evidence.requestSeq, evidence.physicalAttempt])
 }
 
 export function getFactGroupDescriptors(
@@ -423,6 +439,7 @@ function evidenceChronologyComparator(
 }
 
 const EVIDENCE_LANE_KEYS: Record<TapeInspectorEvidenceLaneKind, string> = {
+  earlier: EARLIER_EVIDENCE_LANE_KEY,
   request: REQUEST_EVIDENCE_LANE_KEY,
   diagnostic: DIAGNOSTIC_EVIDENCE_LANE_KEY
 }
@@ -510,6 +527,7 @@ export function buildTapeInspectorRows(input: {
   tapeIncarnationId: string | null
   records: readonly TapeInspectorFactRecord[]
   evidence: readonly TapeInspectorEvidenceRecord[]
+  evidenceEntryResolutions?: ReadonlyMap<string, number | null>
   collapsedKeys: ReadonlySet<string>
   search?: string
   flat?: boolean
@@ -549,7 +567,27 @@ export function buildTapeInspectorRows(input: {
   const evidenceByParent = new Map<string, TapeInspectorEvidenceRecord[]>()
   const searchMatchingEvidenceParents = new Set<string>()
   const diagnosticEvidence: TapeInspectorEvidenceRecord[] = []
+  const earlierLaneEvidence: TapeInspectorEvidenceRecord[] = []
   const requestLaneEvidence: TapeInspectorEvidenceRecord[] = []
+  const loadedEntryIds = records.map((record) => record.entryId)
+  const minLoadedEntryId = loadedEntryIds.length > 0 ? Math.min(...loadedEntryIds) : null
+  const maxLoadedEntryId = loadedEntryIds.length > 0 ? Math.max(...loadedEntryIds) : null
+  const resolutionFor = (record: TapeInspectorEvidenceRecord): number | null | undefined => {
+    const key = getTapeInspectorEvidenceEntryIdentityKey(record)
+    return key && input.evidenceEntryResolutions?.has(key)
+      ? input.evidenceEntryResolutions.get(key)
+      : undefined
+  }
+  const standaloneAssociationFor = (
+    record: TapeInspectorEvidenceRecord
+  ): TapeInspectorEvidenceAssociation => {
+    if (record.physicalAttempt === undefined) return 'request'
+    const resolution = resolutionFor(record)
+    if (resolution === undefined) return 'unresolved'
+    if (resolution === null) return 'not_recorded'
+    if (maxLoadedEntryId !== null && resolution > maxLoadedEntryId) return 'newer'
+    return 'filtered'
+  }
   for (const evidence of input.evidence) {
     if (evidence.requestSeq === 0) {
       if (matchesEvidenceSearch(evidence, normalizedSearch)) diagnosticEvidence.push(evidence)
@@ -561,7 +599,19 @@ export function buildTapeInspectorRows(input: {
       input.tapeIncarnationId ?? 'unknown'
     )
     if (!parentKey) {
-      if (matchesEvidenceSearch(evidence, normalizedSearch)) requestLaneEvidence.push(evidence)
+      if (matchesEvidenceSearch(evidence, normalizedSearch)) {
+        const resolution = resolutionFor(evidence)
+        if (
+          !input.flat &&
+          typeof resolution === 'number' &&
+          minLoadedEntryId !== null &&
+          resolution < minLoadedEntryId
+        ) {
+          earlierLaneEvidence.push(evidence)
+        } else {
+          requestLaneEvidence.push(evidence)
+        }
+      }
       continue
     }
     const values = evidenceByParent.get(parentKey) ?? []
@@ -573,6 +623,7 @@ export function buildTapeInspectorRows(input: {
   }
   for (const values of evidenceByParent.values()) values.sort(evidenceIdentityComparator)
   diagnosticEvidence.sort(evidenceChronologyComparator)
+  earlierLaneEvidence.sort(evidenceChronologyComparator)
   requestLaneEvidence.sort(evidenceChronologyComparator)
 
   const visibleFacts = records.filter(
@@ -637,22 +688,28 @@ export function buildTapeInspectorRows(input: {
         actualWidth: 0
       }
     })
-    const visibleEvidence = input.evidence
-      .filter((record) => matchesEvidenceSearch(record, normalizedSearch))
-      .sort(evidenceChronologyComparator)
     appendEvidenceLane(
       flatRows,
-      'request',
-      visibleEvidence.filter((record) => record.requestSeq !== 0),
+      'earlier',
+      earlierLaneEvidence,
       input.collapsedKeys,
       minCreatedAt,
       maxCreatedAt,
-      (record) => (record.physicalAttempt === undefined ? 'request' : 'attempt')
+      () => 'earlier'
+    )
+    appendEvidenceLane(
+      flatRows,
+      'request',
+      requestLaneEvidence,
+      input.collapsedKeys,
+      minCreatedAt,
+      maxCreatedAt,
+      standaloneAssociationFor
     )
     appendEvidenceLane(
       flatRows,
       'diagnostic',
-      visibleEvidence.filter((record) => record.requestSeq === 0),
+      diagnosticEvidence,
       input.collapsedKeys,
       minCreatedAt,
       maxCreatedAt,
@@ -765,12 +822,21 @@ export function buildTapeInspectorRows(input: {
   )
   appendEvidenceLane(
     result,
+    'earlier',
+    earlierLaneEvidence,
+    input.collapsedKeys,
+    minCreatedAt,
+    maxCreatedAt,
+    () => 'earlier'
+  )
+  appendEvidenceLane(
+    result,
     'request',
     requestLaneEvidence,
     input.collapsedKeys,
     minCreatedAt,
     maxCreatedAt,
-    () => 'unmatched'
+    standaloneAssociationFor
   )
   return result
 }
@@ -861,4 +927,4 @@ export function findTapeInspectorPreselection(input: {
   return matchingRows.at(-1)?.key ?? null
 }
 
-export { DIAGNOSTIC_EVIDENCE_LANE_KEY, REQUEST_EVIDENCE_LANE_KEY }
+export { DIAGNOSTIC_EVIDENCE_LANE_KEY, EARLIER_EVIDENCE_LANE_KEY, REQUEST_EVIDENCE_LANE_KEY }

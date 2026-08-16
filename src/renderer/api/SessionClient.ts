@@ -47,6 +47,7 @@ import {
   sessionsListPendingInputsRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
+  sessionsResolveTapeInspectorEvidenceEntriesRoute,
   sessionsSubscribeTapeInspectorHeadRoute,
   sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
@@ -88,7 +89,8 @@ import type {
 } from '@shared/types/tape-replay'
 import type {
   ListTapeInspectorEvidenceInput,
-  ListTapeInspectorPageInput
+  ListTapeInspectorPageInput,
+  ResolveTapeInspectorEvidenceEntriesInput
 } from '@shared/types/tape-inspector'
 import { getDeepchatBridge } from './core'
 
@@ -302,6 +304,12 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
 
   async function listTapeInspectorEvidence(input: ListTapeInspectorEvidenceInput) {
     return await bridge.invoke(sessionsListTapeInspectorEvidenceRoute.name, input)
+  }
+
+  async function resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ) {
+    return await bridge.invoke(sessionsResolveTapeInspectorEvidenceEntriesRoute.name, input)
   }
 
   async function getTapeInspectorRecordDetail(input: {
@@ -668,6 +676,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     getTapeContext,
     listTapeInspectorPage,
     listTapeInspectorEvidence,
+    resolveTapeInspectorEvidenceEntries,
     getTapeInspectorRecordDetail,
     exportTapeInspectorSupportTrace,
     subscribeTapeInspectorHead,

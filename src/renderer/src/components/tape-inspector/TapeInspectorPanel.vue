@@ -366,8 +366,11 @@
                     :table-min-width="tableMinWidth"
                     :message-preview="messagePreviewForRow(item)"
                     :request-activity="requestRowActivityForRow(item)"
+                    :can-load-evidence-parents="store.canLoadEvidenceParents"
+                    :loading-evidence-parents="store.loadingEvidenceParents"
                     @select="selectRow"
                     @toggle="store.toggleCollapsed"
+                    @load-evidence-parents="loadEvidenceParents"
                   />
                 </template>
               </RecycleScroller>
@@ -1061,6 +1064,34 @@ async function loadOlder(): Promise<void> {
   store.setPrependScrollAnchor(anchor ? { key: anchor.key, offset } : null)
   try {
     const loaded = await store.loadOlderPage()
+    if (!loaded) {
+      if (store.errorCode === 'load_failed') olderLoadNotice.value = { kind: 'failed' }
+      return
+    }
+    const loadedCount = Math.max(0, store.records.length - previousRecordCount)
+    olderLoadNotice.value =
+      loadedCount > 0
+        ? { kind: 'loaded', count: loadedCount, reachedStart: !store.hasOlder }
+        : { kind: 'no_match', reachedStart: !store.hasOlder }
+    if (!anchor) return
+    await nextTick()
+    const newIndex = store.rows.findIndex((row) => row.key === anchor.key)
+    if (newIndex >= 0) scrollerRef.value?.scrollToPosition(newIndex * ROW_HEIGHT + offset)
+  } finally {
+    store.setPrependScrollAnchor(null)
+  }
+}
+
+async function loadEvidenceParents(): Promise<void> {
+  const previousRecordCount = store.records.length
+  olderLoadNotice.value = null
+  const element = scrollerRef.value?.$el
+  const firstVisibleIndex = element ? Math.max(0, Math.floor(element.scrollTop / ROW_HEIGHT)) : 0
+  const anchor = store.rows[firstVisibleIndex]
+  const offset = element ? element.scrollTop - firstVisibleIndex * ROW_HEIGHT : 0
+  store.setPrependScrollAnchor(anchor ? { key: anchor.key, offset } : null)
+  try {
+    const loaded = await store.loadEarlierEvidenceEntries()
     if (!loaded) {
       if (store.errorCode === 'load_failed') olderLoadNotice.value = { kind: 'failed' }
       return

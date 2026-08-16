@@ -140,6 +140,7 @@ export type SessionProjectionTapePort = Pick<
   | 'listNestedExecutionAuditForMessage'
   | 'exportMessageTapeReplaySlice'
   | 'listTapeInspectorPage'
+  | 'resolveTapeInspectorEvidenceEntries'
   | 'getTapeInspectorRecordDetail'
   | 'exportTapeInspectorSupportFacts'
 >

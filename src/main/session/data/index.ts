@@ -94,6 +94,9 @@ export function createSessionDataFromDatabase(
     listTapeInspectorPage(input) {
       return tapeStore.listTapeInspectorPage(input)
     },
+    resolveTapeInspectorEvidenceEntries(input) {
+      return tapeStore.resolveTapeInspectorEvidenceEntries(input)
+    },
     getTapeInspectorRecordDetail(input) {
       return tapeStore.getTapeInspectorRecordDetail(input)
     },

@@ -6,9 +6,11 @@ import type {
 import {
   buildTapeInspectorRows,
   DIAGNOSTIC_EVIDENCE_LANE_KEY,
+  EARLIER_EVIDENCE_LANE_KEY,
   findTapeInspectorPreselection,
   getEvidenceParentGroupKey,
   getFactGroupDescriptors,
+  getTapeInspectorEvidenceEntryIdentityKey,
   REQUEST_EVIDENCE_LANE_KEY
 } from '@/components/tape-inspector/model'
 
@@ -178,13 +180,13 @@ describe('Tape Inspector renderer projection', () => {
     expect(requestScopedRow?.recordType === 'evidence' && requestScopedRow.association).toBe(
       'request'
     )
-    expect(missingRow?.recordType === 'evidence' && missingRow.association).toBe('unmatched')
+    expect(missingRow?.recordType === 'evidence' && missingRow.association).toBe('unresolved')
     expect(diagnosticRow?.recordType === 'evidence' && diagnosticRow.association).toBe('diagnostic')
     expect(rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(rows.some((row) => row.key === REQUEST_EVIDENCE_LANE_KEY)).toBe(true)
   })
 
-  it('orders unmatched model requests by their actual time', () => {
+  it('orders request-scoped model requests by their actual time', () => {
     const rows = buildTapeInspectorRows({
       tapeIncarnationId: 'incarnation-1',
       records: [],
@@ -201,10 +203,61 @@ describe('Tape Inspector renderer projection', () => {
         .filter((row) => row.recordType === 'evidence')
         .map((row) => [row.record.traceId, row.actualStartAt, row.association])
     ).toEqual([
-      ['earliest', 100, 'unmatched'],
-      ['middle', 200, 'unmatched'],
-      ['latest', 300, 'unmatched']
+      ['earliest', 100, 'request'],
+      ['middle', 200, 'request'],
+      ['latest', 300, 'request']
     ])
+  })
+
+  it('distinguishes exact parent locations without guessing across sorting domains', () => {
+    const earlier = evidence('earlier', { physicalAttempt: 0 })
+    const filtered = evidence('filtered', { physicalAttempt: 1 })
+    const newer = evidence('newer', { physicalAttempt: 2 })
+    const notRecorded = evidence('not-recorded', { physicalAttempt: 3 })
+    const unresolved = evidence('unresolved', { physicalAttempt: 4 })
+    const entryResolutions = new Map<string, number | null>()
+    for (const [record, entryId] of [
+      [earlier, 10],
+      [filtered, 25],
+      [newer, 40],
+      [notRecorded, null]
+    ] as const) {
+      const key = getTapeInspectorEvidenceEntryIdentityKey(record)
+      if (key) entryResolutions.set(key, entryId)
+    }
+
+    const canonicalRows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [fact(20), fact(30)],
+      evidence: [earlier, filtered, newer, notRecorded, unresolved],
+      evidenceEntryResolutions: entryResolutions,
+      collapsedKeys: new Set()
+    })
+    const association = (traceId: string): string | undefined => {
+      const row = canonicalRows.find((candidate) => candidate.key === `trace:${traceId}`)
+      return row?.recordType === 'evidence' ? row.association : undefined
+    }
+
+    expect(association('earlier')).toBe('earlier')
+    expect(association('filtered')).toBe('filtered')
+    expect(association('newer')).toBe('newer')
+    expect(association('not-recorded')).toBe('not_recorded')
+    expect(association('unresolved')).toBe('unresolved')
+    expect(canonicalRows.some((row) => row.key === EARLIER_EVIDENCE_LANE_KEY)).toBe(true)
+
+    const nonCanonicalRows = buildTapeInspectorRows({
+      tapeIncarnationId: 'incarnation-1',
+      records: [fact(20), fact(30)],
+      evidence: [earlier],
+      evidenceEntryResolutions: entryResolutions,
+      collapsedKeys: new Set(),
+      flat: true
+    })
+    const nonCanonicalEvidence = nonCanonicalRows.find((row) => row.key === earlier.key)
+    expect(
+      nonCanonicalEvidence?.recordType === 'evidence' && nonCanonicalEvidence.association
+    ).toBe('filtered')
+    expect(nonCanonicalRows.some((row) => row.key === EARLIER_EVIDENCE_LANE_KEY)).toBe(false)
   })
 
   it('does not hide request evidence when a descendant attempt is collapsed', () => {

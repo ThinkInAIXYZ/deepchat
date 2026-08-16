@@ -39,6 +39,8 @@ import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorHead
 } from '@shared/types/tape-inspector'
 import type {
@@ -328,6 +330,9 @@ export interface TapeInspectionReader {
 export interface TapeSessionInspectionReader {
   getTapeInspectorHead(sessionId: string): TapeInspectorHead | null
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput
+  resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ): ResolveTapeInspectorEvidenceEntriesOutput
   getTapeInspectorRecordDetail(input: {
     sessionId: string
     expectedTapeIncarnationId: string

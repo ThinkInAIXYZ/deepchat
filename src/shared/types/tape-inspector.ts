@@ -210,6 +210,33 @@ export interface ListTapeInspectorEvidenceOutput {
   newerCursor: TapeInspectorEvidenceAppendCursor | null
 }
 
+export interface TapeInspectorEvidenceEntryIdentity {
+  messageId: string
+  requestSeq: number
+  physicalAttempt: number
+}
+
+export interface TapeInspectorEvidenceEntryResolution extends TapeInspectorEvidenceEntryIdentity {
+  entryId: number | null
+}
+
+export interface ResolveTapeInspectorEvidenceEntriesInput {
+  sessionId: string
+  expectedTapeIncarnationId: string
+  identities: TapeInspectorEvidenceEntryIdentity[]
+}
+
+export type ResolveTapeInspectorEvidenceEntriesOutput =
+  | {
+      status: 'ok'
+      tapeIncarnationId: string
+      resolutions: TapeInspectorEvidenceEntryResolution[]
+    }
+  | {
+      status: 'reset'
+      tapeIncarnationId: string
+    }
+
 export interface TapeInspectorRecordDetail {
   record: TapeInspectorFactRecord
   disclosure: 'structured' | 'metadata_only'

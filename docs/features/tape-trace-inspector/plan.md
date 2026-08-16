@@ -7,9 +7,10 @@ committed follow, and P3 sorting, export, and large-session work have landed. Co
 layout and the overview timeline have also landed. Final semantic and activity-context refinements
 are in progress after manual inspection showed that inapplicable values looked unresolved, model
 requests without a loaded Tape parent looked invalid, and message Entries required unnecessary detail
-navigation. Request-result projection is now in progress so model requests expose their final
-accumulated Transcript blocks without claiming unavailable chunk replay. The authority, Live,
-pagination, and security contracts remain unchanged.
+navigation. Request-result projection now exposes final accumulated Transcript blocks without
+claiming unavailable chunk replay. Exact evidence-parent discovery and bounded directed historical
+loading now keep independent 100-row windows from looking like broken correlation. The authority,
+Live, pagination, and security contracts remain unchanged.
 
 The work is split into reviewable commits. Before every commit, review the complete staged diff for
 hidden side effects, compatibility regressions, boundary behavior, performance, security, naming,
@@ -331,6 +332,30 @@ token-by-token replay.
 
 Completion condition: the Inspector uses Tape terms without overstating DeepChat-specific concepts,
 and every older-page action has an observable result while preserving reading position.
+
+## 19. Exact Evidence Parent Discovery
+
+- [x] Add an incarnation-scoped, metadata-only route that resolves at most 200 exact
+  `(messageId, requestSeq, physicalAttempt)` identities to provider-attempt Entry IDs.
+- [x] Resolve all identities in one query through the existing unique provenance index, selecting
+  only provenance keys and Entry IDs.
+- [x] Preserve null-versus-zero identity, return explicit null results for absent completion
+  Entries, and reject stale incarnations without payload disclosure.
+- [x] Track resolution results independently from Tape and evidence cursors and discard late results
+  after session or incarnation reset.
+- [x] Distinguish loaded, earlier, filtered/newer, currently unrecorded, request-scoped, and
+  diagnostic presentation without timestamp inference or repeated warning copy.
+- [x] Add a contextual earlier-history action that loads at most six contiguous older pages per
+  activation, preserves the viewport anchor, and can be continued explicitly.
+- [x] Disable directed loading when non-canonical sorting or Entry filters can hide the exact target.
+- [x] Add durable contract, query-plan, renderer-model, stale-response, bounded-loading, and
+  interaction coverage after implementation.
+- [x] Complete staged risk review and automated validation.
+- [ ] Manually verify a new multi-request session at wide and compact widths.
+
+Completion condition: independent bounded windows no longer look like failed correlation, exact
+older parents are discoverable and loadable without sparse hydration, and interrupted or
+request-scoped evidence remains truthful without being presented as an error.
 
 ## Delivery Notes
 

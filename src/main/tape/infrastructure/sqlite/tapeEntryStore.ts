@@ -41,6 +41,7 @@ import type {
   TapeInspectorEntryScanInput,
   TapeInspectorEntryScanResult,
   TapeMutationProjection,
+  TapeProvenanceEntryRef,
   ToolSurfacePersistenceStore,
   SkillMaterializationPersistenceStore,
   TapeTransactionRunner
@@ -1379,6 +1380,22 @@ export class DeepChatTapeEntriesTable
          LIMIT 1`
       )
       .get(sessionId, provenanceKey) as DeepChatTapeEntryRow | undefined
+  }
+
+  getEntryRefsByProvenanceKeys(
+    sessionId: string,
+    provenanceKeys: readonly string[]
+  ): TapeProvenanceEntryRef[] {
+    if (provenanceKeys.length === 0) return []
+    const placeholders = provenanceKeys.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `SELECT entry_id AS entryId, provenance_key AS provenanceKey
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND provenance_key IN (${placeholders})`
+      )
+      .all(sessionId, ...provenanceKeys) as TapeProvenanceEntryRef[]
   }
 
   getMaxEntryId(sessionId: string): number {

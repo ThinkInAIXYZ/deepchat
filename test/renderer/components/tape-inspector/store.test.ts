@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   ListTapeInspectorEvidenceOutput,
   ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord
 } from '@shared/types/tape-inspector'
@@ -20,6 +22,7 @@ function deferred<T>() {
 const client = vi.hoisted(() => ({
   listTapeInspectorPage: vi.fn(),
   listTapeInspectorEvidence: vi.fn(),
+  resolveTapeInspectorEvidenceEntries: vi.fn(),
   getTapeInspectorRecordDetail: vi.fn(),
   listMessageTraces: vi.fn()
 }))
@@ -29,7 +32,10 @@ vi.mock('../../../../src/renderer/api/SessionClient', () => ({
 }))
 
 import { useTapeInspectorStore } from '@/components/tape-inspector/store'
-import { DIAGNOSTIC_EVIDENCE_LANE_KEY } from '@/components/tape-inspector/model'
+import {
+  DIAGNOSTIC_EVIDENCE_LANE_KEY,
+  EARLIER_EVIDENCE_LANE_KEY
+} from '@/components/tape-inspector/model'
 
 function fact(
   entryId: number,
@@ -90,6 +96,15 @@ function evidencePage(
 describe('Tape Inspector store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    client.resolveTapeInspectorEvidenceEntries.mockImplementation(
+      async (
+        input: ResolveTapeInspectorEvidenceEntriesInput
+      ): Promise<ResolveTapeInspectorEvidenceEntriesOutput> => ({
+        status: 'ok',
+        tapeIncarnationId: input.expectedTapeIncarnationId,
+        resolutions: input.identities.map((identity) => ({ ...identity, entryId: null }))
+      })
+    )
     setActivePinia(createPinia())
   })
 
@@ -140,7 +155,7 @@ describe('Tape Inspector store', () => {
     client.listTapeInspectorEvidence.mockResolvedValueOnce(
       evidencePage([
         evidence('diagnostic', { requestSeq: 0, physicalAttempt: undefined }),
-        evidence('unmatched', { requestSeq: 9, physicalAttempt: 2 })
+        evidence('standalone', { requestSeq: 9, physicalAttempt: 2 })
       ])
     )
     const store = useTapeInspectorStore()
@@ -150,10 +165,129 @@ describe('Tape Inspector store', () => {
     expect(store.collapsedKeys.has(DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(store.rows.some((row) => row.key === DIAGNOSTIC_EVIDENCE_LANE_KEY)).toBe(true)
     expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(false)
-    expect(store.rows.some((row) => row.key === 'trace:unmatched')).toBe(true)
+    expect(store.rows.some((row) => row.key === 'trace:standalone')).toBe(true)
 
     store.toggleCollapsed(DIAGNOSTIC_EVIDENCE_LANE_KEY)
     expect(store.rows.some((row) => row.key === 'trace:diagnostic')).toBe(true)
+  })
+
+  it('loads exact parent Entries in bounded contiguous batches that can be continued', async () => {
+    const parent = fact(1, {
+      name: 'provider/attempt_completed',
+      family: 'attempt',
+      messageId: 'message-1',
+      requestSeq: 4,
+      physicalAttempt: 0
+    })
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(
+        page([fact(100)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 100 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(90)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 90 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(80)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 80 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(70)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 70 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(60)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 60 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(50)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 50 }
+        })
+      )
+      .mockResolvedValueOnce(
+        page([fact(40)], {
+          snapshotMaxEntryId: 100,
+          nextCursor: { sort: 'entryId', entryId: 40 }
+        })
+      )
+      .mockResolvedValueOnce(page([parent], { snapshotMaxEntryId: 100 }))
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage([evidence('trace-1')]))
+    client.resolveTapeInspectorEvidenceEntries.mockResolvedValueOnce({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 4,
+          physicalAttempt: 0,
+          entryId: 1
+        }
+      ]
+    })
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    expect(store.hasEarlierEvidenceEntries).toBe(true)
+    expect(store.canLoadEvidenceParents).toBe(true)
+    expect(store.rows.some((row) => row.key === EARLIER_EVIDENCE_LANE_KEY)).toBe(true)
+
+    await expect(store.loadEarlierEvidenceEntries()).resolves.toBe(true)
+
+    expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(7)
+    expect(store.hasEarlierEvidenceEntries).toBe(true)
+    expect(store.canLoadEvidenceParents).toBe(true)
+
+    await expect(store.loadEarlierEvidenceEntries()).resolves.toBe(true)
+
+    expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(8)
+    expect(store.hasEarlierEvidenceEntries).toBe(false)
+    expect(store.rows.some((row) => row.key === EARLIER_EVIDENCE_LANE_KEY)).toBe(false)
+    const trace = store.rows.find((row) => row.key === 'trace:trace-1')
+    expect(trace?.recordType === 'evidence' && trace.association).toBe('attempt')
+  })
+
+  it('upgrades a pending request when its exact completed attempt arrives live', async () => {
+    client.listTapeInspectorPage.mockResolvedValueOnce(page([fact(20)])).mockResolvedValueOnce(
+      page(
+        [
+          fact(21, {
+            name: 'provider/attempt_completed',
+            family: 'attempt',
+            messageId: 'message-1',
+            requestSeq: 4,
+            physicalAttempt: 0
+          })
+        ],
+        { snapshotMaxEntryId: 21 }
+      )
+    )
+    client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage([evidence('trace-1')]))
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+
+    const pending = store.rows.find((row) => row.key === 'trace:trace-1')
+    expect(pending?.recordType === 'evidence' && pending.association).toBe('not_recorded')
+
+    await store.handleLiveHeadPulse({
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 21
+    })
+
+    const completed = store.rows.find((row) => row.key === 'trace:trace-1')
+    expect(completed?.recordType === 'evidence' && completed.association).toBe('attempt')
   })
 
   it('reveals only the collapsed ancestors of a timeline selection', async () => {
@@ -487,6 +621,42 @@ describe('Tape Inspector store', () => {
     await expect(secondLoad).resolves.toBe(true)
     firstPage.resolve(page([fact(1)]))
     firstEvidence.resolve(evidencePage([evidence('stale')]))
+    await expect(firstLoad).resolves.toBe(false)
+
+    expect(store.sessionId).toBe('session-2')
+    expect(store.tapeIncarnationId).toBe('incarnation-2')
+    expect(store.records.map((record) => record.entryId)).toEqual([2])
+    expect(store.evidence).toEqual([])
+  })
+
+  it('discards late evidence resolutions after switching sessions', async () => {
+    const firstResolution = deferred<ResolveTapeInspectorEvidenceEntriesOutput>()
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(1)]))
+      .mockResolvedValueOnce(page([fact(2)], { tapeIncarnationId: 'incarnation-2' }))
+    client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage([evidence('stale')]))
+      .mockResolvedValueOnce(evidencePage())
+    client.resolveTapeInspectorEvidenceEntries.mockReturnValueOnce(firstResolution.promise)
+    const store = useTapeInspectorStore()
+
+    const firstLoad = store.initialize('session-1')
+    await vi.waitFor(() =>
+      expect(client.resolveTapeInspectorEvidenceEntries).toHaveBeenCalledOnce()
+    )
+    await expect(store.initialize('session-2')).resolves.toBe(true)
+    firstResolution.resolve({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 4,
+          physicalAttempt: 0,
+          entryId: 1
+        }
+      ]
+    })
     await expect(firstLoad).resolves.toBe(false)
 
     expect(store.sessionId).toBe('session-2')

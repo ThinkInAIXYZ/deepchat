@@ -14,6 +14,15 @@ const TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION = 1
 
 export type TapeProviderAttemptStatus = 'completed' | 'context_overflow' | 'aborted' | 'error'
 
+export function buildTapeProviderAttemptProvenanceKey(
+  input: Pick<
+    TapeProviderAttemptInput,
+    'sessionId' | 'messageId' | 'requestSeq' | 'physicalAttempt'
+  >
+): string {
+  return `provider-attempt:${input.sessionId}:${input.messageId}:${input.requestSeq}:${input.physicalAttempt}`
+}
+
 export interface TapeProviderAttemptUsage {
   inputTokens: number
   outputTokens: number

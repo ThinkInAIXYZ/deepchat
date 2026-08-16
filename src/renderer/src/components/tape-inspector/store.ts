@@ -6,6 +6,7 @@ import type {
   TapeInspectorEntryCursor,
   TapeInspectorEvidenceAppendCursor,
   TapeInspectorEvidenceCursor,
+  TapeInspectorEvidenceEntryIdentity,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactFilters,
   TapeInspectorFactRecord,
@@ -16,6 +17,7 @@ import {
   buildTapeInspectorRows,
   DIAGNOSTIC_EVIDENCE_LANE_KEY,
   findTapeInspectorPreselection,
+  getTapeInspectorEvidenceEntryIdentityKey,
   getTapeInspectorDetailCapabilities,
   type TapeInspectorDetailCapabilities,
   type TapeInspectorDetailState,
@@ -28,6 +30,7 @@ const EVIDENCE_REFRESH_INTERVAL_MS = 1_000
 const LIVE_RETRY_DELAY_MS = 1_000
 const SEARCH_FILL_DEBOUNCE_MS = 250
 const SEARCH_FILL_MAX_PAGES = 6
+const EVIDENCE_PARENT_LOAD_MAX_PAGES = 6
 const CANONICAL_SORT = { column: 'entryId', direction: 'asc' } as const
 
 function defaultCollapsedKeys(): Set<string> {
@@ -94,6 +97,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const factEntryIds = ref<number[]>([])
   const evidenceByTraceId = shallowRef(new Map<string, TapeInspectorEvidenceRecord>())
   const evidenceTraceIds = ref<string[]>([])
+  const evidenceEntryResolutions = shallowRef(new Map<string, number | null>())
   const serverFilters = shallowRef<TapeInspectorFactFilters>({})
   const serverSort = shallowRef<TapeInspectorSort>(CANONICAL_SORT)
   const loadedSearch = ref('')
@@ -113,6 +117,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const loadingOlder = ref(false)
   const loadingNewer = ref(false)
   const loadingEvidence = ref(false)
+  const loadingEvidenceParents = ref(false)
   const loadingDetail = ref(false)
   const errorCode = ref<TapeInspectorErrorCode>(null)
   const liveEvidenceRevision = ref(0)
@@ -147,6 +152,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       tapeIncarnationId: tapeIncarnationId.value,
       records: records.value,
       evidence: evidence.value,
+      evidenceEntryResolutions: evidenceEntryResolutions.value,
       collapsedKeys: new Set(),
       search: loadedSearch.value,
       flat: !canonicalSort.value
@@ -165,6 +171,44 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       newerCursor.value !== null &&
       !loadingInitial.value &&
       !loadingNewer.value
+  )
+  const earlierEvidenceEntryIds = computed(() => {
+    const oldestLoadedEntryId = factEntryIds.value[0]
+    if (oldestLoadedEntryId === undefined) return []
+    const entryIds = new Set<number>()
+    for (const record of evidence.value) {
+      const key = getTapeInspectorEvidenceEntryIdentityKey(record)
+      if (!key) continue
+      const entryId = evidenceEntryResolutions.value.get(key)
+      if (
+        typeof entryId === 'number' &&
+        entryId < oldestLoadedEntryId &&
+        !factsByEntryId.value.has(entryId)
+      ) {
+        entryIds.add(entryId)
+      }
+    }
+    return [...entryIds].sort((left, right) => right - left)
+  })
+  const entryFiltersCanHideEvidenceParents = computed(
+    () =>
+      Boolean(serverFilters.value.kinds?.length) ||
+      Boolean(serverFilters.value.families?.length) ||
+      Boolean(serverFilters.value.name) ||
+      Boolean(serverFilters.value.namePrefix) ||
+      Boolean(serverFilters.value.factStatus) ||
+      serverFilters.value.errorsOnly === true
+  )
+  const hasEarlierEvidenceEntries = computed(() => earlierEvidenceEntryIds.value.length > 0)
+  const canLoadEvidenceParents = computed(
+    () =>
+      hasEarlierEvidenceEntries.value &&
+      hasOlder.value &&
+      canonicalSort.value &&
+      !entryFiltersCanHideEvidenceParents.value &&
+      !loadingInitial.value &&
+      !loadingOlder.value &&
+      !loadingEvidenceParents.value
   )
 
   function clearSearchFillTimer(): void {
@@ -255,6 +299,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadingOlder.value = false
     loadingNewer.value = false
     loadingEvidence.value = false
+    loadingEvidenceParents.value = false
     loadingDetail.value = false
     return requestGeneration
   }
@@ -267,6 +312,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     factEntryIds.value = []
     evidenceByTraceId.value = new Map()
     evidenceTraceIds.value = []
+    evidenceEntryResolutions.value = new Map()
     collapsedKeys.value = defaultCollapsedKeys()
     selectedKey.value = null
     selectedDetail.value = null
@@ -302,6 +348,27 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         ? [...next.keys()].sort((left, right) => left - right)
         : [...factEntryIds.value, ...incomingIds]
     }
+    const nextResolutions = new Map(evidenceEntryResolutions.value)
+    let resolutionsChanged = false
+    for (const record of incoming) {
+      if (
+        record.name !== 'provider/attempt_completed' ||
+        !record.messageId ||
+        record.requestSeq === undefined ||
+        record.physicalAttempt === undefined
+      ) {
+        continue
+      }
+      const key = getTapeInspectorEvidenceEntryIdentityKey({
+        messageId: record.messageId,
+        requestSeq: record.requestSeq,
+        physicalAttempt: record.physicalAttempt
+      })
+      if (!key || nextResolutions.get(key) === record.entryId) continue
+      nextResolutions.set(key, record.entryId)
+      resolutionsChanged = true
+    }
+    if (resolutionsChanged) evidenceEntryResolutions.value = nextResolutions
   }
 
   function upsertEvidence(
@@ -330,6 +397,46 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
 
   function isCurrentRequest(generation: number, requestedSessionId: string): boolean {
     return generation === requestGeneration && sessionId.value === requestedSessionId
+  }
+
+  async function resolveEvidenceEntries(
+    incoming: readonly TapeInspectorEvidenceRecord[],
+    generation: number,
+    requestedSessionId: string,
+    expectedTapeIncarnationId: string
+  ): Promise<'ok' | 'reset' | 'failed'> {
+    const identities = new Map<string, TapeInspectorEvidenceEntryIdentity>()
+    for (const record of incoming) {
+      const key = getTapeInspectorEvidenceEntryIdentityKey(record)
+      if (!key || record.physicalAttempt === undefined) continue
+      identities.set(key, {
+        messageId: record.messageId,
+        requestSeq: record.requestSeq,
+        physicalAttempt: record.physicalAttempt
+      })
+    }
+    if (identities.size === 0) return 'ok'
+
+    try {
+      const output = await sessionClient.resolveTapeInspectorEvidenceEntries({
+        sessionId: requestedSessionId,
+        expectedTapeIncarnationId,
+        identities: [...identities.values()]
+      })
+      if (!isCurrentRequest(generation, requestedSessionId)) return 'failed'
+      if (output.status === 'reset' || output.tapeIncarnationId !== expectedTapeIncarnationId) {
+        return 'reset'
+      }
+      const next = new Map(evidenceEntryResolutions.value)
+      for (const resolution of output.resolutions) {
+        const key = getTapeInspectorEvidenceEntryIdentityKey(resolution)
+        if (key) next.set(key, resolution.entryId)
+      }
+      evidenceEntryResolutions.value = next
+      return 'ok'
+    } catch {
+      return 'failed'
+    }
   }
 
   function resolvePreselection(): void {
@@ -425,6 +532,14 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       upsertEvidence(evidencePage.records, true)
       evidenceCursor.value = evidencePage.nextCursor
       evidenceNewerCursor.value = evidencePage.newerCursor
+      const resolution = await resolveEvidenceEntries(
+        evidencePage.records,
+        generation,
+        normalizedSessionId,
+        page.tapeIncarnationId
+      )
+      if (resolution === 'reset') return await resetForIncarnationChange()
+      if (!isCurrentRequest(generation, normalizedSessionId)) return false
       resolvePreselection()
       requestLoadedSearchFill()
       if (evidenceRefreshEnabled) startEvidenceRefresh()
@@ -522,6 +637,30 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       return await promise
     } finally {
       if (newerPageRequest?.promise === promise) newerPageRequest = null
+    }
+  }
+
+  async function loadEarlierEvidenceEntries(): Promise<boolean> {
+    const currentSessionId = sessionId.value
+    if (!currentSessionId || !canLoadEvidenceParents.value) return false
+    const generation = requestGeneration
+    loadingEvidenceParents.value = true
+    let pagesLoaded = 0
+    try {
+      while (
+        isCurrentRequest(generation, currentSessionId) &&
+        earlierEvidenceEntryIds.value.length > 0 &&
+        olderCursor.value !== null &&
+        pagesLoaded < EVIDENCE_PARENT_LOAD_MAX_PAGES
+      ) {
+        const cursorBefore = olderCursor.value
+        if (!(await loadOlderPage())) break
+        pagesLoaded += 1
+        if (olderCursor.value === cursorBefore) break
+      }
+      return pagesLoaded > 0
+    } finally {
+      if (isCurrentRequest(generation, currentSessionId)) loadingEvidenceParents.value = false
     }
   }
 
@@ -646,8 +785,9 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
 
   async function loadMoreEvidence(): Promise<boolean> {
     const currentSessionId = sessionId.value
+    const incarnation = tapeIncarnationId.value
     const cursor = evidenceCursor.value
-    if (!currentSessionId || !cursor || loadingEvidence.value) return false
+    if (!currentSessionId || !incarnation || !cursor || loadingEvidence.value) return false
     const generation = requestGeneration
     loadingEvidence.value = true
     errorCode.value = null
@@ -669,6 +809,17 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       if (!isCurrentRequest(generation, currentSessionId)) return false
       upsertEvidence(page.records)
       evidenceCursor.value = page.nextCursor
+      const resolution = await resolveEvidenceEntries(
+        page.records,
+        generation,
+        currentSessionId,
+        incarnation
+      )
+      if (resolution === 'reset') {
+        await resetForIncarnationChange()
+        return false
+      }
+      if (!isCurrentRequest(generation, currentSessionId)) return false
       resolvePreselection()
       return true
     } catch {
@@ -725,6 +876,20 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
         if (livePaused.value || !isCurrentRequest(generation, currentSessionId)) return false
         const changed = upsertEvidence(page.records)
         evidenceNewerCursor.value = page.newerCursor
+        const incarnation = tapeIncarnationId.value
+        if (incarnation) {
+          const resolution = await resolveEvidenceEntries(
+            page.records,
+            generation,
+            currentSessionId,
+            incarnation
+          )
+          if (resolution === 'reset') {
+            await resetForIncarnationChange()
+            return false
+          }
+        }
+        if (livePaused.value || !isCurrentRequest(generation, currentSessionId)) return false
         resolvePreselection()
         if (changed) liveEvidenceRevision.value += 1
         return changed
@@ -979,6 +1144,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadingOlder,
     loadingNewer,
     loadingEvidence,
+    loadingEvidenceParents,
     loadingDetail,
     errorCode,
     rows,
@@ -986,10 +1152,13 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     selectedRow,
     hasOlder,
     hasMoreEvidence,
+    hasEarlierEvidenceEntries,
+    canLoadEvidenceParents,
     canLoadNewer,
     initialize,
     loadOlderPage,
     loadNewerPage,
+    loadEarlierEvidenceEntries,
     handleLiveHeadPulse,
     setLivePaused,
     startEvidenceRefresh,

@@ -441,6 +441,18 @@ function createRuntime() {
     listTapeInspectorEvidence: vi
       .fn()
       .mockResolvedValue({ records: [], nextCursor: null, newerCursor: null }),
+    resolveTapeInspectorEvidenceEntries: vi.fn().mockResolvedValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 2,
+          physicalAttempt: 0,
+          entryId: 4
+        }
+      ]
+    }),
     getTapeInspectorRecordDetail: vi.fn().mockResolvedValue({
       status: 'not_found',
       tapeIncarnationId: 'incarnation-1'
@@ -4965,6 +4977,16 @@ describe('dispatchDeepchatRoute', () => {
       { sessionId: 'session-1', mode: 'newer', physicalAttempt: null },
       context
     )
+    const evidenceEntries = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.resolveTapeInspectorEvidenceEntries',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        identities: [{ messageId: 'message-1', requestSeq: 2, physicalAttempt: 0 }]
+      },
+      context
+    )
     const detail = await dispatchDeepchatRoute(
       runtime,
       'sessions.getTapeInspectorRecordDetail',
@@ -4987,6 +5009,18 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(page).toMatchObject({ status: 'ok', tapeIncarnationId: 'incarnation-1' })
     expect(evidence).toEqual({ records: [], nextCursor: null, newerCursor: null })
+    expect(evidenceEntries).toEqual({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 2,
+          physicalAttempt: 0,
+          entryId: 4
+        }
+      ]
+    })
     expect(detail).toEqual({ status: 'not_found', tapeIncarnationId: 'incarnation-1' })
     expect(supportTrace).toEqual({
       status: 'reset',
@@ -4997,6 +5031,11 @@ describe('dispatchDeepchatRoute', () => {
       sessionId: 'session-1',
       mode: 'newer',
       physicalAttempt: null
+    })
+    expect(sessionProjectionPort.resolveTapeInspectorEvidenceEntries).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      identities: [{ messageId: 'message-1', requestSeq: 2, physicalAttempt: 0 }]
     })
     expect(sessionProjectionPort.exportTapeInspectorSupportTrace).toHaveBeenCalledWith({
       sessionId: 'session-1',

@@ -8,6 +8,7 @@
     "loadOlder": "Load earlier Tape Entries",
     "loadMore": "Mehr laden",
     "loadEvidence": "Load more model requests",
+    "loadMatchingEntries": "Load matching Entries",
     "openSession": "Open Tape Inspector",
     "openMessage": "Open in Tape Inspector",
     "pause": "Pause live updates",
@@ -56,15 +57,22 @@
   },
   "evidence": {
     "request": "Model request",
-    "unmatchedSummary": "Not matched to a loaded Tape Entry",
-    "unmatchedHint": "Model request traces are stored separately from Tape. They stay here until an Entry with the same message, request sequence, and attempt identity is loaded. Older data may remain standalone when that identity was never recorded.",
+    "earlierSummary": "Matching Entry is earlier in Tape",
+    "standaloneSummary": "No matching completed Entry is available",
+    "earlierHint": "These requests have an exact matching Entry outside the loaded range. Load bounded earlier pages to bring them into context.",
+    "standaloneHint": "These requests are diagnostics, are still being recorded, or do not contain an exact attempt identity. They remain visible without guessing a match.",
     "lanes": {
+      "earlier": "Requests with earlier Entries ({count})",
       "request": "Standalone model requests ({count})",
       "diagnostic": "Diagnostics ({count})"
     },
     "scope": {
       "request": "request-scoped",
-      "diagnostic": "diagnostic"
+      "diagnostic": "diagnostic",
+      "earlier": "earlier Entry",
+      "filtered": "hidden by current view",
+      "newer": "waiting for live view",
+      "not_recorded": "no completion Entry yet"
     }
   },
   "kinds": { "evidence": "model request", "lane": "request collection", "group": "derived group" },
@@ -79,6 +87,7 @@
     "pageLoadedComplete": "Loaded {count} more Tape Entries. Beginning of Tape reached.",
     "pageNoMatches": "The next bounded range contained no matching Tape Entries.",
     "pageNoMatchesComplete": "Beginning of Tape reached; no earlier Entries match the current filters.",
+    "matchingEntriesUnavailable": "Use Tape order and clear Entry filters to load matching history",
     "live": "Live",
     "paused": "Paused",
     "liveUnavailable": "Live updates unavailable"

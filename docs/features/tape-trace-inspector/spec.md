@@ -232,10 +232,34 @@ Evidence association follows exact identities:
 - null `physicalAttempt`: bind only to `(messageId, requestSeq)` and present it neutrally as
   request-scoped evidence; the UI never claims that every such record is legacy;
 - never coalesce null to zero;
-- evidence not matching a currently loaded request group appears in a session-level standalone
-  model-request collection ordered by `(createdAt, traceId)`. The collection explains once that a
-  matching Entry may be outside the loaded window or that older evidence may lack stable identity;
-  individual rows are never labeled unknown, invalid, or missing execution context.
+- evidence not matching a currently loaded request group remains in a session-level model-request
+  collection ordered by `(createdAt, traceId)`; individual rows are never labeled unknown, invalid,
+  or missing execution context.
+
+For attempt-scoped evidence outside the loaded Tape window, the renderer performs one bounded,
+metadata-only identity resolution through the Tape read model. The request contains at most 200
+deduplicated `(messageId, requestSeq, physicalAttempt)` identities plus the expected Tape
+incarnation. The response returns the same identity and either its exact provider-attempt
+`entryId` or null. It returns no Entry body, trace payload, timestamps, or inferred match.
+
+The read model constructs the existing provider-attempt provenance keys, whose unique indexed value
+is the durable exact-attempt identity, and selects only `provenance_key` plus `entry_id` in one query.
+It never reads Entry payloads, uses timestamps, performs null-to-zero coercion, scans JSON, or issues
+one query per evidence row. The renderer uses the result only to distinguish these presentation
+states:
+
+- the exact parent Entry is loaded, so evidence appears under that attempt;
+- the exact parent Entry exists earlier in Tape, so evidence appears in an earlier-history lane;
+- the exact Entry is outside the visible range because of filters or a newer Live boundary;
+- no completed provider-attempt Entry is currently recorded;
+- request-scoped or diagnostic evidence has no attempt identity to resolve.
+
+An earlier-history lane exposes a contextual action that loads canonical older pages until the
+target range is reached, a fixed page budget is exhausted, or the beginning of Tape is reached.
+Each activation has a six-page budget and may be repeated. It never inserts a sparse Entry into the
+ledger, changes the evidence cursor, bypasses active Entry filters, or continues without explicit
+user action. The action is disabled outside canonical order or when Entry filters can hide the
+target. Historical prepend preserves the existing scroll-anchor contract.
 
 Diagnostic records remain a separate presentation category. They retain their individual trace
 identities and on-demand detail, but the ledger summarizes them behind one collapsed lane so
@@ -745,6 +769,10 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   number of timeline DOM nodes must not grow linearly with every loaded point.
 - Filter fallback scans have an explicit row budget and continuation cursor.
 - Trace existence is batched per page, not queried once per Entry row.
+- Evidence-to-Entry identity resolution is capped at 200 identities, uses the existing unique
+  provenance index in one query, and returns metadata only.
+- Directed historical loading remains contiguous and stops after six pages per user activation;
+  it never hydrates isolated Entries or performs an unbounded automatic backfill.
 - Integrity and payload parsing that are not needed for list metadata are deferred to detail.
 - A representative high-entry-count fixture and query-plan assertions gate completion.
 
@@ -762,9 +790,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 ## Resolved Decisions
 
 1. Tape is the sole chronological sequence; traces are evidence rows, not Tape Entries.
-2. Request traces appear as exact evidence children when their Tape group is loaded; otherwise they
-   remain time-ordered model requests in a standalone lane. The lane explains that a matching Entry
-   may be outside the loaded window or that older evidence may lack stable identity. Diagnostic
+2. Request traces appear as exact evidence children when their Tape group is loaded. Attempt-scoped
+   evidence uses a bounded indexed identity lookup to distinguish earlier, filtered/newer, and
+   currently unrecorded parent Entries. Request-scoped evidence remains standalone, and diagnostic
    sentinels stay in a separate diagnostics lane.
 3. Request-scoped traces never bind to a physical attempt without `physicalAttempt`.
 4. Semantic family mapping is total and has an `other` fallback.
@@ -816,6 +844,10 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 39. Historical prepend preserves the visible scroll anchor and always announces its result.
 40. User-facing durable rows use Entry; established `FactRecord` wire names remain compatibility
     identifiers rather than additional Tape terminology.
+41. Evidence correlation lookup is metadata-only and incarnation-scoped. It resolves exact provider
+    attempt provenance in one batch and never scans or returns payload content.
+42. Loading an earlier evidence parent advances contiguous Tape pagination under a six-page user
+    action budget; sparse hydration and automatic unbounded backfill are forbidden.
 
 ## Acceptance Criteria
 
@@ -827,6 +859,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   appear in one correlated view when available.
 - Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
   unknown or pending association.
+- Attempt-scoped requests distinguish an exact parent in earlier history from a parent hidden by
+  the current view and from a completed parent not yet recorded. An earlier parent can be loaded
+  through bounded contiguous pagination without changing evidence order or cursor state.
 - Loaded user and assistant messages can be understood from bounded inline previews without opening
   detail. Newly generated model requests show their latest exact final output block; older records
   label temporal fallback as later activity rather than bound output.

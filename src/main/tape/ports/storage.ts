@@ -46,6 +46,11 @@ export interface TapeInspectorEntryScanResult {
   hasMore: boolean
 }
 
+export interface TapeProvenanceEntryRef {
+  entryId: number
+  provenanceKey: string
+}
+
 /** Append/read/query persistence only. Physical deletion belongs to TapeEntryLifecycleStore. */
 export interface TapeEntryStore {
   append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow
@@ -92,6 +97,10 @@ export interface TapeEntryStore {
   getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
   getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+  getEntryRefsByProvenanceKeys(
+    sessionId: string,
+    provenanceKeys: readonly string[]
+  ): TapeProvenanceEntryRef[]
   getMaxEntryId(sessionId: string): number
   getMaxEntryIdExcludingContext(sessionId: string): number
   getMaxEntryIdsBySessions(sessionIds: string[]): Map<string, number>

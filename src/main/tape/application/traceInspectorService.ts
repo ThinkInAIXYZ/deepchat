@@ -4,7 +4,10 @@ import type {
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorEntryCursor,
+  TapeInspectorEvidenceEntryIdentity,
   TapeInspectorFactRecord,
   TapeInspectorHead,
   TapeInspectorRecordDetail,
@@ -18,6 +21,7 @@ import type { DeepChatTapeEntryRow } from '../domain/entry'
 import { hashString } from '../domain/replay'
 import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
 import type { TapeInspectorEntryScanInput } from '../ports/storage'
+import { buildTapeProviderAttemptProvenanceKey } from '../domain/providerAttempt'
 import { readCanonicalTapeIncarnationId } from './common'
 import {
   getTapeInspectorTraceBinding,
@@ -44,6 +48,10 @@ function bindingKey(binding: TapeInspectorTraceBinding): string {
     binding.requestSeq,
     binding.scope === 'attempt' ? binding.physicalAttempt : '*'
   ])
+}
+
+function evidenceIdentityKey(identity: TapeInspectorEvidenceEntryIdentity): string {
+  return JSON.stringify([identity.messageId, identity.requestSeq, identity.physicalAttempt])
 }
 
 function normalizedLimit(limit: number | undefined): number {
@@ -287,6 +295,46 @@ export class TapeTraceInspectorService {
         status: 'ok',
         tapeIncarnationId,
         detail: projectTapeInspectorDetail(row)
+      }
+    })
+  }
+
+  resolveEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ): ResolveTapeInspectorEvidenceEntriesOutput {
+    const table = this.providers.getEntryStore()
+    return table.runInTransaction(() => {
+      const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)
+      if (!tapeIncarnationId) {
+        throw new Error('Session Tape bootstrap is missing or invalid.')
+      }
+      if (tapeIncarnationId !== input.expectedTapeIncarnationId) {
+        return { status: 'reset', tapeIncarnationId }
+      }
+
+      const identities = [
+        ...new Map(
+          input.identities.map((identity) => [evidenceIdentityKey(identity), identity])
+        ).values()
+      ]
+      const provenanceKeys = identities.map((identity) =>
+        buildTapeProviderAttemptProvenanceKey({ sessionId: input.sessionId, ...identity })
+      )
+      const rowsByProvenance = new Map(
+        table
+          .getEntryRefsByProvenanceKeys(input.sessionId, provenanceKeys)
+          .map((row) => [row.provenanceKey, row.entryId] as const)
+      )
+
+      return {
+        status: 'ok',
+        tapeIncarnationId,
+        resolutions: identities.map((identity, index) => {
+          return {
+            ...identity,
+            entryId: rowsByProvenance.get(provenanceKeys[index]) ?? null
+          }
+        })
       }
     })
   }

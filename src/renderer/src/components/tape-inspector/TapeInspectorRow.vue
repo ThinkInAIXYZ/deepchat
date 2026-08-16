@@ -48,6 +48,28 @@
           >
             {{ evidenceAssociationLabel }}
           </span>
+          <button
+            v-if="row.recordType === 'evidence_lane' && row.laneKind === 'earlier'"
+            type="button"
+            class="ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded border border-border px-1.5 text-[10px] font-normal text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!canLoadEvidenceParents"
+            :aria-label="t('tapeInspector.actions.loadMatchingEntries')"
+            :title="
+              canLoadEvidenceParents
+                ? t('tapeInspector.actions.loadMatchingEntries')
+                : t('tapeInspector.states.matchingEntriesUnavailable')
+            "
+            @click.stop="emit('loadEvidenceParents')"
+          >
+            <Icon
+              :icon="loadingEvidenceParents ? 'lucide:loader-circle' : 'lucide:history'"
+              class="size-3"
+              :class="{ 'animate-spin': loadingEvidenceParents }"
+            />
+            <span v-if="layout !== 'compact'">
+              {{ t('tapeInspector.actions.loadMatchingEntries') }}
+            </span>
+          </button>
           <span
             v-if="layout === 'compact' && showStatus"
             class="ml-auto inline-flex shrink-0 truncate rounded px-1.5 py-0.5 text-[10px]"
@@ -134,17 +156,22 @@ const props = withDefaults(
     ariaRowIndex?: number
     messagePreview?: TapeInspectorMessagePreview | null
     requestActivity?: TapeInspectorRequestRowActivity | null
+    canLoadEvidenceParents?: boolean
+    loadingEvidenceParents?: boolean
   }>(),
   {
     layout: 'wide',
     gridTemplateColumns: 'minmax(220px, 2fr) 100px 100px 110px 100px',
-    tableMinWidth: 630
+    tableMinWidth: 630,
+    canLoadEvidenceParents: false,
+    loadingEvidenceParents: false
   }
 )
 
 const emit = defineEmits<{
   select: [key: string]
   toggle: [key: string]
+  loadEvidenceParents: []
 }>()
 
 const { t, d } = useI18n()
@@ -200,7 +227,7 @@ const evidenceAssociationLabel = computed(() => {
   if (
     props.row.recordType !== 'evidence' ||
     props.row.association === 'attempt' ||
-    props.row.association === 'unmatched'
+    props.row.association === 'unresolved'
   ) {
     return null
   }
@@ -256,9 +283,12 @@ const semanticSummaryLabel = computed(() => {
       )
     }
   } else if (row.recordType === 'evidence_lane') {
-    return row.laneKind === 'diagnostic'
-      ? t('tapeInspector.evidence.scope.diagnostic')
-      : t('tapeInspector.evidence.unmatchedSummary')
+    if (row.laneKind === 'diagnostic') return t('tapeInspector.evidence.scope.diagnostic')
+    return t(
+      row.laneKind === 'earlier'
+        ? 'tapeInspector.evidence.earlierSummary'
+        : 'tapeInspector.evidence.standaloneSummary'
+    )
   } else {
     appendFactSummary(parts, row.summary)
     parts.push(`${t('tapeInspector.fields.records')}: ${row.summary.factCount}`)

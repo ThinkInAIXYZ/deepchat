@@ -479,6 +479,7 @@ import {
   sessionsListPendingInputsRoute,
   sessionsListTapeInspectorEvidenceRoute,
   sessionsListTapeInspectorPageRoute,
+  sessionsResolveTapeInspectorEvidenceEntriesRoute,
   sessionsSubscribeTapeInspectorHeadRoute,
   sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
@@ -942,6 +943,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsGetTapeContextRoute.name]: sessionsGetTapeContextRoute,
   [sessionsListTapeInspectorPageRoute.name]: sessionsListTapeInspectorPageRoute,
   [sessionsListTapeInspectorEvidenceRoute.name]: sessionsListTapeInspectorEvidenceRoute,
+  [sessionsResolveTapeInspectorEvidenceEntriesRoute.name]:
+    sessionsResolveTapeInspectorEvidenceEntriesRoute,
   [sessionsGetTapeInspectorRecordDetailRoute.name]: sessionsGetTapeInspectorRecordDetailRoute,
   [sessionsExportTapeInspectorSupportTraceRoute.name]: sessionsExportTapeInspectorSupportTraceRoute,
   [sessionsSubscribeTapeInspectorHeadRoute.name]: sessionsSubscribeTapeInspectorHeadRoute,

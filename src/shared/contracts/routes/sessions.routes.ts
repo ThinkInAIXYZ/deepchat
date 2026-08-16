@@ -17,6 +17,8 @@ import type {
   ListTapeInspectorEvidenceOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord,
   TapeInspectorRecordDetail
@@ -739,6 +741,40 @@ export const sessionsListTapeInspectorEvidenceRoute = defineRouteContract({
   input: ListTapeInspectorEvidenceInputSchema,
   output: ListTapeInspectorEvidenceOutputSchema
 }) satisfies RouteContract<'sessions.listTapeInspectorEvidence'>
+
+const TapeInspectorEvidenceEntryIdentitySchema = z.object({
+  messageId: TapeInspectorIdentitySchema,
+  requestSeq: z.number().int().positive(),
+  physicalAttempt: z.number().int().nonnegative()
+})
+const ResolveTapeInspectorEvidenceEntriesInputSchema = z.object({
+  sessionId: EntityIdSchema,
+  expectedTapeIncarnationId: TapeInspectorIdentitySchema,
+  identities: z.array(TapeInspectorEvidenceEntryIdentitySchema).max(200)
+}) satisfies z.ZodType<ResolveTapeInspectorEvidenceEntriesInput>
+const ResolveTapeInspectorEvidenceEntriesOutputSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('ok'),
+    tapeIncarnationId: TapeInspectorIdentitySchema,
+    resolutions: z
+      .array(
+        TapeInspectorEvidenceEntryIdentitySchema.extend({
+          entryId: z.number().int().positive().nullable()
+        })
+      )
+      .max(200)
+  }),
+  z.object({
+    status: z.literal('reset'),
+    tapeIncarnationId: TapeInspectorIdentitySchema
+  })
+]) satisfies z.ZodType<ResolveTapeInspectorEvidenceEntriesOutput>
+
+export const sessionsResolveTapeInspectorEvidenceEntriesRoute = defineRouteContract({
+  name: 'sessions.resolveTapeInspectorEvidenceEntries',
+  input: ResolveTapeInspectorEvidenceEntriesInputSchema,
+  output: ResolveTapeInspectorEvidenceEntriesOutputSchema
+}) satisfies RouteContract<'sessions.resolveTapeInspectorEvidenceEntries'>
 
 const GetTapeInspectorRecordDetailOutputSchema = z.discriminatedUnion('status', [
   z.object({

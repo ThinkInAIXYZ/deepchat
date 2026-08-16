@@ -77,7 +77,7 @@ function evidenceRow(overrides: Partial<TapeInspectorEvidenceRow> = {}): TapeIns
       truncated: false
     },
     parentGroupKey: null,
-    association: 'unmatched',
+    association: 'request',
     ...overrides
   }
 }
@@ -153,7 +153,7 @@ describe('TapeInspectorRow', () => {
     expect(wrapper.classes()).toContain('h-12')
   })
 
-  it('presents an unmatched trace without repeating lane-level warnings', () => {
+  it('presents a request-scoped trace without repeating lane-level guidance', () => {
     const wrapper = mount(TapeInspectorRow, {
       props: {
         row: evidenceRow(),
@@ -177,8 +177,8 @@ describe('TapeInspectorRow', () => {
     expect(wrapper.text()).toContain(
       'tapeInspector.activity.relations.output · tapeInspector.groups.tool: files / read_file'
     )
-    expect(wrapper.text()).not.toContain('tapeInspector.evidence.unmatchedSummary')
-    expect(wrapper.text()).not.toContain('tapeInspector.evidence.unmatchedHint')
+    expect(wrapper.text()).not.toContain('tapeInspector.evidence.standaloneSummary')
+    expect(wrapper.text()).not.toContain('tapeInspector.evidence.standaloneHint')
     expect(wrapper.text()).not.toContain('unresolved')
     expect(wrapper.classes()).toContain('h-12')
   })

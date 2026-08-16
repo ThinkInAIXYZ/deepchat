@@ -30,7 +30,9 @@ import type {
   ExportTapeInspectorSupportFactsOutput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
-  ListTapeInspectorPageOutput
+  ListTapeInspectorPageOutput,
+  ResolveTapeInspectorEvidenceEntriesInput,
+  ResolveTapeInspectorEvidenceEntriesOutput
 } from '@shared/types/tape-inspector'
 
 export interface SessionStatePort {
@@ -159,6 +161,9 @@ export interface SessionTapePort {
     options?: DeepChatTapeReplayExportOptions
   ): Promise<DeepChatTapeReplaySlice | null>
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput
+  resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ): ResolveTapeInspectorEvidenceEntriesOutput
   getTapeInspectorRecordDetail(input: {
     sessionId: string
     expectedTapeIncarnationId: string
