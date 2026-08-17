@@ -262,6 +262,12 @@ export interface TapeInspectorRecordDetail {
   data?: JsonValue
 }
 
+export interface GetTapeInspectorRecordDetailInput {
+  sessionId: string
+  expectedTapeIncarnationId: string
+  entryId: number
+}
+
 export type GetTapeInspectorRecordDetailOutput =
   | {
       status: 'ok'
@@ -280,6 +286,11 @@ export type GetTapeInspectorRecordDetailOutput =
 export const TAPE_INSPECTOR_SUPPORT_FACT_LIMIT = 200
 export const TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT = 200
 export const TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES = 256 * 1024
+
+export interface ExportTapeInspectorSupportFactsInput {
+  sessionId: string
+  expectedTapeIncarnationId: string
+}
 
 export type ExportTapeInspectorSupportFactsOutput =
   | {
@@ -310,6 +321,8 @@ export interface TapeInspectorSupportTrace {
     detailData: boolean
   }
 }
+
+export type ExportTapeInspectorSupportTraceInput = ExportTapeInspectorSupportFactsInput
 
 export type ExportTapeInspectorSupportTraceOutput =
   | {

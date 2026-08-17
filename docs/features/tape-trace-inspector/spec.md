@@ -383,7 +383,7 @@ type TapeInspectorPageMode = 'tail' | 'older' | 'newer'
 
 type TapeInspectorCursor =
   | { sort: 'entryId'; entryId: number }
-  | { sort: 'name'; direction: SortDirection; name: string | null; entryId: number; snapshotMaxEntryId: number }
+  | { sort: 'name'; direction: SortDirection; nameHash: string; entryId: number; snapshotMaxEntryId: number }
   | { sort: 'kind'; direction: SortDirection; kind: DeepChatTapeEntryKind; entryId: number; snapshotMaxEntryId: number }
   | { sort: 'createdAt'; direction: SortDirection; createdAt: number; entryId: number; snapshotMaxEntryId: number }
 

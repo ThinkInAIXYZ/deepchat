@@ -93,6 +93,8 @@ import type {
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
 import type {
+  ExportTapeInspectorSupportTraceInput,
+  GetTapeInspectorRecordDetailInput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorPageInput,
   ResolveTapeInspectorEvidenceEntriesInput
@@ -317,18 +319,11 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return await bridge.invoke(sessionsResolveTapeInspectorEvidenceEntriesRoute.name, input)
   }
 
-  async function getTapeInspectorRecordDetail(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-    entryId: number
-  }) {
+  async function getTapeInspectorRecordDetail(input: GetTapeInspectorRecordDetailInput) {
     return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
   }
 
-  async function exportTapeInspectorSupportTrace(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-  }) {
+  async function exportTapeInspectorSupportTrace(input: ExportTapeInspectorSupportTraceInput) {
     return await bridge.invoke(sessionsExportTapeInspectorSupportTraceRoute.name, input)
   }
 
@@ -596,11 +591,9 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   function onTapeInspectorHeadChanged(
-    listener: (payload: {
-      sessionId: string
-      tapeIncarnationId: string
-      maxEntryId: number
-    }) => void
+    listener: (
+      payload: DeepchatEventPayload<typeof sessionsTapeInspectorHeadChangedEvent.name>
+    ) => void
   ) {
     return bridge.on(sessionsTapeInspectorHeadChangedEvent.name, listener)
   }

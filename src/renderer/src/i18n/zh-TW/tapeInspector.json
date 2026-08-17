@@ -97,7 +97,7 @@
   "states": {
     "unknown": "未知",
     "statusPending": "結果 Entry 尚未載入",
-    "timingPending": "起訖 Entry 尚未配對",
+    "timingPending": "起迄 Entry 尚未配對",
     "timingEarlierHistory": "配對的邊界位於更早的 Tape 歷史",
     "timingFiltered": "配對的邊界被目前篩選隱藏",
     "timingAwaitingLive": "正在等待即時工作階段記錄配對邊界",

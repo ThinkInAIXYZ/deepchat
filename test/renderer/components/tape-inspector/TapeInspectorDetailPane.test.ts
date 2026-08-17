@@ -305,6 +305,8 @@ describe('TapeInspectorDetailPane', () => {
       'tapeInspector.detail.finalSnapshot'
     )
     const payload = wrapper.text().slice(wrapper.text().indexOf('tapeInspector.detail.payload'))
+    expect(payload).toContain('"body"')
+    expect(payload).toContain('"headers"')
     expect(payload.indexOf('"body"')).toBeLessThan(payload.indexOf('"headers"'))
   })
 
@@ -405,6 +407,9 @@ describe('TapeInspectorDetailPane', () => {
   })
 
   it('focuses an overlay detail and closes it with Escape', async () => {
+    const previousFocus = document.createElement('button')
+    document.body.append(previousFocus)
+    previousFocus.focus()
     const wrapper = mount(TapeInspectorDetailPane, {
       attachTo: document.body,
       props: {
@@ -434,11 +439,14 @@ describe('TapeInspectorDetailPane', () => {
     await flushPromises()
 
     expect(wrapper.attributes('role')).toBe('dialog')
-    expect(wrapper.attributes('aria-modal')).toBeUndefined()
-    expect(document.activeElement).toBe(wrapper.element)
+    expect(wrapper.attributes('aria-modal')).toBe('true')
+    expect(wrapper.element.contains(document.activeElement)).toBe(true)
 
     await wrapper.trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toHaveLength(1)
     wrapper.unmount()
+    await vi.runOnlyPendingTimersAsync()
+    expect(document.activeElement).toBe(previousFocus)
+    previousFocus.remove()
   })
 })

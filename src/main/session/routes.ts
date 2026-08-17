@@ -73,6 +73,7 @@ import type { SessionPermissionPort } from '@/session/contracts'
 import type { UsageStatsService } from '@/session/usageStatsService'
 import type { AgentSessionExportService } from '@/exporter/agentSessionExporter'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
+import type { TapeInspectorHeadWatcher } from '@/tape/application/traceInspectorHeadWatcher'
 import {
   createRouteMap,
   requireRendererCaller,
@@ -127,13 +128,7 @@ export function createSessionRoutes(deps: {
   translation: Pick<SessionTranslation, 'translate'>
   usageStats: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntime: { retryHealthCheck(): Promise<unknown> }
-  tapeInspectorHeadWatcher: {
-    subscribe(input: { sessionId: string; subscriptionId: string; webContentsId: number }): {
-      tapeIncarnationId: string
-      maxEntryId: number
-    }
-    unsubscribe(input: { subscriptionId: string; webContentsId: number }): void
-  }
+  tapeInspectorHeadWatcher: Pick<TapeInspectorHeadWatcher, 'subscribe' | 'unsubscribe'>
 }): DeepchatRouteMap {
   const submissionCancellations = new SubmissionCancellationRegistry()
   const sessionService = new SessionService({

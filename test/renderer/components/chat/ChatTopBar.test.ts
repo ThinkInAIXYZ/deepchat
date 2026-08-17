@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 
 const stores = vi.hoisted(() => ({
@@ -179,6 +179,10 @@ const mountTopBar = () =>
       project: ''
     }
   })
+
+afterEach(() => {
+  stores.uiSettings.traceDebugEnabled = true
+})
 
 describe('ChatTopBar action buttons', () => {
   it('uses ghost DcButtons for workspace, share, and more actions', () => {

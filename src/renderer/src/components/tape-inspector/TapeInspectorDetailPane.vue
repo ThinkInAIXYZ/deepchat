@@ -1,222 +1,234 @@
 <template>
-  <aside
-    ref="rootRef"
-    data-testid="tape-inspector-detail-pane"
-    class="flex min-h-0 flex-col bg-background outline-none"
-    :class="
-      placement === 'side'
-        ? 'h-full w-[clamp(320px,38%,480px)] shrink-0 border-l'
-        : 'absolute inset-0 z-20 h-full w-full'
-    "
-    :role="placement === 'overlay' ? 'dialog' : 'complementary'"
-    :aria-label="t('tapeInspector.detail.title')"
-    tabindex="-1"
-    @keydown.esc.stop="emit('close')"
+  <FocusScope
+    as-child
+    :loop="placement === 'overlay'"
+    :present="placement === 'overlay'"
+    :trapped="placement === 'overlay'"
+    @mount-auto-focus="handleMountAutoFocus"
+    @unmount-auto-focus="handleUnmountAutoFocus"
   >
-    <div class="flex h-9 shrink-0 items-center justify-between border-b px-3">
-      <span class="text-xs font-medium">{{ t('tapeInspector.detail.title') }}</span>
-      <div class="flex items-center gap-2">
-        <span v-if="capabilities" class="text-[10px] uppercase text-muted-foreground">
-          {{ t(`tapeInspector.detail.sources.${capabilities.source}`) }}
-        </span>
-        <DcButton
-          v-if="messageDiagnosticsTarget && capabilities?.messageDiagnostics"
-          data-testid="tape-inspector-open-message-diagnostics"
-          size="icon-sm"
-          variant="ghost"
-          icon="lucide:external-link"
-          :label="t('traceDialog.title')"
-          :tooltip="t('traceDialog.title')"
-          @click="emit('openMessageDiagnostics', messageDiagnosticsTarget)"
-        />
-        <DcButton
-          v-if="detail"
-          data-testid="tape-inspector-copy-selected"
-          size="icon-sm"
-          variant="ghost"
-          :icon="copied ? 'lucide:check' : 'lucide:copy'"
-          :label="copied ? t('common.copied') : t('common.copy')"
-          :tooltip="copied ? t('common.copied') : t('common.copy')"
-          @click="copySelected"
-        />
-        <DcButton
-          data-testid="tape-inspector-close-detail"
-          size="icon-sm"
-          variant="ghost"
-          icon="lucide:x"
-          :label="t('common.close')"
-          :tooltip="t('common.close')"
-          @click="emit('close')"
-        />
-      </div>
-    </div>
-
-    <div v-if="!row" class="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
-      <div class="text-xs text-muted-foreground">{{ t('tapeInspector.detail.selectPrompt') }}</div>
-    </div>
-    <div v-else-if="loading" class="flex min-h-0 flex-1 items-center justify-center">
-      <Icon icon="lucide:loader-circle" class="size-4 animate-spin text-muted-foreground" />
-    </div>
-    <div
-      v-else-if="errorCode"
-      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6"
+    <aside
+      data-testid="tape-inspector-detail-pane"
+      class="flex min-h-0 flex-col bg-background outline-none"
+      :class="
+        placement === 'side'
+          ? 'h-full w-[clamp(320px,38%,480px)] shrink-0 border-l'
+          : 'absolute inset-0 z-20 h-full w-full'
+      "
+      :role="placement === 'overlay' ? 'dialog' : 'complementary'"
+      :aria-modal="placement === 'overlay' ? 'true' : undefined"
+      :aria-label="t('tapeInspector.detail.title')"
+      tabindex="-1"
+      @keydown.esc.stop="emit('close')"
     >
-      <div class="text-xs text-destructive">{{ t(`tapeInspector.errors.${errorCode}`) }}</div>
-      <DcButton size="sm" variant="outline" class="h-7 text-xs" @click="emit('retry')">
-        {{ t('common.retry') }}
-      </DcButton>
-    </div>
-    <div v-else-if="detail" class="min-h-0 flex-1 overflow-auto p-3">
-      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-        <template v-for="field in summaryFields" :key="field.label">
-          <dt class="text-muted-foreground">{{ field.label }}</dt>
-          <dd class="min-w-0 break-all font-mono text-[11px]">{{ field.value }}</dd>
-        </template>
-      </dl>
-
-      <p
-        v-if="detail.source === 'evidence_lane' && detail.laneKind !== 'diagnostic'"
-        data-testid="tape-inspector-standalone-request-hint"
-        class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
-      >
-        {{
-          t(
-            detail.laneKind === 'earlier'
-              ? 'tapeInspector.evidence.earlierHint'
-              : 'tapeInspector.evidence.standaloneHint'
-          )
-        }}
-      </p>
-
-      <p
-        v-if="isMemoryManifestDetail"
-        data-testid="tape-inspector-memory-manifest-hint"
-        class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
-      >
-        {{ t('tapeInspector.detail.memoryManifestHint') }}
-      </p>
-
-      <section
-        v-if="detail.source === 'request' && observedActivities.length > 0"
-        data-testid="tape-inspector-request-result"
-        class="mt-4 border-t pt-3"
-      >
-        <h3 class="text-xs font-medium">{{ observedActivityHeading }}</h3>
-        <p class="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {{ observedActivityDescription }}
-        </p>
-        <p
-          v-if="requestObservation?.afterTruncated"
-          class="mt-1 text-[10px] leading-relaxed text-muted-foreground"
-        >
-          {{ t('tapeInspector.detail.resultBlocksTruncated') }}
-        </p>
-        <ol class="mt-2 divide-y border-y text-xs">
-          <li v-for="activity in observedActivities" :key="activity.key" class="py-2">
-            <div class="flex min-w-0 items-center gap-2">
-              <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
-              <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
-                {{ formatActivityTime(activity.timestamp) }}
-              </time>
-            </div>
-            <p
-              v-if="activity.text"
-              class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed"
-            >
-              {{ activity.text }}
-            </p>
-            <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
-              {{ t('tapeInspector.detail.truncated') }}
-            </span>
-          </li>
-        </ol>
-      </section>
-
-      <section
-        v-if="detail.source === 'request' && requestContextActivities.length > 0"
-        data-testid="tape-inspector-request-context"
-        class="mt-4 border-t pt-3"
-      >
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.contextTail') }}</h3>
-        <ol class="divide-y border-y text-xs">
-          <li v-for="activity in requestContextActivities" :key="activity.key" class="py-2">
-            <div class="flex min-w-0 items-center gap-2">
-              <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
-              <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
-                {{ formatActivityTime(activity.timestamp) }}
-              </time>
-            </div>
-            <p
-              v-if="activity.text"
-              class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground"
-            >
-              {{ activity.text }}
-            </p>
-            <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
-              {{ t('tapeInspector.detail.truncated') }}
-            </span>
-          </li>
-        </ol>
-      </section>
-
-      <section v-if="capabilities?.integrity && integrityLabel" class="mt-4 border-t pt-3">
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.integrity') }}</h3>
-        <span class="rounded bg-muted px-1.5 py-0.5 text-[10px]">{{ integrityLabel }}</span>
-      </section>
-
-      <section v-if="capabilities?.provenance && provenanceText" class="mt-4 border-t pt-3">
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.provenance') }}</h3>
-        <pre
-          class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
-          >{{ provenanceText }}</pre
-        >
-      </section>
-
-      <section v-if="capabilities?.timing && timingText" class="mt-4 border-t pt-3">
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.timing') }}</h3>
-        <pre
-          class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
-          >{{ timingText }}</pre
-        >
-      </section>
-
-      <section v-if="capabilities?.payload && payloadText" class="mt-4 border-t pt-3">
-        <div class="mb-2 flex items-center justify-between gap-2">
-          <h3 class="text-xs font-medium">{{ t('tapeInspector.detail.payload') }}</h3>
-          <span v-if="isTruncated" class="text-[10px] text-muted-foreground">
-            {{ t('tapeInspector.detail.truncated') }}
+      <div class="flex h-9 shrink-0 items-center justify-between border-b px-3">
+        <span class="text-xs font-medium">{{ t('tapeInspector.detail.title') }}</span>
+        <div class="flex items-center gap-2">
+          <span v-if="capabilities" class="text-[10px] uppercase text-muted-foreground">
+            {{ t(`tapeInspector.detail.sources.${capabilities.source}`) }}
           </span>
+          <DcButton
+            v-if="messageDiagnosticsTarget && capabilities?.messageDiagnostics"
+            data-testid="tape-inspector-open-message-diagnostics"
+            size="icon-sm"
+            variant="ghost"
+            icon="lucide:external-link"
+            :label="t('traceDialog.title')"
+            :tooltip="t('traceDialog.title')"
+            @click="emit('openMessageDiagnostics', messageDiagnosticsTarget)"
+          />
+          <DcButton
+            v-if="detail"
+            data-testid="tape-inspector-copy-selected"
+            size="icon-sm"
+            variant="ghost"
+            :icon="copied ? 'lucide:check' : 'lucide:copy'"
+            :label="copied ? t('common.copied') : t('common.copy')"
+            :tooltip="copied ? t('common.copied') : t('common.copy')"
+            @click="copySelected"
+          />
+          <DcButton
+            data-testid="tape-inspector-close-detail"
+            size="icon-sm"
+            variant="ghost"
+            icon="lucide:x"
+            :label="t('common.close')"
+            :tooltip="t('common.close')"
+            @click="emit('close')"
+          />
         </div>
-        <pre
-          class="max-h-[360px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
-          >{{ payloadText }}</pre
-        >
-      </section>
+      </div>
 
-      <section v-if="hashesText" class="mt-4 border-t pt-3">
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.hashes') }}</h3>
-        <pre
-          class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
-          >{{ hashesText }}</pre
-        >
-      </section>
+      <div v-if="!row" class="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
+        <div class="text-xs text-muted-foreground">
+          {{ t('tapeInspector.detail.selectPrompt') }}
+        </div>
+      </div>
+      <div v-else-if="loading" class="flex min-h-0 flex-1 items-center justify-center">
+        <Icon icon="lucide:loader-circle" class="size-4 animate-spin text-muted-foreground" />
+      </div>
+      <div
+        v-else-if="errorCode"
+        class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6"
+      >
+        <div class="text-xs text-destructive">{{ t(`tapeInspector.errors.${errorCode}`) }}</div>
+        <DcButton size="sm" variant="outline" class="h-7 text-xs" @click="emit('retry')">
+          {{ t('common.retry') }}
+        </DcButton>
+      </div>
+      <div v-else-if="detail" class="min-h-0 flex-1 overflow-auto p-3">
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+          <template v-for="field in summaryFields" :key="field.label">
+            <dt class="text-muted-foreground">{{ field.label }}</dt>
+            <dd class="min-w-0 break-all font-mono text-[11px]">{{ field.value }}</dd>
+          </template>
+        </dl>
 
-      <section v-if="capabilities?.raw && rawText" class="mt-4 border-t pt-3">
-        <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.raw') }}</h3>
-        <pre
-          class="max-h-[360px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
-          >{{ rawText }}</pre
+        <p
+          v-if="detail.source === 'evidence_lane' && detail.laneKind !== 'diagnostic'"
+          data-testid="tape-inspector-standalone-request-hint"
+          class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
         >
-      </section>
-    </div>
-  </aside>
+          {{
+            t(
+              detail.laneKind === 'earlier'
+                ? 'tapeInspector.evidence.earlierHint'
+                : 'tapeInspector.evidence.standaloneHint'
+            )
+          }}
+        </p>
+
+        <p
+          v-if="isMemoryManifestDetail"
+          data-testid="tape-inspector-memory-manifest-hint"
+          class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
+        >
+          {{ t('tapeInspector.detail.memoryManifestHint') }}
+        </p>
+
+        <section
+          v-if="detail.source === 'request' && observedActivities.length > 0"
+          data-testid="tape-inspector-request-result"
+          class="mt-4 border-t pt-3"
+        >
+          <h3 class="text-xs font-medium">{{ observedActivityHeading }}</h3>
+          <p class="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            {{ observedActivityDescription }}
+          </p>
+          <p
+            v-if="requestObservation?.afterTruncated"
+            class="mt-1 text-[10px] leading-relaxed text-muted-foreground"
+          >
+            {{ t('tapeInspector.detail.resultBlocksTruncated') }}
+          </p>
+          <ol class="mt-2 divide-y border-y text-xs">
+            <li v-for="activity in observedActivities" :key="activity.key" class="py-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
+                <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {{ formatActivityTime(activity.timestamp) }}
+                </time>
+              </div>
+              <p
+                v-if="activity.text"
+                class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed"
+              >
+                {{ activity.text }}
+              </p>
+              <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
+                {{ t('tapeInspector.detail.truncated') }}
+              </span>
+            </li>
+          </ol>
+        </section>
+
+        <section
+          v-if="detail.source === 'request' && requestContextActivities.length > 0"
+          data-testid="tape-inspector-request-context"
+          class="mt-4 border-t pt-3"
+        >
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.contextTail') }}</h3>
+          <ol class="divide-y border-y text-xs">
+            <li v-for="activity in requestContextActivities" :key="activity.key" class="py-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="font-medium">{{ activityLabel(activity.kind) }}</span>
+                <time class="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {{ formatActivityTime(activity.timestamp) }}
+                </time>
+              </div>
+              <p
+                v-if="activity.text"
+                class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground"
+              >
+                {{ activity.text }}
+              </p>
+              <span v-if="activity.truncated" class="mt-1 block text-[10px] text-muted-foreground">
+                {{ t('tapeInspector.detail.truncated') }}
+              </span>
+            </li>
+          </ol>
+        </section>
+
+        <section v-if="capabilities?.integrity && integrityLabel" class="mt-4 border-t pt-3">
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.integrity') }}</h3>
+          <span class="rounded bg-muted px-1.5 py-0.5 text-[10px]">{{ integrityLabel }}</span>
+        </section>
+
+        <section v-if="capabilities?.provenance && provenanceText" class="mt-4 border-t pt-3">
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.provenance') }}</h3>
+          <pre
+            class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+            >{{ provenanceText }}</pre
+          >
+        </section>
+
+        <section v-if="capabilities?.timing && timingText" class="mt-4 border-t pt-3">
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.timing') }}</h3>
+          <pre
+            class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+            >{{ timingText }}</pre
+          >
+        </section>
+
+        <section v-if="capabilities?.payload && payloadText" class="mt-4 border-t pt-3">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <h3 class="text-xs font-medium">{{ t('tapeInspector.detail.payload') }}</h3>
+            <span v-if="isTruncated" class="text-[10px] text-muted-foreground">
+              {{ t('tapeInspector.detail.truncated') }}
+            </span>
+          </div>
+          <pre
+            class="max-h-[360px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+            >{{ payloadText }}</pre
+          >
+        </section>
+
+        <section v-if="hashesText" class="mt-4 border-t pt-3">
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.hashes') }}</h3>
+          <pre
+            class="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+            >{{ hashesText }}</pre
+          >
+        </section>
+
+        <section v-if="capabilities?.raw && rawText" class="mt-4 border-t pt-3">
+          <h3 class="mb-2 text-xs font-medium">{{ t('tapeInspector.detail.raw') }}</h3>
+          <pre
+            class="max-h-[360px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2 font-mono text-[10px]"
+            >{{ rawText }}</pre
+          >
+        </section>
+      </div>
+    </aside>
+  </FocusScope>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
+import { FocusScope } from 'reka-ui'
 import type {
   TapeInspectorDetailCapabilities,
   TapeInspectorDetailState,
@@ -250,10 +262,17 @@ const emit = defineEmits<{
 }>()
 
 const { t, d } = useI18n()
-const rootRef = ref<HTMLElement | null>(null)
 const copied = ref(false)
 let copiedTimer: number | null = null
 let copyGeneration = 0
+
+function handleMountAutoFocus(event: Event): void {
+  if (props.placement === 'side') event.preventDefault()
+}
+
+function handleUnmountAutoFocus(event: Event): void {
+  if (props.placement === 'side') event.preventDefault()
+}
 
 const messageDiagnosticsTarget = computed<TapeInspectorMessageDiagnosticsTarget | null>(() => {
   const row = props.row
@@ -487,16 +506,6 @@ watch(
       copiedTimer = null
     }
   }
-)
-
-watch(
-  () => [props.row?.key, props.placement] as const,
-  async ([key, placement]) => {
-    if (!key || placement !== 'overlay') return
-    await nextTick()
-    rootRef.value?.focus({ preventScroll: true })
-  },
-  { immediate: true }
 )
 
 onBeforeUnmount(() => {

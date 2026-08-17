@@ -12,7 +12,9 @@ import type {
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
+  ExportTapeInspectorSupportTraceInput,
   ExportTapeInspectorSupportTraceOutput,
+  GetTapeInspectorRecordDetailInput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorEvidenceOutput,
@@ -801,13 +803,15 @@ const GetTapeInspectorRecordDetailOutputSchema = z.discriminatedUnion('status', 
   })
 ]) satisfies z.ZodType<GetTapeInspectorRecordDetailOutput>
 
+const GetTapeInspectorRecordDetailInputSchema = z.object({
+  sessionId: EntityIdSchema,
+  expectedTapeIncarnationId: TapeInspectorIdentitySchema,
+  entryId: z.number().int().positive()
+}) satisfies z.ZodType<GetTapeInspectorRecordDetailInput>
+
 export const sessionsGetTapeInspectorRecordDetailRoute = defineRouteContract({
   name: 'sessions.getTapeInspectorRecordDetail',
-  input: z.object({
-    sessionId: EntityIdSchema,
-    expectedTapeIncarnationId: TapeInspectorIdentitySchema,
-    entryId: z.number().int().positive()
-  }),
+  input: GetTapeInspectorRecordDetailInputSchema,
   output: GetTapeInspectorRecordDetailOutputSchema
 }) satisfies RouteContract<'sessions.getTapeInspectorRecordDetail'>
 
@@ -838,12 +842,14 @@ const ExportTapeInspectorSupportTraceOutputSchema = z.discriminatedUnion('status
   })
 ]) satisfies z.ZodType<ExportTapeInspectorSupportTraceOutput>
 
+const ExportTapeInspectorSupportTraceInputSchema = z.object({
+  sessionId: EntityIdSchema,
+  expectedTapeIncarnationId: TapeInspectorIdentitySchema
+}) satisfies z.ZodType<ExportTapeInspectorSupportTraceInput>
+
 export const sessionsExportTapeInspectorSupportTraceRoute = defineRouteContract({
   name: 'sessions.exportTapeInspectorSupportTrace',
-  input: z.object({
-    sessionId: EntityIdSchema,
-    expectedTapeIncarnationId: TapeInspectorIdentitySchema
-  }),
+  input: ExportTapeInspectorSupportTraceInputSchema,
   output: ExportTapeInspectorSupportTraceOutputSchema
 }) satisfies RouteContract<'sessions.exportTapeInspectorSupportTrace'>
 

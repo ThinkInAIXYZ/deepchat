@@ -1,6 +1,8 @@
 import { Buffer } from 'node:buffer'
 import type {
+  ExportTapeInspectorSupportFactsInput,
   ExportTapeInspectorSupportFactsOutput,
+  GetTapeInspectorRecordDetailInput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
@@ -275,11 +277,7 @@ export class TapeTraceInspectorService {
     })
   }
 
-  getDetail(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-    entryId: number
-  }): GetTapeInspectorRecordDetailOutput {
+  getDetail(input: GetTapeInspectorRecordDetailInput): GetTapeInspectorRecordDetailOutput {
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
       const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)
@@ -339,10 +337,9 @@ export class TapeTraceInspectorService {
     })
   }
 
-  exportSupportFacts(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-  }): ExportTapeInspectorSupportFactsOutput {
+  exportSupportFacts(
+    input: ExportTapeInspectorSupportFactsInput
+  ): ExportTapeInspectorSupportFactsOutput {
     const table = this.providers.getEntryStore()
     return table.runInTransaction(() => {
       const tapeIncarnationId = canonicalTapeIncarnationId(table, input.sessionId)

@@ -149,6 +149,16 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       return record ? [record] : []
     })
   )
+  const canonicalSort = computed(() => serverSort.value.column === 'entryId')
+  const entryFiltersCanHideEvidenceParents = computed(
+    () =>
+      Boolean(serverFilters.value.kinds?.length) ||
+      Boolean(serverFilters.value.families?.length) ||
+      Boolean(serverFilters.value.name) ||
+      Boolean(serverFilters.value.namePrefix) ||
+      Boolean(serverFilters.value.factStatus) ||
+      serverFilters.value.errorsOnly === true
+  )
   const overviewRows = computed(() =>
     buildTapeInspectorRows({
       tapeIncarnationId: tapeIncarnationId.value,
@@ -168,7 +178,6 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const selectedRow = computed(
     () => rows.value.find((row) => row.key === selectedKey.value) ?? null
   )
-  const canonicalSort = computed(() => serverSort.value.column === 'entryId')
   const hasOlder = computed(() => olderCursor.value !== null)
   const hasMoreEvidence = computed(() => evidenceCursor.value !== null)
   const canLoadNewer = computed(
@@ -196,15 +205,6 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     }
     return [...entryIds].sort((left, right) => right - left)
   })
-  const entryFiltersCanHideEvidenceParents = computed(
-    () =>
-      Boolean(serverFilters.value.kinds?.length) ||
-      Boolean(serverFilters.value.families?.length) ||
-      Boolean(serverFilters.value.name) ||
-      Boolean(serverFilters.value.namePrefix) ||
-      Boolean(serverFilters.value.factStatus) ||
-      serverFilters.value.errorsOnly === true
-  )
   const hasEarlierEvidenceEntries = computed(() => earlierEvidenceEntryIds.value.length > 0)
   const canLoadEvidenceParents = computed(
     () =>
@@ -928,10 +928,12 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       filters
     })
     if (loaded && tapeIncarnationId.value === previousIncarnation) {
-      selectedKey.value = previousSelection
-      selectedDetail.value = previousDetail
-      selectedCapabilities.value = previousCapabilities
       collapsedKeys.value = previousCollapsedKeys
+      if (previousSelection && rows.value.some((row) => row.key === previousSelection)) {
+        selectedKey.value = previousSelection
+        selectedDetail.value = previousDetail
+        selectedCapabilities.value = previousCapabilities
+      }
     }
     return loaded
   }
@@ -953,10 +955,12 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       filters: serverFilters.value
     })
     if (loaded && tapeIncarnationId.value === previousIncarnation) {
-      selectedKey.value = previousSelection
-      selectedDetail.value = previousDetail
-      selectedCapabilities.value = previousCapabilities
       collapsedKeys.value = previousCollapsedKeys
+      if (previousSelection && rows.value.some((row) => row.key === previousSelection)) {
+        selectedKey.value = previousSelection
+        selectedDetail.value = previousDetail
+        selectedCapabilities.value = previousCapabilities
+      }
     }
     return loaded
   }

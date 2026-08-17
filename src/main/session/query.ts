@@ -30,7 +30,9 @@ import type {
   DeepChatNestedExecutionAuditState
 } from '@shared/types/execution-journal-audit'
 import type {
+  ExportTapeInspectorSupportTraceInput,
   ExportTapeInspectorSupportTraceOutput,
+  GetTapeInspectorRecordDetailInput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorEvidenceOutput,
@@ -224,27 +226,24 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     return await this.dependencies.tape.resolveTapeInspectorEvidenceEntries(input)
   }
 
-  async getTapeInspectorRecordDetail(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-    entryId: number
-  }): Promise<GetTapeInspectorRecordDetailOutput> {
+  async getTapeInspectorRecordDetail(
+    input: GetTapeInspectorRecordDetailInput
+  ): Promise<GetTapeInspectorRecordDetailOutput> {
     this.requireSession(input.sessionId)
     return await this.dependencies.tape.getTapeInspectorRecordDetail(input)
   }
 
-  async exportTapeInspectorSupportTrace(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-  }): Promise<ExportTapeInspectorSupportTraceOutput> {
+  async exportTapeInspectorSupportTrace(
+    input: ExportTapeInspectorSupportTraceInput
+  ): Promise<ExportTapeInspectorSupportTraceOutput> {
     this.requireSession(input.sessionId)
+    const facts = await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
+    if (facts.status === 'reset') return facts
     const evidence = await this.listTapeInspectorEvidence({
       sessionId: input.sessionId,
       mode: 'older',
       limit: TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT
     })
-    const facts = await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
-    if (facts.status === 'reset') return facts
     return {
       status: 'ok',
       trace: {

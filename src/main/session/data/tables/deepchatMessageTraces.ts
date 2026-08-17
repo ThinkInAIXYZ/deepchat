@@ -10,6 +10,7 @@ import type {
 export const TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION = 68
 
 const appendRowIdHighWatermarks = new WeakMap<Database.Database, number>()
+const appendRowIdHighWatermarksByPath = new Map<string, number>()
 
 export interface DeepChatMessageTraceRow {
   id: string
@@ -110,14 +111,23 @@ export class DeepChatMessageTracesTable extends BaseTable {
       .get() as {
       row_id: number | null
     }
-    const highWatermark = Math.max(appendRowIdHighWatermarks.get(this.db) ?? 0, row.row_id ?? 0)
+    const pathHighWatermark = this.db.memory
+      ? 0
+      : (appendRowIdHighWatermarksByPath.get(this.db.name) ?? 0)
+    const highWatermark = Math.max(
+      appendRowIdHighWatermarks.get(this.db) ?? 0,
+      pathHighWatermark,
+      row.row_id ?? 0
+    )
     appendRowIdHighWatermarks.set(this.db, highWatermark)
+    if (!this.db.memory) appendRowIdHighWatermarksByPath.set(this.db.name, highWatermark)
     return highWatermark
   }
 
   private reserveAppendRowId(): number {
     const rowId = this.preserveAppendRowIdHighWatermark() + 1
     appendRowIdHighWatermarks.set(this.db, rowId)
+    if (!this.db.memory) appendRowIdHighWatermarksByPath.set(this.db.name, rowId)
     return rowId
   }
 

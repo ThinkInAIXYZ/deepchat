@@ -10,6 +10,7 @@ import type {
   TapeInspectorFactRecord
 } from '@shared/types/tape-inspector'
 
+// The renderer setup uses a lightweight Pinia mock; this store test needs the real implementation.
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 function deferred<T>() {
@@ -521,7 +522,7 @@ describe('Tape Inspector store', () => {
     }
   })
 
-  it('preserves stable selection while local and server filters hide it', async () => {
+  it('keeps local-search selection but clears it when server filters remove the row', async () => {
     client.listTapeInspectorPage
       .mockResolvedValueOnce(page([fact(10, { name: 'visible' })]))
       .mockResolvedValueOnce(page([]))
@@ -537,7 +538,27 @@ describe('Tape Inspector store', () => {
     expect(store.selectedRow).toBeNull()
 
     await expect(store.applyServerFilters({ errorsOnly: true })).resolves.toBe(true)
-    expect(store.selectedKey).toBe('fact:incarnation-1:entry:10')
+    expect(store.selectedKey).toBeNull()
+    expect(store.selectedRow).toBeNull()
+  })
+
+  it('clears a selected group that does not exist in flat global sort results', async () => {
+    client.listTapeInspectorPage
+      .mockResolvedValueOnce(page([fact(20, { runId: 'run-1' })]))
+      .mockResolvedValueOnce(page([fact(20, { name: 'alpha', runId: 'run-1' })]))
+    client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage())
+      .mockResolvedValueOnce(evidencePage())
+    const store = useTapeInspectorStore()
+    await store.initialize('session-1')
+    await store.setTimelineMode('sequence')
+    const group = store.rows.find((row) => row.recordType === 'group')
+    expect(group).toBeDefined()
+    store.selectRow(group!.key)
+
+    await expect(store.applyServerSort({ column: 'name', direction: 'asc' })).resolves.toBe(true)
+
+    expect(store.selectedKey).toBeNull()
     expect(store.selectedRow).toBeNull()
   })
 

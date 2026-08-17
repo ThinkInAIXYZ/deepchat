@@ -43,7 +43,9 @@ import type {
   ExecutionRecoveryReport
 } from '../domain/executionJournal'
 import type {
+  ExportTapeInspectorSupportFactsInput,
   ExportTapeInspectorSupportFactsOutput,
+  GetTapeInspectorRecordDetailInput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
@@ -369,15 +371,12 @@ export interface TapeSessionInspectionReader {
   resolveTapeInspectorEvidenceEntries(
     input: ResolveTapeInspectorEvidenceEntriesInput
   ): ResolveTapeInspectorEvidenceEntriesOutput
-  getTapeInspectorRecordDetail(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-    entryId: number
-  }): GetTapeInspectorRecordDetailOutput
-  exportTapeInspectorSupportFacts(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-  }): ExportTapeInspectorSupportFactsOutput
+  getTapeInspectorRecordDetail(
+    input: GetTapeInspectorRecordDetailInput
+  ): GetTapeInspectorRecordDetailOutput
+  exportTapeInspectorSupportFacts(
+    input: ExportTapeInspectorSupportFactsInput
+  ): ExportTapeInspectorSupportFactsOutput
 }
 
 export interface TapeEffectiveMessageSourceEntry {

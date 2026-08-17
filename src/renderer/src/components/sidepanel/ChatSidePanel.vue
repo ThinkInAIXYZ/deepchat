@@ -443,7 +443,7 @@ watch(
       sidepanelStore.closePanel()
       return
     }
-    if (!enabled) sidepanelStore.openWorkspace(sessionId)
+    if (!enabled && sidepanelStore.open) sidepanelStore.openWorkspace(sessionId)
   },
   { immediate: true }
 )

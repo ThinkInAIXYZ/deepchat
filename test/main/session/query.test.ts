@@ -475,6 +475,7 @@ describe('SessionQuery', () => {
       expectedTapeIncarnationId: 'incarnation-1'
     })
 
+    harness.traces.listInspectorMetadata.mockClear()
     harness.tape.exportTapeInspectorSupportFacts.mockReturnValueOnce({
       status: 'reset',
       tapeIncarnationId: 'incarnation-2',
@@ -490,6 +491,7 @@ describe('SessionQuery', () => {
       tapeIncarnationId: 'incarnation-2',
       snapshotMaxEntryId: 1
     })
+    expect(harness.traces.listInspectorMetadata).not.toHaveBeenCalled()
     await expect(
       harness.coordinator.exportTapeInspectorSupportTrace({
         sessionId: 'missing',

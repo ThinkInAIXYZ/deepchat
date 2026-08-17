@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import os from 'node:os'
+import path from 'node:path'
 
+const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
   ? await import('@/session/data/tables/deepchatMessageTraces')
@@ -179,5 +182,38 @@ describeIfSqlite('DeepChatMessageTracesTable', () => {
         )
         .get()
     ).toEqual({ name: 'idx_trace_session_append' })
+  })
+
+  it('keeps append cursors monotonic when a file database connection reopens', () => {
+    const directory = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-trace-cursor-'))
+    const databasePath = path.join(directory, 'trace.db')
+    let db = new DatabaseCtor(databasePath)
+    try {
+      let table = new DeepChatMessageTracesTableCtor(db)
+      table.createTable()
+      table.insert(baseRow({ id: 't1', messageId: 'a1', requestSeq: 1 }))
+      table.insert(baseRow({ id: 't2', messageId: 'a2', requestSeq: 1 }))
+      table.deleteByMessageId('a2')
+      db.close()
+
+      db = new DatabaseCtor(databasePath)
+      table = new DeepChatMessageTracesTableCtor(db)
+      table.insert(baseRow({ id: 't3', messageId: 'a1', requestSeq: 2 }))
+
+      expect(
+        table.listInspectorMetadata({
+          sessionId: 's1',
+          mode: 'newer',
+          cursor: { rowId: 2 },
+          limit: 10
+        })
+      ).toMatchObject({
+        rows: [{ id: 't3', row_id: 3 }],
+        appendCursorRowId: 3
+      })
+    } finally {
+      if (db.open) db.close()
+      actualFs.rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

@@ -20,7 +20,9 @@ import type {
 } from '@shared/types/tape-replay'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type {
+  ExportTapeInspectorSupportFactsInput,
   ExportTapeInspectorSupportFactsOutput,
+  GetTapeInspectorRecordDetailInput,
   GetTapeInspectorRecordDetailOutput,
   ListTapeInspectorPageInput,
   ListTapeInspectorPageOutput,
@@ -532,18 +534,15 @@ export class SessionTape
     return this.traceInspector.resolveEvidenceEntries(input)
   }
 
-  getTapeInspectorRecordDetail(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-    entryId: number
-  }): GetTapeInspectorRecordDetailOutput {
+  getTapeInspectorRecordDetail(
+    input: GetTapeInspectorRecordDetailInput
+  ): GetTapeInspectorRecordDetailOutput {
     return this.traceInspector.getDetail(input)
   }
 
-  exportTapeInspectorSupportFacts(input: {
-    sessionId: string
-    expectedTapeIncarnationId: string
-  }): ExportTapeInspectorSupportFactsOutput {
+  exportTapeInspectorSupportFacts(
+    input: ExportTapeInspectorSupportFactsInput
+  ): ExportTapeInspectorSupportFactsOutput {
     return this.traceInspector.exportSupportFacts(input)
   }
 

@@ -109,10 +109,10 @@ describe('TapeInspectorHeadWatcher', () => {
     const watcher = new TapeInspectorHeadWatcher({
       readHead: () => {
         readCount += 1
-        if (readCount === 2) throw new Error('temporary read failure')
+        if (readCount === 2 || readCount === 3) throw new Error('temporary read failure')
         return {
           tapeIncarnationId: 'incarnation-1',
-          maxEntryId: readCount >= 3 ? 2 : 1
+          maxEntryId: readCount >= 4 ? 2 : 1
         }
       },
       emit,
@@ -130,6 +130,10 @@ describe('TapeInspectorHeadWatcher', () => {
     expect(timer.callbacks.size).toBe(1)
 
     timer.tick()
+    expect(onError).toHaveBeenCalledOnce()
+    expect(emit).not.toHaveBeenCalled()
+
+    timer.tick()
     expect(emit).toHaveBeenCalledWith(11, {
       sessionId: 'session-1',
       tapeIncarnationId: 'incarnation-1',
@@ -142,6 +146,40 @@ describe('TapeInspectorHeadWatcher', () => {
 
     watcher.close()
     expect(timer.callbacks.size).toBe(0)
+  })
+
+  it('isolates renderer delivery failures so other subscribers receive the head', () => {
+    const timer = createScheduler()
+    let maxEntryId = 1
+    const emit = vi.fn((webContentsId: number) => {
+      if (webContentsId === 11) throw new Error('renderer destroyed')
+    })
+    const onError = vi.fn()
+    const watcher = new TapeInspectorHeadWatcher({
+      readHead: () => ({ tapeIncarnationId: 'incarnation-1', maxEntryId }),
+      emit,
+      watchRendererDestroyed: () => vi.fn(),
+      scheduler: timer.scheduler,
+      onError
+    })
+    watcher.subscribe({ sessionId: 'session-1', subscriptionId: 'first', webContentsId: 11 })
+    watcher.subscribe({ sessionId: 'session-1', subscriptionId: 'second', webContentsId: 22 })
+
+    maxEntryId = 2
+    timer.tick()
+
+    expect(emit).toHaveBeenCalledWith(11, {
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 2
+    })
+    expect(emit).toHaveBeenCalledWith(22, {
+      sessionId: 'session-1',
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 2
+    })
+    expect(onError).toHaveBeenCalledOnce()
+    watcher.close()
   })
 
   it('bounds renderer ownership and rolls back failed lifecycle registration', () => {

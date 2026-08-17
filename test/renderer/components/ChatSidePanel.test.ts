@@ -319,6 +319,27 @@ describe('ChatSidePanel', () => {
     expect(hidden.wrapper.find('[data-testid="tape-inspector-sidepanel-tab"]').exists()).toBe(false)
   })
 
+  it('keeps a closed Inspector sidepanel closed when diagnostics are disabled', async () => {
+    const { sidepanelStore } = await setup({
+      open: false,
+      activeTab: 'tape-inspector',
+      traceDebugEnabled: false
+    })
+
+    expect(sidepanelStore.openWorkspace).not.toHaveBeenCalled()
+    expect(sidepanelStore.open).toBe(false)
+  })
+
+  it('returns an open Inspector sidepanel to the workspace when diagnostics are disabled', async () => {
+    const { sidepanelStore } = await setup({
+      open: true,
+      activeTab: 'tape-inspector',
+      traceDebugEnabled: false
+    })
+
+    expect(sidepanelStore.openWorkspace).toHaveBeenCalledWith('session-1')
+  })
+
   it('opens existing message diagnostics from the Inspector detail pane', async () => {
     const { wrapper } = await setup({
       activeTab: 'tape-inspector',
