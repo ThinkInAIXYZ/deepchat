@@ -193,7 +193,7 @@ describe('DatabaseSecurityService', () => {
     })
   })
 
-  it('rethrows decrypted corruption instead of treating it as a wrong password', async () => {
+  it('returns a proven password when unlock hits decrypted corruption', async () => {
     mocks.stores.set('database-security', {
       metadata: enabledMetadata()
     })
@@ -204,9 +204,7 @@ describe('DatabaseSecurityService', () => {
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
     const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
 
-    await expect(presenter.resolveStartupPassword(async () => 'secret')).rejects.toThrow(
-      'database disk image is malformed'
-    )
+    await expect(presenter.resolveStartupPassword(async () => 'secret')).resolves.toBe('secret')
   })
 
   it('keeps SQLCipher not-a-database failures in the invalid-password loop', async () => {

@@ -134,6 +134,17 @@ describe('OcrArtifactStore', () => {
     await second.close()
   })
 
+  persistentIt('rebuilds when the cache main file is missing but a WAL remains', async () => {
+    await writeFile(`${dbPath}-wal`, 'leftover-wal')
+    const store = new OcrArtifactStore({ dbPath, keyProvider: keyProvider(persistentKey) })
+
+    await expect(store.put(identity(), value('rebuilt'))).resolves.toMatchObject({
+      text: 'rebuilt'
+    })
+    expect(await store.getStats()).toMatchObject({ mode: 'persistent', entryCount: 1 })
+    await store.close()
+  })
+
   persistentIt('rebuilds a corrupt derived database with the current key', async () => {
     await writeFile(dbPath, 'not-a-sqlite-database')
     const store = new OcrArtifactStore({ dbPath, keyProvider: keyProvider(persistentKey) })

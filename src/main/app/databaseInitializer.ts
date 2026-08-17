@@ -52,7 +52,6 @@ type StartupSchemaDiagnosisResult =
  */
 export interface IDatabaseInitializer {
   initialize(): Promise<MainDatabase>
-  migrate(): Promise<void>
   validateConnection(): Promise<boolean>
 }
 
@@ -201,25 +200,6 @@ export class DatabaseInitializer implements IDatabaseInitializer {
         manualIssueCount,
         error: this.classifyInitializationFailure(error)
       })
-      throw error
-    }
-  }
-
-  /**
-   * Perform database migrations
-   */
-  async migrate(): Promise<void> {
-    if (!this.database) {
-      throw new Error('Database must be initialized before migration')
-    }
-
-    try {
-      logger.info('DatabaseInitializer: Starting database migration')
-      // Migration logic is already handled in MainDatabase constructor
-      // This method is here for future migration needs that might be separate
-      logger.info('DatabaseInitializer: Database migration completed')
-    } catch (error) {
-      console.error('DatabaseInitializer: Database migration failed:', error)
       throw error
     }
   }

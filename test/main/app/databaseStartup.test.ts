@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   allocate: vi.fn(),
   quarantine: vi.fn(),
   initialize: vi.fn(),
-  migrate: vi.fn(),
   DatabaseInitializer: vi.fn()
 }))
 
@@ -38,13 +37,10 @@ describe('initializeMainDatabaseWithRecovery', () => {
     mocks.allocate.mockReset()
     mocks.quarantine.mockReset()
     mocks.initialize.mockReset()
-    mocks.migrate.mockReset()
     mocks.DatabaseInitializer.mockReset()
     mocks.DatabaseInitializer.mockImplementation(() => ({
-      initialize: mocks.initialize,
-      migrate: mocks.migrate
+      initialize: mocks.initialize
     }))
-    mocks.migrate.mockResolvedValue(undefined)
     mocks.quarantine.mockImplementation((_dbPath: string, directory: string) => directory)
     let allocated = 0
     mocks.allocate.mockImplementation(
@@ -188,6 +184,29 @@ describe('initializeMainDatabaseWithRecovery', () => {
       kind: 'true-corruption',
       invalidPassword: false
     })
+    expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
+  })
+
+  it('starts empty with encryption after unlock proves the password on a corrupt file', async () => {
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('SQLITE_CORRUPT: malformed page'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockImplementation((input: { password?: string }) =>
+      input.password === undefined ? 'unreadable' : 'true-corruption'
+    )
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      password: 'secret',
+      recovery: [{ action: 'start-empty' }]
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(mocks.classify).toHaveBeenCalledWith(expect.objectContaining({ password: 'secret' }))
+    expect(ports.splash.requestDatabaseRecovery).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'true-corruption' })
+    )
     expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
   })
 

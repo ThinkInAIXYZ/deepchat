@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises'
 import type Database from 'better-sqlite3-multiple-ciphers'
 
 import { openSQLiteDatabase } from '@/data/databaseConnection'
+import { OrphanWalDatabaseError } from '@/data/databaseStartupRecovery'
 import {
   compareDocumentOcrCoverage,
   isValidDocumentOcrArtifact,
@@ -319,6 +320,7 @@ function createSqliteBackend(
 }
 
 function shouldRebuildOcrCache(error: unknown): boolean {
+  if (error instanceof OrphanWalDatabaseError) return true
   if (error instanceof OcrArtifactDatabaseError) return error.code === 'schema_mismatch'
   const sqliteCode = (error as { code?: unknown })?.code
   if (

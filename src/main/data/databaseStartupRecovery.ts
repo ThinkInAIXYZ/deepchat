@@ -100,7 +100,7 @@ export function allocateQuarantineDirectory(dbPath: string): string {
 export function quarantineDatabaseFiles(dbPath: string, directory: string): string {
   fs.mkdirSync(directory, { recursive: true })
 
-  for (const source of [sqliteShmPath(dbPath), sqliteWalPath(dbPath), dbPath]) {
+  for (const source of [dbPath, sqliteWalPath(dbPath), sqliteShmPath(dbPath)]) {
     if (!fs.existsSync(source)) {
       continue
     }

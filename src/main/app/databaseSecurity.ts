@@ -118,6 +118,22 @@ export class DatabaseSecurityService {
     return this.dbPath
   }
 
+  private rememberPasswordAfterUnlock(
+    password: string,
+    metadata: DatabaseSecurityMetadata,
+    safeStorageAvailable: boolean
+  ): void {
+    if (!safeStorageAvailable) {
+      return
+    }
+    this.persistMetadata({
+      ...metadata,
+      passwordStorage: 'safeStorage',
+      wrappedPassword: this.wrapPassword(password),
+      safeStorageBackend: this.getSafeStorageBackend()
+    })
+  }
+
   persistRecoveredEncryptionMetadata(password: string): void {
     this.assertPassword(password)
     const safeStorageAvailable = this.isSafeStorageAvailable()
@@ -170,12 +186,16 @@ export class DatabaseSecurityService {
       metadata.passwordStorage === 'safeStorage' &&
       metadata.wrappedPassword
     ) {
+      let password: string | undefined
       try {
-        const password = this.unwrapPassword(metadata.wrappedPassword)
+        password = this.unwrapPassword(metadata.wrappedPassword)
         this.validatePassword(password)
         return password
       } catch (error) {
-        if (error instanceof OrphanWalDatabaseError || isDecryptedDatabaseCorruptionError(error)) {
+        if (password !== undefined && isDecryptedDatabaseCorruptionError(error)) {
+          return password
+        }
+        if (error instanceof OrphanWalDatabaseError) {
           throw error
         }
         safeStorageUnlockFailed = true
@@ -198,17 +218,14 @@ export class DatabaseSecurityService {
 
       try {
         this.validatePassword(password)
-        if (safeStorageAvailable) {
-          this.persistMetadata({
-            ...metadata,
-            passwordStorage: 'safeStorage',
-            wrappedPassword: this.wrapPassword(password),
-            safeStorageBackend: this.getSafeStorageBackend()
-          })
-        }
+        this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable)
         return password
       } catch (error) {
-        if (error instanceof OrphanWalDatabaseError || isDecryptedDatabaseCorruptionError(error)) {
+        if (isDecryptedDatabaseCorruptionError(error)) {
+          this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable)
+          return password
+        }
+        if (error instanceof OrphanWalDatabaseError) {
           throw error
         }
         reason = 'invalid'

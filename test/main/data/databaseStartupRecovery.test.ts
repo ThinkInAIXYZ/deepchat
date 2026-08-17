@@ -166,6 +166,26 @@ describe('database file quarantine', () => {
     expect(fs.existsSync(path.join(first, 'agent.db-wal'))).toBe(true)
     expect(fs.readFileSync(path.join(second, 'agent.db'), 'utf8')).toBe('main-again')
   })
+
+  it('keeps the original WAL when the sidecar move fails after the main file', () => {
+    const dbPath = path.join(tempDir(), 'agent.db')
+    fs.writeFileSync(dbPath, 'main')
+    fs.writeFileSync(sqliteWalPath(dbPath), 'wal')
+    const directory = allocateQuarantineDirectory(dbPath)
+    fs.mkdirSync(directory, { recursive: true })
+    fs.mkdirSync(path.join(directory, 'agent.db-wal'))
+
+    expect(() => quarantineDatabaseFiles(dbPath, directory)).toThrow()
+    expect(fs.existsSync(dbPath)).toBe(false)
+    expect(fs.existsSync(sqliteWalPath(dbPath))).toBe(true)
+    expect(hasOrphanWalSidecar(dbPath)).toBe(true)
+
+    fs.rmSync(path.join(directory, 'agent.db-wal'), { recursive: true, force: true })
+    quarantineDatabaseFiles(dbPath, directory)
+    expect(hasOrphanWalSidecar(dbPath)).toBe(false)
+    expect(fs.readFileSync(path.join(directory, 'agent.db'), 'utf8')).toBe('main')
+    expect(fs.readFileSync(path.join(directory, 'agent.db-wal'), 'utf8')).toBe('wal')
+  })
 })
 
 describe('orphan WAL guard', () => {

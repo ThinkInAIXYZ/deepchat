@@ -129,9 +129,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
         dbPath,
         observe: input.observe
       })
-      const database = await initializer.initialize()
-      await initializer.migrate()
-      return database
+      return await initializer.initialize()
     } catch (error) {
       const kind = classifyDatabaseStartupFailure({ error, dbPath, password })
       if (!kind) {
