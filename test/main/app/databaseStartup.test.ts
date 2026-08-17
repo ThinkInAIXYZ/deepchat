@@ -219,8 +219,9 @@ describe('initializeMainDatabaseWithRecovery', () => {
       quarantineFailed: true
     })
     expect(mocks.quarantine).toHaveBeenCalledTimes(2)
-    expect(ports.splash.requestDatabaseRecovery.mock.calls[0]?.[0].preservedPath).not.toBe(
-      ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0].preservedPath
-    )
+    const shownPath = ports.splash.requestDatabaseRecovery.mock.calls[0]?.[0].preservedPath
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0].preservedPath).toBe(shownPath)
+    expect(mocks.quarantine.mock.calls[0]?.[1]).toBe(shownPath)
+    expect(mocks.quarantine.mock.calls[1]?.[1]).toBe(shownPath)
   })
 })

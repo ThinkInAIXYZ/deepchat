@@ -100,8 +100,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
         logger.warn('DatabaseStartup: failed to quarantine damaged database', error)
         pending = {
           ...pending,
-          quarantineFailed: true,
-          quarantineDirectory: allocateQuarantineDirectory(dbPath)
+          quarantineFailed: true
         }
         continue
       }
