@@ -1286,6 +1286,11 @@ describe('SessionTranscript', () => {
       ])
 
       expect(store.recoverPendingMessages()).toBe(1)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
+        'm1',
+        expect.anything(),
+        expect.anything()
+      )
       expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
         'm2',
         expect.any(Array)
@@ -1308,6 +1313,69 @@ describe('SessionTranscript', () => {
           timestamp: expect.any(Number)
         }
       ])
+    })
+
+    it('keeps a paused pending interaction across restart so it can still be cancelled', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's1',
+          role: 'assistant',
+          status: 'pending',
+          metadata: JSON.stringify({
+            runId: 'paused-run',
+            runOutcome: 'paused',
+            runStopReason: 'interaction'
+          }),
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: true }
+            }
+          ])
+        }
+      ])
+
+      expect(store.recoverPendingMessages()).toBe(0)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+    })
+
+    it('does not keep a cancelled interaction in pending restart recovery', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's1',
+          role: 'assistant',
+          status: 'pending',
+          metadata: JSON.stringify({
+            runId: 'paused-run',
+            runOutcome: 'paused',
+            runStopReason: 'interaction',
+            interactionResolution: 'cancelled'
+          }),
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'error',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: false }
+            }
+          ])
+        }
+      ])
+
+      expect(store.recoverPendingMessages()).toBe(1)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'm1',
+        expect.any(String),
+        'error'
+      )
     })
 
     it('recovers a pending interaction when Journal evidence parks its message', () => {

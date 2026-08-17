@@ -16513,6 +16513,74 @@ describe('DeepChatAgentHarness', () => {
       expect(processStream).not.toHaveBeenCalled()
     })
 
+    it('keeps a paused runOutcome when resume is cancelled before a new run starts', async () => {
+      const fitStarted = deferred<AbortSignal>()
+      vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+        kind: 'ok',
+        content: 'prepared',
+        offloaded: true,
+        offloadPath: '/tmp/original-tool-output.offload'
+      })
+      vi.spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput').mockImplementationOnce(
+        async (params) => {
+          if (!params.signal) throw new Error('Missing resume fit signal')
+          fitStarted.resolve(params.signal)
+          return await new Promise<never>((_resolve, reject) => {
+            params.signal?.addEventListener('abort', () => reject(params.signal?.reason), {
+              once: true
+            })
+          })
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+      row.metadata = JSON.stringify({
+        runId: 'paused-run',
+        runOutcome: 'paused',
+        runStopReason: 'interaction'
+      })
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      const resume = approvePendingTool()
+      await fitStarted.promise
+      agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
+      await expect(resume).resolves.toEqual({ resumed: false })
+
+      const errorWrite =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          (call) => call[0] === 'm1' && call[2] === 'error'
+        )
+      expect(errorWrite).toBeDefined()
+      expect(JSON.parse(errorWrite?.[3] ?? '{}')).toMatchObject({
+        runId: 'paused-run',
+        runOutcome: 'paused',
+        runStopReason: 'interaction',
+        interactionResolution: 'cancelled'
+      })
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
     it.each(['tool_error', 'terminal_error'] as const)(
       'does not clean a referenced offload when a stale fit returns %s',
       async (kind) => {
