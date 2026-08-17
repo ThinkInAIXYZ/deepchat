@@ -175,10 +175,7 @@ export class DatabaseSecurityService {
         this.validatePassword(password)
         return password
       } catch (error) {
-        if (
-          error instanceof OrphanWalDatabaseError ||
-          isDecryptedDatabaseCorruptionError(error)
-        ) {
+        if (error instanceof OrphanWalDatabaseError || isDecryptedDatabaseCorruptionError(error)) {
           throw error
         }
         safeStorageUnlockFailed = true
@@ -211,10 +208,7 @@ export class DatabaseSecurityService {
         }
         return password
       } catch (error) {
-        if (
-          error instanceof OrphanWalDatabaseError ||
-          isDecryptedDatabaseCorruptionError(error)
-        ) {
+        if (error instanceof OrphanWalDatabaseError || isDecryptedDatabaseCorruptionError(error)) {
           throw error
         }
         reason = 'invalid'

@@ -93,16 +93,15 @@ describe('database startup recovery classification', () => {
   })
 
   it('treats decrypted page corruption as distinct from a wrong SQLCipher password', async () => {
-    const { isDecryptedDatabaseCorruptionError } = await import(
-      '../../../src/main/data/databaseStartupRecovery'
-    )
+    const { isDecryptedDatabaseCorruptionError } =
+      await import('../../../src/main/data/databaseStartupRecovery')
 
     expect(isDecryptedDatabaseCorruptionError(new Error('SQLITE_CORRUPT: malformed page'))).toBe(
       true
     )
-    expect(
-      isDecryptedDatabaseCorruptionError(new Error('database disk image is malformed'))
-    ).toBe(true)
+    expect(isDecryptedDatabaseCorruptionError(new Error('database disk image is malformed'))).toBe(
+      true
+    )
     expect(isDecryptedDatabaseCorruptionError(new Error('file is not a database'))).toBe(false)
     expect(isDecryptedDatabaseCorruptionError(new Error('SQLITE_NOTADB: invalid header'))).toBe(
       false

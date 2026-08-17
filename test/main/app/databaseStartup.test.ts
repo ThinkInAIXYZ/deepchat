@@ -100,10 +100,7 @@ describe('initializeMainDatabaseWithRecovery', () => {
     await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
     const shownPath = ports.splash.requestDatabaseRecovery.mock.calls[0]?.[0].preservedPath
     expect(shownPath).toMatch(/agent\.db\.corrupt\./)
-    expect(mocks.quarantine).toHaveBeenCalledWith(
-      '/tmp/deepchat-test/app_db/agent.db',
-      shownPath
-    )
+    expect(mocks.quarantine).toHaveBeenCalledWith('/tmp/deepchat-test/app_db/agent.db', shownPath)
     expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
     expect(mocks.initialize).toHaveBeenCalledTimes(2)
   })
@@ -179,10 +176,7 @@ describe('initializeMainDatabaseWithRecovery', () => {
     const { initializeMainDatabaseWithRecovery } =
       await import('../../../src/main/app/databaseStartup')
     const ports = createPorts({
-      recovery: [
-        { action: 'password', password: 'secret' },
-        { action: 'start-empty' }
-      ]
+      recovery: [{ action: 'password', password: 'secret' }, { action: 'start-empty' }]
     })
     ports.security.validatePassword.mockImplementation(() => {
       throw new Error('SQLITE_CORRUPT: malformed page')

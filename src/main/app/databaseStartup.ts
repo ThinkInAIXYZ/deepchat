@@ -105,9 +105,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
         continue
       }
 
-      logger.info(
-        `DatabaseStartup: quarantined damaged database to ${pending.quarantineDirectory}`
-      )
+      logger.info(`DatabaseStartup: quarantined damaged database to ${pending.quarantineDirectory}`)
       if (pending.kind === 'unreadable' && password === undefined) {
         input.security.clearEncryptionMetadata()
       }
