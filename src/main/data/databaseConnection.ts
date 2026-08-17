@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from './connectionConfig'
+import { assertNoOrphanWalSidecar } from './databaseStartupRecovery'
 
 export interface DatabaseConnectionProvider {
   getDatabase(): Database.Database
@@ -16,6 +17,7 @@ function ensureDatabaseDirectory(dbPath: string): void {
 
 export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
   ensureDatabaseDirectory(dbPath)
+  assertNoOrphanWalSidecar(dbPath)
   const db = new Database(dbPath)
   try {
     configureSQLiteConnection(db, password)

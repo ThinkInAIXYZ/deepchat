@@ -107,7 +107,13 @@ describe('DatabaseSecurityService', () => {
     mocks.safeStorage.getSelectedStorageBackend.mockReturnValue('basic_text')
     mocks.app.getPath.mockReturnValue('/tmp/deepchat-test')
     mocks.app.quit.mockReset()
-    mocks.openSQLiteDatabase.mockClear()
+    mocks.openSQLiteDatabase.mockReset()
+    mocks.openSQLiteDatabase.mockImplementation(() => ({
+      prepare: vi.fn(() => ({
+        get: vi.fn(() => ({ name: 'schema_versions' }))
+      })),
+      close: vi.fn()
+    }))
   })
 
   it('reports manual unlock when safeStorage is unavailable', async () => {
@@ -168,6 +174,43 @@ describe('DatabaseSecurityService', () => {
       passwordStorage: 'safeStorage',
       wrappedPassword: Buffer.from('wrapped:manual-secret', 'utf8').toString('base64')
     })
+  })
+
+  it('persists recovered encryption metadata without forging a migration', async () => {
+    mocks.safeStorage.isEncryptionAvailable.mockReturnValue(false)
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+
+    presenter.persistRecoveredEncryptionMetadata('recovered-secret')
+
+    expect(mocks.stores.get('database-security')?.metadata).toMatchObject({
+      version: 1,
+      enabled: true,
+      cipher: 'sqlcipher',
+      passwordStorage: 'manual',
+      lastMigrationAt: undefined,
+      lastMigrationDirection: undefined
+    })
+  })
+
+  it('rethrows leftover WAL errors instead of treating them as a wrong password', async () => {
+    const { OrphanWalDatabaseError } = await import('@/data/databaseStartupRecovery')
+    mocks.stores.set('database-security', {
+      metadata: enabledMetadata({
+        passwordStorage: 'manual',
+        wrappedPassword: undefined
+      })
+    })
+    mocks.openSQLiteDatabase.mockImplementation(() => {
+      throw new OrphanWalDatabaseError('/tmp/deepchat-test/agent.db')
+    })
+
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+
+    await expect(presenter.resolveStartupPassword(async () => 'secret')).rejects.toBeInstanceOf(
+      OrphanWalDatabaseError
+    )
   })
 
   it('quits when startup unlock is canceled', async () => {

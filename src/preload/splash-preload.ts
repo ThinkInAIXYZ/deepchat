@@ -2,10 +2,15 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { createBridge } from './createBridge'
 import {
+  DATABASE_RECOVERY_CANCEL_CHANNEL,
+  DATABASE_RECOVERY_REQUEST_CHANNEL,
+  DATABASE_RECOVERY_SUBMIT_CHANNEL,
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
   DATABASE_UNLOCK_REQUEST_CHANNEL,
   DATABASE_UNLOCK_SUBMIT_CHANNEL,
+  type DatabaseRecoveryRequestPayload,
+  type DatabaseRecoverySubmitPayload,
   type DatabaseUnlockProgressPayload,
   type DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
@@ -51,6 +56,8 @@ const splashApi = Object.freeze({
     onSplashChannel(DATABASE_UNLOCK_REQUEST_CHANNEL, listener),
   onUnlockProgress: (listener: SplashListener<DatabaseUnlockProgressPayload>) =>
     onSplashChannel(DATABASE_UNLOCK_PROGRESS_CHANNEL, listener),
+  onRecoveryRequest: (listener: SplashListener<DatabaseRecoveryRequestPayload>) =>
+    onSplashChannel(DATABASE_RECOVERY_REQUEST_CHANNEL, listener),
   onDebugMode: (listener: SplashListener<SplashDebugMode>) => {
     const unsubscribe = onSplashChannel(SPLASH_DEBUG_MODE_CHANNEL, listener)
     if (latestDebugMode) {
@@ -70,6 +77,21 @@ const splashApi = Object.freeze({
       return
     }
     ipcRenderer.send(DATABASE_UNLOCK_CANCEL_CHANNEL, payload)
+  },
+  submitRecovery: (payload: DatabaseRecoverySubmitPayload) => {
+    if (!payload.requestId) {
+      return
+    }
+    if (payload.action === 'password' && typeof payload.password !== 'string') {
+      return
+    }
+    ipcRenderer.send(DATABASE_RECOVERY_SUBMIT_CHANNEL, payload)
+  },
+  cancelRecovery: (payload: { requestId: string }) => {
+    if (!payload.requestId) {
+      return
+    }
+    ipcRenderer.send(DATABASE_RECOVERY_CANCEL_CHANNEL, payload)
   }
 })
 

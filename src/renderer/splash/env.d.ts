@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 import type {
+  DatabaseRecoveryRequestPayload,
+  DatabaseRecoverySubmitPayload,
   DatabaseUnlockProgressPayload,
   DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
@@ -20,10 +22,13 @@ interface DeepchatSplashApi {
   onUpdate(listener: (payload: SplashUpdatePayload) => void): () => void
   onUnlockRequest(listener: (payload: DatabaseUnlockRequestPayload) => void): () => void
   onUnlockProgress(listener: (payload: DatabaseUnlockProgressPayload) => void): () => void
+  onRecoveryRequest(listener: (payload: DatabaseRecoveryRequestPayload) => void): () => void
   onDebugMode(listener: (mode: SplashDebugMode) => void): () => void
   getLanguageState(): Promise<RendererLanguageState>
   submitUnlock(payload: { requestId: string; password: string }): void
   cancelUnlock(payload: { requestId: string }): void
+  submitRecovery(payload: DatabaseRecoverySubmitPayload): void
+  cancelRecovery(payload: { requestId: string }): void
 }
 
 declare global {

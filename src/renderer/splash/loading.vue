@@ -1,5 +1,8 @@
 <template>
-  <div class="splash-shell" :class="{ 'splash-shell--manual-unlock': mode === 'unlock' }">
+  <div
+    class="splash-shell"
+    :class="{ 'splash-shell--manual-unlock': mode === 'unlock' || mode === 'recovery' }"
+  >
     <div v-if="mode === 'unlock'" class="unlock-stage unlock-stage--manual">
       <div class="aurora-background" aria-hidden="true">
         <span class="aurora-ribbon aurora-ribbon--top"></span>
@@ -46,6 +49,65 @@
         <p class="unlock-hint">
           {{ isDebugPreview ? t('settings.debug.splash.previewHint') : unlockHint }}
         </p>
+      </form>
+    </div>
+
+    <div v-else-if="mode === 'recovery'" class="unlock-stage unlock-stage--manual">
+      <div class="aurora-background" aria-hidden="true">
+        <span class="aurora-ribbon aurora-ribbon--top"></span>
+        <span class="aurora-ribbon aurora-ribbon--bottom"></span>
+        <span class="aurora-pool aurora-pool--blue"></span>
+        <span class="aurora-pool aurora-pool--violet"></span>
+      </div>
+      <form class="unlock-panel unlock-panel--manual" @submit.prevent="submitRecoveryPassword">
+        <div class="unlock-brand" aria-hidden="true">
+          <div class="unlock-logo unlock-logo--dark" v-html="darkLogo" />
+          <div class="unlock-logo unlock-logo--light" v-html="lightLogo" />
+        </div>
+        <div class="unlock-title">DeepChat</div>
+        <div class="unlock-subtitle">{{ recoverySubtitle }}</div>
+        <template v-if="recoveryNeedsPassword">
+          <label class="unlock-label" for="database-recovery-password">SQLite password</label>
+          <input
+            id="database-recovery-password"
+            ref="recoveryPasswordInput"
+            v-model="password"
+            class="unlock-input"
+            type="password"
+            autocomplete="current-password"
+            autofocus
+            :disabled="unlockSubmitting"
+          />
+        </template>
+        <div v-if="recoveryMessage" class="unlock-message">{{ recoveryMessage }}</div>
+        <div class="unlock-actions">
+          <button
+            v-if="recoveryNeedsPassword"
+            class="unlock-button unlock-button--primary"
+            type="submit"
+            :disabled="!password || unlockSubmitting"
+          >
+            {{ unlockSubmitting ? 'Opening...' : 'Unlock' }}
+          </button>
+          <button
+            class="unlock-button"
+            :class="{ 'unlock-button--primary': !recoveryNeedsPassword }"
+            type="button"
+            :disabled="unlockSubmitting"
+            @click="requestStartEmpty"
+          >
+            {{ confirmingStartEmpty ? 'Confirm start empty' : 'Start empty' }}
+          </button>
+          <button
+            class="unlock-button"
+            type="button"
+            :disabled="unlockSubmitting"
+            @click="cancelRecovery"
+          >
+            Quit
+          </button>
+        </div>
+        <p class="unlock-hint">Original files will be kept at {{ recoveryPreservedPath }}.</p>
       </form>
     </div>
 
@@ -101,6 +163,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  type DatabaseRecoveryRequestPayload,
   type DatabaseUnlockProgressPayload,
   type DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
@@ -110,18 +173,42 @@ import type { SplashDebugMode } from '@shared/contracts/splash'
 
 const { t } = useI18n()
 
-const mode = ref<'loading' | 'system-unlock' | 'unlock'>('loading')
+const mode = ref<'loading' | 'system-unlock' | 'unlock' | 'recovery'>('loading')
 const requestId = ref('')
 const password = ref('')
 const unlockReason = ref<DatabaseUnlockRequestPayload['reason']>('manual-required')
+const recoveryKind = ref<DatabaseRecoveryRequestPayload['kind']>('true-corruption')
+const recoveryPreservedPath = ref('')
+const recoveryInvalidPassword = ref(false)
+const confirmingStartEmpty = ref(false)
 const safeStorageAvailable = ref(false)
 const unlockSubmitting = ref(false)
 const passwordInput = ref<HTMLInputElement | null>(null)
+const recoveryPasswordInput = ref<HTMLInputElement | null>(null)
 const animationStarted = ref(true)
 const isDebugPreview = ref(false)
 
 const unlockMessage = computed(() => {
   if (unlockReason.value === 'invalid') {
+    return 'Wrong password. Try again.'
+  }
+  return ''
+})
+
+const recoveryNeedsPassword = computed(() => recoveryKind.value === 'unreadable')
+
+const recoverySubtitle = computed(() => {
+  if (recoveryKind.value === 'unreadable') {
+    return 'This database cannot be read. It may be encrypted or damaged.'
+  }
+  if (recoveryKind.value === 'orphaned-sidecar') {
+    return 'A leftover database journal was found without its main file.'
+  }
+  return 'The local database is damaged.'
+})
+
+const recoveryMessage = computed(() => {
+  if (recoveryInvalidPassword.value) {
     return 'Wrong password. Try again.'
   }
   return ''
@@ -149,6 +236,23 @@ const handleDebugMode = (debugMode: SplashDebugMode) => {
   password.value = ''
   unlockSubmitting.value = false
   mode.value = debugMode
+}
+
+const handleRecoveryRequest = (payload: DatabaseRecoveryRequestPayload) => {
+  isDebugPreview.value = false
+  requestId.value = payload.requestId
+  recoveryKind.value = payload.kind
+  recoveryPreservedPath.value = payload.preservedPath
+  recoveryInvalidPassword.value = payload.invalidPassword === true
+  confirmingStartEmpty.value = false
+  password.value = ''
+  unlockSubmitting.value = false
+  mode.value = 'recovery'
+  if (payload.kind === 'unreadable') {
+    void nextTick(() => {
+      recoveryPasswordInput.value?.focus()
+    })
+  }
 }
 
 const handleUnlockRequest = (payload: DatabaseUnlockRequestPayload) => {
@@ -187,6 +291,54 @@ const submitUnlock = () => {
   password.value = ''
 }
 
+const submitRecoveryPassword = () => {
+  if (
+    !requestId.value ||
+    !password.value ||
+    unlockSubmitting.value ||
+    !recoveryNeedsPassword.value
+  ) {
+    return
+  }
+  unlockSubmitting.value = true
+  window.deepchatSplash.submitRecovery({
+    requestId: requestId.value,
+    action: 'password',
+    password: password.value
+  })
+  password.value = ''
+}
+
+const requestStartEmpty = () => {
+  if (!requestId.value || unlockSubmitting.value) {
+    return
+  }
+  if (!confirmingStartEmpty.value) {
+    confirmingStartEmpty.value = true
+    return
+  }
+  unlockSubmitting.value = true
+  window.deepchatSplash.submitRecovery({
+    requestId: requestId.value,
+    action: 'start-empty'
+  })
+}
+
+const cancelRecovery = () => {
+  if (!requestId.value) {
+    return
+  }
+  const canceledRequestId = requestId.value
+  unlockSubmitting.value = false
+  window.deepchatSplash.cancelRecovery({
+    requestId: canceledRequestId
+  })
+  requestId.value = ''
+  password.value = ''
+  confirmingStartEmpty.value = false
+  mode.value = 'loading'
+}
+
 const cancelUnlock = () => {
   if (isDebugPreview.value || !requestId.value) {
     return
@@ -209,6 +361,7 @@ onMounted(() => {
   cleanupListeners.push(
     window.deepchatSplash.onUnlockRequest(handleUnlockRequest),
     window.deepchatSplash.onUnlockProgress(handleUnlockProgress),
+    window.deepchatSplash.onRecoveryRequest(handleRecoveryRequest),
     window.deepchatSplash.onDebugMode(handleDebugMode)
   )
 })

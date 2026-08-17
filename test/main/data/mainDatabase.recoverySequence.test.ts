@@ -9,103 +9,28 @@ describe('sqlitePresenter destructive recovery sequence', () => {
     vi.resetModules()
   })
 
-  it('backs up the live database before closing and cleaning up destructive failures', async () => {
+  it('closes the connection and rethrows destructive failures without deleting files', async () => {
     const { MainDatabase } = await import('../../../src/main/data/mainDatabase')
     const callOrder: string[] = []
     const destructiveError = new Error('SQLITE_CORRUPT: malformed page')
+    const close = vi.fn(() => {
+      callOrder.push('close')
+    })
 
-    vi.spyOn(MainDatabase.prototype as any, 'initializeDatabase')
-      .mockImplementationOnce(function (this: any) {
-        callOrder.push('initializeDatabase:first')
+    vi.spyOn(MainDatabase.prototype as any, 'initializeDatabase').mockImplementation(
+      function (this: any) {
+        callOrder.push('initializeDatabase')
         this.db = {
           open: true,
           pragma: vi.fn(),
-          close: vi.fn()
+          close
         }
         throw destructiveError
-      })
-      .mockImplementationOnce(() => {
-        callOrder.push('initializeDatabase:retry')
-      })
-
-    vi.spyOn(MainDatabase.prototype as any, 'backupDatabase').mockImplementation(() => {
-      callOrder.push('backupDatabase')
-    })
-    vi.spyOn(MainDatabase.prototype as any, 'closeDatabaseSilently').mockImplementation(() => {
-      callOrder.push('closeDatabaseSilently')
-    })
-    vi.spyOn(MainDatabase.prototype as any, 'cleanupDatabaseFiles').mockImplementation(() => {
-      callOrder.push('cleanupDatabaseFiles')
-    })
-
-    new MainDatabase('C:/tmp/deepchat-agent.db')
-
-    expect(callOrder).toEqual([
-      'initializeDatabase:first',
-      'backupDatabase',
-      'closeDatabaseSilently',
-      'cleanupDatabaseFiles',
-      'initializeDatabase:retry'
-    ])
-  })
-
-  it('attempts destructive recovery at most once when the retry also fails destructively', async () => {
-    const { MainDatabase } = await import('../../../src/main/data/mainDatabase')
-    const callOrder: string[] = []
-    const destructiveError = new Error('SQLITE_CORRUPT: malformed page')
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    vi.spyOn(MainDatabase.prototype as any, 'initializeDatabase')
-      .mockImplementationOnce(function (this: any) {
-        callOrder.push('initializeDatabase:first')
-        this.db = {
-          open: true,
-          pragma: vi.fn(),
-          close: vi.fn()
-        }
-        throw destructiveError
-      })
-      .mockImplementationOnce(function (this: any) {
-        callOrder.push('initializeDatabase:retry')
-        this.db = {
-          open: true,
-          pragma: vi.fn(),
-          close: vi.fn()
-        }
-        throw destructiveError
-      })
-
-    const backupSpy = vi
-      .spyOn(MainDatabase.prototype as any, 'backupDatabase')
-      .mockImplementation(() => {
-        callOrder.push('backupDatabase')
-      })
-    const closeSpy = vi
-      .spyOn(MainDatabase.prototype as any, 'closeDatabaseSilently')
-      .mockImplementation(() => {
-        callOrder.push('closeDatabaseSilently')
-      })
-    const cleanupSpy = vi
-      .spyOn(MainDatabase.prototype as any, 'cleanupDatabaseFiles')
-      .mockImplementation(() => {
-        callOrder.push('cleanupDatabaseFiles')
-      })
+      }
+    )
 
     expect(() => new MainDatabase('C:/tmp/deepchat-agent.db')).toThrow(destructiveError)
-
-    expect(backupSpy).toHaveBeenCalledTimes(1)
-    expect(cleanupSpy).toHaveBeenCalledTimes(1)
-    expect(closeSpy).toHaveBeenCalledTimes(2)
-    expect(callOrder).toEqual([
-      'initializeDatabase:first',
-      'backupDatabase',
-      'closeDatabaseSilently',
-      'cleanupDatabaseFiles',
-      'initializeDatabase:retry',
-      'closeDatabaseSilently'
-    ])
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Destructive database recovery was already attempted once; aborting retry.'
-    )
+    expect(callOrder).toEqual(['initializeDatabase', 'close'])
+    expect(close).toHaveBeenCalledTimes(1)
   })
 })

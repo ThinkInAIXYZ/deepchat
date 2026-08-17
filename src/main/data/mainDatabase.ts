@@ -6,15 +6,8 @@ import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
 import { createMainSchemaCatalog, type MainSchemaCatalog } from '@/data/schemaCatalog'
-
 export { openSQLiteDatabase } from '@/data/databaseConnection'
-
-const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
-  /database disk image is malformed/i,
-  /file is not a database/i,
-  /SQLITE_CORRUPT/i,
-  /SQLITE_NOTADB/i
-]
+export { isDestructiveDatabaseError } from '@/data/databaseStartupRecovery'
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -26,11 +19,6 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error ?? '')
-}
-
-export function isDestructiveDatabaseError(error: unknown): boolean {
-  const message = getErrorMessage(error)
-  return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
 }
 
 export function repairSQLiteDatabaseFile(
@@ -158,7 +146,6 @@ export class MainDatabase {
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
-  private destructiveInitializationRetryCount = 0
   private databaseFileExistedBeforeOpen = false
 
   constructor(dbPath: string, password?: string) {
@@ -167,7 +154,9 @@ export class MainDatabase {
     try {
       this.initializeDatabase()
     } catch (error) {
-      this.handleInitializationError(error)
+      console.error('Database initialization failed:', error)
+      this.closeDatabaseSilently()
+      throw error
     }
   }
 
@@ -233,32 +222,6 @@ export class MainDatabase {
     )
   }
 
-  private handleInitializationError(error: unknown): void {
-    console.error('Database initialization failed:', error)
-
-    if (isDestructiveDatabaseError(error)) {
-      if (this.destructiveInitializationRetryCount > 0) {
-        console.error('Destructive database recovery was already attempted once; aborting retry.')
-        this.closeDatabaseSilently()
-        throw error
-      }
-
-      this.destructiveInitializationRetryCount += 1
-      this.backupDatabase()
-      this.closeDatabaseSilently()
-      this.cleanupDatabaseFiles()
-      try {
-        this.initializeDatabase()
-      } catch (retryError) {
-        this.handleInitializationError(retryError)
-      }
-      return
-    }
-
-    this.closeDatabaseSilently()
-    throw error
-  }
-
   private closeDatabaseSilently(): void {
     if (!this.db) {
       return
@@ -271,10 +234,6 @@ export class MainDatabase {
     }
   }
 
-  private backupDatabase(): void {
-    this.createDatabaseBackup()
-  }
-
   private createDatabaseBackup(reason?: string): string | null {
     // Bypass mocked node:fs so recovery always copies the real database file.
     const nativeFs = process.getBuiltinModule('fs')
@@ -283,33 +242,29 @@ export class MainDatabase {
     const backupPath = `${this.dbPath}.${timestamp}${suffix}`
 
     try {
-      if (nativeFs.existsSync(this.dbPath)) {
+      if (!nativeFs.existsSync(this.dbPath)) {
+        return null
+      }
+
+      try {
         if (this.db?.open) {
           this.db.pragma('wal_checkpoint(TRUNCATE)')
         }
-        nativeFs.copyFileSync(this.dbPath, backupPath)
-        logger.info(`Database backed up to: ${backupPath}`)
-        return backupPath
+      } catch (error) {
+        console.error('WAL checkpoint failed before backup:', error)
       }
+
+      nativeFs.copyFileSync(this.dbPath, backupPath)
+      const walPath = `${this.dbPath}-wal`
+      if (nativeFs.existsSync(walPath)) {
+        nativeFs.copyFileSync(walPath, `${backupPath}-wal`)
+      }
+      logger.info(`Database backed up to: ${backupPath}`)
+      return backupPath
     } catch (error) {
       console.error('Error creating database backup:', error)
     }
     return null
-  }
-
-  private cleanupDatabaseFiles(): void {
-    const filesToDelete = [this.dbPath, `${this.dbPath}-wal`, `${this.dbPath}-shm`]
-
-    for (const file of filesToDelete) {
-      try {
-        if (fs.existsSync(file)) {
-          fs.unlinkSync(file)
-          logger.info(`Deleted file: ${file}`)
-        }
-      } catch (error) {
-        console.error(`Error deleting file ${file}:`, error)
-      }
-    }
   }
 
   private initVersionTable() {

@@ -3,12 +3,14 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import Loading from '../../../src/renderer/splash/loading.vue'
 import type {
+  DatabaseRecoveryRequestPayload,
   DatabaseUnlockProgressPayload,
   DatabaseUnlockRequestPayload
 } from '../../../src/shared/contracts/databaseSecurity'
 
 let unlockRequestListener: ((payload: DatabaseUnlockRequestPayload) => void) | undefined
 let unlockProgressListener: ((payload: DatabaseUnlockProgressPayload) => void) | undefined
+let recoveryRequestListener: ((payload: DatabaseRecoveryRequestPayload) => void) | undefined
 let debugModeListener: ((mode: 'loading' | 'system-unlock' | 'unlock') => void) | undefined
 let wrapper: VueWrapper | undefined
 
@@ -30,6 +32,7 @@ describe('splash loading', () => {
   beforeEach(() => {
     unlockRequestListener = undefined
     unlockProgressListener = undefined
+    recoveryRequestListener = undefined
     debugModeListener = undefined
 
     window.deepchatSplash = {
@@ -42,12 +45,18 @@ describe('splash loading', () => {
         unlockProgressListener = listener
         return vi.fn()
       }),
+      onRecoveryRequest: vi.fn((listener) => {
+        recoveryRequestListener = listener
+        return vi.fn()
+      }),
       onDebugMode: vi.fn((listener) => {
         debugModeListener = listener
         return vi.fn()
       }),
       submitUnlock: vi.fn(),
-      cancelUnlock: vi.fn()
+      cancelUnlock: vi.fn(),
+      submitRecovery: vi.fn(),
+      cancelRecovery: vi.fn()
     }
   })
 
@@ -106,5 +115,29 @@ describe('splash loading', () => {
 
     expect(wrapper.classes()).toContain('splash-shell--manual-unlock')
     expect(wrapper.get('.unlock-panel--manual').exists()).toBe(true)
+  })
+
+  it('requires a second click before starting empty from a damaged database', async () => {
+    const wrapper = mountLoading()
+
+    recoveryRequestListener?.({
+      requestId: 'recovery-1',
+      kind: 'true-corruption',
+      preservedPath: '/tmp/agent.db.corrupt.*'
+    })
+    await nextTick()
+
+    const startEmpty = wrapper.findAll('button').find((button) => button.text() === 'Start empty')
+    expect(startEmpty).toBeTruthy()
+    await startEmpty!.trigger('click')
+    expect(window.deepchatSplash.submitRecovery).not.toHaveBeenCalled()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Confirm start empty')!
+      .trigger('click')
+    expect(window.deepchatSplash.submitRecovery).toHaveBeenCalledWith({
+      requestId: 'recovery-1',
+      action: 'start-empty'
+    })
   })
 })

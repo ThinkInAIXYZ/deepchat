@@ -9,6 +9,7 @@ import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
+import { OrphanWalDatabaseError } from '@/data/databaseStartupRecovery'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 
@@ -110,6 +111,30 @@ export class DatabaseSecurityService {
     this.recoverInterruptedMigrationFiles()
   }
 
+  getDatabasePath(): string {
+    return this.dbPath
+  }
+
+  persistRecoveredEncryptionMetadata(password: string): void {
+    this.assertPassword(password)
+    const safeStorageAvailable = this.isSafeStorageAvailable()
+    const metadata = this.getMetadata()
+    this.persistMetadata({
+      version: 1,
+      enabled: true,
+      cipher: 'sqlcipher',
+      passwordStorage: safeStorageAvailable ? 'safeStorage' : 'manual',
+      wrappedPassword: safeStorageAvailable ? this.wrapPassword(password) : undefined,
+      safeStorageBackend: this.getSafeStorageBackend(),
+      lastMigrationAt: metadata.lastMigrationAt,
+      lastMigrationDirection: metadata.lastMigrationDirection
+    })
+  }
+
+  clearEncryptionMetadata(): void {
+    this.persistMetadata({ ...DEFAULT_METADATA })
+  }
+
   getStatus(): DatabaseSecurityStatus {
     const metadata = this.getMetadata()
     const safeStorageAvailable = this.isSafeStorageAvailable()
@@ -146,7 +171,10 @@ export class DatabaseSecurityService {
         const password = this.unwrapPassword(metadata.wrappedPassword)
         this.validatePassword(password)
         return password
-      } catch {
+      } catch (error) {
+        if (error instanceof OrphanWalDatabaseError) {
+          throw error
+        }
         safeStorageUnlockFailed = true
         console.warn('[DatabaseSecurity] safeStorage unlock failed; manual unlock required.')
       }
@@ -176,7 +204,10 @@ export class DatabaseSecurityService {
           })
         }
         return password
-      } catch {
+      } catch (error) {
+        if (error instanceof OrphanWalDatabaseError) {
+          throw error
+        }
         reason = 'invalid'
       }
     }

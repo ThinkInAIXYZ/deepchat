@@ -6,7 +6,7 @@ import { DatabaseSecurityService } from './databaseSecurity'
 import { proxyConfig } from '@/platform/proxy'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { createMainProcessControl, type MainProcessControl } from './composition'
-import { DatabaseInitializer } from './databaseInitializer'
+import { initializeMainDatabaseWithRecovery } from './databaseStartup'
 import { registerProtocols } from './protocols'
 import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import { SplashWindow } from './splashWindow'
@@ -30,7 +30,7 @@ export async function startMainProcess(
 ): Promise<MainProcessControl> {
   const splashWindow = new SplashWindow()
   let mainProcess: MainProcessControl | undefined
-  let database: Awaited<ReturnType<DatabaseInitializer['initialize']>> | undefined
+  let database: Awaited<ReturnType<typeof initializeMainDatabaseWithRecovery>> | undefined
 
   await splashWindow.create()
 
@@ -53,16 +53,9 @@ export async function startMainProcess(
       },
       { skipDelay: securityStatus.enabled }
     )
-    const password = await databaseSecurityService.resolveStartupPassword((request) =>
-      splashWindow.requestDatabaseUnlock(request)
-    )
-    splashWindow.showDatabaseUnlockProgress({
-      active: false,
-      safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
-    })
-
-    const databaseInitializer = new DatabaseInitializer({
-      password,
+    database = await initializeMainDatabaseWithRecovery({
+      security: databaseSecurityService,
+      splash: splashWindow,
       observe: (observation) => {
         const context = {
           ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
@@ -85,8 +78,10 @@ export async function startMainProcess(
         }
       }
     })
-    database = await databaseInitializer.initialize()
-    await databaseInitializer.migrate()
+    splashWindow.showDatabaseUnlockProgress({
+      active: false,
+      safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
+    })
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)
     const mcpDatabase = new McpDatabase(database)

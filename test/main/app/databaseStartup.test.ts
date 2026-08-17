@@ -1,0 +1,156 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  appQuit: vi.fn(),
+  classify: vi.fn(),
+  quarantine: vi.fn(),
+  initialize: vi.fn(),
+  migrate: vi.fn(),
+  DatabaseInitializer: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  app: {
+    quit: mocks.appQuit
+  }
+}))
+
+vi.mock('@/data/databaseStartupRecovery', () => ({
+  classifyDatabaseStartupFailure: mocks.classify,
+  quarantineDatabaseFiles: mocks.quarantine
+}))
+
+vi.mock('@/app/databaseInitializer', () => ({
+  DatabaseInitializer: mocks.DatabaseInitializer
+}))
+
+describe('initializeMainDatabaseWithRecovery', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    mocks.appQuit.mockReset()
+    mocks.classify.mockReset()
+    mocks.quarantine.mockReset()
+    mocks.initialize.mockReset()
+    mocks.migrate.mockReset()
+    mocks.DatabaseInitializer.mockReset()
+    mocks.DatabaseInitializer.mockImplementation(() => ({
+      initialize: mocks.initialize,
+      migrate: mocks.migrate
+    }))
+    mocks.migrate.mockResolvedValue(undefined)
+    mocks.quarantine.mockReturnValue('/tmp/agent.db.corrupt.1')
+  })
+
+  function createPorts(overrides?: {
+    password?: string
+    recovery?: Array<{ action: 'start-empty' } | { action: 'password'; password: string } | null>
+  }) {
+    const recovery = [...(overrides?.recovery ?? [])]
+    return {
+      security: {
+        getDatabasePath: () => '/tmp/deepchat-test/app_db/agent.db',
+        resolveStartupPassword: vi.fn(async () => overrides?.password),
+        validatePassword: vi.fn(),
+        persistRecoveredEncryptionMetadata: vi.fn(),
+        clearEncryptionMetadata: vi.fn()
+      },
+      splash: {
+        requestDatabaseUnlock: vi.fn(),
+        requestDatabaseRecovery: vi.fn(async () => recovery.shift() ?? null)
+      }
+    }
+  }
+
+  it('returns the opened database when startup succeeds', async () => {
+    const database = { id: 'db' }
+    mocks.initialize.mockResolvedValue(database)
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({ password: 'secret' })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.splash.requestDatabaseRecovery).not.toHaveBeenCalled()
+    expect(mocks.quarantine).not.toHaveBeenCalled()
+  })
+
+  it('quarantines a damaged database only after the user chooses start empty', async () => {
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('SQLITE_CORRUPT: malformed page'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValue('true-corruption')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      password: 'secret',
+      recovery: [{ action: 'start-empty' }]
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(mocks.quarantine).toHaveBeenCalledTimes(1)
+    expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
+    expect(mocks.initialize).toHaveBeenCalledTimes(2)
+  })
+
+  it('repairs encryption metadata after a recovered password opens the file', async () => {
+    const database = { id: 'opened' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('file is not a database'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValue('unreadable')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      recovery: [{ action: 'password', password: 'recovered' }]
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.security.validatePassword).toHaveBeenCalledWith('recovered')
+    expect(ports.security.persistRecoveredEncryptionMetadata).toHaveBeenCalledWith('recovered')
+    expect(mocks.quarantine).not.toHaveBeenCalled()
+  })
+
+  it('clears encryption metadata when starting empty from an unreadable file', async () => {
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('file is not a database'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValue('unreadable')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      recovery: [{ action: 'start-empty' }]
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.security.clearEncryptionMetadata).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again when a recovery password fails validation', async () => {
+    const database = { id: 'opened' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('file is not a database'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValue('unreadable')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      recovery: [
+        { action: 'password', password: 'wrong' },
+        { action: 'password', password: 'right' }
+      ]
+    })
+    ports.security.validatePassword.mockImplementation((value: string) => {
+      if (value === 'wrong') {
+        throw new Error('file is not a database')
+      }
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.splash.requestDatabaseRecovery).toHaveBeenCalledTimes(2)
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0]).toMatchObject({
+      invalidPassword: true
+    })
+    expect(mocks.initialize).toHaveBeenCalledTimes(2)
+  })
+})

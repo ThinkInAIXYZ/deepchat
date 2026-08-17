@@ -367,6 +367,27 @@ describe('SplashWindow display gating', () => {
     manager = null
   })
 
+  it('shows database recovery as soon as the renderer has loaded', async () => {
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+
+    manager = new SplashWindow()
+    await manager.create()
+
+    const splashWindow = createdWindows[0]
+    const recoveryPromise = manager.requestDatabaseRecovery({
+      kind: 'true-corruption',
+      preservedPath: '/tmp/agent.db.corrupt.*'
+    })
+    await Promise.resolve()
+
+    expect(splashWindow.show).toHaveBeenCalledTimes(1)
+    const closePromise = manager.close()
+    await vi.runAllTimersAsync()
+    await expect(recoveryPromise).resolves.toBeNull()
+    await closePromise
+    manager = null
+  })
+
   it('falls back to an inline splash renderer when the dev page is unavailable', async () => {
     process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
     splashLoadMocks.loadURL = vi.fn(async (url: string) => {
@@ -416,8 +437,11 @@ describe('SplashWindow display gating', () => {
         unlockRequestListener = listener
       }),
       onUnlockProgress: vi.fn(),
+      onRecoveryRequest: vi.fn(),
       submitUnlock: vi.fn(),
-      cancelUnlock: vi.fn()
+      cancelUnlock: vi.fn(),
+      submitRecovery: vi.fn(),
+      cancelRecovery: vi.fn()
     }
     const dom = new JSDOM(fallbackHtml, {
       runScripts: 'dangerously',

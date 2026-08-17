@@ -103,7 +103,7 @@ describe('session boundary composition', () => {
       'utf8'
     )
     const loggingGate = mainProcessSource.indexOf('setMainLoggingEnabled(')
-    const databaseInitialization = mainProcessSource.indexOf('new DatabaseInitializer(')
+    const databaseInitialization = mainProcessSource.indexOf('initializeMainDatabaseWithRecovery(')
 
     expect(loggingGate).toBeGreaterThanOrEqual(0)
     expect(loggingGate).toBeLessThan(databaseInitialization)

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'path'
+
+const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+const { tmpdir } = await vi.importActual<typeof import('node:os')>('node:os')
+const path = await vi.importActual<typeof import('node:path')>('node:path')
 
 const mocks = vi.hoisted(() => {
   const pragma = vi.fn()
@@ -79,5 +82,22 @@ describe('main database connection configuration', () => {
       failure
     )
     expect(mocks.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not create a replacement database when a leftover WAL sidecar exists', async () => {
+    const directory = fs.mkdtempSync(path.join(tmpdir(), 'deepchat-orphan-wal-'))
+    const dbPath = path.join(directory, 'agent.db')
+    fs.writeFileSync(`${dbPath}-wal`, 'wal')
+    const { openSQLiteDatabase } = await import('../../../src/main/data/databaseConnection')
+    const { OrphanWalDatabaseError } =
+      await import('../../../src/main/data/databaseStartupRecovery')
+
+    try {
+      expect(() => openSQLiteDatabase(dbPath)).toThrow(OrphanWalDatabaseError)
+      expect(mocks.databaseCtor).not.toHaveBeenCalled()
+      expect(fs.existsSync(dbPath)).toBe(false)
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

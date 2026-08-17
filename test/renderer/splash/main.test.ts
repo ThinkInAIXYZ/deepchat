@@ -39,7 +39,10 @@ describe('splash bootstrap', () => {
       onDebugMode: vi.fn(() => vi.fn()),
       getLanguageState: vi.fn(),
       submitUnlock: vi.fn(),
-      cancelUnlock: vi.fn()
+      cancelUnlock: vi.fn(),
+      onRecoveryRequest: vi.fn(() => vi.fn()),
+      submitRecovery: vi.fn(),
+      cancelRecovery: vi.fn()
     }
 
     await import('../../../src/renderer/splash/main')

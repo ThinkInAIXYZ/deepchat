@@ -3,6 +3,9 @@ import { FLOATING_BUTTON_EVENTS } from '../../../src/shared/floatingButtonChanne
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
 import { browserActivityChangedEvent } from '../../../src/shared/contracts/events'
 import {
+  DATABASE_RECOVERY_CANCEL_CHANNEL,
+  DATABASE_RECOVERY_REQUEST_CHANNEL,
+  DATABASE_RECOVERY_SUBMIT_CHANNEL,
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
   DATABASE_UNLOCK_REQUEST_CHANNEL,
@@ -318,12 +321,15 @@ describe('preload IPC boundaries', () => {
     ).deepchatSplash
 
     expect(Object.keys(deepchatSplash).sort()).toEqual([
+      'cancelRecovery',
       'cancelUnlock',
       'getLanguageState',
       'onDebugMode',
+      'onRecoveryRequest',
       'onUnlockProgress',
       'onUnlockRequest',
       'onUpdate',
+      'submitRecovery',
       'submitUnlock'
     ])
 
@@ -355,6 +361,10 @@ describe('preload IPC boundaries', () => {
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 42 as unknown as string })
     deepchatSplash.cancelUnlock({ requestId: 'unlock-1' })
     deepchatSplash.cancelUnlock({ requestId: '' })
+    deepchatSplash.submitRecovery({ requestId: 'recovery-1', action: 'start-empty' })
+    deepchatSplash.submitRecovery({ requestId: '', action: 'start-empty' })
+    deepchatSplash.cancelRecovery({ requestId: 'recovery-1' })
+    deepchatSplash.cancelRecovery({ requestId: '' })
 
     expect(unlockRequestCallback).toHaveBeenCalledWith(validUnlockRequest)
     expect(unlockProgressCallback).toHaveBeenCalledWith(validUnlockProgress)
@@ -373,13 +383,20 @@ describe('preload IPC boundaries', () => {
       progressListener
     )
     expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalled()
-    expect(ipcRenderer.send).toHaveBeenCalledTimes(2)
+    expect(ipcRenderer.send).toHaveBeenCalledTimes(4)
     expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_UNLOCK_SUBMIT_CHANNEL, {
       requestId: 'unlock-1',
       password: 'secret'
     })
     expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_UNLOCK_CANCEL_CHANNEL, {
       requestId: 'unlock-1'
+    })
+    expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_RECOVERY_SUBMIT_CHANNEL, {
+      requestId: 'recovery-1',
+      action: 'start-empty'
+    })
+    expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_RECOVERY_CANCEL_CHANNEL, {
+      requestId: 'recovery-1'
     })
   })
 })
