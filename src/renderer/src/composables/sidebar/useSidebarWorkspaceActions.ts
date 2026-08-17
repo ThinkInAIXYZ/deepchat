@@ -124,13 +124,19 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
     return environment?.status === 'active' && environment.exists
   }
 
-  const canSetDefaultWorkspace = (group: SessionGroup) => {
+  const isDefaultWorkspaceGroup = (group: SessionGroup) => {
     const environment = options.getWorkspaceEnvironment(group)
     return (
       environment?.status === 'active' &&
-      environment.exists &&
-      normalizeWorkspacePath(environment.path) !==
+      normalizeWorkspacePath(environment.path) ===
         normalizeWorkspacePath(toValue(options.defaultProjectPath) ?? '')
+    )
+  }
+
+  const canSetDefaultWorkspace = (group: SessionGroup) => {
+    const environment = options.getWorkspaceEnvironment(group)
+    return (
+      environment?.status === 'active' && environment.exists && !isDefaultWorkspaceGroup(group)
     )
   }
 
@@ -178,11 +184,12 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
 
   const handleArchiveWorkspaceConfirm = async () => {
     const target = archiveTargetWorkspace.value
-    if (!target || isArchivingWorkspace.value) {
+    if (!target || isArchivingWorkspace.value || workspaceOperationPending.value) {
       return
     }
 
     isArchivingWorkspace.value = true
+    workspaceOperationPending.value = true
     try {
       await projectStore.archiveEnvironment(target.path)
       archiveTargetWorkspace.value = null
@@ -195,6 +202,7 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
       })
     } finally {
       isArchivingWorkspace.value = false
+      workspaceOperationPending.value = false
     }
   }
 
@@ -211,6 +219,7 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
     archiveWorkspaceDialogOpen,
     canOpenWorkspace,
     canSetDefaultWorkspace,
+    isDefaultWorkspaceGroup,
     handleAddWorkspace,
     handleOpenWorkspace,
     handleSetDefaultWorkspace,

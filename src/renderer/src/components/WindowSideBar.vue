@@ -438,6 +438,13 @@
                           {{ getGroupLabel(group) }}
                         </span>
                         <span
+                          v-if="isDefaultWorkspaceGroup(group)"
+                          data-testid="window-sidebar-default-workspace-badge"
+                          class="ms-auto shrink-0 text-[10px] font-medium text-primary"
+                        >
+                          {{ t('settings.environments.badges.default') }}
+                        </span>
+                        <span
                           v-if="isTrueEmptyWorkspaceGroup(group)"
                           data-testid="window-sidebar-empty-workspace-label"
                           class="ms-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
@@ -494,7 +501,7 @@
                         ? 'opacity-100'
                         : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                     "
-                    @click.stop="handleNewChatForProject(getWorkspacePath(group))"
+                    @click.stop="handleNewChatForWorkspaceGroup(group)"
                   />
 
                   <DropdownMenu v-if="isActiveProjectDirectoryGroup(group)">
@@ -515,11 +522,11 @@
                         :label="t('common.newChat')"
                         :disabled="!canStartConversationInProjectGroup(group)"
                         data-testid="window-sidebar-new-chat-workspace-menu-item"
-                        @select="handleNewChatForProject(getWorkspacePath(group))"
+                        @select="handleNewChatForWorkspaceGroup(group)"
                       />
                       <DcDropdownActionItem
                         icon="lucide:folder-open"
-                        :label="t('settings.environments.actions.open')"
+                        :label="t('chat.sidebar.openWorkspaceFolder')"
                         :disabled="!canOpenWorkspace(group) || workspaceOperationPending"
                         data-testid="window-sidebar-open-workspace-menu-item"
                         @select="handleOpenWorkspace(group)"
@@ -944,6 +951,7 @@ const {
   archiveWorkspaceDialogOpen,
   canOpenWorkspace,
   canSetDefaultWorkspace,
+  isDefaultWorkspaceGroup,
   handleAddWorkspace,
   handleOpenWorkspace,
   handleSetDefaultWorkspace,
@@ -1034,6 +1042,13 @@ const handleNewChat = async () => {
 const handleNewChatForProject = async (projectPath: string | null) => {
   await projectStore.selectProject(projectPath, 'manual')
   await startNewChat({ refresh: true, projectDir: projectPath })
+}
+
+const handleNewChatForWorkspaceGroup = async (group: SessionGroup) => {
+  if (!canStartConversationInProjectGroup(group)) {
+    return
+  }
+  await handleNewChatForProject(getWorkspacePath(group))
 }
 
 const handleAgentSelect = async (id: string | null) => {

@@ -402,6 +402,7 @@
     "workspace": "Workspace",
     "addWorkspace": "Arbeitsbereich hinzufügen",
     "manageWorkspaces": "Arbeitsbereiche verwalten",
+    "openWorkspaceFolder": "Ordner öffnen",
     "emptyWorkspace": "Leer",
     "addWorkspaceFailed": "Arbeitsbereich konnte nicht hinzugefügt werden",
     "searchLoadedRangeDescription": "Es werden Treffer aus geladenen Unterhaltungen angezeigt. Scrolle, um weiteren Verlauf zu laden."

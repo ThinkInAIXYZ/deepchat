@@ -386,6 +386,7 @@
     "workspace": "Workspace",
     "addWorkspace": "Adicionar espaço de trabalho",
     "manageWorkspaces": "Gerenciar espaços de trabalho",
+    "openWorkspaceFolder": "Abrir pasta",
     "emptyWorkspace": "Vazio",
     "addWorkspaceFailed": "Falha ao adicionar espaço de trabalho",
     "searchLoadedRangeDescription": "Mostrando resultados das conversas carregadas. Role para carregar mais histórico."

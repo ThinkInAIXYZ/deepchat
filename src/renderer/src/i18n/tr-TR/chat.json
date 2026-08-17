@@ -402,6 +402,7 @@
     "workspace": "Workspace",
     "addWorkspace": "Çalışma alanı ekle",
     "manageWorkspaces": "Çalışma alanlarını yönet",
+    "openWorkspaceFolder": "Klasörü aç",
     "emptyWorkspace": "Boş",
     "addWorkspaceFailed": "Çalışma alanı eklenemedi",
     "searchLoadedRangeDescription": "Yüklenen konuşmalardaki eşleşmeler gösteriliyor. Daha fazla geçmiş yüklemek için kaydırın."

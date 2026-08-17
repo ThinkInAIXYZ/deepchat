@@ -2087,6 +2087,14 @@ describe('WindowSideBar agent switch', () => {
       '[data-testid="window-sidebar-new-chat-workspace-menu-item"]'
     )
 
+    const defaultBadges = wrapper.findAll(
+      '[data-testid="window-sidebar-default-workspace-badge"]'
+    )
+    expect(defaultBadges).toHaveLength(1)
+    expect(wrapper.get('[data-group-id="/work/default"]').text()).toContain(
+      'settings.environments.badges.default'
+    )
+
     expect(openActions).toHaveLength(2)
     expect(openActions[0].attributes('disabled')).toBeUndefined()
     expect(openActions[1].attributes('disabled')).toBeDefined()
@@ -2099,6 +2107,86 @@ describe('WindowSideBar agent switch', () => {
     await defaultActions[0].trigger('click')
     expect(projectStore.openDirectory).not.toHaveBeenCalled()
     expect(projectStore.setDefaultProject).not.toHaveBeenCalled()
+  })
+
+  it('guards workspace shortcuts when menu select fires without pointer clicks', async () => {
+    const { wrapper, projectStore, sessionStore } = await setup({
+      groupMode: 'project',
+      projectEnvironments: [
+        { path: '/work/active', name: 'active', sessionCount: 1 },
+        { path: '/work/missing', name: 'missing', exists: false }
+      ]
+    })
+
+    // vi.doMock re-instantiates the component module graph, so resolve the same
+    // DcDropdownActionItem instance the mounted sidebar rendered with.
+    const { DcDropdownActionItem } = await import('@dc-ui/components/dropdown-action-item')
+    const findMenuItems = (testId: string) =>
+      wrapper
+        .findAllComponents(DcDropdownActionItem)
+        .filter((item) => item.attributes('data-testid') === testId)
+
+    // Keyboard activation in the production dropdown surfaces as a `select`
+    // emit, so drive the handlers through that path instead of clicks.
+    findMenuItems('window-sidebar-open-workspace-menu-item')[0].vm.$emit('select')
+    await flushPromises()
+    expect(projectStore.openDirectory).toHaveBeenCalledWith('/work/active')
+
+    findMenuItems('window-sidebar-open-workspace-menu-item')[1].vm.$emit('select')
+    findMenuItems('window-sidebar-set-default-workspace-menu-item')[1].vm.$emit('select')
+    findMenuItems('window-sidebar-new-chat-workspace-menu-item')[1].vm.$emit('select')
+    await flushPromises()
+
+    expect(projectStore.openDirectory).toHaveBeenCalledTimes(1)
+    expect(projectStore.setDefaultProject).not.toHaveBeenCalled()
+    expect(sessionStore.startNewConversation).not.toHaveBeenCalledWith(
+      expect.objectContaining({ projectDir: '/work/missing' })
+    )
+  })
+
+  it('locks open and set-default shortcuts while an archive is in flight', async () => {
+    const { wrapper, projectStore } = await setup({
+      groupMode: 'project',
+      projectEnvironments: [
+        { path: '/work/active', name: 'active', sessionCount: 1 },
+        { path: '/work/other', name: 'other', sessionCount: 1 }
+      ]
+    })
+    let resolveArchive!: () => void
+    projectStore.archiveEnvironment.mockImplementation(
+      async () =>
+        await new Promise<void>((resolve) => {
+          resolveArchive = resolve
+        })
+    )
+
+    await wrapper
+      .findAll('[data-testid="window-sidebar-archive-workspace-menu-item"]')[0]
+      .trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="window-sidebar-archive-workspace-confirm"]').trigger('click')
+    await nextTick()
+
+    const openActions = wrapper.findAll('[data-testid="window-sidebar-open-workspace-menu-item"]')
+    const defaultActions = wrapper.findAll(
+      '[data-testid="window-sidebar-set-default-workspace-menu-item"]'
+    )
+    expect(openActions.every((action) => action.attributes('disabled') !== undefined)).toBe(true)
+    expect(defaultActions.every((action) => action.attributes('disabled') !== undefined)).toBe(true)
+
+    await openActions[1].trigger('click')
+    await defaultActions[1].trigger('click')
+    expect(projectStore.openDirectory).not.toHaveBeenCalled()
+    expect(projectStore.setDefaultProject).not.toHaveBeenCalled()
+
+    resolveArchive()
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[data-testid="window-sidebar-open-workspace-menu-item"]')
+        .some((action) => action.attributes('disabled') === undefined)
+    ).toBe(true)
   })
 
   it(

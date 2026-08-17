@@ -463,6 +463,7 @@
     "workspace": "Workspace",
     "addWorkspace": "Add workspace",
     "manageWorkspaces": "Manage workspaces",
+    "openWorkspaceFolder": "Open folder",
     "emptyWorkspace": "Empty",
     "addWorkspaceFailed": "Failed to add workspace",
     "remoteControlDisabled": "Disabled",

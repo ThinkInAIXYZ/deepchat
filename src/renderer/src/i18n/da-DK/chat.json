@@ -386,6 +386,7 @@
     "workspace": "Workspace",
     "addWorkspace": "Tilføj arbejdsområde",
     "manageWorkspaces": "Administrer arbejdsområder",
+    "openWorkspaceFolder": "Åbn mappe",
     "emptyWorkspace": "Tom",
     "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
     "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
