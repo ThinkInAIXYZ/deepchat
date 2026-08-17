@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   formatCommandShellForModel,
   formatCommandShellPromptLine,
-  formatExecCommandDescription
+  formatExecCommandDescription,
+  stripCommandShellLine
 } from '@shared/commandShell'
 import {
   CMD_COMMAND_SHELL,
@@ -75,6 +76,13 @@ describe('command shell model-visible formatting', () => {
     expect(formatCommandShellPromptLine(POSIX_COMMAND_SHELL)).toBe('Shell: sh.')
     expect(formatCommandShellForModel(POSIX_COMMAND_SHELL)).toBe('Selected shell: sh (sh).')
     expect(formatExecCommandDescription(POSIX_COMMAND_SHELL)).toBe('The sh command to execute.')
+  })
+
+  it('strips exactly the shell line it formats', () => {
+    const base = 'Execute a shell command.'
+    const decorated = `${base}\n\n${formatCommandShellForModel(WINDOWS_POWERSHELL_COMMAND_SHELL)}`
+    expect(stripCommandShellLine(decorated)).toBe(base)
+    expect(stripCommandShellLine(base)).toBe(base)
   })
 
   it('rejects unsafe posix display names in every model-visible view', () => {

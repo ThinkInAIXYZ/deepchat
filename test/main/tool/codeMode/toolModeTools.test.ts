@@ -253,6 +253,20 @@ describe('decorateExecForShell', () => {
     expect(decorateExecForShell(once, POWERSHELL_CORE_COMMAND_SHELL)).toBe(once)
   })
 
+  it('replaces the previous shell metadata when the selected shell changes', () => {
+    const powershell = decorateExecForShell(execDefinition, WINDOWS_POWERSHELL_COMMAND_SHELL)
+    const pwsh = decorateExecForShell(powershell, POWERSHELL_CORE_COMMAND_SHELL)
+
+    expect(pwsh.function.description).toBe(
+      'Execute a shell command.\n\nSelected shell: PowerShell 7 (pwsh.exe). It supports && and ||.'
+    )
+    expect(pwsh.function.description).not.toContain('Windows PowerShell')
+    expect(pwsh.function.parameters.properties.command).toEqual({
+      type: 'string',
+      description: 'The PowerShell 7 command to execute. It supports && and ||.'
+    })
+  })
+
   it('returns non-exec definitions and command-less parameters untouched', () => {
     expect(decorateExecForShell(nestedTool, WINDOWS_POWERSHELL_COMMAND_SHELL)).toBe(nestedTool)
 

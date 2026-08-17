@@ -2,6 +2,7 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import {
   formatCommandShellForModel,
   formatExecCommandDescription,
+  stripCommandShellLine,
   type ResolvedCommandShell
 } from '@shared/commandShell'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
@@ -161,24 +162,27 @@ export function decorateExecForShell(
   shell: ResolvedCommandShell
 ): MCPToolDefinition {
   if (definition.function.name !== 'exec') return definition
-  const shellLine = formatCommandShellForModel(shell)
-  if (definition.function.description.endsWith(shellLine)) return definition
+  const description = `${stripCommandShellLine(definition.function.description)}\n\n${formatCommandShellForModel(shell)}`
   const { parameters } = definition.function
-  const command = parameters.properties.command
+  const command = parameters.properties.command as Record<string, unknown> | undefined
+  const commandDescription = formatExecCommandDescription(shell)
+  if (
+    description === definition.function.description &&
+    (!command || command.description === commandDescription)
+  ) {
+    return definition
+  }
   return {
     ...definition,
     function: {
       ...definition.function,
-      description: `${definition.function.description}\n\n${shellLine}`,
+      description,
       parameters: command
         ? {
             ...parameters,
             properties: {
               ...parameters.properties,
-              command: {
-                ...(command as Record<string, unknown>),
-                description: formatExecCommandDescription(shell)
-              }
+              command: { ...command, description: commandDescription }
             }
           }
         : parameters

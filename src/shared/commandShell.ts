@@ -214,11 +214,17 @@ export function formatCommandShellPromptLine(shell: ResolvedCommandShell): strin
   return withDialectHint(`Shell: ${shellDisplayName(shell)}.`, shell.profile)
 }
 
+const SELECTED_SHELL_LINE_PATTERN = /\n\nSelected shell: [^\n]*$/
+
 export function formatCommandShellForModel(shell: ResolvedCommandShell): string {
   const displayName = shellDisplayName(shell)
   const executable = sanitizeShellDisplayName(executableBasename(shell.executable))
   const identity = executable ? `${displayName} (${executable})` : displayName
   return withDialectHint(`Selected shell: ${identity}.`, shell.profile)
+}
+
+export function stripCommandShellLine(description: string): string {
+  return description.replace(SELECTED_SHELL_LINE_PATTERN, '')
 }
 
 export function formatExecCommandDescription(shell: ResolvedCommandShell): string {
