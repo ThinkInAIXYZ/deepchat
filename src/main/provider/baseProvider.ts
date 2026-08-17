@@ -724,7 +724,10 @@ ${this.convertToolsToXml(tools)}
 
   /**
    * Return the total context currently allocated by the provider runtime, when it can be observed
-   * without loading the model. Static model metadata is not a runtime limit.
+   * without loading the model. Static model metadata is not a runtime limit. Implementations that
+   * support this observation should return `undefined` only when a successful query has no
+   * model-specific runtime fact; reject if the query itself is unavailable so callers can preserve
+   * a prior successful limit.
    */
   public async getRuntimeContextLimitTokens(
     _modelId: string,

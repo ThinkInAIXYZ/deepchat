@@ -350,31 +350,38 @@ describe('OllamaProvider.fetchModels', () => {
     runtimeContextLength = 16384
     expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBe(16384)
     runtimeContextLength = 0
-    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBeUndefined()
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
+      'Upgrade Ollama to v0.9.7 or newer'
+    )
     expect(show).toHaveBeenCalledTimes(1)
     expect(ps).toHaveBeenCalledTimes(4)
   })
 
-  it('reports no runtime context when ps has no usable running-model fact', async () => {
+  it('distinguishes a stopped model from an unavailable runtime query', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    try {
-      const ps = vi
-        .fn()
-        .mockResolvedValueOnce({ models: [] })
-        .mockRejectedValueOnce(new Error('ps unavailable'))
-      ;(ollamaProvider as any).ollama = { ps }
+    const ps = vi
+      .fn()
+      .mockResolvedValueOnce({ models: [] })
+      .mockRejectedValueOnce(new Error('ps unavailable'))
+    ;(ollamaProvider as any).ollama = { ps }
 
-      await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
-      await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
-      expect(ps).toHaveBeenCalledTimes(2)
-      expect(warn).toHaveBeenCalledWith(
-        'Failed to read the Ollama runtime context for qwen3:8b:',
-        expect.any(Error)
-      )
-    } finally {
-      warn.mockRestore()
-    }
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
+      'Failed to read the Ollama runtime context for qwen3:8b: ps unavailable'
+    )
+    expect(ps).toHaveBeenCalledTimes(2)
+  })
+
+  it('diagnoses a running model from Ollama versions without runtime context metadata', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ps = vi.fn().mockResolvedValue({
+      models: [{ name: 'qwen3:8b' }]
+    })
+    ;(ollamaProvider as any).ollama = { ps }
+
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
+      'Upgrade Ollama to v0.9.7 or newer'
+    )
   })
 
   it('matches the implicit latest tag in either model-name direction', async () => {
@@ -399,22 +406,20 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('bounds a stalled runtime context query without loading the model', async () => {
     vi.useFakeTimers()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const ollamaProvider = new OllamaProvider(provider, providerSettings)
       const ps = vi.fn(() => new Promise(() => {}))
       ;(ollamaProvider as any).ollama = { ps }
 
       const limitPromise = ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')
-      await vi.advanceTimersByTimeAsync(1000)
-
-      await expect(limitPromise).resolves.toBeUndefined()
-      expect(ps).toHaveBeenCalledTimes(1)
-      expect(warn).toHaveBeenCalledWith(
-        'Timed out after 1000ms while reading the Ollama runtime context for qwen3:8b'
+      const rejection = expect(limitPromise).rejects.toThrow(
+        'Timed out after 400ms while reading Ollama runtime models'
       )
+      await vi.advanceTimersByTimeAsync(400)
+
+      await rejection
+      expect(ps).toHaveBeenCalledTimes(1)
     } finally {
-      warn.mockRestore()
       vi.useRealTimers()
     }
   })

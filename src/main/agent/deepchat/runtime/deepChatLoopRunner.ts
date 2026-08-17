@@ -366,6 +366,7 @@ export type DeepChatLoopRunInput = {
   projectDir: string | null
   resourceInstance?: DeepChatAgentInstance
   providerModelFacts?: ProviderModelRuntimeFacts
+  /** `null` means the pre-turn query completed without a limit; `undefined` means it was not run. */
   initialRuntimeContextLimitTokens?: number | null
   taskContractContext: DeepChatTaskContractContext | null
   tools?: MCPToolDefinition[]
@@ -789,7 +790,10 @@ export class DeepChatLoopRunner {
         ? initialRuntimeContextLimitTokens
         : undefined
     let currentRuntimeContextLimitTokens = initialRuntimeContextLimit
-    let initialRuntimeContextObservationPending = initialRuntimeContextLimit !== undefined
+    let currentRuntimeContextModelId =
+      initialRuntimeContextLimit === undefined ? undefined : state.modelId
+    let initialRuntimeContextObservationPending = initialRuntimeContextLimitTokens !== undefined
+    let runtimeContextRefreshFailureReported = false
     const refreshRuntimeContextLimit = async (requestModelId: string): Promise<void> => {
       try {
         const refreshedRuntimeContextLimit = await awaitWithAbort(
@@ -801,16 +805,26 @@ export class DeepChatLoopRunner {
           abortSignal
         )
         currentRuntimeContextLimitTokens = refreshedRuntimeContextLimit
+        currentRuntimeContextModelId =
+          refreshedRuntimeContextLimit === undefined ? undefined : requestModelId
+        runtimeContextRefreshFailureReported = false
       } catch (error) {
         abortSignal.throwIfAborted()
-        // A runner may have unloaded or reloaded with a different allocation. Do not present a
-        // stale allocation as the current runtime fact when the refresh cannot confirm it.
-        currentRuntimeContextLimitTokens = undefined
-        logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
-          providerId: state.providerId,
-          modelId: requestModelId,
-          error: error instanceof Error ? error.message : String(error)
-        })
+        // A transient diagnostics failure is not evidence that the runner unloaded. Retain the
+        // last successful limit until ps() either reports a new allocation or confirms absence.
+        if (currentRuntimeContextModelId !== requestModelId) {
+          currentRuntimeContextLimitTokens = undefined
+          currentRuntimeContextModelId = undefined
+        }
+        if (!runtimeContextRefreshFailureReported) {
+          runtimeContextRefreshFailureReported = true
+          logger.warn('[DeepChatAgent] Failed to refresh provider runtime context limit', {
+            providerId: state.providerId,
+            modelId: requestModelId,
+            retainedLimitTokens: currentRuntimeContextLimitTokens,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
       }
       resourceScope.assertCurrent()
     }
@@ -1378,7 +1392,7 @@ export class DeepChatLoopRunner {
       initialRequestSeq
     })
     let activeBaseSystemPrompt = baseSystemPrompt
-    const shrinkPromptAssemblyToContext = async (
+    const refreshPromptAssemblyForContext = async (
       requestMessages: ChatMessage[],
       requestTools: MCPToolDefinition[],
       effectiveContextLength: number
@@ -1387,7 +1401,7 @@ export class DeepChatLoopRunner {
         requestMessages[0]?.role !== 'system' ||
         !Number.isSafeInteger(effectiveContextLength) ||
         effectiveContextLength <= 0 ||
-        effectiveContextLength >= promptAssemblyContextLength
+        effectiveContextLength === promptAssemblyContextLength
       ) {
         return
       }
@@ -1580,6 +1594,16 @@ export class DeepChatLoopRunner {
               await refreshRuntimeContextLimit(requestModelId)
             }
             resourceScope.assertCurrent()
+            await refreshPromptAssemblyForContext(
+              requestMessages,
+              effectiveRequestTools,
+              resolveRequestContextBudget(
+                requestModelId,
+                requestModelConfig,
+                requestMaxTokens,
+                currentRuntimeContextLimitTokens
+              ).contextLength
+            )
           }
           const getEffectiveContextBudget = (requestedMaxTokens: number) =>
             resolveRequestContextBudget(
@@ -1588,11 +1612,6 @@ export class DeepChatLoopRunner {
               requestedMaxTokens,
               currentRuntimeContextLimitTokens
             )
-          await shrinkPromptAssemblyToContext(
-            requestMessages,
-            effectiveRequestTools,
-            getEffectiveContextBudget(requestMaxTokens).contextLength
-          )
           const buildCurrentContextLedger = (
             preflight: ReturnType<typeof preflightRequestContext>
           ) =>
@@ -2049,8 +2068,7 @@ export class DeepChatLoopRunner {
             !shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)
           ) {
             await refreshRuntimeContextLimit(state.modelId)
-            initialRuntimeContextObservationPending =
-              currentRuntimeContextLimitTokens !== undefined
+            initialRuntimeContextObservationPending = true
           }
           const effectiveContextBudget = resolveRequestContextBudget(
             state.modelId,
@@ -2058,11 +2076,13 @@ export class DeepChatLoopRunner {
             requestedMaxTokens,
             currentRuntimeContextLimitTokens
           )
-          await shrinkPromptAssemblyToContext(
-            requestMessages,
-            requestTools,
-            effectiveContextBudget.contextLength
-          )
+          if (!shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
+            await refreshPromptAssemblyForContext(
+              requestMessages,
+              requestTools,
+              effectiveContextBudget.contextLength
+            )
+          }
           return effectiveContextBudget
         },
         interleavedReasoning,

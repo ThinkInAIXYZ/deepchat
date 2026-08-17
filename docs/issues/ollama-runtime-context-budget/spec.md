@@ -25,8 +25,8 @@ and conversation context before the tool-result continuation.
   later DeepChat Agent provider rounds, constrain the existing context budget to the minimum of
   the configured context, a current runtime limit, and any provider limit learned from an explicit
   overflow.
-- If the pre-turn query returns no runtime fact, query again immediately before the first provider
-  dispatch instead of treating that absence as a stable observation.
+- Query once before turn assembly and once before each later provider round. Do not repeat the
+  pre-turn query immediately at the first provider dispatch.
 - Use that same effective budget for output capping, prompt/Skill-catalog assembly, initial and
   resume compaction, provider pressure recovery, Tape resume Views, and tool-result fitting. Do not
   defer the runtime fact until the final provider preflight.
@@ -35,10 +35,16 @@ and conversation context before the tool-result continuation.
   provider-visible prompt again.
 - A larger user context setting must not override a smaller observed runtime limit.
 - Do not cache a runtime limit as a monotonic context-window observation. A runner can unload or be
-  reloaded with a different allocation during the same Session.
-- If the model is not running, the runtime query fails, or its value is invalid, report no runtime
-  limit and preserve existing request behavior. The query must not load or reconfigure the model.
-- Bound the runtime query so a diagnostics failure does not add unbounded pre-stream latency.
+  reloaded with a different allocation during the same Session. A successful query that reports a
+  new allocation replaces the prior value, and a successful query that confirms the model is not
+  running clears it.
+- A transient query failure is not evidence that the runner unloaded. During an active Run, retain
+  the last successfully observed limit until a successful `ps()` response replaces or clears it,
+  and report at most one warning per consecutive failure streak.
+- Rebuild prompt assembly when the effective runtime budget either decreases or increases so a
+  larger reloaded runner restores eligible system and Skill-catalog content.
+- Bound each runtime query to 400 ms so diagnostics add only bounded pre-stream latency. The query
+  must not load or reconfigure the model.
 
 ## Compatibility And Non-goals
 
@@ -46,6 +52,9 @@ and conversation context before the tool-result continuation.
 - Do not move Ollama requests from the OpenAI-compatible API to the native API.
 - Preserve theoretical context metadata for model settings and discovery.
 - Preserve existing context-overflow learning and compaction behavior for every provider.
+- Runtime `context_length` discovery requires Ollama v0.9.7 or newer. Older versions do not expose
+  the allocation through `/api/ps`; diagnose that unsupported response and preserve existing
+  request behavior when no prior successful runtime observation exists.
 - A runner that is not loaded exposes no truthful runtime allocation. This change does not invent
   an 8K fallback or load the model as a side effect; after the first request loads the model, the
   next Agent round can observe and enforce the allocation. A cold first request therefore retains
@@ -61,12 +70,13 @@ and conversation context before the tool-result continuation.
 2. A DeepChat Agent request configured above 8,192 uses 8,192 for turn assembly, compaction,
    provider preflight, pressure recovery, and tool-result fitting while retaining the theoretical
    configured context as model metadata.
-3. Runtime context is refreshed for later provider rounds and can increase, decrease, or disappear
-   without retaining a stale Session-local hard limit.
+3. Runtime context is refreshed for later provider rounds and can increase, decrease, or disappear.
+   Prompt assembly follows both increases and decreases; only a successful response can replace or
+   clear the last limit during an active Run.
 4. A first-round usage snapshot produced before the runner is observable cannot hide an oversized
    second-round prompt after the runtime limit becomes available.
-5. Missing models, malformed context values, `ps()` failures, and query timeout do not block the
-   provider request or load a model.
+5. Missing models do not load a model. Malformed or unsupported context values, `ps()` failures,
+   and query timeout add at most 400 ms per observation and do not discard a prior successful limit.
 6. Non-Ollama providers retain their existing behavior.
 7. A continuation containing the current user task and a complete tool call/result pair reduces
    its output reserve to fit 8,192 without discarding those protected messages.

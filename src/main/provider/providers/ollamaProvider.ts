@@ -34,7 +34,7 @@ import { buildResolvedCapabilitySnapshot, resolveCapabilityIdentity } from '../c
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
-const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 1000
+const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 400
 
 export class OllamaProvider extends BaseLLMProvider {
   private static readonly CONFIG_DRAIN_TIMEOUT_MS = 1500
@@ -710,34 +710,44 @@ export class OllamaProvider extends BaseLLMProvider {
     signal?: AbortSignal
   ): Promise<number | undefined> {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
-    let timedOut = false
     try {
       const runningModels = await awaitWithAbort(
         Promise.race([
           this.listRuntimeModels(),
-          new Promise<OllamaModel[]>((resolve) => {
+          new Promise<never>((_resolve, reject) => {
             timeoutId = setTimeout(() => {
-              timedOut = true
-              resolve([])
+              reject(
+                new Error(
+                  `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading Ollama runtime models`
+                )
+              )
             }, OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
           })
         ]),
         signal
       )
-      if (timedOut) {
-        console.warn(
-          `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading the Ollama runtime context for ${modelId}`
-        )
-      }
-      const matchingLimits = runningModels
-        .filter((model) => this.matchesRequestedModelName(model.name, modelId))
+      const matchingModels = runningModels.filter((model) =>
+        this.matchesRequestedModelName(model.name, modelId)
+      )
+      if (matchingModels.length === 0) return undefined
+
+      const matchingLimits = matchingModels
         .map((model) => model.runtimeContextLength)
         .filter((value): value is number => value !== undefined)
-      return matchingLimits.length > 0 ? Math.min(...matchingLimits) : undefined
+      if (matchingLimits.length === 0) {
+        throw new Error(
+          'Ollama did not expose runtime context_length for the running model. Upgrade Ollama to v0.9.7 or newer.'
+        )
+      }
+      return Math.min(...matchingLimits)
     } catch (error) {
       signal?.throwIfAborted()
-      console.warn(`Failed to read the Ollama runtime context for ${modelId}:`, error)
-      return undefined
+      throw new Error(
+        `Failed to read the Ollama runtime context for ${modelId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error }
+      )
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId)
     }

@@ -12251,6 +12251,115 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
+    it('restores prompt assembly when the Ollama runtime context grows', async () => {
+      const skillTools = ['skill_list', 'skill_view'].map((name) => ({
+        type: 'function',
+        source: 'agent',
+        function: { name, description: name, parameters: { type: 'object', properties: {} } },
+        server: { name: 'agent-skills', icons: '', description: '' }
+      }))
+      toolService.getAllToolDefinitions.mockResolvedValue(skillTools)
+      toolService.getToolDefinitionUniverse.mockResolvedValue({
+        definitions: skillTools,
+        complete: true,
+        unavailableSourceCount: 0
+      })
+      getSkillServiceMock().getMetadataList.mockResolvedValue(
+        Array.from({ length: 80 }, (_, index) => ({
+          name: `runtime-catalog-${index}`,
+          description: `Repository workflow ${index}: ${'routing detail '.repeat(80)}`
+        }))
+      )
+      llmProvider.getRuntimeContextLimitTokens
+        .mockResolvedValueOnce(8192)
+        .mockResolvedValueOnce(32768)
+      await agent.initSession('s1', {
+        providerId: 'ollama',
+        modelId: 'qwen3:8b',
+        generationSettings: {
+          contextLength: 262144,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Inspect the repository')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.providerInstance.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementation(createMockCoreStream())
+      const requestMessages = callArgs.run.messages.map((message: ChatMessage) => ({ ...message }))
+
+      await collectProviderEvents(callArgs, requestMessages, skillTools)
+      const smallerPrompt = requestMessages[0]?.content
+      await callArgs.prepareToolContinuationContext(callArgs.maxTokens, requestMessages, skillTools)
+      const largerPrompt = requestMessages[0]?.content
+      await collectProviderEvents(callArgs, requestMessages, skillTools)
+
+      expect(typeof smallerPrompt).toBe('string')
+      expect(typeof largerPrompt).toBe('string')
+      expect((largerPrompt as string).length).toBeGreaterThan((smallerPrompt as string).length)
+      expect(getViewManifests().map((manifest: any) => manifest.tokenBudget.contextLength)).toEqual(
+        [8192, 32768]
+      )
+      expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenCalledTimes(2)
+    })
+
+    it('retains the last Ollama runtime limit across a refresh failure streak', async () => {
+      llmProvider.getRuntimeContextLimitTokens
+        .mockResolvedValueOnce(8192)
+        .mockRejectedValueOnce(new Error('ps unavailable'))
+        .mockRejectedValueOnce(new Error('ps unavailable'))
+        .mockResolvedValueOnce(undefined)
+      await agent.initSession('s1', {
+        providerId: 'ollama',
+        modelId: 'qwen3:8b',
+        generationSettings: {
+          contextLength: 262144,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Inspect the repository')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.providerInstance.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementation(createMockCoreStream())
+      const requestMessages = callArgs.run.messages.map((message: ChatMessage) => ({ ...message }))
+
+      await collectProviderEvents(callArgs, requestMessages)
+      await callArgs.prepareToolContinuationContext(
+        callArgs.maxTokens,
+        requestMessages,
+        callArgs.run.resources.toolDefinitions
+      )
+      await collectProviderEvents(callArgs, requestMessages)
+      await callArgs.prepareToolContinuationContext(
+        callArgs.maxTokens,
+        requestMessages,
+        callArgs.run.resources.toolDefinitions
+      )
+      await collectProviderEvents(callArgs, requestMessages)
+      await callArgs.prepareToolContinuationContext(
+        callArgs.maxTokens,
+        requestMessages,
+        callArgs.run.resources.toolDefinitions
+      )
+      await collectProviderEvents(callArgs, requestMessages)
+
+      expect(getViewManifests().map((manifest: any) => manifest.tokenBudget.contextLength)).toEqual(
+        [8192, 8192, 8192, 262144]
+      )
+      expect(
+        vi
+          .mocked(logger.warn)
+          .mock.calls.filter(
+            ([message]) =>
+              message === '[DeepChatAgent] Failed to refresh provider runtime context limit'
+          )
+      ).toHaveLength(1)
+      expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenCalledTimes(4)
+    })
+
     it('fits a protected Ollama continuation when the runtime limit appears', async () => {
       providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false
@@ -12322,7 +12431,6 @@ describe('DeepChatAgentHarness', () => {
         .mockReturnValueOnce(1)
         .mockReturnValueOnce(2)
       llmProvider.getRuntimeContextLimitTokens
-        .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(8192)
       await agent.initSession('s1', {
@@ -12396,6 +12504,11 @@ describe('DeepChatAgentHarness', () => {
         'prepareForContextPressureRecovery'
       )
       try {
+        await callArgs.prepareToolContinuationContext(
+          callArgs.maxTokens,
+          requestMessages,
+          requestTools
+        )
         await collectProviderEvents(callArgs, requestMessages, requestTools)
         expect(pressureRecovery).toHaveBeenCalledWith(
           expect.objectContaining({ contextLength: 8192 })
@@ -12407,9 +12520,9 @@ describe('DeepChatAgentHarness', () => {
       const sentMessages = providerCoreStream.mock.calls[1][0] as ChatMessage[]
       const sentText = JSON.stringify(sentMessages)
       const manifests = getViewManifests()
-      expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenCalledTimes(3)
+      expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenCalledTimes(2)
       expect(llmProvider.getRuntimeContextLimitTokens).toHaveBeenNthCalledWith(
-        3,
+        2,
         'ollama',
         'qwen3:8b',
         expect.any(AbortSignal)
