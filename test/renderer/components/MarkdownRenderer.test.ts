@@ -202,7 +202,8 @@ const setup = async (props: Record<string, unknown> = {}) => {
       default: NodeRenderer,
       NodeRenderer,
       removeCustomComponents: removeCustomComponentsMock,
-      resolveLanguageId: (language?: string) => language?.trim().toLowerCase() || 'plaintext',
+      normalizeLanguageIdentifier: (language?: string) =>
+        language?.trim().toLowerCase() || 'plaintext',
       setCustomComponents: setCustomComponentsMock
     }
   })

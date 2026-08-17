@@ -102,7 +102,7 @@ vi.mock('markstream-vue', () => ({
     },
     template: '<div class="code-block-stub"></div>'
   }),
-  resolveLanguageId: (language?: string) => language?.trim().toLowerCase() || 'plaintext'
+  normalizeLanguageIdentifier: (language?: string) => language?.trim().toLowerCase() || 'plaintext'
 }))
 
 const createBlock = (
