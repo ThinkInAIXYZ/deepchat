@@ -6,6 +6,7 @@ import {
   allocateQuarantineDirectory,
   classifyDatabaseStartupFailure,
   isDecryptedDatabaseCorruptionError,
+  OrphanWalDatabaseError,
   quarantineDatabaseFiles
 } from '@/data/databaseStartupRecovery'
 import { DatabaseInitializer, type DatabaseInitializationObservation } from './databaseInitializer'
@@ -78,6 +79,15 @@ export async function initializeMainDatabaseWithRecovery(input: {
             pending = {
               ...pending,
               kind: 'true-corruption',
+              invalidPassword: false,
+              quarantineFailed: false
+            }
+            continue
+          }
+          if (error instanceof OrphanWalDatabaseError) {
+            pending = {
+              ...pending,
+              kind: 'orphaned-sidecar',
               invalidPassword: false,
               quarantineFailed: false
             }

@@ -129,6 +129,8 @@ export class SplashWindow {
 
       // Handle window closed event6
       this.splashWindow.on('closed', () => {
+        this.recoveryRequest?.resolve(null)
+        this.recoveryRequest = null
         this.clearSplashShowDelayTimer()
         this.splashWindow = null
         this.splashDidFinishLoad = false

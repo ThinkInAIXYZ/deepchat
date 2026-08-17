@@ -388,6 +388,24 @@ describe('SplashWindow display gating', () => {
     manager = null
   })
 
+  it('resolves a pending recovery request when the splash window is destroyed', async () => {
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+
+    manager = new SplashWindow()
+    await manager.create()
+
+    const splashWindow = createdWindows[0]
+    const recoveryPromise = manager.requestDatabaseRecovery({
+      kind: 'true-corruption',
+      preservedPath: '/tmp/agent.db.corrupt.1'
+    })
+    await Promise.resolve()
+
+    splashWindow.emit('closed')
+    await expect(recoveryPromise).resolves.toBeNull()
+    manager = null
+  })
+
   it('falls back to an inline splash renderer when the dev page is unavailable', async () => {
     process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
     splashLoadMocks.loadURL = vi.fn(async (url: string) => {

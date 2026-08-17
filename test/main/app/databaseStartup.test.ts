@@ -191,6 +191,30 @@ describe('initializeMainDatabaseWithRecovery', () => {
     expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
   })
 
+  it('does not treat leftover WAL as a wrong recovery password', async () => {
+    const { OrphanWalDatabaseError } =
+      await import('../../../src/main/data/databaseStartupRecovery')
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('file is not a database'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValueOnce('unreadable')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      recovery: [{ action: 'password', password: 'secret' }, { action: 'start-empty' }]
+    })
+    ports.security.validatePassword.mockImplementation(() => {
+      throw new OrphanWalDatabaseError('/tmp/deepchat-test/app_db/agent.db')
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0]).toMatchObject({
+      kind: 'orphaned-sidecar',
+      invalidPassword: false
+    })
+  })
+
   it('redisplays recovery when quarantining the original files fails', async () => {
     const database = { id: 'fresh' }
     mocks.initialize
