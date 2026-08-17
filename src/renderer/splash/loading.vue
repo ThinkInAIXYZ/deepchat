@@ -76,7 +76,7 @@
             type="password"
             autocomplete="current-password"
             autofocus
-            :disabled="unlockSubmitting"
+            :disabled="unlockSubmitting || isDebugPreview"
           />
         </template>
         <div v-if="recoveryMessage" class="unlock-message">{{ recoveryMessage }}</div>
@@ -85,7 +85,7 @@
             v-if="recoveryNeedsPassword"
             class="unlock-button unlock-button--primary"
             type="submit"
-            :disabled="!password || unlockSubmitting"
+            :disabled="!password || unlockSubmitting || isDebugPreview"
           >
             {{ unlockSubmitting ? 'Opening...' : 'Unlock' }}
           </button>
@@ -93,7 +93,7 @@
             class="unlock-button"
             :class="{ 'unlock-button--primary': !recoveryNeedsPassword }"
             type="button"
-            :disabled="unlockSubmitting"
+            :disabled="unlockSubmitting || isDebugPreview"
             @click="requestStartEmpty"
           >
             {{ confirmingStartEmpty ? 'Confirm start empty' : 'Start empty' }}
@@ -101,7 +101,7 @@
           <button
             class="unlock-button"
             type="button"
-            :disabled="unlockSubmitting"
+            :disabled="unlockSubmitting || isDebugPreview"
             @click="cancelRecovery"
           >
             Quit
@@ -231,10 +231,16 @@ const focusPasswordInput = () => {
 }
 
 const handleDebugMode = (debugMode: SplashDebugMode) => {
-  isDebugPreview.value = debugMode === 'unlock'
+  isDebugPreview.value = debugMode === 'unlock' || debugMode === 'recovery'
   requestId.value = ''
   password.value = ''
   unlockSubmitting.value = false
+  confirmingStartEmpty.value = false
+  if (debugMode === 'recovery') {
+    recoveryKind.value = 'unreadable'
+    recoveryPreservedPath.value = 'agent.db.corrupt.*'
+    recoveryInvalidPassword.value = false
+  }
   mode.value = debugMode
 }
 

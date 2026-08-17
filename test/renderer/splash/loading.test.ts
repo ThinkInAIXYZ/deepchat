@@ -11,7 +11,9 @@ import type {
 let unlockRequestListener: ((payload: DatabaseUnlockRequestPayload) => void) | undefined
 let unlockProgressListener: ((payload: DatabaseUnlockProgressPayload) => void) | undefined
 let recoveryRequestListener: ((payload: DatabaseRecoveryRequestPayload) => void) | undefined
-let debugModeListener: ((mode: 'loading' | 'system-unlock' | 'unlock') => void) | undefined
+let debugModeListener:
+  | ((mode: 'loading' | 'system-unlock' | 'unlock' | 'recovery') => void)
+  | undefined
 let wrapper: VueWrapper | undefined
 
 vi.mock('vue-i18n', () => ({
@@ -115,6 +117,20 @@ describe('splash loading', () => {
 
     expect(wrapper.classes()).toContain('splash-shell--manual-unlock')
     expect(wrapper.get('.unlock-panel--manual').exists()).toBe(true)
+  })
+
+  it('renders a disabled recovery development preview', async () => {
+    const wrapper = mountLoading()
+
+    debugModeListener?.('recovery')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('This database cannot be read. It may be encrypted or damaged.')
+    expect(wrapper.get('#database-recovery-password').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.findAll('button').every((button) => button.attributes('disabled') !== undefined)
+    ).toBe(true)
+    expect(window.deepchatSplash.submitRecovery).not.toHaveBeenCalled()
   })
 
   it('requires a second click before starting empty from a damaged database', async () => {

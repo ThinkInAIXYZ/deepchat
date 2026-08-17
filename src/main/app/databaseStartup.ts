@@ -3,6 +3,7 @@ import { app } from 'electron'
 import type { MainDatabase } from '@/data/mainDatabase'
 import {
   classifyDatabaseStartupFailure,
+  isDecryptedDatabaseCorruptionError,
   quarantineDatabaseFiles
 } from '@/data/databaseStartupRecovery'
 import { DatabaseInitializer, type DatabaseInitializationObservation } from './databaseInitializer'
@@ -55,7 +56,14 @@ export async function initializeMainDatabaseWithRecovery(input: {
       if (choice.action === 'password') {
         try {
           input.security.validatePassword(choice.password)
-        } catch {
+        } catch (error) {
+          if (isDecryptedDatabaseCorruptionError(error)) {
+            password = choice.password
+            passwordResolved = true
+            input.security.persistRecoveredEncryptionMetadata(choice.password)
+            pending = { kind: 'true-corruption', invalidPassword: false }
+            continue
+          }
           pending = { ...pending, invalidPassword: true }
           continue
         }

@@ -609,9 +609,14 @@ export class SplashWindow {
       const hint = document.getElementById('hint')
       const setDebugMode = (mode) => {
         requestId = ''
-        shell.classList.toggle('shell--manual-unlock', mode === 'unlock')
+        shell.classList.toggle('shell--manual-unlock', mode === 'unlock' || mode === 'recovery')
         password.value = ''
         error.hidden = true
+        submit.dataset.recovery = ''
+        submit.dataset.confirm = ''
+        empty.hidden = true
+        empty.dataset.confirm = ''
+        empty.textContent = 'Start empty'
         if (mode === 'loading') {
           label.hidden = true
           password.hidden = true
@@ -626,6 +631,19 @@ export class SplashWindow {
           actions.hidden = true
           subtitle.textContent = 'Unlocking local database'
           hint.textContent = 'DeepChat is reading the saved password from the system credential store.'
+          return
+        }
+        if (mode === 'recovery') {
+          label.hidden = false
+          password.hidden = false
+          actions.hidden = false
+          password.disabled = true
+          submit.disabled = true
+          quit.disabled = true
+          empty.hidden = false
+          empty.disabled = true
+          subtitle.textContent = 'This database cannot be read. It may be encrypted or damaged.'
+          hint.textContent = 'Development preview — password submission is disabled.'
           return
         }
         label.hidden = false
@@ -650,6 +668,12 @@ export class SplashWindow {
         password.value = ''
         submit.textContent = 'Unlock'
         submit.disabled = true
+        submit.dataset.recovery = ''
+        submit.dataset.confirm = ''
+        empty.hidden = true
+        empty.disabled = false
+        empty.dataset.confirm = ''
+        empty.textContent = 'Start empty'
         hint.textContent = payload.reason === 'system-key-missing'
           ? 'The saved system credential is missing or cannot be decrypted. Enter the SQLite password once to unlock and save it again.'
           : payload.safeStorageAvailable

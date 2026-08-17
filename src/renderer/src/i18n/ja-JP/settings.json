@@ -3225,6 +3225,7 @@
       "loading": "読み込みをプレビュー",
       "systemUnlock": "システム解除をプレビュー",
       "unlock": "手動解除をプレビュー",
+      "recovery": "Preview database recovery",
       "failed": "スプラッシュシナリオを表示できません。",
       "previewHint": "開発プレビュー — パスワードの送信は無効です。"
     },

@@ -193,6 +193,49 @@ describe('DatabaseSecurityService', () => {
     })
   })
 
+  it('rethrows decrypted corruption instead of treating it as a wrong password', async () => {
+    mocks.stores.set('database-security', {
+      metadata: enabledMetadata()
+    })
+    mocks.openSQLiteDatabase.mockImplementation(() => {
+      throw new Error('database disk image is malformed')
+    })
+
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+
+    await expect(presenter.resolveStartupPassword(async () => 'secret')).rejects.toThrow(
+      'database disk image is malformed'
+    )
+  })
+
+  it('keeps SQLCipher not-a-database failures in the invalid-password loop', async () => {
+    mocks.stores.set('database-security', {
+      metadata: enabledMetadata({
+        passwordStorage: 'manual',
+        wrappedPassword: undefined
+      })
+    })
+    mocks.openSQLiteDatabase.mockImplementation(() => {
+      throw new Error('file is not a database')
+    })
+
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const requests: unknown[] = []
+
+    await expect(
+      presenter.resolveStartupPassword(async (request) => {
+        requests.push(request.reason)
+        if (requests.length === 1) {
+          return 'wrong'
+        }
+        return null
+      })
+    ).rejects.toThrow('Database unlock canceled')
+    expect(requests).toEqual(['manual-required', 'invalid'])
+  })
+
   it('rethrows leftover WAL errors instead of treating them as a wrong password', async () => {
     const { OrphanWalDatabaseError } = await import('@/data/databaseStartupRecovery')
     mocks.stores.set('database-security', {

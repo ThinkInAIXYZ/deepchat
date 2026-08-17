@@ -15,10 +15,14 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/data/databaseStartupRecovery', () => ({
-  classifyDatabaseStartupFailure: mocks.classify,
-  quarantineDatabaseFiles: mocks.quarantine
-}))
+vi.mock('@/data/databaseStartupRecovery', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/data/databaseStartupRecovery')>()
+  return {
+    ...actual,
+    classifyDatabaseStartupFailure: mocks.classify,
+    quarantineDatabaseFiles: mocks.quarantine
+  }
+})
 
 vi.mock('@/app/databaseInitializer', () => ({
   DatabaseInitializer: mocks.DatabaseInitializer
@@ -152,5 +156,32 @@ describe('initializeMainDatabaseWithRecovery', () => {
       invalidPassword: true
     })
     expect(mocks.initialize).toHaveBeenCalledTimes(2)
+  })
+
+  it('promotes a decrypted corruption error to true-corruption instead of wrong password', async () => {
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('file is not a database'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValueOnce('unreadable')
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      recovery: [
+        { action: 'password', password: 'secret' },
+        { action: 'start-empty' }
+      ]
+    })
+    ports.security.validatePassword.mockImplementation(() => {
+      throw new Error('SQLITE_CORRUPT: malformed page')
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.security.persistRecoveredEncryptionMetadata).toHaveBeenCalledWith('secret')
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0]).toMatchObject({
+      kind: 'true-corruption',
+      invalidPassword: false
+    })
+    expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
   })
 })

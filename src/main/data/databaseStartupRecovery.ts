@@ -29,6 +29,11 @@ export function isDestructiveDatabaseError(error: unknown): boolean {
   return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(getErrorMessage(error)))
 }
 
+export function isDecryptedDatabaseCorruptionError(error: unknown): boolean {
+  const message = getErrorMessage(error)
+  return /database disk image is malformed/i.test(message) || /SQLITE_CORRUPT/i.test(message)
+}
+
 export class OrphanWalDatabaseError extends Error {
   readonly code = 'ORPHAN_WAL'
 

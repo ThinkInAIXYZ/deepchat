@@ -3225,6 +3225,7 @@
       "loading": "Yükleme önizlemesi",
       "systemUnlock": "Sistem kilit açma önizlemesi",
       "unlock": "Manuel kilit açma önizlemesi",
+      "recovery": "Preview database recovery",
       "failed": "Açılış senaryosu gösterilemiyor.",
       "previewHint": "Geliştirme önizlemesi — parola gönderimi devre dışı."
     },

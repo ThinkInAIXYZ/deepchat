@@ -3225,6 +3225,7 @@
       "loading": "预览加载中",
       "systemUnlock": "预览系统解锁",
       "unlock": "预览手动解锁",
+      "recovery": "预览数据库恢复",
       "failed": "无法显示启动窗口场景。",
       "previewHint": "开发预览 — 已禁用密码提交。"
     },

@@ -3225,6 +3225,7 @@
       "loading": "Previsualizar carga",
       "systemUnlock": "Previsualizar desbloqueo del sistema",
       "unlock": "Previsualizar desbloqueo manual",
+      "recovery": "Preview database recovery",
       "failed": "No se puede mostrar el escenario de inicio.",
       "previewHint": "Vista previa de desarrollo: el envío de contraseña está deshabilitado."
     },

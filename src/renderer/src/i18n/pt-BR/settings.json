@@ -3225,6 +3225,7 @@
       "loading": "Visualizar carregamento",
       "systemUnlock": "Visualizar desbloqueio do sistema",
       "unlock": "Visualizar desbloqueio manual",
+      "recovery": "Preview database recovery",
       "failed": "Não foi possível mostrar o cenário de inicialização.",
       "previewHint": "Prévia de desenvolvimento — o envio da senha está desativado."
     },

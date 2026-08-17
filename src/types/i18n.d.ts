@@ -4097,6 +4097,7 @@ declare module 'vue-i18n' {
         loading: string
         systemUnlock: string
         unlock: string
+        recovery: string
         failed: string
         previewHint: string
       }

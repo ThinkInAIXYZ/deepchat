@@ -3225,6 +3225,7 @@
       "loading": "Podgląd ładowania",
       "systemUnlock": "Podgląd odblokowania systemowego",
       "unlock": "Podgląd odblokowania ręcznego",
+      "recovery": "Preview database recovery",
       "failed": "Nie można wyświetlić scenariusza okna startowego.",
       "previewHint": "Podgląd programistyczny — przesyłanie hasła jest wyłączone."
     },

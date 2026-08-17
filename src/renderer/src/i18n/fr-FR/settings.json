@@ -3225,6 +3225,7 @@
       "loading": "Prévisualiser le chargement",
       "systemUnlock": "Prévisualiser le déverrouillage système",
       "unlock": "Prévisualiser le déverrouillage manuel",
+      "recovery": "Preview database recovery",
       "failed": "Impossible d’afficher le scénario de démarrage.",
       "previewHint": "Aperçu de développement — l’envoi du mot de passe est désactivé."
     },

@@ -9,7 +9,10 @@ import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
-import { OrphanWalDatabaseError } from '@/data/databaseStartupRecovery'
+import {
+  isDecryptedDatabaseCorruptionError,
+  OrphanWalDatabaseError
+} from '@/data/databaseStartupRecovery'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 
@@ -172,7 +175,10 @@ export class DatabaseSecurityService {
         this.validatePassword(password)
         return password
       } catch (error) {
-        if (error instanceof OrphanWalDatabaseError) {
+        if (
+          error instanceof OrphanWalDatabaseError ||
+          isDecryptedDatabaseCorruptionError(error)
+        ) {
           throw error
         }
         safeStorageUnlockFailed = true
@@ -205,7 +211,10 @@ export class DatabaseSecurityService {
         }
         return password
       } catch (error) {
-        if (error instanceof OrphanWalDatabaseError) {
+        if (
+          error instanceof OrphanWalDatabaseError ||
+          isDecryptedDatabaseCorruptionError(error)
+        ) {
           throw error
         }
         reason = 'invalid'

@@ -37,7 +37,8 @@ const windowClientMock = vi.hoisted(() => ({
 const splashScenarioMessages = reactive({
   'settings.debug.splash.loading': '预览加载中',
   'settings.debug.splash.systemUnlock': '预览系统解锁',
-  'settings.debug.splash.unlock': '预览手动解锁'
+  'settings.debug.splash.unlock': '预览手动解锁',
+  'settings.debug.splash.recovery': '预览数据库恢复'
 })
 const upgradeStoreMock = reactive({
   isMockUpdate: false,
@@ -85,6 +86,7 @@ describe('DebugSettings', () => {
     splashScenarioMessages['settings.debug.splash.loading'] = '预览加载中'
     splashScenarioMessages['settings.debug.splash.systemUnlock'] = '预览系统解锁'
     splashScenarioMessages['settings.debug.splash.unlock'] = '预览手动解锁'
+    splashScenarioMessages['settings.debug.splash.recovery'] = '预览数据库恢复'
     upgradeStoreMock.isMockUpdate = false
     upgradeStoreMock.refreshStatus.mockResolvedValue(undefined)
     windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
@@ -133,6 +135,7 @@ describe('DebugSettings', () => {
     splashScenarioMessages['settings.debug.splash.loading'] = 'Preview loading'
     splashScenarioMessages['settings.debug.splash.systemUnlock'] = 'Preview system unlock'
     splashScenarioMessages['settings.debug.splash.unlock'] = 'Preview manual unlock'
+    splashScenarioMessages['settings.debug.splash.recovery'] = 'Preview database recovery'
     await nextTick()
 
     expect(wrapper.text()).toContain('Preview loading')

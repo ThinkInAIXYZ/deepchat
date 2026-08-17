@@ -125,7 +125,8 @@ const { status: mockChatStatus, run: runMockChat } = useDcFormSubmit()
 const splashScenarios = computed<Array<{ mode: SplashDebugMode; label: string }>>(() => [
   { mode: 'loading', label: t('settings.debug.splash.loading') },
   { mode: 'system-unlock', label: t('settings.debug.splash.systemUnlock') },
-  { mode: 'unlock', label: t('settings.debug.splash.unlock') }
+  { mode: 'unlock', label: t('settings.debug.splash.unlock') },
+  { mode: 'recovery', label: t('settings.debug.splash.recovery') }
 ])
 
 const splashOperationId = (mode: SplashDebugMode) => `settings.debug.splash.${mode}`
