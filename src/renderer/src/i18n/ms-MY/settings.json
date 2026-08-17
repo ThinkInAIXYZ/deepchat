@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Menukar tetapan ini akan menyebabkan program dimulakan semula. Adakah anda pasti mahu meneruskan?",
     "copyWithCotEnabled": "Salin maklumat COT",
     "traceDebugEnabled": "Jejaki panggilan",
+    "traceDebugEnabledDesc": "Apabila didayakan, kandungan permintaan model disimpan secara setempat. Pengepala pengesahan penyedia yang diketahui dan medan kunci API ditopeng, tetapi gesaan mungkin mengandungi data sensitif.",
     "loggingEnabled": "Dayakan pengelogan",
     "loggingDialogTitle": "Sahkan perubahan tetapan log",
     "loggingEnableDesc": "Mendayakan pengelogan akan membantu kami mendiagnosis masalah dan menambah baik aplikasi. Fail log mungkin mengandungi maklumat sensitif.",

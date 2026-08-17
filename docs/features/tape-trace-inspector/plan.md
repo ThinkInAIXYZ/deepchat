@@ -287,6 +287,8 @@ provider payloads and uncommon diagnostics remain available only through deliber
   evidence so deliberate detail inspection contains the runtime context supplied to the SDK.
 - [x] Narrow redaction to reusable credentials and preserve token accounting and ordinary
   diagnostics.
+- [x] Warn beside the Trace setting that model request content is persisted locally and may contain
+  sensitive prompt data.
 - [x] Add focused renderer, persistence-redaction, and provider-runtime regression coverage.
 - [x] Complete staged risk review and full automated checks.
 - [ ] Manually verify wide and compact presentation with newly recorded requests.

@@ -750,7 +750,8 @@ available as its tooltip, so the ledger does not repeat the same warning in two 
 Start and Duration columns are right-aligned. The diagnostics lane is collapsed by default;
 expanding it is an explicit request to inspect the individual evidence rows.
 
-All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points.
+All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points
+and warns that model request content is persisted locally and may contain sensitive prompt data.
 
 ## Entry Points and ACP
 

@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Mengalihkan pengaturan ini akan menyebabkan program dimulai ulang. Apakah Anda yakin ingin melanjutkan?",
     "copyWithCotEnabled": "Salin informasi COT",
     "traceDebugEnabled": "Lacak panggilan",
+    "traceDebugEnabledDesc": "Saat diaktifkan, konten permintaan model disimpan secara lokal. Header autentikasi penyedia yang dikenal dan bidang kunci API disamarkan, tetapi prompt mungkin berisi data sensitif.",
     "loggingEnabled": "Aktifkan pencatatan",
     "loggingDialogTitle": "Konfirmasikan perubahan pengaturan log",
     "loggingEnableDesc": "Mengaktifkan logging akan membantu kami mendiagnosis masalah dan meningkatkan aplikasi. File log mungkin berisi informasi sensitif.",

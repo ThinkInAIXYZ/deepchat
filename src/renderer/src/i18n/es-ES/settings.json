@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Cambiar esta configuración reiniciará la aplicación. ¿Quieres continuar?",
     "copyWithCotEnabled": "Copiar detalles de COT",
     "traceDebugEnabled": "Rastrear llamada",
+    "traceDebugEnabledDesc": "Mientras está activado, guarda localmente el contenido de las solicitudes al modelo. Se ocultan los encabezados de autenticación de proveedores conocidos y los campos de clave de API, pero los prompts pueden contener datos confidenciales.",
     "loggingEnabled": "Habilitar registros",
     "loggingDialogTitle": "Confirmar cambio en los ajustes de registros",
     "loggingEnableDesc": "Habilitar los registros nos ayudará a diagnosticar problemas y mejorar la aplicación. Los archivos de registro pueden contener información confidencial.",

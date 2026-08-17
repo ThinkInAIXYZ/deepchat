@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Das Ändern dieser Einstellung startet die App neu. Fortfahren?",
     "copyWithCotEnabled": "COT-Informationen kopieren",
     "traceDebugEnabled": "Aufruf-Trace",
+    "traceDebugEnabledDesc": "Speichert bei Aktivierung den Inhalt von Modellanfragen lokal. Authentifizierungsheader bekannter Anbieter und API-Schlüsselfelder werden maskiert, Prompts können jedoch sensible Daten enthalten.",
     "loggingEnabled": "Protokollierung aktivieren",
     "loggingDialogTitle": "Änderung der Protokolleinstellung bestätigen",
     "loggingEnableDesc": "Das Aktivieren der Protokollierung hilft uns, Probleme zu diagnostizieren und die App zu verbessern. Protokolldateien können sensible Informationen enthalten.",

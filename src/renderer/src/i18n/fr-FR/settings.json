@@ -94,6 +94,7 @@
     "notifications": "Notifications système",
     "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
     "traceDebugEnabled": "Suivi des appels",
+    "traceDebugEnabledDesc": "Lorsqu’il est activé, le contenu des requêtes au modèle est stocké localement. Les en-têtes d’authentification des fournisseurs connus et les champs de clé API sont masqués, mais les prompts peuvent contenir des données sensibles.",
     "fileMaxSize": "Taille maximale du fichier",
     "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger",
     "defaultModel": {

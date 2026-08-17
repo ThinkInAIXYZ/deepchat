@@ -94,6 +94,7 @@
     "notifications": "システム通知",
     "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します",
     "traceDebugEnabled": "追跡呼び出し",
+    "traceDebugEnabledDesc": "有効にすると、モデルリクエストの内容がローカルに保存されます。既知のプロバイダーの認証ヘッダーと API キーフィールドはマスクされますが、プロンプトには機密データが含まれる場合があります。",
     "fileMaxSize": "ファイルの最大サイズ",
     "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します",
     "defaultModel": {

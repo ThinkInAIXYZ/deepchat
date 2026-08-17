@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Cambiare questa impostazione riavvierà l'applicazione. Continuare?",
     "copyWithCotEnabled": "Copia informazioni COT",
     "traceDebugEnabled": "Traccia chiamate",
+    "traceDebugEnabledDesc": "Quando è attivo, salva localmente il contenuto delle richieste al modello. Le intestazioni di autenticazione dei provider noti e i campi delle chiavi API vengono mascherati, ma i prompt possono contenere dati sensibili.",
     "loggingEnabled": "Attiva log",
     "loggingDialogTitle": "Conferma modifica impostazioni log",
     "loggingEnableDesc": "Attivare i log ci aiuta a diagnosticare problemi e migliorare l'applicazione. I file di log potrebbero contenere informazioni sensibili.",

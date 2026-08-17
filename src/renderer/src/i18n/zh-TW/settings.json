@@ -94,6 +94,7 @@
     "notifications": "系統通知",
     "notificationsDesc": "當 DeepChat 不在前台時，如有會話生成完畢會發送系統通知",
     "traceDebugEnabled": "Trace 除錯功能",
+    "traceDebugEnabledDesc": "啟用後會在本機儲存模型請求內容。已知服務商的驗證標頭和 API Key 欄位會被遮蔽，但提示詞仍可能包含敏感資料。",
     "fileMaxSize": "檔案最大大小",
     "fileMaxSizeHint": "限制單個檔案的最大上傳大小",
     "defaultModel": {

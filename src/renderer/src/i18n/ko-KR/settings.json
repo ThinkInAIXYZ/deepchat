@@ -94,6 +94,7 @@
     "notifications": "시스템 알림",
     "notificationsDesc": "DeepChat이 전경에 있지 않으면 세션이 생성되면 시스템 알림이 전송됩니다.",
     "traceDebugEnabled": "추적 호출",
+    "traceDebugEnabledDesc": "활성화하면 모델 요청 내용이 로컬에 저장됩니다. 알려진 공급자의 인증 헤더와 API 키 필드는 마스킹되지만 프롬프트에는 민감한 데이터가 포함될 수 있습니다.",
     "fileMaxSize": "파일 최대 크기",
     "fileMaxSizeHint": "단일 파일 업로드의 최대 크기를 제한합니다",
     "defaultModel": {

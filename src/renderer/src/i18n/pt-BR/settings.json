@@ -94,6 +94,7 @@
     "notificationsDesc": "Quando o DeepChat não estiver em primeiro plano, se uma sessão for gerada, uma notificação do sistema será enviada",
     "contentProtection": "Proteção contra captura de tela",
     "traceDebugEnabled": "Rastreamento de Chamadas",
+    "traceDebugEnabledDesc": "Enquanto ativado, armazena localmente o conteúdo das solicitações ao modelo. Cabeçalhos de autenticação de provedores conhecidos e campos de chave de API são mascarados, mas os prompts podem conter dados confidenciais.",
     "fileMaxSize": "Tamanho máximo do arquivo",
     "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado",
     "defaultModel": {

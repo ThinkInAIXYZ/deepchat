@@ -80,6 +80,7 @@
     "contentProtectionRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
     "copyWithCotEnabled": "Kopiér COT-detaljer",
     "traceDebugEnabled": "Trace-kald",
+    "traceDebugEnabledDesc": "Gemmer modelanmodningens indhold lokalt, mens funktionen er aktiveret. Godkendelsesheadere fra kendte udbydere og API-nøglefelter maskeres, men prompts kan indeholde følsomme data.",
     "loggingEnabled": "Aktivér logning",
     "loggingDialogTitle": "Bekræft ændring af logindstillinger",
     "loggingEnableDesc": "Aktivering af logning hjælper os med at diagnosticere problemer og forbedre appen. Logfiler kan indeholde følsomme oplysninger.",

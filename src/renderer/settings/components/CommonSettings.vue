@@ -36,6 +36,7 @@
         id="trace-debug-switch"
         icon="lucide:bug"
         :label="t('settings.common.traceDebugEnabled')"
+        :description="t('settings.common.traceDebugEnabledDesc')"
         label-min-width="220px"
         :model-value="traceDebugEnabled"
         @update:model-value="handleTraceDebugChange"

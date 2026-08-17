@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
     "copyWithCotEnabled": "复制COT信息",
     "traceDebugEnabled": "追踪调用",
+    "traceDebugEnabledDesc": "启用后会在本地保存模型请求内容。已知服务商的认证请求头和 API Key 字段会被遮盖，但提示词仍可能包含敏感数据。",
     "loggingEnabled": "启用日志",
     "loggingDialogTitle": "确认日志设置更改",
     "loggingEnableDesc": "启用日志将帮助我们诊断问题并改进应用程序。日志文件可能包含敏感信息。",

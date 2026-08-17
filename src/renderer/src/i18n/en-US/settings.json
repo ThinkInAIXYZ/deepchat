@@ -80,6 +80,7 @@
     "contentProtectionRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "copyWithCotEnabled": "Copy COT Details",
     "traceDebugEnabled": "Trace Call",
+    "traceDebugEnabledDesc": "Stores model request content locally while enabled. Known provider authentication headers and API-key fields are masked, but prompts may contain sensitive data.",
     "loggingEnabled": "Enable Logging",
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",

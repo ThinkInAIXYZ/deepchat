@@ -85,6 +85,7 @@
     "contentProtectionRestartNotice": "Bu ayarın değiştirilmesi uygulamayı yeniden başlatacaktır. Devam etmek istiyor musun?",
     "copyWithCotEnabled": "COT Ayrıntılarını Kopyala",
     "traceDebugEnabled": "Aramayı Takip Et",
+    "traceDebugEnabledDesc": "Etkin olduğunda model isteği içeriğini yerel olarak saklar. Bilinen sağlayıcıların kimlik doğrulama başlıkları ve API anahtarı alanları maskelenir, ancak istemler hassas veriler içerebilir.",
     "loggingEnabled": "Günlük Kaydını Etkinleştir",
     "loggingDialogTitle": "Günlük Ayarı Değişikliğini Onayla",
     "loggingEnableDesc": "Günlüğe kaydetmeyi etkinleştirmek sorunları teşhis etmemize ve uygulamayı geliştirmemize yardımcı olacaktır. Günlük dosyaları hassas bilgiler içerebilir.",

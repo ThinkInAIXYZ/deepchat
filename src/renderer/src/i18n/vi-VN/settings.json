@@ -80,6 +80,7 @@
     "contentProtectionRestartNotice": "Việc thay đổi cài đặt này sẽ khởi động lại ứng dụng. Bạn có muốn tiếp tục không?",
     "copyWithCotEnabled": "Sao chép chi tiết COT",
     "traceDebugEnabled": "Cuộc gọi theo dõi",
+    "traceDebugEnabledDesc": "Khi bật, nội dung yêu cầu mô hình được lưu cục bộ. Các tiêu đề xác thực của nhà cung cấp đã biết và trường khóa API được che, nhưng lời nhắc vẫn có thể chứa dữ liệu nhạy cảm.",
     "loggingEnabled": "Bật ghi nhật ký",
     "loggingDialogTitle": "Xác nhận thay đổi cài đặt ghi nhật ký",
     "loggingEnableDesc": "Việc bật ghi nhật ký sẽ giúp chúng tôi chẩn đoán sự cố và cải thiện ứng dụng. Tệp nhật ký có thể chứa thông tin nhạy cảm.",
