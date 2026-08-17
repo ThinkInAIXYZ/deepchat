@@ -24,4 +24,13 @@ describe('Markstream language normalization', () => {
       )
     ).toBe('```ini:app.conf title=config\nkey=value\n```\n\n```typescript\nconst value = 1\n```')
   })
+
+  it.each([
+    ['zsh', 'shell'],
+    ['plaintext', 'plain']
+  ])('rewrites the %s fence alias to %s', (language, expected) => {
+    expect(normalizeMarkstreamCodeFenceLanguages(`\`\`\`${language}\nvalue\n\`\`\``)).toBe(
+      `\`\`\`${expected}\nvalue\n\`\`\``
+    )
+  })
 })

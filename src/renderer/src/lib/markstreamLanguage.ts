@@ -23,7 +23,7 @@ export const normalizeMarkstreamCodeFenceLanguages = (content: string): string =
     const suffix = languageWithSuffix.slice(language.length)
     const resolvedLanguage = normalizeLanguageIdentifier(language)
     const replacement = replaceUnsupportedLanguage(resolvedLanguage)
-    if (replacement === resolvedLanguage) return fence
+    if (replacement === language) return fence
 
     return `${lineStart}${delimiter}${replacement}${suffix}${meta.length ? ` ${meta.join(' ')}` : ''}`
   })
