@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { isProxy, isReactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   ListTapeInspectorEvidenceOutput,
@@ -91,6 +92,12 @@ function evidencePage(
   overrides: Partial<ListTapeInspectorEvidenceOutput> = {}
 ): ListTapeInspectorEvidenceOutput {
   return { records, nextCursor: null, newerCursor: null, ...overrides }
+}
+
+function expectIpcCloneable(input: unknown, cursor: unknown): void {
+  expect(isProxy(cursor)).toBe(false)
+  expect(isReactive(cursor)).toBe(false)
+  expect(() => structuredClone(input)).not.toThrow()
 }
 
 describe('Tape Inspector store', () => {
@@ -468,6 +475,50 @@ describe('Tape Inspector store', () => {
         cursor: { sort: 'entryId', entryId: 20 }
       })
     )
+  })
+
+  it('keeps pagination cursors cloneable across the renderer IPC boundary', async () => {
+    vi.useFakeTimers()
+    const store = useTapeInspectorStore()
+    try {
+      client.listTapeInspectorPage
+        .mockResolvedValueOnce(page([fact(10)], { nextCursor: { sort: 'entryId', entryId: 9 } }))
+        .mockResolvedValueOnce(page([fact(9)]))
+        .mockResolvedValueOnce(page([fact(11)], { snapshotMaxEntryId: 11 }))
+      client.listTapeInspectorEvidence
+        .mockResolvedValueOnce(
+          evidencePage([evidence('trace-2', { createdAt: 200 })], {
+            nextCursor: { createdAt: 200, traceId: 'trace-2' },
+            newerCursor: { rowId: 2 }
+          })
+        )
+        .mockResolvedValueOnce(evidencePage([evidence('trace-1', { createdAt: 100 })]))
+        .mockResolvedValueOnce(
+          evidencePage([evidence('trace-3', { createdAt: 300 })], {
+            newerCursor: { rowId: 3 }
+          })
+        )
+
+      await store.initialize('session-1')
+      await store.loadOlderPage()
+      await store.loadNewerPage()
+      await store.loadMoreEvidence()
+      store.startEvidenceRefresh()
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      const olderPageInput = client.listTapeInspectorPage.mock.calls[1][0]
+      const newerPageInput = client.listTapeInspectorPage.mock.calls[2][0]
+      const olderEvidenceInput = client.listTapeInspectorEvidence.mock.calls[1][0]
+      const newerEvidenceInput = client.listTapeInspectorEvidence.mock.calls[2][0]
+
+      expectIpcCloneable(olderPageInput, olderPageInput.cursor)
+      expectIpcCloneable(newerPageInput, newerPageInput.cursor)
+      expectIpcCloneable(olderEvidenceInput, olderEvidenceInput.cursor)
+      expectIpcCloneable(newerEvidenceInput, newerEvidenceInput.cursor)
+    } finally {
+      store.clear()
+      vi.useRealTimers()
+    }
   })
 
   it('preserves stable selection while local and server filters hide it', async () => {
