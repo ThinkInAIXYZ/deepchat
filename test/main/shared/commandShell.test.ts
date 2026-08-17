@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatCommandShellForModel,
   formatCommandShellPromptLine,
-  formatExecCommandDescription,
-  stripCommandShellLine
+  formatExecCommandDescription
 } from '@shared/commandShell'
 import {
   CMD_COMMAND_SHELL,
@@ -78,11 +77,21 @@ describe('command shell model-visible formatting', () => {
     expect(formatExecCommandDescription(POSIX_COMMAND_SHELL)).toBe('The sh command to execute.')
   })
 
-  it('strips exactly the shell line it formats', () => {
-    const base = 'Execute a shell command.'
-    const decorated = `${base}\n\n${formatCommandShellForModel(WINDOWS_POWERSHELL_COMMAND_SHELL)}`
-    expect(stripCommandShellLine(decorated)).toBe(base)
-    expect(stripCommandShellLine(base)).toBe(base)
+  it('keeps the Fish hint when Auto wraps fish as a posix profile', () => {
+    const autoFish = {
+      ...POSIX_COMMAND_SHELL,
+      executable: '/opt/homebrew/bin/fish',
+      displayName: 'fish'
+    }
+    expect(formatCommandShellPromptLine(autoFish)).toBe(
+      'Shell: fish. Fish is not POSIX; bash idioms such as export do not work.'
+    )
+    expect(formatCommandShellForModel(autoFish)).toBe(
+      'Selected shell: fish (fish). Fish is not POSIX; bash idioms such as export do not work.'
+    )
+    expect(formatExecCommandDescription(autoFish)).toBe(
+      'The fish command to execute. Fish is not POSIX; bash idioms such as export do not work.'
+    )
   })
 
   it('rejects unsafe posix display names in every model-visible view', () => {

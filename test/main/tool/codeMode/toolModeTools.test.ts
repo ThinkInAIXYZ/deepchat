@@ -9,10 +9,7 @@ import {
   normalizeCodexToolName,
   renderCodeModeSdk
 } from '@/tool/codeMode/toolModeTools'
-import {
-  POWERSHELL_CORE_COMMAND_SHELL,
-  WINDOWS_POWERSHELL_COMMAND_SHELL
-} from '../../../helpers/commandShell'
+import { WINDOWS_POWERSHELL_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 const nestedTool: MCPToolDefinition = {
   execution: TOOL_EXECUTION.read,
@@ -248,22 +245,17 @@ describe('decorateExecForShell', () => {
     })
   })
 
-  it('is idempotent for a same-shell second pass', () => {
-    const once = decorateExecForShell(execDefinition, POWERSHELL_CORE_COMMAND_SHELL)
-    expect(decorateExecForShell(once, POWERSHELL_CORE_COMMAND_SHELL)).toBe(once)
-  })
+  it('leaves MCP exec contracts untouched', () => {
+    const mcpExec: MCPToolDefinition = {
+      ...execDefinition,
+      source: 'mcp',
+      server: { name: 'remote-shell', icons: '🐚', description: 'Remote exec' }
+    }
 
-  it('replaces the previous shell metadata when the selected shell changes', () => {
-    const powershell = decorateExecForShell(execDefinition, WINDOWS_POWERSHELL_COMMAND_SHELL)
-    const pwsh = decorateExecForShell(powershell, POWERSHELL_CORE_COMMAND_SHELL)
-
-    expect(pwsh.function.description).toBe(
-      'Execute a shell command.\n\nSelected shell: PowerShell 7 (pwsh.exe). It supports && and ||.'
-    )
-    expect(pwsh.function.description).not.toContain('Windows PowerShell')
-    expect(pwsh.function.parameters.properties.command).toEqual({
+    expect(decorateExecForShell(mcpExec, WINDOWS_POWERSHELL_COMMAND_SHELL)).toBe(mcpExec)
+    expect(mcpExec.function.parameters.properties.command).toEqual({
       type: 'string',
-      description: 'The PowerShell 7 command to execute. It supports && and ||.'
+      description: 'The shell command to execute'
     })
   })
 

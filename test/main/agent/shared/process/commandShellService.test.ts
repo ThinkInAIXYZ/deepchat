@@ -5,7 +5,11 @@ import {
   CommandShellUnavailableError,
   deriveGitBashCandidates
 } from '@/agent/shared/process/commandShellService'
-import type { AgentCommandShellConfig } from '@shared/commandShell'
+import {
+  formatCommandShellPromptLine,
+  formatExecCommandDescription,
+  type AgentCommandShellConfig
+} from '@shared/commandShell'
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -617,6 +621,12 @@ describe('CommandShellService', () => {
     expect(Object.isFrozen(resolved)).toBe(true)
     expect(Object.isFrozen(resolved.args)).toBe(true)
     expect(runCommand).not.toHaveBeenCalled()
+    expect(formatCommandShellPromptLine(resolved)).toBe(
+      'Shell: fish. Fish is not POSIX; bash idioms such as export do not work.'
+    )
+    expect(formatExecCommandDescription(resolved)).toBe(
+      'The fish command to execute. Fish is not POSIX; bash idioms such as export do not work.'
+    )
   })
 
   it.each([
@@ -664,6 +674,16 @@ describe('CommandShellService', () => {
       executable: 'cmd.exe'
     })
     expect(cmd.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('rejects PowerShell Core older than 7', async () => {
+    const { service, runCommand } = createHarness({
+      config: { preference: 'powershell-core' },
+      runCommand: async () => ({ stdout: 'deepchat-pwsh:6.2.7', stderr: '' })
+    })
+
+    await expect(service.resolveForTurn()).rejects.toThrow('PowerShell 7 is unavailable.')
+    expect(runCommand).toHaveBeenCalledOnce()
   })
 })
 

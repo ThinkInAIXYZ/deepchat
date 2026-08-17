@@ -180,8 +180,18 @@ function executableBasename(executable: string): string {
   return executable.split(/[\\/]/).filter(Boolean).at(-1) ?? executable
 }
 
-function commandShellDialectHint(profile: CommandShellProfile): string {
-  switch (profile) {
+const FISH_DIALECT_HINT = 'Fish is not POSIX; bash idioms such as export do not work.'
+
+function isFishIdentity(shell: ResolvedCommandShell): boolean {
+  const names = [
+    sanitizeShellDisplayName(shell.displayName),
+    sanitizeShellDisplayName(executableBasename(shell.executable))
+  ]
+  return names.some((name) => name.toLowerCase() === 'fish')
+}
+
+function commandShellDialectHint(shell: ResolvedCommandShell): string {
+  switch (shell.profile) {
     case 'windows-powershell':
       return 'It does not support && or ||; use ; for unconditional sequential execution.'
     case 'powershell-core':
@@ -190,8 +200,9 @@ function commandShellDialectHint(profile: CommandShellProfile): string {
     case 'git-bash':
       return 'Use POSIX syntax. Use Windows-native paths with file tools; MSYS drive paths such as /c/... are for shell commands.'
     case 'fish':
-      return 'Fish is not POSIX; bash idioms such as export do not work.'
+      return FISH_DIALECT_HINT
     case 'posix':
+      return isFishIdentity(shell) ? FISH_DIALECT_HINT : ''
     case 'bash':
     case 'zsh':
       return ''
@@ -205,28 +216,22 @@ function shellDisplayName(shell: ResolvedCommandShell): string {
     : shell.displayName
 }
 
-function withDialectHint(lead: string, profile: CommandShellProfile): string {
-  const hint = commandShellDialectHint(profile)
+function withDialectHint(lead: string, shell: ResolvedCommandShell): string {
+  const hint = commandShellDialectHint(shell)
   return hint ? `${lead} ${hint}` : lead
 }
 
 export function formatCommandShellPromptLine(shell: ResolvedCommandShell): string {
-  return withDialectHint(`Shell: ${shellDisplayName(shell)}.`, shell.profile)
+  return withDialectHint(`Shell: ${shellDisplayName(shell)}.`, shell)
 }
-
-const SELECTED_SHELL_LINE_PATTERN = /\n\nSelected shell: [^\n]*$/
 
 export function formatCommandShellForModel(shell: ResolvedCommandShell): string {
   const displayName = shellDisplayName(shell)
   const executable = sanitizeShellDisplayName(executableBasename(shell.executable))
   const identity = executable ? `${displayName} (${executable})` : displayName
-  return withDialectHint(`Selected shell: ${identity}.`, shell.profile)
-}
-
-export function stripCommandShellLine(description: string): string {
-  return description.replace(SELECTED_SHELL_LINE_PATTERN, '')
+  return withDialectHint(`Selected shell: ${identity}.`, shell)
 }
 
 export function formatExecCommandDescription(shell: ResolvedCommandShell): string {
-  return withDialectHint(`The ${shellDisplayName(shell)} command to execute.`, shell.profile)
+  return withDialectHint(`The ${shellDisplayName(shell)} command to execute.`, shell)
 }

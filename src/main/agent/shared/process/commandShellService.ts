@@ -24,6 +24,15 @@ const COMMAND_PROBE_MAX_BUFFER_BYTES = 64 * 1_024
 const GIT_BASH_IDENTITY_PROBE = 'printf "deepchat-bash:%s:%s" "$BASH_VERSION" "$OSTYPE"'
 const POWERSHELL_CORE_IDENTITY_PROBE =
   '[Console]::Out.Write("deepchat-pwsh:" + $PSVersionTable.PSVersion.ToString())'
+const POWERSHELL_CORE_IDENTITY_PREFIX = 'deepchat-pwsh:'
+const POWERSHELL_CORE_MIN_MAJOR_VERSION = 7
+
+function isSupportedPowerShellCoreIdentity(stdout: string): boolean {
+  const trimmed = stdout.trim()
+  if (!trimmed.startsWith(POWERSHELL_CORE_IDENTITY_PREFIX)) return false
+  const major = Number.parseInt(trimmed.slice(POWERSHELL_CORE_IDENTITY_PREFIX.length), 10)
+  return Number.isInteger(major) && major >= POWERSHELL_CORE_MIN_MAJOR_VERSION
+}
 
 const POSIX_SHELL_CANDIDATES = {
   bash: ['/bin/bash', '/usr/bin/bash', '/usr/local/bin/bash', '/opt/homebrew/bin/bash'],
@@ -434,7 +443,7 @@ export class CommandShellService {
         ['-NoProfile', '-Command', POWERSHELL_CORE_IDENTITY_PROBE],
         GIT_BASH_PROBE_TIMEOUT_MS
       )
-      this.powerShellCoreAvailable = result.stdout.trim().startsWith('deepchat-pwsh:')
+      this.powerShellCoreAvailable = isSupportedPowerShellCoreIdentity(result.stdout)
     } catch {
       this.powerShellCoreAvailable = false
     }
