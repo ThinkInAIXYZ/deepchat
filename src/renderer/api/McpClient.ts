@@ -1,5 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import type { MCPContentItem } from '@shared/types/mcp'
+import type { McpServerStatusChangedPayload } from '@shared/types/core/mcp'
 import {
   mcpAppConsentRequestEvent,
   mcpConfigChangedEvent,
@@ -189,9 +190,9 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.status
   }
 
-  async function getServerDiagnostics(serverName: string) {
+  async function getServerDiagnostics(serverName: string, serverId?: string) {
     const result = await bridge.invoke(mcpGetServerDiagnosticsRoute.name, {
-      serverId: await resolveServerId(serverName)
+      serverId: serverId || (await resolveServerId(serverName))
     })
     return result.diagnostics
   }
@@ -456,9 +457,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return bridge.on(mcpConfigChangedEvent.name, listener)
   }
 
-  function onServerStatusChanged(
-    listener: (payload: { serverName: string; isRunning: boolean; version: number }) => void
-  ) {
+  function onServerStatusChanged(listener: (payload: McpServerStatusChangedPayload) => void) {
     return bridge.on(mcpServerStatusChangedEvent.name, listener)
   }
 

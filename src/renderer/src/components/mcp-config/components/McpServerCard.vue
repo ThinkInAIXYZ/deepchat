@@ -16,6 +16,7 @@ import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import type { McpServerAuthStatus } from '@shared/types/mcp'
+import type { McpServerLifecycleStatus } from '@shared/types/core/mcp'
 
 interface ServerInfo {
   name: string
@@ -25,6 +26,7 @@ interface ServerInfo {
   args: string[]
   enabled: boolean
   isRunning: boolean
+  lifecycleStatus?: McpServerLifecycleStatus
   type?: string
   baseUrl?: string
   errorMessage?: string
@@ -79,8 +81,11 @@ const serverStatus = computed(() => {
   if (props.server.authStatus?.state === 'authenticating') return 'loading'
   if (props.server.authStatus?.state === 'required') return 'auth-required'
   if (props.server.authStatus?.state === 'error') return 'auth-error'
-  if (props.server.errorMessage) return 'error'
-  if (props.server.isRunning) return 'running'
+  if (['connecting', 'timeout', 'retrying'].includes(props.server.lifecycleStatus ?? '')) {
+    return 'loading'
+  }
+  if (props.server.lifecycleStatus === 'failed' || props.server.errorMessage) return 'error'
+  if (props.server.lifecycleStatus === 'connected' || props.server.isRunning) return 'running'
   return 'stopped'
 })
 

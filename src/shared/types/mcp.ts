@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { FileItem } from './file'
 import type {
+  McpServerLifecycleStatus,
   MCPToolDefinition as CoreMCPToolDefinition,
   ToolDispatchCommit,
   ToolOutcomeProjectionRegistrar
@@ -492,6 +493,8 @@ export interface McpServerDiagnostics {
   owner: 'deepchat' | 'plugin'
   transport: MCPServerConfig['type']
   connectionState: 'stopped' | 'starting' | 'running' | 'error'
+  lifecycleStatus: McpServerLifecycleStatus
+  lastError?: string
   era: McpProtocolEra
   protocolVersion?: string
   serverImplementation?: {

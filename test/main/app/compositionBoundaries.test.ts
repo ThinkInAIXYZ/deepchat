@@ -365,6 +365,9 @@ describe('session boundary composition', () => {
     expect(mcpSource.indexOf('await initializePlugins()')).toBeLessThan(
       mcpSource.indexOf('await mcpService.initialize()')
     )
+    expect(mcpSource.indexOf('await proxyConfig.whenReady()')).toBeLessThan(
+      mcpSource.indexOf('await mcpService.initialize()')
+    )
   })
 
   it('routes restart requests through App shutdown', async () => {

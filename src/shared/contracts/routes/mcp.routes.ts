@@ -827,6 +827,8 @@ const McpServerDiagnosticsSchema: z.ZodType<McpServerDiagnostics> = z.object({
   owner: z.enum(['deepchat', 'plugin']),
   transport: z.enum(['sse', 'stdio', 'inmemory', 'http']),
   connectionState: z.enum(['stopped', 'starting', 'running', 'error']),
+  lifecycleStatus: z.enum(['connecting', 'connected', 'timeout', 'retrying', 'failed', 'stopped']),
+  lastError: z.string().max(2048).optional(),
   era: z.enum(['modern', 'legacy', 'unknown']),
   protocolVersion: z.string().max(64).optional(),
   serverImplementation: z

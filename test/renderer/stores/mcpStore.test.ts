@@ -13,6 +13,10 @@ const mcpClientMock = vi.hoisted(() => ({
   startServer: vi.fn().mockResolvedValue(undefined),
   stopServer: vi.fn().mockResolvedValue(undefined),
   isServerRunning: vi.fn().mockResolvedValue(false),
+  getServerDiagnostics: vi.fn().mockResolvedValue({
+    lifecycleStatus: 'stopped',
+    connectionState: 'stopped'
+  }),
   getServerAuthStatus: vi.fn().mockResolvedValue({
     serverName: 'demo',
     state: 'none',
@@ -109,6 +113,11 @@ describe('useMcpStore', () => {
     configRefetch.mockResolvedValue({ status: 'success', data: undefined })
     mcpClientMock.startServer.mockClear()
     mcpClientMock.stopServer.mockClear()
+    mcpClientMock.getServerDiagnostics.mockReset()
+    mcpClientMock.getServerDiagnostics.mockResolvedValue({
+      lifecycleStatus: 'stopped',
+      connectionState: 'stopped'
+    })
     mcpClientMock.getServerAuthStatus.mockReset()
     mcpClientMock.getServerAuthStatus.mockResolvedValue({
       serverName: 'demo',
@@ -226,6 +235,54 @@ describe('useMcpStore', () => {
     expect(store.enabledServers).toEqual([])
     expect(store.enabledPluginServers.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServerCount).toBe(0)
+  })
+
+  it('hydrates startup and failure lifecycle from main-process diagnostics', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'https://mcp.example.com',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          disable: false,
+          type: 'http',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+    mcpClientMock.getServerDiagnostics.mockResolvedValueOnce({
+      lifecycleStatus: 'connecting',
+      connectionState: 'starting'
+    })
+
+    await store.updateServerStatus('demo', true)
+
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(store.serverLifecycleStatuses.demo).toBe('connecting')
+    expect(store.serverList[0]).toMatchObject({
+      isRunning: false,
+      lifecycleStatus: 'connecting',
+      errorMessage: undefined
+    })
+
+    mcpClientMock.getServerDiagnostics.mockResolvedValueOnce({
+      lifecycleStatus: 'failed',
+      connectionState: 'error',
+      lastError: 'connection failed'
+    })
+    await store.updateServerStatus('demo', true)
+
+    expect(store.serverLifecycleStatuses.demo).toBe('failed')
+    expect(store.serverList[0]).toMatchObject({
+      lifecycleStatus: 'failed',
+      errorMessage: 'connection failed'
+    })
   })
 
   it('hides plugin-owned servers from MCP UI lists', async () => {

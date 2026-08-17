@@ -82,7 +82,8 @@ const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
 
 const MCP_STARTUP_SOFT_TIMEOUT_MS = 45 * 1000
 const MCP_CONNECT_HARD_TIMEOUT_MS = 5 * 60 * 1000
-const MCP_NEGOTIATION_PROBE_TIMEOUT_MS = 8 * 1000
+const MCP_STDIO_NEGOTIATION_PROBE_TIMEOUT_MS = 8 * 1000
+const MCP_HTTP_NEGOTIATION_PROBE_TIMEOUT_MS = 20 * 1000
 const MCP_STDIO_MAX_BUFFER_BYTES = 10 * 1024 * 1024
 const MCP_INPUT_REQUIRED_MAX_ROUNDS = 10
 const MCP_DEFAULT_CACHE_TTL_MS = 0
@@ -691,8 +692,11 @@ export class McpClient {
             ? {
                 mode: 'auto',
                 probe: {
-                  timeoutMs: MCP_NEGOTIATION_PROBE_TIMEOUT_MS,
-                  maxRetries: 0
+                  timeoutMs:
+                    transportType === 'http'
+                      ? MCP_HTTP_NEGOTIATION_PROBE_TIMEOUT_MS
+                      : MCP_STDIO_NEGOTIATION_PROBE_TIMEOUT_MS,
+                  maxRetries: transportType === 'http' ? 1 : 0
                 }
               }
             : { mode: 'legacy' },
@@ -1858,6 +1862,7 @@ export class McpClient {
       owner: this.serverConfig.ownerPluginId ? 'plugin' : 'deepchat',
       transport,
       connectionState,
+      lifecycleStatus: this.lifecycleStatus,
       era: client?.getProtocolEra() ?? 'unknown',
       protocolVersion: client?.getNegotiatedProtocolVersion(),
       serverImplementation: serverVersion

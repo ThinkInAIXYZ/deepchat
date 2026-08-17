@@ -121,6 +121,7 @@ describe('ServerManager notifications and plugin isolation', () => {
     await expect(manager.startServer('regular')).rejects.toThrow('connect failed')
 
     expect(manager.getServerLastError('regular')).toBe('connect failed')
+    expect(manager.getClient('regular')).toBeDefined()
     expect(semanticNotificationsMock.occur).toHaveBeenCalledWith({
       code: 'mcp.connectionFailed',
       serverName: 'regular'
@@ -145,6 +146,27 @@ describe('ServerManager notifications and plugin isolation', () => {
       code: 'mcp.connectionFailed',
       serverName: 'regular'
     })
+  })
+
+  it('replaces retained failed clients on a later manual start', async () => {
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    const manager = createManager(providerSettings)
+    clientMocks.isServerRunning.mockReturnValue(false)
+    clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
+
+    await expect(manager.startServer('regular')).rejects.toThrow('connect failed')
+    await expect(manager.startServer('regular')).resolves.toBe('connected')
+
+    expect(clientMocks.disconnect).toHaveBeenCalledOnce()
+    expect(McpClient).toHaveBeenCalledTimes(2)
+    expect(manager.getServerLastError('regular')).toBeUndefined()
   })
 
   it('recovers the connection episode only after a successful stop', async () => {

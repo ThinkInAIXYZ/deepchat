@@ -34,8 +34,19 @@ export class ProxyConfig {
   private proxyUrl: string | null = null
   private mode: ProxyMode = ProxyMode.SYSTEM
   private customProxyUrl: string = ''
+  private resolutionPromise: Promise<boolean> = Promise.resolve(true)
 
-  async resolveProxy(): Promise<boolean> {
+  resolveProxy(): Promise<boolean> {
+    const resolution = this.resolveProxyNow()
+    this.resolutionPromise = resolution
+    return resolution
+  }
+
+  whenReady(): Promise<boolean> {
+    return this.resolutionPromise
+  }
+
+  private async resolveProxyNow(): Promise<boolean> {
     try {
       // 根据不同的代理模式设置
       if (this.mode === ProxyMode.NONE) {

@@ -318,9 +318,10 @@ details surface shows declared origins; packaged malicious fixtures prove blocke
 | DeepChat host | Built-in/in-memory pair | legacy | Create both transport halves from the same v2 package |
 | ACP agent | Agent-declared transport | agent-owned | Do not migrate, probe, wrap, or reinterpret |
 
-The modern probe timeout must be below DeepChat's existing 45-second soft startup timeout. Start at
-8 seconds and change it only from measured evidence. A failed disposable stdio probe must not leave
-a child process running.
+The HTTP modern probe uses a 20-second timeout with one retry so a transiently slow remote router can
+recover while repeated timeouts still fail within DeepChat's existing 45-second soft startup
+budget. Stdio keeps its eight-second probe without a retry. A failed disposable stdio probe must not
+leave a child process running.
 
 ## Package Boundary
 

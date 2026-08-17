@@ -98,6 +98,7 @@ const createDiagnostics = (serverId: string) => ({
   owner: 'deepchat' as const,
   transport: 'http' as const,
   connectionState: 'running' as const,
+  lifecycleStatus: 'connected' as const,
   era: 'modern' as const,
   protocolVersion: '2025-06-18',
   probe: {

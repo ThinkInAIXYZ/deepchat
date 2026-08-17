@@ -575,6 +575,26 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
   })
 
+  describe('Version negotiation', () => {
+    it('retries one timed-out HTTP version negotiation probe', async () => {
+      const client = createMcpClient('remote-server', {
+        type: 'http',
+        baseUrl: 'https://example.com/mcp'
+      })
+
+      await client.connect()
+
+      const clientOptions = vi.mocked(Client).mock.calls.at(-1)?.[1]
+      expect(clientOptions?.versionNegotiation).toEqual({
+        mode: 'auto',
+        probe: {
+          timeoutMs: 20_000,
+          maxRetries: 1
+        }
+      })
+    })
+  })
+
   describe('Unsupported MCP capabilities', () => {
     it('does not call list methods for capabilities the server did not advertise', async () => {
       const sdkClient = {

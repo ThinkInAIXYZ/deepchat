@@ -4,6 +4,8 @@ const serverManagerMocks = vi.hoisted(() => ({
   startServer: vi.fn(),
   stopServer: vi.fn(),
   isServerRunning: vi.fn(),
+  getClient: vi.fn(),
+  getServerLastError: vi.fn(),
   getRunningClients: vi.fn().mockResolvedValue([]),
   getActiveClients: vi.fn().mockResolvedValue([]),
   testNpmRegistrySpeed: vi.fn().mockResolvedValue('https://registry.npmjs.org/'),
@@ -33,6 +35,8 @@ vi.mock('../../../src/main/mcp/serverManager', () => ({
     startServer: serverManagerMocks.startServer,
     stopServer: serverManagerMocks.stopServer,
     isServerRunning: serverManagerMocks.isServerRunning,
+    getClient: serverManagerMocks.getClient,
+    getServerLastError: serverManagerMocks.getServerLastError,
     getRunningClients: serverManagerMocks.getRunningClients,
     getActiveClients: serverManagerMocks.getActiveClients,
     testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
@@ -118,6 +122,8 @@ describe('McpService', () => {
     serverManagerMocks.startServer.mockResolvedValue(undefined)
     serverManagerMocks.stopServer.mockResolvedValue(undefined)
     serverManagerMocks.isServerRunning.mockReturnValue(false)
+    serverManagerMocks.getClient.mockReturnValue(undefined)
+    serverManagerMocks.getServerLastError.mockReturnValue(undefined)
     serverManagerMocks.getRunningClients.mockResolvedValue([])
     serverManagerMocks.getActiveClients.mockResolvedValue([])
     serverManagerMocks.testNpmRegistrySpeed.mockResolvedValue('https://registry.npmjs.org/')
@@ -573,6 +579,37 @@ describe('McpService', () => {
       expect.objectContaining({ onBackgroundConnected: expect.any(Function) })
     )
     expect(serverManagerMocks.startServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains terminal startup diagnostics after a failed client becomes inactive', async () => {
+    const serverId = '11111111-1111-4111-8111-111111111111'
+    const providerSettings = createProviderSettings(true, false, {
+      remote: {
+        serverId,
+        configGeneration: 1,
+        bindingHash: 'remote-binding',
+        type: 'http',
+        baseUrl: 'https://mcp.example.com',
+        command: '',
+        args: [],
+        env: {},
+        enabled: true
+      }
+    })
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      getClient: serverManagerMocks.getClient,
+      getServerLastError: serverManagerMocks.getServerLastError
+    }
+    serverManagerMocks.getServerLastError.mockReturnValue('connect failed')
+
+    await expect(presenter.getServerDiagnostics(serverId)).resolves.toMatchObject({
+      serverId,
+      serverName: 'remote',
+      connectionState: 'error',
+      lifecycleStatus: 'failed',
+      lastError: 'connect failed'
+    })
   })
 
   it('reports a swallowed initialization failure once without exposing the error', async () => {

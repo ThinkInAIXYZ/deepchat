@@ -306,6 +306,7 @@ export class ServerManager {
         this.clients.set(name, client)
       }
 
+      this.clearServerLastError(name)
       const connectTask = client.connect({
         phase: 'startup',
         waitForConnection: options.waitForConnection
@@ -336,10 +337,8 @@ export class ServerManager {
 
       console.error(`Failed to start MCP server ${name}:`, error)
 
-      // Remove client reference
-      if (client && this.clients.get(name) === client) {
-        this.clients.delete(name)
-      }
+      // Retain the inactive client so diagnostics can report the terminal lifecycle until the
+      // user restarts or stops it. A later start replaces this client through the normal path.
       this.setServerLastError(name, error)
       const authHandled =
         this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
@@ -386,7 +385,6 @@ export class ServerManager {
           return
         }
 
-        this.clients.delete(name)
         this.setServerLastError(name, error)
         const authHandled =
           this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false

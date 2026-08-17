@@ -18,6 +18,10 @@ import type {
   Resource,
   ResourceListEntry
 } from '@shared/types/mcp'
+import type {
+  McpServerLifecycleStatus,
+  McpServerStatusChangedPayload
+} from '@shared/types/core/mcp'
 
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 
@@ -44,6 +48,8 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 服务器状态
   const serverStatuses = ref<Record<string, boolean>>({})
+  const serverLifecycleStatuses = ref<Record<string, McpServerLifecycleStatus>>({})
+  const serverStatusMessages = ref<Record<string, string>>({})
   const serverAuthStatuses = ref<Record<string, McpServerAuthStatus>>({})
   const serverLoadingStates = ref<Record<string, boolean>>({})
   const configLoading = ref(false)
@@ -352,6 +358,8 @@ export const useMcpStore = defineStore('mcp', () => {
       } else {
         // MCP disabled: clear state and refresh queries to get empty results
         serverStatuses.value = {}
+        serverLifecycleStatuses.value = {}
+        serverStatusMessages.value = {}
         toolInputs.value = {}
         toolResults.value = {}
         Promise.all([
@@ -429,12 +437,35 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   )
   // ==================== 计算属性 ====================
+  const applyServerLifecycle = (
+    serverName: string,
+    lifecycleStatus: McpServerLifecycleStatus,
+    message?: string
+  ) => {
+    serverLifecycleStatuses.value[serverName] = lifecycleStatus
+    serverStatuses.value[serverName] = lifecycleStatus === 'connected'
+
+    if (lifecycleStatus === 'failed' && message) {
+      serverStatusMessages.value[serverName] = message
+    } else if (lifecycleStatus !== 'failed') {
+      delete serverStatusMessages.value[serverName]
+    }
+  }
+
+  const applyServerStatusEvent = (payload: McpServerStatusChangedPayload) => {
+    applyServerLifecycle(payload.serverName, payload.lifecycleStatus, payload.message)
+  }
+
   // 服务器列表
   const allServerList = computed(() => {
     const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,
+      lifecycleStatus:
+        serverLifecycleStatuses.value[name] ??
+        (serverStatuses.value[name] ? 'connected' : 'stopped'),
+      errorMessage: serverStatusMessages.value[name],
       authStatus: serverAuthStatuses.value[name],
       isLoading: serverLoadingStates.value[name] || false
     }))
@@ -588,6 +619,16 @@ export const useMcpStore = defineStore('mcp', () => {
             isPluginOwnedServerName(serverName)
           )
         )
+        serverLifecycleStatuses.value = Object.fromEntries(
+          Object.entries(serverLifecycleStatuses.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
+        serverStatusMessages.value = Object.fromEntries(
+          Object.entries(serverStatusMessages.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
         toolInputs.value = {}
         toolResults.value = {}
         // Force refresh queries to get empty results
@@ -624,11 +665,12 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       const serverConfig = config.value.mcpServers[serverName]
       if (!config.value.mcpEnabled && !isPluginOwnedServerConfig(serverConfig)) {
-        serverStatuses.value[serverName] = false
+        applyServerLifecycle(serverName, 'stopped')
         return
       }
 
-      serverStatuses.value[serverName] = await mcpClient.isServerRunning(serverName)
+      const diagnostics = await mcpClient.getServerDiagnostics(serverName, serverConfig?.serverId)
+      applyServerLifecycle(serverName, diagnostics.lifecycleStatus, diagnostics.lastError)
       if (!noRefresh) {
         // Refresh tools and clients when server status changes
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
@@ -657,7 +699,12 @@ export const useMcpStore = defineStore('mcp', () => {
       }
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
-      serverStatuses.value[serverName] = false
+      try {
+        const isRunning = await mcpClient.isServerRunning(serverName)
+        applyServerLifecycle(serverName, isRunning ? 'connected' : 'stopped')
+      } catch {
+        applyServerLifecycle(serverName, 'stopped')
+      }
     }
   }
 
@@ -709,6 +756,8 @@ export const useMcpStore = defineStore('mcp', () => {
       delete nextServers[serverName]
       config.value.mcpServers = nextServers
       delete serverStatuses.value[serverName]
+      delete serverLifecycleStatuses.value[serverName]
+      delete serverStatusMessages.value[serverName]
       delete serverAuthStatuses.value[serverName]
       delete serverLoadingStates.value[serverName]
       void refreshServerMutationQueries()
@@ -747,7 +796,7 @@ export const useMcpStore = defineStore('mcp', () => {
       if (nextEnabled) {
         await updateServerAuthStatus(serverName)
         if (isAuthWaitingStatus(serverAuthStatuses.value[serverName])) {
-          serverStatuses.value[serverName] = false
+          applyServerLifecycle(serverName, 'stopped')
           return true
         }
       }
@@ -1056,9 +1105,9 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    mcpClient.onServerStatusChanged(({ serverName, isRunning }) => {
-      console.log(`MCP server ${serverName} status changed: ${isRunning}`)
-      serverStatuses.value[serverName] = isRunning
+    mcpClient.onServerStatusChanged((payload) => {
+      console.log(`MCP server ${payload.serverName} lifecycle changed: ${payload.lifecycleStatus}`)
+      applyServerStatusEvent(payload)
     })
 
     mcpClient.onServerAuthChanged(({ serverName, status }) => {
@@ -1153,6 +1202,8 @@ export const useMcpStore = defineStore('mcp', () => {
     // 状态
     config,
     serverStatuses,
+    serverLifecycleStatuses,
+    serverStatusMessages,
     serverAuthStatuses,
     serverLoadingStates,
     configLoading,

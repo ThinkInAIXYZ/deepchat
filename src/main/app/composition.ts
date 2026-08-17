@@ -2478,6 +2478,7 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
+      await proxyConfig.whenReady()
       await mcpService.initialize()
     } catch (error) {
       reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
