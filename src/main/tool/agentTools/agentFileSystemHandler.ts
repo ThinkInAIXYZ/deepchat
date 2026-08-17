@@ -132,18 +132,40 @@ interface FileReadOptions {
   mimeType: string
   autoTruncateChars: number
   maxReadBytes?: number
-  fileSize?: number
 }
 
-async function readFileWindow(filePath: string, windowSize: number): Promise<Buffer> {
-  if (windowSize <= 0) {
+async function readFully(
+  handle: Awaited<ReturnType<typeof fs.open>>,
+  targetBytes: number
+): Promise<Buffer> {
+  if (targetBytes <= 0) {
     return Buffer.alloc(0)
   }
+  const bytes = Buffer.alloc(targetBytes)
+  let offset = 0
+  while (offset < targetBytes) {
+    const { bytesRead } = await handle.read(bytes, offset, targetBytes - offset, offset)
+    if (bytesRead === 0) {
+      return bytes.subarray(0, offset)
+    }
+    offset += bytesRead
+  }
+  return bytes
+}
+
+async function readFileWindow(
+  filePath: string,
+  maxReadBytes: number
+): Promise<{ bytes: Buffer; totalBytes: number }> {
   const handle = await fs.open(filePath, 'r')
   try {
-    const bytes = Buffer.alloc(windowSize)
-    const { bytesRead } = await handle.read(bytes, 0, windowSize, 0)
-    return bytesRead === windowSize ? bytes : bytes.subarray(0, bytesRead)
+    const { size } = await handle.stat()
+    const target = size > 0 ? Math.min(size, maxReadBytes) : maxReadBytes
+    const bytes = await readFully(handle, target)
+    // Size-0 files can still have content. A full window then means more remains.
+    const totalBytes =
+      size > 0 ? size : bytes.length === maxReadBytes ? bytes.length + 1 : bytes.length
+    return { bytes, totalBytes }
   } finally {
     await handle.close()
   }
@@ -879,10 +901,8 @@ export class AgentFileSystemHandler {
             enforceAllowed: false,
             accessType: 'read'
           })
-          const fileSize = options.fileSize ?? (await fs.stat(validPath)).size
           const maxReadBytes = options.maxReadBytes ?? AGENT_RAW_READ_MAX_BYTES
-          const windowSize = Math.min(fileSize, maxReadBytes)
-          const bytes = await readFileWindow(validPath, windowSize)
+          const { bytes, totalBytes } = await readFileWindow(validPath, maxReadBytes)
           const decoded = decodeAgentFileBytes(bytes)
           if (decoded.kind === 'binary') {
             return buildBinaryReadGuidance(filePath, options.mimeType, 'agent')
@@ -893,7 +913,7 @@ export class AgentFileSystemHandler {
             offset,
             limit,
             options.autoTruncateChars,
-            windowSize < fileSize ? { readBytes: bytes.length, totalBytes: fileSize } : undefined
+            bytes.length < totalBytes ? { readBytes: bytes.length, totalBytes } : undefined
           )
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)

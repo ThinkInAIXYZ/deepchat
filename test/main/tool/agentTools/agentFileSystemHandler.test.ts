@@ -328,4 +328,23 @@ describe('AgentFileSystemHandler read batch isolation', () => {
       await fs.rm(testDir, { recursive: true, force: true })
     }
   })
+
+  it('reads an empty regular file without a byte-window header', async () => {
+    const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-empty-'))
+    try {
+      const handler = new AgentFileSystemHandler([testDir])
+      const filePath = path.join(testDir, 'empty.txt')
+      await fs.writeFile(filePath, '', 'utf-8')
+
+      const content = await handler.readFile({ paths: [filePath] }, undefined, {
+        mimeType: 'text/plain',
+        autoTruncateChars: 4_500
+      })
+
+      expect(content).toBe(`${filePath}:\n\n`)
+      expect(content).not.toContain('first ')
+    } finally {
+      await fs.rm(testDir, { recursive: true, force: true })
+    }
+  })
 })
