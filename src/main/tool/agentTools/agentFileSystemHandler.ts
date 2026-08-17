@@ -11,11 +11,9 @@ import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { glob } from 'glob'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
-import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
 import {
   AGENT_RAW_READ_MAX_BYTES,
   buildBinaryReadGuidance,
-  buildOversizedReadGuidance,
   decodeAgentFileBytes,
   paginateReadContent
 } from '@/lib/binaryReadGuard'
@@ -132,8 +130,23 @@ interface FileMutationOptions {
 
 interface FileReadOptions {
   mimeType: string
-  autoTruncateChars?: number
+  autoTruncateChars: number
   maxReadBytes?: number
+  fileSize?: number
+}
+
+async function readFileWindow(filePath: string, windowSize: number): Promise<Buffer> {
+  if (windowSize <= 0) {
+    return Buffer.alloc(0)
+  }
+  const handle = await fs.open(filePath, 'r')
+  try {
+    const bytes = Buffer.alloc(windowSize)
+    const { bytesRead } = await handle.read(bytes, 0, windowSize, 0)
+    return bytesRead === windowSize ? bytes : bytes.subarray(0, bytesRead)
+  } finally {
+    await handle.close()
+  }
 }
 
 interface GrepMatch {
@@ -211,7 +224,6 @@ export class AgentFileSystemHandler {
   private readonly commandShellPathStyle: CommandShellPathStyle
   private readonly pathApi: path.PlatformPath
   private readonly caseInsensitivePathComparison: boolean
-  private readonly readFileAutoTruncateChars: number
   private readonly protectedDirectoryRules: Array<{
     roots: string[]
     allowedRoots: string[]
@@ -222,7 +234,6 @@ export class AgentFileSystemHandler {
     options: {
       conversationId?: string
       allowExternalAccess?: boolean
-      readFileAutoTruncateChars?: number
       protectedDirectoryRules?: ProtectedDirectoryRule[]
       commandShellPathStyle?: CommandShellPathStyle
     } = {}
@@ -253,8 +264,6 @@ export class AgentFileSystemHandler {
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
     this.allowExternalAccess = options.allowExternalAccess === true
-    this.readFileAutoTruncateChars =
-      options.readFileAutoTruncateChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
     this.protectedDirectoryRules = (options.protectedDirectoryRules ?? []).map((rule) => ({
       roots: this.resolveDirectoryRoots([rule.root]),
       allowedRoots: this.resolveDirectoryRoots(rule.allowedDirectories)
@@ -870,12 +879,10 @@ export class AgentFileSystemHandler {
             enforceAllowed: false,
             accessType: 'read'
           })
-          const stats = await fs.stat(validPath)
+          const fileSize = options.fileSize ?? (await fs.stat(validPath)).size
           const maxReadBytes = options.maxReadBytes ?? AGENT_RAW_READ_MAX_BYTES
-          if (stats.size > maxReadBytes) {
-            return buildOversizedReadGuidance(filePath, stats.size, maxReadBytes)
-          }
-          const bytes = await fs.readFile(validPath)
+          const windowSize = Math.min(fileSize, maxReadBytes)
+          const bytes = await readFileWindow(validPath, windowSize)
           const decoded = decodeAgentFileBytes(bytes)
           if (decoded.kind === 'binary') {
             return buildBinaryReadGuidance(filePath, options.mimeType, 'agent')
@@ -885,7 +892,8 @@ export class AgentFileSystemHandler {
             decoded.content,
             offset,
             limit,
-            options.autoTruncateChars ?? this.readFileAutoTruncateChars
+            options.autoTruncateChars,
+            windowSize < fileSize ? { readBytes: bytes.length, totalBytes: fileSize } : undefined
           )
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)

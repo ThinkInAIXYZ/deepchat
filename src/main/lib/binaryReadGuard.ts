@@ -1,8 +1,5 @@
 import path from 'path'
-import { detectMimeType, isDocumentReadMime, isLikelyTextFile } from '@/file/mime'
-import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
-
-export { isDocumentReadMime }
+import { detectMimeType, isLikelyTextFile } from '@/file/mime'
 
 const TEXT_LIKE_MIMES = new Set([
   'application/json',
@@ -12,6 +9,17 @@ const TEXT_LIKE_MIMES = new Set([
   'application/typescript',
   'application/x-typescript',
   'application/x-sh'
+])
+
+const AGENT_ENCODING_HINT_MIMES = new Set([
+  'application/toml',
+  'application/sql',
+  'application/rls-services+xml',
+  'application/x-httpd-php',
+  'application/node',
+  'application/x-ipynb+json',
+  'application/x-yaml',
+  'application/yaml'
 ])
 
 const ALWAYS_BINARY_MIMES = new Set([
@@ -28,11 +36,16 @@ const NUL_SNIFF_BYTES = 8192
 const UTF16BE_DECODER = new TextDecoder('utf-16be')
 
 export const AGENT_RAW_READ_MAX_BYTES = 10 * 1024 * 1024
+export const DEFAULT_DOCUMENT_READ_MAX_BYTES = 30 * 1024 * 1024
 
-export type AgentFileDecodeResult = { kind: 'text'; content: string } | { kind: 'binary' }
+type AgentFileDecodeResult = { kind: 'text'; content: string } | { kind: 'binary' }
 
-export function isTextLikeMime(mimeType: string): boolean {
+function isTextLikeMime(mimeType: string): boolean {
   return mimeType.startsWith('text/') || TEXT_LIKE_MIMES.has(mimeType)
+}
+
+function shouldHintUtf16WithoutBom(mimeType: string): boolean {
+  return isTextLikeMime(mimeType) || AGENT_ENCODING_HINT_MIMES.has(mimeType)
 }
 
 export async function shouldRejectAcpTextRead(filePath: string): Promise<{
@@ -82,9 +95,10 @@ export function decodeAgentFileBytes(bytes: Buffer): AgentFileDecodeResult {
 export function paginateReadContent(
   pathLabel: string,
   fullContent: string,
-  offset?: number,
-  limit?: number,
-  autoTruncateChars = DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+  offset: number | undefined,
+  limit: number | undefined,
+  autoTruncateChars: number,
+  byteWindow?: { readBytes: number; totalBytes: number }
 ): string {
   const start = Math.max(0, offset ?? 0)
   const totalLength = fullContent.length
@@ -101,16 +115,25 @@ export function paginateReadContent(
       ? fullContent.slice(start, start + effectiveLimit)
       : fullContent.slice(start)
   const endOffset = start + content.length
+  const truncatedByBytes = byteWindow !== undefined && byteWindow.readBytes < byteWindow.totalBytes
+  const needsHeader = start > 0 || limit !== undefined || autoTruncated || truncatedByBytes
 
-  if (start > 0 || limit !== undefined || autoTruncated) {
-    let header = `${pathLabel} [chars ${start}-${endOffset} of ${totalLength}]`
-    if (autoTruncated) {
-      header += ' (auto-truncated, use offset/limit to read more)'
-    }
-    return `${header}:\n${content}\n`
+  if (!needsHeader) {
+    return `${pathLabel}:\n${content}\n`
   }
 
-  return `${pathLabel}:\n${content}\n`
+  const parts: string[] = []
+  if (truncatedByBytes && byteWindow) {
+    parts.push(`first ${byteWindow.readBytes} of ${byteWindow.totalBytes} bytes`)
+  }
+  if (start > 0 || limit !== undefined || autoTruncated) {
+    parts.push(`chars ${start}-${endOffset} of ${totalLength}`)
+  }
+  let header = `${pathLabel} [${parts.join('; ')}]`
+  if (autoTruncated) {
+    header += ' (auto-truncated, use offset/limit to read more)'
+  }
+  return `${header}:\n${content}\n`
 }
 
 export function buildOversizedReadGuidance(
@@ -124,12 +147,13 @@ export function buildOversizedReadGuidance(
 export function buildEmptyDocumentReadGuidance(
   filePath: string,
   mimeType: string,
-  fileSize: number
+  fileSize: number,
+  maxFileSize: number
 ): string {
   return [
     `Cannot extract text from "${path.basename(filePath)}" (detected MIME: ${mimeType}).`,
-    'The file may exceed the 30MB document limit, be damaged, or contain no extractable text layer.',
-    `File size: ${fileSize} bytes.`
+    'The file may be damaged or contain no extractable text layer.',
+    `File size: ${fileSize} bytes (document limit ${maxFileSize} bytes).`
   ].join(' ')
 }
 
@@ -149,7 +173,7 @@ export function buildBinaryReadGuidance(
     ].join(' ')
   }
 
-  if (isTextLikeMime(mimeType)) {
+  if (shouldHintUtf16WithoutBom(mimeType)) {
     return [
       shared,
       'The file contains NUL bytes and may be UTF-16 without a BOM. Convert it to UTF-8 and retry.'

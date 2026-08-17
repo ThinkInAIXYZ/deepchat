@@ -27,10 +27,12 @@ import {
   SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES,
   type SkillManageResult
 } from '@shared/types/skill'
+import { isDocumentReadMime } from '@/file/mime'
 import {
   buildBinaryReadGuidance,
   buildEmptyDocumentReadGuidance,
-  isDocumentReadMime,
+  buildOversizedReadGuidance,
+  DEFAULT_DOCUMENT_READ_MAX_BYTES,
   paginateReadContent,
   shouldRejectAgentBinaryRead
 } from '@/lib/binaryReadGuard'
@@ -1624,7 +1626,7 @@ export class AgentToolManager {
             offset?: number
             limit?: number
           }
-          const validPath = await this.resolveValidatedReadPath(
+          const { path: validPath, size: fileSize } = await this.resolveValidatedReadPath(
             fileSystemHandler,
             readArgs.path,
             baseDirectory,
@@ -1658,6 +1660,12 @@ export class AgentToolManager {
           const readOutputLimits = await this.resolveOutputLimitsForConversation(conversationId)
 
           if (isDocumentReadMime(mimeType)) {
+            const maxFileSize = this.resolveDocumentMaxFileSize()
+            if (fileSize > maxFileSize) {
+              return {
+                content: buildOversizedReadGuidance(validPath, fileSize, maxFileSize)
+              }
+            }
             const prepared = await this.getFileService().prepareFileCompletely(
               validPath,
               mimeType,
@@ -1665,9 +1673,8 @@ export class AgentToolManager {
             )
             const extracted = prepared.content ?? ''
             if (extracted.trim().length === 0) {
-              const fileSize = (await fs.promises.stat(validPath)).size
               return {
-                content: buildEmptyDocumentReadGuidance(validPath, mimeType, fileSize)
+                content: buildEmptyDocumentReadGuidance(validPath, mimeType, fileSize, maxFileSize)
               }
             }
             return {
@@ -1691,7 +1698,8 @@ export class AgentToolManager {
               baseDirectory,
               {
                 mimeType,
-                autoTruncateChars: readOutputLimits.readFileAutoTruncateChars
+                autoTruncateChars: readOutputLimits.readFileAutoTruncateChars,
+                fileSize
               }
             )
           }
@@ -2386,7 +2394,7 @@ export class AgentToolManager {
     requestedPath: string,
     baseDirectory?: string,
     allowExternalFileAccess = false
-  ): Promise<string> {
+  ): Promise<{ path: string; size: number }> {
     const resolvedPath = fileSystemHandler.resolvePath(requestedPath, baseDirectory)
     fileSystemHandler.assertReadAllowedAbsolute(resolvedPath)
     if (!allowExternalFileAccess && !fileSystemHandler.isPathAllowedAbsolute(resolvedPath)) {
@@ -2414,7 +2422,11 @@ export class AgentToolManager {
       throw new Error(`Path is not a file: ${requestedPath}`)
     }
 
-    return pathForRead
+    return { path: pathForRead, size: stats.size }
+  }
+
+  private resolveDocumentMaxFileSize(): number {
+    return this.settings.get<number>('maxFileSize') ?? DEFAULT_DOCUMENT_READ_MAX_BYTES
   }
 
   private isImageMimeType(mimeType: string): boolean {

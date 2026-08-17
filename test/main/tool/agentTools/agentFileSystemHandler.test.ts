@@ -295,7 +295,8 @@ describe('AgentFileSystemHandler read batch isolation', () => {
       await fs.writeFile(binaryPath, Buffer.from([0x00, 0x01, 0x02]))
 
       const content = await handler.readFile({ paths: [textPath, binaryPath] }, undefined, {
-        mimeType: 'application/x-tar'
+        mimeType: 'application/x-tar',
+        autoTruncateChars: 4_500
       })
 
       expect(content).toContain('keep me')
@@ -306,21 +307,23 @@ describe('AgentFileSystemHandler read batch isolation', () => {
     }
   })
 
-  it('refuses to buffer a file above the raw read size cap', async () => {
+  it('reads only the first window of a file above the raw byte cap', async () => {
     const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-cap-'))
     try {
       const handler = new AgentFileSystemHandler([testDir])
-      const filePath = path.join(testDir, 'huge.bin')
-      await fs.writeFile(filePath, Buffer.alloc(32, 0x41))
+      const filePath = path.join(testDir, 'huge.log')
+      await fs.writeFile(filePath, 'A'.repeat(32), 'utf-8')
 
       const content = await handler.readFile({ paths: [filePath] }, undefined, {
-        mimeType: 'application/x-iso9660-image',
+        mimeType: 'text/plain',
+        autoTruncateChars: 4_500,
         maxReadBytes: 16
       })
 
-      expect(content).toContain('File too large')
-      expect(content).toContain('32 bytes')
-      expect(content).toContain('limit 16')
+      expect(content).toContain('first 16 of 32 bytes')
+      expect(content).toContain('A'.repeat(16))
+      expect(content).not.toContain('A'.repeat(17))
+      expect(content).not.toContain('File too large')
     } finally {
       await fs.rm(testDir, { recursive: true, force: true })
     }

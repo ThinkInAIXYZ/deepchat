@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBinaryReadGuidance,
   decodeAgentFileBytes,
-  isDocumentReadMime,
   shouldRejectAgentBinaryRead
 } from '../../../src/main/lib/binaryReadGuard'
+import { isDocumentReadMime } from '../../../src/main/file/mime'
 
 describe('binaryReadGuard', () => {
   it('allows application/octet-stream without binary sniffing', () => {
@@ -32,8 +32,11 @@ describe('binaryReadGuard', () => {
     expect(isDocumentReadMime('text/*')).toBe(false)
   })
 
-  it('guides NUL hits on text MIME as an encoding problem', () => {
+  it('guides NUL hits on source and config MIME as an encoding problem', () => {
     expect(buildBinaryReadGuidance('app.log', 'text/plain', 'agent')).toContain(
+      'UTF-16 without a BOM'
+    )
+    expect(buildBinaryReadGuidance('Cargo.toml', 'application/toml', 'agent')).toContain(
       'UTF-16 without a BOM'
     )
     expect(buildBinaryReadGuidance('payload.tar', 'application/x-tar', 'agent')).toContain(
