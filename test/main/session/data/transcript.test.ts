@@ -1344,7 +1344,7 @@ describe('SessionTranscript', () => {
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
     })
 
-    it('does not keep a cancelled interaction in pending restart recovery', () => {
+    it('does not let interactionResolution drop a still-pending action', () => {
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
         {
           id: 'm1',
@@ -1356,6 +1356,35 @@ describe('SessionTranscript', () => {
             runOutcome: 'paused',
             runStopReason: 'interaction',
             interactionResolution: 'cancelled'
+          }),
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: true }
+            }
+          ])
+        }
+      ])
+
+      expect(store.recoverPendingMessages()).toBe(0)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+    })
+
+    it('does not keep an interaction after its pending action is settled', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's1',
+          role: 'assistant',
+          status: 'pending',
+          metadata: JSON.stringify({
+            runId: 'paused-run',
+            runOutcome: 'paused',
+            runStopReason: 'interaction'
           }),
           content: JSON.stringify([
             {
