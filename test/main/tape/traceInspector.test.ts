@@ -29,9 +29,8 @@ import {
   TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION
 } from '@/session/data/tables/deepchatMessageTraces'
 import type { TapeInspectorFactRecord, TapeInspectorSort } from '@shared/types/tape-inspector'
+import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const Database = sqliteModule?.default
 const DatabaseCtor = Database!
 
 function row(entryId: number, overrides: Partial<DeepChatTapeEntryRow> = {}): DeepChatTapeEntryRow {
@@ -481,7 +480,7 @@ describe('Tape Trace Inspector projection', () => {
   })
 })
 
-const itIfSqlite = Database ? it : it.skip
+const itIfSqlite = nativeSqliteItIf()
 
 describe('Tape Trace Inspector storage contracts', () => {
   itIfSqlite('pages the Tape tail without crossing incarnation or evidence cursors', () => {

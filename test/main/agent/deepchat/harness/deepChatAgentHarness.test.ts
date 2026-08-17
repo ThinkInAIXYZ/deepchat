@@ -8816,7 +8816,7 @@ describe('DeepChatAgentHarness', () => {
       expect(inserted.truncated).toBe(false)
       expect(headers.authorization).toMatch(/^Bearer \*+oken$/)
       expect(body.api_key).toMatch(/^\*+1234$/)
-      expect(body.nested.token).toMatch(/^\*+9999$/)
+      expect(body.nested.token).toBe('deepchat-token-9999')
     })
 
     it('does not inject request trace context when trace debug is disabled', async () => {

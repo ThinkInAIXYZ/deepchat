@@ -181,6 +181,7 @@ describe('PR Check workflow contracts', () => {
       'Validate portable memory behavior',
       'Prepare native SQLite for the Node ABI',
       'Smoke native SQLite',
+      'Validate native Tape storage',
       'Validate encrypted OCR artifact storage',
       'Validate native memory storage',
       'Validate memory retrieval quality',
@@ -212,6 +213,9 @@ describe('PR Check workflow contracts', () => {
     )
     expect(getStep(nativeJob, 'Smoke native SQLite').run).toBe(
       'node scripts/smoke-memory-native-sqlite.js'
+    )
+    expect(getStep(nativeJob, 'Validate native Tape storage').run).toContain(
+      'test/main/tape/traceInspector.test.ts'
     )
     expect(getStep(nativeJob, 'Validate encrypted OCR artifact storage').run).toBe(
       'pnpm exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts test/main/ocr/documentOcrArtifactStore.test.ts'

@@ -170,6 +170,7 @@ jobs:
           test/main/tape/skillMaterialization.test.ts
           test/main/tape/executionJournal.test.ts
           test/main/tape/taskContractPersistence.test.ts
+          test/main/tape/traceInspector.test.ts
           test/main/session/data/tapeFork.test.ts
           test/main/session/data/tapeLifecycle.test.ts
           test/main/session/data/tapeLineage.test.ts
