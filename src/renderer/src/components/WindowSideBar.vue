@@ -404,7 +404,7 @@
             <template #item="{ element: group }">
               <div>
                 <div
-                  class="group mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
+                  class="group mt-2 flex w-full select-none items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
                   :class="[
                     isProjectGroupDragging ? 'pointer-events-none' : '',
                     revealedWorkspaceGroupId === getGroupIdentifier(group)
@@ -437,13 +437,14 @@
                         <span class="truncate">
                           {{ getGroupLabel(group) }}
                         </span>
-                        <span
+                        <DcBadge
                           v-if="isDefaultWorkspaceGroup(group)"
+                          variant="active"
                           data-testid="window-sidebar-default-workspace-badge"
-                          class="ms-auto shrink-0 text-[10px] font-medium text-primary"
+                          class="ms-auto px-1 py-0 text-[10px]"
                         >
                           {{ t('settings.environments.badges.default') }}
-                        </span>
+                        </DcBadge>
                         <span
                           v-if="isTrueEmptyWorkspaceGroup(group)"
                           data-testid="window-sidebar-empty-workspace-label"
@@ -480,7 +481,7 @@
                       v-if="isProjectDirectoryGroup(group)"
                       side="right"
                       data-testid="workspace-path-tooltip"
-                      class="max-w-72 break-all"
+                      class="max-w-72 text-wrap break-words"
                     >
                       {{ getGroupIdentifier(group) }}
                     </TooltipContent>
@@ -709,6 +710,7 @@ import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { DcEmpty } from '@dc-ui/components/empty'
 import {
