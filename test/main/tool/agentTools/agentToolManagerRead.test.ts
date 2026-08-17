@@ -317,6 +317,90 @@ describe('AgentToolManager read routing', () => {
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
+  it('reads Cargo.toml reported as application/toml', async () => {
+    const filePath = path.join(workspaceDir, 'Cargo.toml')
+    await fs.writeFile(filePath, '[package]\nname = "server-status"\nversion = "0.1.0"\n', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('application/toml')
+
+    const result = (await manager.callTool('read', { path: 'Cargo.toml' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('[package]')
+    expect(result.content).toContain('server-status')
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('reads Rust sources reported as application/rls-services+xml', async () => {
+    const filePath = path.join(workspaceDir, 'foo.rs')
+    await fs.writeFile(filePath, 'fn main() {}\n', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('application/rls-services+xml')
+
+    const result = (await manager.callTool('read', { path: 'foo.rs' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('fn main()')
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('reads application/sql as raw text', async () => {
+    const filePath = path.join(workspaceDir, 'query.sql')
+    await fs.writeFile(filePath, 'SELECT 1;\n', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('application/sql')
+
+    const result = (await manager.callTool('read', { path: 'query.sql' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('SELECT 1;')
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('rejects a NUL-prefixed file on the default read path', async () => {
+    const filePath = path.join(workspaceDir, 'payload.bin')
+    await fs.writeFile(filePath, Buffer.from([0x7b, 0x00, 0x7d]))
+    fileService.getMimeType.mockResolvedValue('application/octet-stream')
+
+    const result = (await manager.callTool('read', { path: 'payload.bin' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('Cannot read "payload.bin" as plain text')
+    expect(result.content).not.toMatch(/^payload\.bin:\s*$/m)
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('reports when a document adapter returns no extractable text', async () => {
+    const filePath = path.join(workspaceDir, 'blank.pdf')
+    await fs.writeFile(filePath, 'pdf-binary', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('application/pdf')
+    fileService.prepareFileCompletely.mockResolvedValue({ content: '   ' })
+
+    const result = (await manager.callTool('read', { path: 'blank.pdf' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('No extractable text')
+    expect(result.content).toContain('application/pdf')
+    expect(result.content).not.toMatch(/^blank\.pdf:\s*$/m)
+    expect(fileService.prepareFileCompletely).toHaveBeenCalled()
+  })
+
+  it('routes tab-separated values through the document adapter', async () => {
+    const filePath = path.join(workspaceDir, 'rows.tsv')
+    await fs.writeFile(filePath, 'a\tb\n', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('text/tab-separated-values')
+    fileService.prepareFileCompletely.mockResolvedValue({ content: 'a | b' })
+
+    const result = (await manager.callTool('read', { path: 'rows.tsv' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('a | b')
+    expect(fileService.prepareFileCompletely).toHaveBeenCalled()
+  })
+
   it.each([
     [
       'UTF-16LE',

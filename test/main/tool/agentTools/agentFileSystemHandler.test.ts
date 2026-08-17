@@ -283,3 +283,25 @@ describe('AgentFileSystemHandler path authorization', () => {
     }
   )
 })
+
+describe('AgentFileSystemHandler read batch isolation', () => {
+  it('keeps a binary sibling from replacing other files in the same batch', async () => {
+    const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-'))
+    try {
+      const handler = new AgentFileSystemHandler([testDir])
+      const textPath = path.join(testDir, 'ok.txt')
+      const binaryPath = path.join(testDir, 'bad.bin')
+      await fs.writeFile(textPath, 'keep me\n', 'utf-8')
+      await fs.writeFile(binaryPath, Buffer.from([0x00, 0x01, 0x02]))
+
+      const content = await handler.readFile({ paths: [textPath, binaryPath] }, undefined, {
+        binaryMimeType: 'application/octet-stream'
+      })
+
+      expect(content).toContain('keep me')
+      expect(content).toContain('Cannot read "bad.bin" as plain text')
+    } finally {
+      await fs.rm(testDir, { recursive: true, force: true })
+    }
+  })
+})

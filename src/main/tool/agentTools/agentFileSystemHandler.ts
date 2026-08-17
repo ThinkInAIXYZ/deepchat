@@ -12,6 +12,7 @@ import { glob } from 'glob'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
+import { buildBinaryReadGuidance, decodeAgentFileBytes } from '@/lib/binaryReadGuard'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
@@ -121,6 +122,10 @@ const GetFileInfoArgsSchema = z.object({
 
 interface FileMutationOptions {
   beforeMutation?: () => void
+}
+
+interface FileReadOptions {
+  binaryMimeType?: string
 }
 
 interface GrepMatch {
@@ -838,7 +843,11 @@ export class AgentFileSystemHandler {
     }
   }
 
-  async readFile(args: unknown, baseDirectory?: string): Promise<string> {
+  async readFile(
+    args: unknown,
+    baseDirectory?: string,
+    options: FileReadOptions = {}
+  ): Promise<string> {
     const parsed = ReadFileArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
@@ -854,14 +863,15 @@ export class AgentFileSystemHandler {
             accessType: 'read'
           })
           const bytes = await fs.readFile(validPath)
-          let fullContent: string
-          if (bytes[0] === 0xff && bytes[1] === 0xfe) {
-            fullContent = bytes.subarray(2).toString('utf16le')
-          } else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
-            fullContent = new TextDecoder('utf-16be').decode(bytes.subarray(2))
-          } else {
-            fullContent = bytes.toString('utf8').replace(/^\uFEFF/, '')
+          const decoded = decodeAgentFileBytes(bytes)
+          if (decoded.kind === 'binary') {
+            return buildBinaryReadGuidance(
+              filePath,
+              options.binaryMimeType ?? 'application/octet-stream',
+              'agent'
+            )
           }
+          const fullContent = decoded.content
           const totalLength = fullContent.length
 
           // Determine effective limit

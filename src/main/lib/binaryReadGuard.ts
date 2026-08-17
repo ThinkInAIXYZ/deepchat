@@ -21,6 +21,55 @@ const ALWAYS_BINARY_MIMES = new Set([
   'application/wasm'
 ])
 
+const NUL_SNIFF_BYTES = 8192
+
+/**
+ * Concrete document MIME keys whose adapters extract structured text for `read`.
+ * Wildcard adapter keys are excluded because findAdapterForMimeType never selects them
+ * as document extractors (`text/*` is a text adapter, not a document one).
+ */
+export const DOCUMENT_READ_MIMES: ReadonlySet<string> = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-word.document.macroenabled.12',
+  'application/vnd.ms-word.document.macroEnabled.12',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+  'application/vnd.ms-word.template.macroenabled.12',
+  'application/vnd.ms-word.template.macroEnabled.12',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel.sheet.macroenabled.12',
+  'application/vnd.ms-excel.sheet.macroEnabled.12',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+  'application/vnd.ms-excel.template.macroenabled.12',
+  'application/vnd.ms-excel.template.macroEnabled.12',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
+  'application/vnd.ms-excel.sheet.binary.macroenabled.12',
+  'application/vnd.ms-excel.addin.macroenabled.12',
+  'application/vnd.ms-excel.addin.macroEnabled.12',
+  'application/vnd.apple.numbers',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint.presentation.macroenabled.12',
+  'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
+  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  'application/vnd.ms-powerpoint.slideshow.macroenabled.12',
+  'application/vnd.ms-powerpoint.slideshow.macroEnabled.12',
+  'application/vnd.openxmlformats-officedocument.presentationml.template',
+  'application/vnd.ms-powerpoint.template.macroenabled.12',
+  'application/vnd.ms-powerpoint.template.macroEnabled.12',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.presentation',
+  'application/rtf',
+  'text/rtf',
+  'text/csv',
+  'text/tab-separated-values'
+])
+
+export type AgentFileDecodeResult = { kind: 'text'; content: string } | { kind: 'binary' }
+
 export function isTextLikeMime(mimeType: string): boolean {
   return mimeType.startsWith('text/') || TEXT_LIKE_MIMES.has(mimeType)
 }
@@ -53,6 +102,32 @@ export function shouldRejectAgentBinaryRead(mimeType: string): boolean {
     mimeType.startsWith('audio/') ||
     mimeType.startsWith('video/')
   )
+}
+
+export function isDocumentReadMime(mimeType: string): boolean {
+  return DOCUMENT_READ_MIMES.has(mimeType)
+}
+
+export function decodeAgentFileBytes(bytes: Uint8Array): AgentFileDecodeResult {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return { kind: 'text', content: toBuffer(bytes.subarray(2)).toString('utf16le') }
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return { kind: 'text', content: new TextDecoder('utf-16be').decode(bytes.subarray(2)) }
+  }
+  if (bytes.subarray(0, Math.min(bytes.length, NUL_SNIFF_BYTES)).includes(0)) {
+    return { kind: 'binary' }
+  }
+  return {
+    kind: 'text',
+    content: toBuffer(bytes)
+      .toString('utf8')
+      .replace(/^\uFEFF/, '')
+  }
+}
+
+function toBuffer(bytes: Uint8Array): Buffer {
+  return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
 }
 
 export function buildBinaryReadGuidance(
