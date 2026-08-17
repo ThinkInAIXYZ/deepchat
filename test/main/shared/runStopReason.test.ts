@@ -15,6 +15,7 @@ describe('runStopReason', () => {
     expect(readRunStopReason({ runStopReason: 'max_tool_calls' })).toBe('max_tool_calls')
     expect(readRunStopReason({ runStopReason: '  max_turns  ' })).toBe('max_turns')
     expect(readRunStopReason({ runStopReason: '   ' })).toBeUndefined()
+    expect(readRunStopReason({ runStopReason: 123 })).toBeUndefined()
     expect(readRunStopReason({ runOutcome: 'completed' })).toBeUndefined()
     expect(readRunStopReason(null)).toBeUndefined()
   })

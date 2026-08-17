@@ -14,7 +14,6 @@ import {
   runsGetRoute,
   sessionsRunDetachedRoute,
   type EventsSubscribeInput,
-  type EventsSubscribeOutput,
   type PublicRunMessage,
   type PublicRunSnapshot,
   type RunDetachedInput,
@@ -79,7 +78,6 @@ export type CliRunServiceOptions = Readonly<{
   projection: RunProjectionPort
   sessions: RunSessionStorePort
   getPendingAssistantMessages(runId: string): ChatMessageRecord[]
-  getLatestAssistantStopReason(runId: string): string | undefined
   hasWaitingDescendantInteraction(runId: string): boolean
   eventHub: TypedEventHub
   now?: () => number
@@ -367,7 +365,7 @@ export class CliRunService {
     caller: CliRouteCaller,
     signal: AbortSignal,
     emit: CliStreamEmitter
-  ): Promise<EventsSubscribeOutput> {
+  ): Promise<unknown> {
     const session = this.requireOwnedRun(input.runId, caller)
     if (session.metadata?.source !== 'cli_run') {
       throw new CliRequestError('not_found', 'Run was not found', { httpStatus: 404 })
@@ -403,14 +401,14 @@ export class CliRunService {
           cursor: subscription.initialCursor
         })
         if (terminalAtSubscribe) {
-          return await this.buildSubscribeOutput(input.runId, lastCursor)
+          return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
         }
       }
 
       let caughtUp =
         subscription.recoveryReason !== null || input.cursor === subscription.initialCursor
       if (terminalAtSubscribe && caughtUp) {
-        return await this.buildSubscribeOutput(input.runId, lastCursor)
+        return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
       }
       for await (const event of subscription.events) {
         await emit(event.event, event.data, {
@@ -438,7 +436,7 @@ export class CliRunService {
       subscription.close()
     }
 
-    return await this.buildSubscribeOutput(input.runId, lastCursor)
+    return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
   }
 
   private isTerminalEvent(runId: string, event: string, data: unknown): boolean {
@@ -488,8 +486,6 @@ export class CliRunService {
         ? this.options.getPendingAssistantMessages(runId)
         : page.messages
     const projectedPage = projectMessagePage(page)
-    const stopReason =
-      session.status === 'generating' ? undefined : this.options.getLatestAssistantStopReason(runId)
     return runsGetRoute.output.parse({
       runId,
       sessionId: session.id,
@@ -505,26 +501,7 @@ export class CliRunService {
       modelId: session.modelId,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      ...projectedPage,
-      ...(stopReason ? { stopReason } : {})
-    })
-  }
-
-  private async buildSubscribeOutput(
-    runId: string,
-    lastCursor: string
-  ): Promise<EventsSubscribeOutput> {
-    const session = await this.options.projection.getSession(runId)
-    if (!session) {
-      return eventsSubscribeRoute.output.parse({ runId, lastCursor })
-    }
-    const stopReason =
-      session.status === 'generating' ? undefined : this.options.getLatestAssistantStopReason(runId)
-    return eventsSubscribeRoute.output.parse({
-      runId,
-      lastCursor,
-      status: session.status,
-      ...(stopReason ? { stopReason } : {})
+      ...projectedPage
     })
   }
 }

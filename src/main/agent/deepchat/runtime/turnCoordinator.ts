@@ -24,7 +24,6 @@ import {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import { shouldConsumeClaimedInput } from './claimedInputSettlement'
 import { buildTapeViewSelection, type DeepChatLoopRunner } from './deepChatLoopRunner'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { PromptAssemblyService } from './promptAssemblyService'
@@ -1160,7 +1159,12 @@ export class TurnCoordinator {
       const { runId, result } = streamResult
       streamRunId = runId
       if (claimedInput && !claimedInput.disposition) {
-        if (shouldConsumeClaimedInput(result.status, isSteerClaim)) {
+        if (
+          isSteerClaim ||
+          result.status === 'completed' ||
+          result.status === 'paused' ||
+          result.status === 'aborted'
+        ) {
           claimedInput.settle({ kind: 'consume' })
         } else {
           this.rollbackPendingInputTurn(sessionId, userMessageId, instance)

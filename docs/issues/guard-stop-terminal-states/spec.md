@@ -42,34 +42,13 @@ Protective thresholds and journal outcomes stay unchanged.
    metadata. No second copy is written into transcript blocks.
 3. Continue starts a new physical run through `sendMessage` with non-empty visible user text. It
    must not call `retryMessage` or mutate the historical `run_terminal`.
-4. CLI projects `stopReason` from the latest assistant message metadata, independent of the message
-   page cursor. The snapshot field is an optional open string. Known guard values are
-   `max_tool_calls`, `no_progress`, and `max_turns`. Unknown values render as an ordinary terminal
-   label and must not fail schema validation.
-5. Do not bump `LOCAL_CONTROL_SURFACE_VERSION`. The field is additive in the same-release window.
-   Old CLI binaries that embed the previous `.strict()` schema can fail `safeParse` on `runs.get`,
-   recovery `runs.snapshot`, and `events.subscribe` output.
+4. Public local-control V2 outputs stay shape-compatible. `PublicRunSnapshot` and
+   `events.subscribe` do not gain fields. `LOCAL_CONTROL_SURFACE_VERSION` stays 2.
 
 ## Contract Surfaces
 
-- `runs.get` output (`PublicRunSnapshot.stopReason?`)
-- `runs.snapshot` event payload, which reuses `PublicRunSnapshotSchema`
-- `events.subscribe` output (`status?`, `stopReason?`) so `run watch` can print and exit without a
-  second RPC
-- `run watch` human text and exit code
-
-`sessions.runDetached` and `runs.get` keep exit `0` when the RPC succeeds.
-
-`run watch` exit codes:
-
-- `0` when the stream ends without a guard stop reason
-- `6` (`domain`) when the terminal `stopReason` is `max_tool_calls`, `no_progress`, or `max_turns`
-
-JSONL mode still prints `ok: true` for a successful RPC. Exit `6` is a domain result, not a
-transport failure. Machine consumers must read `stopReason` and the process exit code together.
-
-If the Session is deleted after the stream ends, subscribe still returns `runId` and `lastCursor`
-instead of turning a completed watch into `not_found`.
+Renderer projection of `runStopReason` is the user-visible contract. CLI V2 run routes keep their
+existing outputs so an older client can keep talking to a newer server.
 
 ## Compatibility And Safety Invariants
 
@@ -79,14 +58,9 @@ instead of turning a completed watch into `not_found`.
 3. Historical `run_terminal` rows are never rewritten.
 4. Continue creates a new `runId` and a visible user message.
 5. Claimed queue input that hits the tool-call limit is still consumed, never rolled back.
-6. Snapshot `stopReason` does not depend on the requested message page.
-7. CLI `stopReason` is not a closed enum.
 
 ## Tasks
 
 - [x] Project `runStopReason` in the renderer with reason-specific copy and Continue.
-- [x] Add optional CLI `stopReason` to snapshot and subscribe output.
-- [x] Make `run watch` print the reason and return non-zero for guard stops.
-- [x] Cover projection, Continue, pagination-independent snapshot, and watch exit.
+- [x] Keep public CLI V2 run outputs unchanged.
 - [x] Prevent Continue double-submit and hide Continue on historical guard banners.
-- [x] Cover claimed-queue consume for completed tool-limit stops and immutable prior terminals.

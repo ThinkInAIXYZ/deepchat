@@ -417,37 +417,6 @@ describe('bundled CLI client', () => {
     expect(stderr.read()).toBe('')
   })
 
-  it('prints a guard stop reason and exits non-zero when watch ends at a budget stop', async () => {
-    const stdout = captureOutput()
-    const invokeStream = vi.fn(async (invocation) =>
-      LocalControlRpcResponseSchema.parse({
-        protocolVersion: 1,
-        surfaceVersion: 2,
-        id: invocation.id,
-        ok: true,
-        result: {
-          runId: 'run-1',
-          lastCursor: 'epoch-1:9',
-          status: 'idle',
-          stopReason: 'max_tool_calls'
-        }
-      })
-    )
-
-    await expect(
-      runCli(['run', 'watch', '--run', 'run-1'], {
-        env: {},
-        stdout: stdout.stream,
-        stderr: captureOutput().stream,
-        randomId: () => 'request-1',
-        loadDescriptor: async () => testDescriptor,
-        invokeStream
-      })
-    ).resolves.toBe(6)
-
-    expect(stdout.read()).toContain('Run run-1 stream ended at epoch-1:9 (idle, max_tool_calls)')
-  })
-
   it('rejects untargeted run stream records before writing attacker-controlled data', async () => {
     const stdout = captureOutput()
     const invokeStream = vi.fn(async (invocation, onEvent) => {

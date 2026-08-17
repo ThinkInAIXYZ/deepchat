@@ -103,6 +103,18 @@ function createHarness(
 }
 
 describe('useDisplayMessages', () => {
+  it('ignores a non-string persisted runStopReason without failing the session list', () => {
+    const record = assistantRecord('history', 1, 'settled')
+    record.metadata = JSON.stringify({ runStopReason: 123 })
+    const { display, messageStore } = createHarness(['history'], [record])
+    messageStore.getMessageMetadata = (entry: ChatMessageRecord) => JSON.parse(entry.metadata)
+
+    expect(() => display.displayMessages.value).not.toThrow()
+    const history = display.displayMessages.value.find((message) => message.id === 'history')
+    expect(history).toBeDefined()
+    expect(history).not.toHaveProperty('runStopReason')
+  })
+
   it('keeps ordered history and a folded streaming record in one display list', () => {
     const history = Array.from({ length: 200 }, (_, index) =>
       assistantRecord(`history-${index}`, index + 1, `settled-${index}`)

@@ -28,7 +28,6 @@ function createMockSqlitePresenter() {
       getBySession: vi.fn().mockReturnValue([]),
       getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
       getPendingAssistantBySession: vi.fn().mockReturnValue([]),
-      getLatestAssistantMetadataBySession: vi.fn().mockReturnValue(undefined),
       hasBySession: vi.fn().mockReturnValue(false),
       listPageBySession: vi.fn().mockReturnValue([]),
       getByStatus: vi.fn().mockReturnValue([]),
@@ -804,21 +803,6 @@ describe('SessionTranscript', () => {
       expect(
         sqlitePresenter.deepchatMessagesTable.getPendingAssistantBySession
       ).toHaveBeenCalledWith('s1')
-    })
-  })
-
-  describe('getLatestAssistantStopReason', () => {
-    it('reads the stop reason from the latest assistant metadata without loading the page', () => {
-      sqlitePresenter.deepchatMessagesTable.getLatestAssistantMetadataBySession.mockReturnValue(
-        JSON.stringify({ runOutcome: 'completed', runStopReason: 'max_tool_calls' })
-      )
-
-      expect(store.getLatestAssistantStopReason('s1')).toBe('max_tool_calls')
-      expect(
-        sqlitePresenter.deepchatMessagesTable.getLatestAssistantMetadataBySession
-      ).toHaveBeenCalledWith('s1')
-      expect(sqlitePresenter.deepchatMessagesTable.getBySession).not.toHaveBeenCalled()
-      expect(sqlitePresenter.deepchatMessagesTable.listPageBySession).not.toHaveBeenCalled()
     })
   })
 

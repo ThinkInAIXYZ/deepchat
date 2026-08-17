@@ -192,19 +192,6 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
-  getLatestAssistantMetadataBySession(sessionId: string): string | undefined {
-    const row = this.db
-      .prepare(
-        `SELECT metadata
-         FROM deepchat_messages
-         WHERE session_id = ? AND role = 'assistant'
-         ORDER BY order_seq DESC, id DESC
-         LIMIT 1`
-      )
-      .get(sessionId) as { metadata: string } | undefined
-    return row?.metadata
-  }
-
   getCompactionRecoveryCandidates(): DeepChatMessageRow[] {
     return this.db
       .prepare(

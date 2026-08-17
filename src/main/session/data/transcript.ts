@@ -39,7 +39,6 @@ import {
   normalizeAttachmentResolvedRepresentation,
   normalizePdfEmbeddedTextCoverage
 } from '@shared/utils/attachmentRepresentation'
-import { readRunStopReason } from '@shared/lib/runStopReason'
 
 const MAX_SEARCHABLE_ATTACHMENT_CHARACTERS = 32_000
 const SEARCH_ATTACHMENT_TRUNCATION_MARKER = '[Attachment search text truncated]'
@@ -544,13 +543,6 @@ export class SessionTranscript {
   getPendingAssistantMessages(sessionId: string): ChatMessageRecord[] {
     const rows = this.database.deepchatMessagesTable.getPendingAssistantBySession(sessionId)
     return this.toRecords(rows)
-  }
-
-  getLatestAssistantStopReason(sessionId: string): string | undefined {
-    const metadata =
-      this.database.deepchatMessagesTable.getLatestAssistantMetadataBySession(sessionId)
-    if (metadata === undefined) return undefined
-    return readRunStopReason(parseMessageMetadata(metadata))
   }
 
   hasMessages(sessionId: string): boolean {
