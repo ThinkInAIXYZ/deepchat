@@ -50,6 +50,27 @@ function createProviderSettings(): ProviderSettingsPort {
 }
 
 describe('generation settings policy', () => {
+  it('falls back from a non-positive model context window', async () => {
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getModelConfig).mockReturnValue({
+      contextLength: 0,
+      maxTokens: 0,
+      temperature: 0.7,
+      timeout: 60_000
+    })
+
+    const result = await sanitizeGenerationSettings(
+      providerSettings,
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
+      'openai',
+      'gpt-4o',
+      { contextLength: 0 }
+    )
+
+    expect(result.contextLength).toBe(32_000)
+    expect(result.maxTokens).toBe(4_096)
+  })
+
   it('does not materialize an absent model topP as an explicit undefined property', async () => {
     const result = await sanitizeGenerationSettings(
       createProviderSettings(),

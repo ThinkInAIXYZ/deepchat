@@ -25,6 +25,8 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
+  sessionsGetCompactionSnapshotRoute,
+  sessionsGetContextOccupancyRoute,
   sessionsGetDisabledAgentToolsRoute,
   sessionsGetTapeInspectorRecordDetailRoute,
   sessionsGetGenerationSettingsRoute,
@@ -57,6 +59,7 @@ import {
   sessionsSearchHistoryRoute,
   sessionsSetAcpSessionConfigOptionRoute,
   sessionsSetModelRoute,
+  sessionsSetToolModeRoute,
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
   sessionsSteerPendingInputRoute,
@@ -604,6 +607,24 @@ export function createSessionRoutes(deps: {
       }
     ],
     [
+      sessionsGetCompactionSnapshotRoute.name,
+      async (rawInput) => {
+        const input = sessionsGetCompactionSnapshotRoute.input.parse(rawInput)
+        return sessionsGetCompactionSnapshotRoute.output.parse(
+          await deps.turn.getSessionCompactionSnapshot(input.sessionId)
+        )
+      }
+    ],
+    [
+      sessionsGetContextOccupancyRoute.name,
+      async (rawInput) => {
+        const input = sessionsGetContextOccupancyRoute.input.parse(rawInput)
+        return sessionsGetContextOccupancyRoute.output.parse(
+          await deps.turn.getSessionContextOccupancy(input.sessionId)
+        )
+      }
+    ],
+    [
       sessionsExportRoute.name,
       async (rawInput) => {
         const input = sessionsExportRoute.input.parse(rawInput)
@@ -714,6 +735,15 @@ export function createSessionRoutes(deps: {
             input.providerId,
             input.modelId
           )
+        })
+      }
+    ],
+    [
+      sessionsSetToolModeRoute.name,
+      async (rawInput) => {
+        const input = sessionsSetToolModeRoute.input.parse(rawInput)
+        return sessionsSetToolModeRoute.output.parse({
+          session: await deps.assignment.setSessionToolMode(input.sessionId, input.override)
         })
       }
     ],

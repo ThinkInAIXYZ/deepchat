@@ -540,6 +540,30 @@ describe('AgentToolManager read routing', () => {
     }
   })
 
+  it('returns an execution-stage permission request for exec', async () => {
+    const result = await manager.callTool(
+      'exec',
+      { command: 'git status --short', description: 'Inspect worktree status' },
+      'conv1'
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        rawData: expect.objectContaining({
+          isError: false,
+          requiresPermission: true,
+          permissionRequest: expect.objectContaining({
+            toolName: 'exec',
+            permissionType: 'command',
+            command: 'git status --short',
+            shellProfile: 'posix',
+            conversationId: 'conv1'
+          })
+        })
+      })
+    )
+  })
+
   it('uses the current Agent command preview limit when polling a process', async () => {
     providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
       commandOutputInlineChars: 7_000
@@ -734,6 +758,79 @@ describe('AgentToolManager read routing', () => {
 
     expect(commitDispatch).toHaveBeenCalledOnce()
     expect(existsSync(targetPath)).toBe(false)
+  })
+
+  it('validates every patch operation before the first mutation', async () => {
+    const firstPath = path.join(workspaceDir, 'first.txt')
+    const secondPath = path.join(workspaceDir, 'second.txt')
+    await fs.writeFile(firstPath, 'alpha\n', 'utf8')
+    await fs.writeFile(secondPath, 'actual\n', 'utf8')
+    const commitDispatch = vi.fn()
+
+    await expect(
+      manager.callTool(
+        'apply_patch',
+        {
+          patch: `*** Begin Patch
+*** Update File: first.txt
+@@
+-alpha
++changed
+*** Update File: second.txt
+@@
+-missing
++changed
+*** End Patch`
+        },
+        'conv1',
+        { commitDispatch }
+      )
+    ).rejects.toThrow('Failed to find expected lines in second.txt')
+
+    expect(commitDispatch).not.toHaveBeenCalled()
+    await expect(fs.readFile(firstPath, 'utf8')).resolves.toBe('alpha\n')
+    await expect(fs.readFile(secondPath, 'utf8')).resolves.toBe('actual\n')
+  })
+
+  it('validates dependent patch operations against their preceding virtual state', async () => {
+    const existingPath = path.join(workspaceDir, 'dependent.txt')
+    const addedPath = path.join(workspaceDir, 'added-then-updated.txt')
+    await fs.writeFile(existingPath, 'alpha\n', 'utf8')
+
+    await manager.callTool(
+      'apply_patch',
+      {
+        patch: `*** Begin Patch
+*** Update File: dependent.txt
+@@
+-alpha
++intermediate
+*** Update File: dependent.txt
+@@
+-intermediate
++final
+*** Add File: added-then-updated.txt
++before
+*** Update File: added-then-updated.txt
+@@
+-before
++after
+*** End Patch`
+      },
+      'conv1'
+    )
+
+    await expect(fs.readFile(existingPath, 'utf8')).resolves.toBe('final\n')
+    await expect(fs.readFile(addedPath, 'utf8')).resolves.toBe('after\n')
+  })
+
+  it('defers malformed patch errors to execution instead of permission pre-check', async () => {
+    const args = { patch: 'not a patch' }
+
+    await expect(manager.preCheckToolPermission('apply_patch', args, 'conv1')).resolves.toBeNull()
+    await expect(manager.callTool('apply_patch', args, 'conv1')).rejects.toThrow(
+      "The first line of the patch must be '*** Begin Patch'."
+    )
   })
 
   it('does not claim a dispatch for invalid writes or plain file reads', async () => {

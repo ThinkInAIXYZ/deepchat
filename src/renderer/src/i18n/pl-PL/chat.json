@@ -63,6 +63,27 @@
         "yobrowser": "Twoja przeglądarka"
       }
     },
+    "toolMode": {
+      "title": "Tryb",
+      "modelDefault": "Domyślny dla modelu",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Użyj standardowego zestawu narzędzi agenta.",
+        "code": "Łącz włączone narzędzia za pomocą kodu. Wymaga trybu uprawnień Pełny dostęp.",
+        "minimal": "Upraszcza operacje na plikach, zachowując pozostałe włączone narzędzia."
+      },
+      "useModelDefault": "Użyj domyślnego dla modelu",
+      "saving": "Zapisywanie trybu...",
+      "locked": "Tryb można zmienić po zakończeniu tej odpowiedzi.",
+      "updateFailed": "Nie udało się zaktualizować trybu narzędzi.",
+      "codeEntry": "Wejście kodu",
+      "codeCallable": "Wywoływalne z kodu",
+      "minimalTools": "Narzędzia programistyczne"
+    },
     "fileUploadFailed": "Załącznik nie powiódł się",
     "fileUploadFailedDesc": "Nie można przetworzyć plików {count}: {names}",
     "fileUploadFailedMore": " i {count} więcej",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Zagęszczanie kontekstu...",
     "compacted": "Kontekst został zagęszczony",
+    "compactedWithoutSummary": "Kontekst został skompaktowany bez podsumowania",
+    "compactedWithoutLargerSummary": "Kontekst został skompaktowany bez użycia większego podsumowania",
     "commandDescription": "Zwarty kontekst rozmowy",
     "noopTitle": "Brak kontekstu do kompaktowania",
     "noopDescription": "Nie ma jeszcze nowej historii konwersacji, którą można by skompaktować.",
     "failedTitle": "Zagęszczanie nie powiodło się"
+  },
+  "contextOccupancy": {
+    "label": "Użycie kontekstu",
+    "details": "{used} z {capacity} tokenów",
+    "provider": "Zmierzono przez dostawcę",
+    "estimated": "Oszacowano z widoku żądania",
+    "stale": "Nieaktualne po zmianie modelu, okna lub kompresji"
   },
   "rateLimit": {
     "queueTooltip": "Żądania {count} w kolejce, interwał {interval}",

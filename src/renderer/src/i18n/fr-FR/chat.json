@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Valeur par défaut du modèle",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Utiliser l’ensemble d’outils standard de l’agent.",
+        "code": "Composer les outils activés par du code. Nécessite le mode d’autorisation Accès complet.",
+        "minimal": "Simplifie les opérations sur les fichiers tout en conservant les autres outils activés."
+      },
+      "useModelDefault": "Utiliser la valeur par défaut du modèle",
+      "saving": "Enregistrement du mode...",
+      "locked": "Vous pourrez changer de mode après cette réponse.",
+      "updateFailed": "Impossible de mettre à jour le mode des outils.",
+      "codeEntry": "Entrée de code",
+      "codeCallable": "Appelable depuis le code",
+      "minimalTools": "Outils de programmation"
+    },
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
     "fileUploadFailedMore": " et {count} de plus",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "Compactage du contexte...",
     "compacted": "Le contexte a été compacté",
+    "compactedWithoutSummary": "Le contexte a été compacté sans résumé",
+    "compactedWithoutLargerSummary": "Le contexte a été compacté sans utiliser un résumé plus volumineux",
     "commandDescription": "Compacter le contexte de conversation",
     "noopTitle": "Aucun contexte à compacter",
     "noopDescription": "Il n'y a pas encore de nouvel historique de conversation à compacter.",
     "failedTitle": "Échec de la compaction"
+  },
+  "contextOccupancy": {
+    "label": "Utilisation du contexte",
+    "details": "{used} sur {capacity} jetons",
+    "provider": "Mesuré par le fournisseur",
+    "estimated": "Estimé depuis la vue de requête",
+    "stale": "Obsolète après un changement de modèle, de fenêtre ou de compactage"
   },
   "newThread": {
     "title": "Créer et explorer"

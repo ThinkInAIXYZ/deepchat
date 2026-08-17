@@ -10,6 +10,7 @@ import type {
   DeepChatTapeSkillMaterializationRef
 } from '@shared/types/tape-view-manifest'
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedToolMode } from '@shared/toolMode'
 import {
   assertIssuedToolSurfaceSnapshot,
   revokeToolSurfaceExecutionEligibility,
@@ -56,6 +57,7 @@ export interface LoopRunResources {
   activeSkillNames: string[]
   promptAssembly?: DeepChatPromptAssembly
   commandShell: ResolvedCommandShell
+  readonly toolMode: Readonly<ResolvedToolMode>
   tapeIncarnationId?: string
   materializedSkillContexts: MaterializedSkillContextBinding[]
   runtimeSkillContexts: RuntimeSkillContextBinding[]
@@ -65,6 +67,20 @@ export interface LoopRunResources {
 export interface LoopRunProviderRecovery {
   contextOverflowHandoffAttempted: boolean
   strictProviderOverflowRetryUsed: boolean
+  contextRecoverySequencesUsed: number
+}
+
+export const MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN = 3
+
+export interface LoopRunPromptUsageAnchor {
+  readonly providerId: string
+  readonly modelId: string
+  readonly generationConfigHash: string
+  readonly toolDefinitionsHash: string
+  readonly messageCount: number
+  readonly messagesHash: string
+  readonly promptTokens: number
+  readonly cacheReadTokens: number | null
 }
 
 export interface LoopRunRequestContractBinding {
@@ -101,6 +117,7 @@ export interface LoopRun<TStreamState> {
   readonly streamState: TStreamState
   resources: LoopRunResources
   providerRecovery: LoopRunProviderRecovery
+  promptUsageAnchor: LoopRunPromptUsageAnchor | null
   activeRequestContract: LoopRunRequestContractBinding | null
   activeRequestView: LoopRunRequestViewBinding | null
   activeRequestToolSurface: LoopRunRequestToolSurfaceBinding | null
@@ -119,6 +136,7 @@ export interface CreateLoopRunInput<TStreamState> {
     promptAssembly?: DeepChatPromptAssembly
     commandShell: ResolvedCommandShell
     toolSurfaceMode?: LoopRunToolSurfaceMode
+    toolMode: ResolvedToolMode
   }
   initialRequestSeq?: number
   initialLogicalRound?: number
@@ -138,11 +156,13 @@ export function createLoopRun<TStreamState>(
     ...parsedCommandShell,
     args: Object.freeze([...parsedCommandShell.args])
   }) as ResolvedCommandShell
+  const toolMode = Object.freeze({ ...input.resources.toolMode })
   const resources: LoopRunResources = {
     toolDefinitions: [...input.resources.toolDefinitions],
     activeSkillNames: [...input.resources.activeSkillNames],
     ...(input.resources.promptAssembly ? { promptAssembly: input.resources.promptAssembly } : {}),
     commandShell,
+    toolMode,
     materializedSkillContexts: [],
     runtimeSkillContexts: [],
     toolSurfaceMode: input.resources.toolSurfaceMode ?? 'legacy'
@@ -168,12 +188,29 @@ export function createLoopRun<TStreamState>(
     resources,
     providerRecovery: {
       contextOverflowHandoffAttempted: false,
-      strictProviderOverflowRetryUsed: false
+      strictProviderOverflowRetryUsed: false,
+      contextRecoverySequencesUsed: 0
     },
+    promptUsageAnchor: null,
     activeRequestContract: null,
     activeRequestView: null,
     activeRequestToolSurface: null
   }
+}
+
+export function beginContextRecoverySequence(run: LoopRun<unknown>): boolean {
+  if (run.providerRecovery.contextOverflowHandoffAttempted) return true
+  if (run.providerRecovery.contextRecoverySequencesUsed >= MAX_CONTEXT_RECOVERY_SEQUENCES_PER_RUN) {
+    return false
+  }
+  run.providerRecovery.contextOverflowHandoffAttempted = true
+  run.providerRecovery.contextRecoverySequencesUsed += 1
+  return true
+}
+
+export function resetContextRecoverySequence(run: LoopRun<unknown>): void {
+  run.providerRecovery.contextOverflowHandoffAttempted = false
+  run.providerRecovery.strictProviderOverflowRetryUsed = false
 }
 
 function sameSkillIdentity(

@@ -22,6 +22,14 @@ const GIT_BASH_DISCOVERY_TIMEOUT_MS = 15_000
 const GIT_BASH_FAILURE_CACHE_TTL_MS = 30_000
 const COMMAND_PROBE_MAX_BUFFER_BYTES = 64 * 1_024
 const GIT_BASH_IDENTITY_PROBE = 'printf "deepchat-bash:%s:%s" "$BASH_VERSION" "$OSTYPE"'
+const POWERSHELL_CORE_IDENTITY_PROBE =
+  '[Console]::Out.Write("deepchat-pwsh:" + $PSVersionTable.PSVersion.ToString())'
+
+const POSIX_SHELL_CANDIDATES = {
+  bash: ['/bin/bash', '/usr/bin/bash', '/usr/local/bin/bash', '/opt/homebrew/bin/bash'],
+  zsh: ['/bin/zsh', '/usr/bin/zsh', '/usr/local/bin/zsh', '/opt/homebrew/bin/zsh'],
+  fish: ['/bin/fish', '/usr/bin/fish', '/usr/local/bin/fish', '/opt/homebrew/bin/fish']
+} as const
 
 export interface CommandProbeResult {
   stdout: string
@@ -148,6 +156,17 @@ function resolveWindowsPowerShell(): ResolvedCommandShell {
   })
 }
 
+function resolvePowerShellCore(): ResolvedCommandShell {
+  return freezeResolvedCommandShell({
+    profile: 'powershell-core',
+    dialect: 'powershell',
+    pathStyle: 'win32',
+    executable: 'pwsh.exe',
+    args: ['-NoProfile', '-Command'],
+    displayName: 'PowerShell 7'
+  })
+}
+
 function resolveCmdShell(): ResolvedCommandShell {
   return freezeResolvedCommandShell({
     profile: 'cmd',
@@ -235,6 +254,7 @@ export class CommandShellService {
   private resolvedGitBashCandidate: GitBashCandidate | null = null
   private cachedGitBashFailure: CachedGitBashFailure | null = null
   private pendingGitBashCheck: PendingGitBashCheck | null = null
+  private powerShellCoreAvailable: boolean | null = null
   private validationGeneration = 0
 
   constructor(private readonly dependencies: CommandShellServiceDependencies) {
@@ -247,14 +267,26 @@ export class CommandShellService {
   }
 
   getConfig(): AgentCommandShellConfig {
-    return normalizeAgentCommandShellConfig(this.dependencies.settings.get('agentCommandShell'))
+    return this.normalizeConfigForPlatform(
+      normalizeAgentCommandShellConfig(this.dependencies.settings.get('agentCommandShell'))
+    )
   }
 
   setConfig(value: AgentCommandShellConfig): AgentCommandShellConfig {
-    const parsed = AgentCommandShellConfigSchema.parse(value)
+    const parsed = this.normalizeConfigForPlatform(AgentCommandShellConfigSchema.parse(value))
     this.dependencies.settings.set('agentCommandShell', parsed)
     this.clearValidationCache()
     return parsed
+  }
+
+  private normalizeConfigForPlatform(config: AgentCommandShellConfig): AgentCommandShellConfig {
+    const preference = config.preference
+    const platform = this.getPlatform()
+    const incompatible =
+      platform === 'win32'
+        ? ['bash', 'zsh', 'fish'].includes(preference)
+        : ['windows-powershell', 'powershell-core', 'cmd', 'git-bash'].includes(preference)
+    return incompatible ? { ...config, preference: 'auto' } : config
   }
 
   clearValidationCache(): void {
@@ -264,37 +296,89 @@ export class CommandShellService {
     this.resolvedGitBashCandidate = null
     this.cachedGitBashFailure = null
     this.pendingGitBashCheck = null
+    this.powerShellCoreAvailable = null
   }
 
   async resolveForTurn(): Promise<ResolvedCommandShell> {
-    if (this.getPlatform() !== 'win32') return this.resolveProfile('posix')
-
     const config = this.getConfig()
+    if (this.getPlatform() !== 'win32') {
+      switch (config.preference) {
+        case 'auto':
+          return this.resolveProfile('posix')
+        case 'bash':
+        case 'zsh':
+        case 'fish':
+          return this.resolveProfile(config.preference)
+        default:
+          throw new Error(
+            `Command shell preference "${config.preference}" is unavailable on this platform`
+          )
+      }
+    }
+
     switch (config.preference) {
       case 'auto':
         return resolveAutoWindowsShell(this.getEnvironment())
       case 'windows-powershell':
         return this.resolveProfile('windows-powershell')
+      case 'powershell-core':
+        return this.resolveProfile('powershell-core')
+      case 'cmd':
+        return this.resolveProfile('cmd')
       case 'git-bash':
         return this.resolveProfile('git-bash')
+      default:
+        throw new Error(`Command shell preference "${config.preference}" is unavailable on Windows`)
     }
   }
 
   async resolveProfile(profile: CommandShellProfile): Promise<ResolvedCommandShell> {
     const platform = this.getPlatform()
-    if (profile === 'posix') {
+    if (profile === 'posix' || profile === 'bash' || profile === 'zsh' || profile === 'fish') {
       if (platform === 'win32') {
-        throw new Error('The posix command shell profile is unavailable on Windows')
+        throw new Error(`The ${profile} command shell profile is unavailable on Windows`)
       }
-      const { shell } = this.resolvePosixShell()
-      return freezeResolvedCommandShell({
-        profile: 'posix',
-        dialect: 'posix',
-        pathStyle: 'native',
-        executable: shell,
-        args: ['-c'],
-        displayName: path.basename(shell) || shell
-      })
+      if (profile === 'posix') {
+        const shell = this.resolvePosixShell().shell
+        return freezeResolvedCommandShell({
+          profile: 'posix',
+          dialect: 'posix',
+          pathStyle: 'native',
+          executable: shell,
+          args: ['-c'],
+          displayName: path.basename(shell) || shell
+        })
+      }
+      const shell = this.resolveNamedPosixShell(profile)
+      switch (profile) {
+        case 'bash':
+          return freezeResolvedCommandShell({
+            profile: 'bash',
+            dialect: 'posix',
+            pathStyle: 'native',
+            executable: shell,
+            args: ['-c'],
+            displayName: 'Bash'
+          })
+        case 'zsh':
+          return freezeResolvedCommandShell({
+            profile: 'zsh',
+            dialect: 'posix',
+            pathStyle: 'native',
+            executable: shell,
+            args: ['-c'],
+            displayName: 'Zsh'
+          })
+        case 'fish':
+          return freezeResolvedCommandShell({
+            profile: 'fish',
+            dialect: 'posix',
+            pathStyle: 'native',
+            executable: shell,
+            args: ['-c'],
+            displayName: 'Fish'
+          })
+      }
     }
 
     if (platform !== 'win32') {
@@ -306,6 +390,9 @@ export class CommandShellService {
         return resolveCmdShell()
       case 'windows-powershell':
         return resolveWindowsPowerShell()
+      case 'powershell-core':
+        await this.assertPowerShellCoreAvailable()
+        return resolvePowerShellCore()
       case 'git-bash': {
         const availability = await this.checkGitBash()
         if (!availability.available) {
@@ -321,6 +408,37 @@ export class CommandShellService {
         })
       }
     }
+  }
+
+  private resolveNamedPosixShell(profile: 'bash' | 'zsh' | 'fish'): string {
+    const configuredShell = this.resolvePosixShell().shell
+    const candidates = [
+      ...(path.basename(configuredShell) === profile ? [configuredShell] : []),
+      ...POSIX_SHELL_CANDIDATES[profile]
+    ]
+    const resolved = candidates.find((candidate) => Boolean(this.statFile(candidate)))
+    if (!resolved) {
+      throw new Error(`The ${profile} command shell executable was not found.`)
+    }
+    return resolved
+  }
+
+  private async assertPowerShellCoreAvailable(): Promise<void> {
+    if (this.powerShellCoreAvailable === true) return
+    if (this.powerShellCoreAvailable === false) {
+      throw new Error('PowerShell 7 is unavailable.')
+    }
+    try {
+      const result = await this.runCommand(
+        'pwsh.exe',
+        ['-NoProfile', '-Command', POWERSHELL_CORE_IDENTITY_PROBE],
+        GIT_BASH_PROBE_TIMEOUT_MS
+      )
+      this.powerShellCoreAvailable = result.stdout.trim().startsWith('deepchat-pwsh:')
+    } catch {
+      this.powerShellCoreAvailable = false
+    }
+    if (!this.powerShellCoreAvailable) throw new Error('PowerShell 7 is unavailable.')
   }
 
   async checkGitBash(options: { forceRefresh?: boolean } = {}): Promise<GitBashAvailability> {

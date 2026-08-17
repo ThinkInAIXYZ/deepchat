@@ -228,6 +228,12 @@ export class PendingInputPump {
     }
   }
 
+  replaceRestartedQueueInputs(inputIds: Iterable<string>): void {
+    this.restartHeldQueueInputIds.clear()
+    this.manuallyResumedQueueInputIds.clear()
+    this.holdRestartedQueueInputs(inputIds)
+  }
+
   releaseRestartHoldForInput(itemId: string): void {
     this.restartHeldQueueInputIds.delete(itemId)
     this.manuallyResumedQueueInputIds.delete(itemId)

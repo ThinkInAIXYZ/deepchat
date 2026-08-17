@@ -43,7 +43,7 @@ export function createSessionDataFromDatabase(
     commitNestedDispatch: (input) => programmaticJournalService.commitNestedDispatch(input),
     commitNestedToolOutcome: (input) => programmaticJournalService.commitNestedToolOutcome(input)
   })
-  const transcript = new SessionTranscript(database, tapeStore, tapeStore)
+  const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
   const ensureTape = (sessionId: string) => tapeStore.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({

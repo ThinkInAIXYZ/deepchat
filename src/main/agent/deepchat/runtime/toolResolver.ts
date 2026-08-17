@@ -4,7 +4,7 @@ import {
   type SkillServicePort
 } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ToolServicePort } from '@shared/types/tool'
+import type { ToolModeConfiguration, ToolServicePort } from '@shared/types/tool'
 import { types as nodeTypes } from 'node:util'
 import type {
   AgentType,
@@ -45,6 +45,12 @@ import {
   buildExecutionToolTargetKey
 } from '@/tape/domain/executionContract'
 import { buildCanonicalToolCatalog } from './toolSurface'
+import {
+  normalizeToolModeOverride,
+  resolveToolMode,
+  type ResolvedToolMode,
+  type ToolMode
+} from '@shared/toolMode'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -266,6 +272,27 @@ export class DeepChatToolResolver {
   resolveOrchestrationPolicy(sessionId: string): OrchestrationPolicy {
     const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
     return normalizeOrchestrationPolicy(sessionRow?.orchestration_policy)
+  }
+
+  resolveToolMode(sessionId: string, catalogDefault?: ToolMode): ResolvedToolMode {
+    const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
+    return resolveToolMode(
+      normalizeToolModeOverride(sessionRow?.tool_mode_override),
+      catalogDefault
+    )
+  }
+
+  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[] {
+    const configureToolMode = this.dependencies.toolService.configureToolMode
+    if (typeof configureToolMode === 'function') {
+      return configureToolMode.call(this.dependencies.toolService, input)
+    }
+
+    if (input.mode === 'agent') {
+      return [...input.executionCatalog]
+    }
+
+    throw new Error(`Tool service does not support ${input.mode} mode.`)
   }
 
   async loadToolDefinitionsForSession(

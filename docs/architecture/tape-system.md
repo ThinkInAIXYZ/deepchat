@@ -225,11 +225,22 @@ synthetic contribution、anchor、token budget provenance；contract-bearing Dee
 记录自己的 view；不得依赖无法复现的隐式 context builder 状态。summary、reconstruction 和 Memory
 生成的 synthetic user contribution 只记录 source entry ID 与 content hash，不在 manifest 中复制原文。
 
-Contract-bearing DeepChat child 使用 `cache_aware_context_v1` / `cache-aware-v1`、schema version 5 和
-manifest hash version 3。普通 interactive chat 与 ACP compatibility 继续写 schema version 4，不构造或
-执行 ExecutionContract；schema version 1-4 与其历史 hash 语义继续兼容读取且不得原地重写。
-`legacy_context_v1` 与 `legacy-v1` builder 同样保留兼容路径。tool loop 和 context pressure 必须继承
-初始 projection 的 synthetic provenance，不能退化为仅按 message role 猜测来源。
+新的 cache-aware View 使用 `cache_aware_context_v2` / `cache-aware-v2`。它从同一次 effective Tape
+projection 选择当前 incarnation 第一条有效 user fact，按 system、pinned first user、checkpoint、retained
+tail、active turn 的顺序构造请求；pin 不复制或改写 Tape，也不改变连续 reconstruction cursor。该
+authoritative ref 必须携带最新 effective source entry、message/order identity 与精确 provider-message
+hash；写入前还必须用 Run-local raw source-content hash 校验 effective source。只有该消息仍位于受保护
+前缀时才能跨 tool loop 或 context pressure 继承。缺失 Tape source、前缀漂移、raw source-content hash
+变化或 protected budget 无法容纳时失败关闭，不得伪装成 synthetic provenance 或把其他同文消息归因
+给首条 user fact。初始 View 固定该 Run 的 pin identity；后续 recovery 只能验证并继承，不能从变化后
+的 history 重新选择另一个 pin，初始无 pin 时也不能在同一 Run 中临时引入。
+
+Contract-bearing DeepChat child 使用对应请求的 cache-aware builder、schema version 5 和 manifest hash
+version 3。普通 interactive chat 与 ACP compatibility 继续写 schema version 4，不构造或执行
+ExecutionContract；schema version 1-4 与其历史 hash 语义继续兼容读取且不得原地重写。
+`cache_aware_context_v1` / `cache-aware-v1` 与 `legacy_context_v1` / `legacy-v1` builder 均保留显式兼容
+路径。tool loop 和 context pressure 必须继承初始 projection 的 synthetic 与 pinned provenance，不能
+退化为仅按 message role 或内容相等猜测来源。
 
 每个 schema-v5 manifest 内嵌一个与 provider payload 同时构造的 immutable `ExecutionContract`，包含：
 
@@ -278,6 +289,53 @@ aggregate 反推单次请求。retry lifecycle observer 只写诊断日志，不
 DeepChat message trace 通过 nullable identity 列兼容旧行和 ACP trace。同一 requestSeq 的 replay 选择
 physicalAttempt 最大的 trace，再按 createdAt 和 ID 稳定排序；attempt-local trace callback 必须捕获
 不可变 identity。
+
+## Context compact 与压力恢复
+
+Tape 自身不做物理 compact。运行时 compact 的对象是 provider-visible View：reconstruction anchor
+单调推进默认读取边界，旧 entry 仍留在 append-only Tape 中供 recall、replay 和审计。semantic summary
+是挂在该边界上的可选重建提示，不是边界前进或 View 缩小的前置条件。
+
+自动和压力恢复使用以下有序降级；前一步已经得到可发送的更小 projection 时跳过后续模型调用：
+
+```text
+provider candidate
+  -> usage anchor + suffix estimate（信封变化时回退全量估算）
+  -> compact 较旧的已闭合超大 tool result，保留最新闭合 unit 的完整证据
+  -> 仍有压力：允许 compact 最新闭合 unit
+  -> 仍有压力：尝试 semantic summary
+  -> canonical checkpoint 严格小于它替换的当前 checkpoint + 新隐藏 View 时才提交
+  -> summary 不可用或不收缩：原子写 boundary-only reconstruction anchor
+  -> 从 Tape 与当前内存 active turn 重建 View
+  -> semantic recovery 仅在新 View 严格更小时生效
+  -> 必要时缩小 output reserve 做一次 strict retry
+  -> 每个通过 fit/change 或显式 output-reduction guard 的新 payload 创建新的 requestSeq / ViewManifest
+```
+
+boundary-only anchor 使用 allowlisted 的 `summary_unavailable` 或
+`summary_rejected_larger` reason 和有界 `summaryGap` coverage；不保存 provider error、stack、时间戳或
+secret。连续 gap 合并为最新边界上的一个区间；旧有效 summary 只以 `priorSummary` 作为部分上下文，
+不能伪装成该边界新生成的 summary。两类 gap 都保留 Tape recall 指引并在后续成功 summary 时回填；
+取消 summary 时不提交边界。
+
+成功 summary 的 checkpoint 仅在 owning reconstruction anchor 带合法 `range` 时渲染稳定的
+orderSeq coverage 和 `tape_search` / `tape_context` recall 指引；legacy、仅有 `priorSummary` 或无
+range anchor 不推测来源。provenance 与 summary 一起进入 synthetic contribution hash 和收缩比较，
+不能成为未计预算的隐式 prompt。
+
+active turn 不能通过重放原 user prompt 恢复，因为 tool 可能已经产生外部副作用。运行时只能压缩
+assistant tool-call 与其全部结果均已闭合的 unit，保留 call/result 配对，并保护 runtime Skill、provider
+replay 和 projection identity。第一阶段还保护最新闭合 unit，避免模型因丢失直接行动依据而重复有副作用的
+tool；只有较旧 unit 已不足以解除压力时才能压缩它。原始 tool fact 仍在 Tape；stub 是当前 provider View
+的非持久化派生投影，不推进 reconstruction cursor。
+
+每次成功 provider attempt 可以在当前 Run 内建立 prompt usage anchor。仅当 provider、model、generation
+config、provider-visible tools 和完整消息前缀 hash 全部一致时，下一次 preflight 才以 provider-reported
+prompt usage 为基线，只估新增 suffix。anchor 使用请求级 generation config，不把压力下临时缩小的有效输出
+上限误判为配置变化；实际发送的 fitted projection 与 continuation View 不一致、cache-read usage 超过 prompt
+usage 时不建立该 attempt 的新 anchor；任一信封/前缀无法匹配已有 anchor 时回退保守全量估算。一次成功
+响应会重置当前 recovery sequence latch，使后续 tool step 可再次恢复；每个 Run 最多使用三条 recovery
+sequence，避免无限循环。
 
 ## Contract lineage 与评价
 

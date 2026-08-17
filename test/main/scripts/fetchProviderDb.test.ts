@@ -14,8 +14,8 @@ describe('fetch-provider-db', () => {
             { id: 'gpt-4o-mini-tts' },
             { id: 'openai/tts-1-hd' },
             { id: 'openai/tts-1', type: 'chat' },
-            { id: 'future-speech', type: 'tts' },
-            { id: 'future-video', type: 'video_generation' }
+            { id: 'future-speech', type: 'tts', default_tool_mode: 'code' },
+            { id: 'future-video', type: 'video_generation', default_tool_mode: 'unsupported' }
           ]
         }
       }
@@ -28,8 +28,9 @@ describe('fetch-provider-db', () => {
       expect.objectContaining({ id: 'gpt-4o-mini-tts', type: 'tts' }),
       expect.objectContaining({ id: 'openai/tts-1-hd', type: 'tts' }),
       expect.objectContaining({ id: 'openai/tts-1', type: 'chat' }),
-      expect.objectContaining({ id: 'future-speech', type: 'tts' }),
+      expect.objectContaining({ id: 'future-speech', type: 'tts', default_tool_mode: 'code' }),
       expect.objectContaining({ id: 'future-video', type: 'videoGeneration' })
     ])
+    expect(sanitized?.providers.openai.models[6].default_tool_mode).toBeUndefined()
   })
 })

@@ -11,7 +11,7 @@ import {
   type TapeViewPolicySelectionReason
 } from './tapeViewPolicy'
 
-export const TAPE_VIEW_ASSEMBLER_VERSION = 'cache-aware-v1' as const
+export const TAPE_VIEW_ASSEMBLER_VERSION = 'cache-aware-v2' as const
 export const TAPE_VIEW_HISTORY_SOURCE = 'tape_effective_view' as const
 
 export interface TapeViewAssemblerResult {

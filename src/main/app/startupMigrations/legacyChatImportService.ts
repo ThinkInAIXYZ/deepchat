@@ -12,7 +12,10 @@ import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
-import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
+import type {
+  TapeCompactionModelCallWriter,
+  TapeMessageFactWriter
+} from '@/tape/ports/capabilities'
 import type { ProjectDatabase } from '@/project/data/database'
 import type { AppDatabase } from '@/app/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'
@@ -46,7 +49,7 @@ export class LegacyChatImportService {
     sessionDatabase: SessionDatabase,
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
-    tapeFacts: TapeMessageFactWriter,
+    tapeFacts: TapeMessageFactWriter & TapeCompactionModelCallWriter,
     sourceDbPath?: string,
     notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {

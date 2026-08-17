@@ -3,6 +3,7 @@ import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
+import type { ToolModeOverride } from '../../../src/shared/toolMode'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -204,6 +205,7 @@ const setup = async (options?: {
     modelId: undefined as string | undefined,
     permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
+    toolModeOverride: null as ToolModeOverride,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,
@@ -952,7 +954,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     }
   })
 
-  it('passes draft generation settings when creating a deepchat session', async () => {
+  it('passes draft generation and tool mode settings when creating a deepchat session', async () => {
     const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
@@ -966,6 +968,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     draftStore.providerId = 'openai'
     draftStore.modelId = 'gpt-4'
     draftStore.disabledAgentTools = ['exec', 'cdp_send']
+    draftStore.toolModeOverride = 'code'
     ;(draftStore.toGenerationSettings as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       systemPrompt: 'Preset prompt',
       temperature: 1.2,
@@ -985,6 +988,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         files: [{ name: 'plan.md', path: '/tmp/workspace/plan.md', mimeType: 'text/markdown' }],
         agentId: 'deepchat',
         disabledAgentTools: ['exec', 'cdp_send'],
+        toolModeOverride: 'code',
         generationSettings: {
           systemPrompt: 'Preset prompt',
           temperature: 1.2,

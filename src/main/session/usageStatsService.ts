@@ -14,8 +14,10 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageUsageCandidateRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import type { SettingsStore } from '@/config/settingsStore'
+import type { TapeCompactionModelCallReader } from '@/tape/ports/capabilities'
 import {
   DASHBOARD_STATS_BACKFILL_KEY,
+  buildCompactionUsageStatsRecord,
   buildUsageDashboardCalendar,
   buildUsageStatsRecord,
   getModelLabel,
@@ -36,7 +38,8 @@ export class UsageStatsService {
       ProviderSettingsPort,
       'getProviders' | 'getProviderById'
     >,
-    private readonly settings: Pick<SettingsStore, 'get' | 'set'>
+    private readonly settings: Pick<SettingsStore, 'get' | 'set'>,
+    private readonly compactionUsage: TapeCompactionModelCallReader
   ) {}
 
   async startBackfill(taskContext?: StartupWorkloadTaskContext): Promise<void> {
@@ -58,7 +61,9 @@ export class UsageStatsService {
     const mostActiveDay = usageStatsTable.getMostActiveDay()
     const recordingStartedAt = usageStatsTable.getRecordingStartedAt()
     const cacheHitRate =
-      summaryRow.inputTokens > 0 ? summaryRow.cachedInputTokens / summaryRow.inputTokens : 0
+      summaryRow.cacheMeasuredInputTokens > 0
+        ? summaryRow.cachedInputTokens / summaryRow.cacheMeasuredInputTokens
+        : 0
 
     const dateFrom = new Date()
     dateFrom.setHours(0, 0, 0, 0)
@@ -88,6 +93,7 @@ export class UsageStatsService {
         cachedInputTokens: row.cachedInputTokens
       }))
     )
+    const categoryBreakdown = usageStatsTable.getCategoryBreakdownRows()
 
     return {
       recordingStartedAt,
@@ -105,6 +111,7 @@ export class UsageStatsService {
       calendar,
       providerBreakdown,
       modelBreakdown,
+      categoryBreakdown,
       rtk: await rtkRuntimeService.getDashboardData(
         this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
       )
@@ -127,6 +134,7 @@ export class UsageStatsService {
       const usageStatsTable = this.database.deepchatUsageStatsTable
       let processedCount = 0
       let scannedSinceYield = 0
+      let invalidCompactionEventCount = 0
       const yieldProgress = async (): Promise<void> => {
         this.setBackfillStatus({
           status: 'running',
@@ -173,6 +181,45 @@ export class UsageStatsService {
           scannedSinceYield = 0
           await yieldProgress()
         }
+      }
+
+      let compactionCursor: { sessionId: string; entryId: number } | null = null
+      while (true) {
+        const candidates = this.compactionUsage.listCompactionModelCallsPage(
+          compactionCursor,
+          batchSize
+        )
+        if (candidates.length === 0) break
+        for (const candidate of candidates) {
+          compactionCursor = {
+            sessionId: candidate.sessionId,
+            entryId: candidate.entryId
+          }
+          scannedSinceYield += 1
+          const { event } = candidate
+          if (!event) {
+            invalidCompactionEventCount += 1
+            continue
+          }
+          usageStatsTable.upsert(
+            buildCompactionUsageStatsRecord({
+              sessionId: candidate.sessionId,
+              event,
+              source: 'backfill'
+            })
+          )
+          processedCount += 1
+        }
+        if (scannedSinceYield >= batchSize) {
+          scannedSinceYield = 0
+          await yieldProgress()
+        }
+      }
+
+      if (invalidCompactionEventCount > 0) {
+        logger.warn('[UsageStatsBackfill] Skipped invalid compaction usage Tape events', {
+          invalidCompactionEventCount
+        })
       }
 
       const finishedAt = Date.now()

@@ -1256,6 +1256,286 @@ describe('ToolService', () => {
     active.batch.discard()
   })
 
+  it('projects one execution catalog into Agent, Code, and Minimal modes', async () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const agentToolManager = (toolService as any).ensureAgentToolManager(null)
+    agentToolManager.callTool = vi.fn().mockResolvedValue('question_requested')
+    const exec = { ...buildToolDefinition('exec', 'agent-filesystem'), source: 'agent' as const }
+    const detailedFilesystem = ['read', 'write', 'edit', 'glob', 'grep'].map((name) => ({
+      ...buildToolDefinition(name, 'agent-filesystem'),
+      source: 'agent' as const
+    }))
+    const process = {
+      ...buildToolDefinition('process', 'agent-filesystem'),
+      source: 'agent' as const
+    }
+    const question = {
+      ...buildToolDefinition(QUESTION_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
+    const subagents = {
+      ...buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
+    const updatePlan = {
+      ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
+      source: 'agent' as const
+    }
+    const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
+    const executionCatalog = [
+      exec,
+      ...detailedFilesystem,
+      process,
+      question,
+      subagents,
+      updatePlan,
+      remote
+    ]
+    const commandShell = {
+      profile: 'zsh',
+      dialect: 'posix',
+      pathStyle: 'native',
+      executable: '/bin/zsh',
+      args: ['-c'],
+      displayName: 'Zsh'
+    } as const
+
+    const agent = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'agent',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog
+    })
+    expect(agent.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'read',
+      'write',
+      'edit',
+      'glob',
+      'grep',
+      'process',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
+    expect(agent.map((definition) => definition.function.description).join('\n')).not.toContain(
+      'Code Mode subtools'
+    )
+
+    const code = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'code',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog
+    })
+    expect(code.map((definition) => definition.function.name)).toEqual([
+      'run_code',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    ])
+    expect(code.map((definition) => definition.function.name)).not.toContain(UPDATE_PLAN_TOOL_NAME)
+    expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
+    await expect(
+      toolService.callTool(
+        {
+          id: 'run-code-default-permission',
+          type: 'function',
+          function: { name: 'run_code', arguments: JSON.stringify({ code: 'return true' }) },
+          conversationId: 'session-1'
+        },
+        { permissionMode: 'default' }
+      )
+    ).resolves.toMatchObject({
+      content: 'Code Mode requires Full Access permission mode.',
+      rawData: {
+        toolCallId: 'run-code-default-permission',
+        content: 'Code Mode requires Full Access permission mode.',
+        isError: true
+      }
+    })
+    const codexCode = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'code',
+      providerId: 'openai-codex',
+      commandShell,
+      executionCatalog
+    })
+    expect(codexCode.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'wait',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    ])
+    expect(codexCode.map((definition) => definition.function.name)).not.toContain(
+      UPDATE_PLAN_TOOL_NAME
+    )
+    expect(codexCode[0].function.description).toContain(
+      'Use the `update_plan` subtool for non-trivial multi-step tasks'
+    )
+    await expect(
+      toolService.callTool({
+        id: 'direct-question',
+        type: 'function',
+        function: {
+          name: QUESTION_TOOL_NAME,
+          arguments: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }]
+          })
+        },
+        conversationId: 'session-1'
+      })
+    ).resolves.toMatchObject({ content: 'question_requested' })
+    await expect(
+      toolService.callTool({
+        id: 'direct-read',
+        type: 'function',
+        function: { name: 'read', arguments: '{}' },
+        conversationId: 'session-1'
+      })
+    ).rejects.toThrow("Direct tool 'read' is unavailable in Code Mode")
+
+    const restoredAgent = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'agent',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog
+    })
+    expect(restoredAgent.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'read',
+      'write',
+      'edit',
+      'glob',
+      'grep',
+      'process',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(
+      restoredAgent.map((definition) => definition.function.description).join('\n')
+    ).not.toContain('Code Mode subtools')
+
+    const minimal = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog
+    })
+    expect(minimal.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'process',
+      'str_replace_editor',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(minimal.map((definition) => definition.function.name)).toContain(UPDATE_PLAN_TOOL_NAME)
+    expect(
+      toolService.buildToolSystemPrompt({
+        conversationId: 'session-1',
+        toolDefinitions: minimal
+      })
+    ).toContain('Use `update_plan` for non-trivial multi-step tasks.')
+    expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
+      'Code Mode subtools'
+    )
+
+    const minimalWithoutRead = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'deepseek',
+      commandShell,
+      executionCatalog: executionCatalog.filter((definition) => definition.function.name !== 'read')
+    })
+    expect(minimalWithoutRead.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'process',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
+
+    const codexMinimal = toolService.configureToolMode({
+      conversationId: 'session-1',
+      mode: 'minimal',
+      providerId: 'openai-codex',
+      commandShell,
+      executionCatalog
+    })
+    expect(codexMinimal.map((definition) => definition.function.name)).toEqual([
+      'exec',
+      'process',
+      'apply_patch',
+      QUESTION_TOOL_NAME,
+      LIVE_DELEGATION_AGENT_TOOL_NAME,
+      UPDATE_PLAN_TOOL_NAME,
+      'remote_search'
+    ])
+    expect(() =>
+      toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'minimal',
+        providerId: 'deepseek',
+        commandShell,
+        executionCatalog: executionCatalog.filter(
+          (definition) => definition.function.name !== 'process'
+        )
+      })
+    ).toThrow('Minimal Mode requires the built-in process tool.')
+    await toolService.shutdownCodeRuntime()
+  })
+
+  it('fails Code Mode before provider I/O when normalized tool names collide', () => {
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const commandShell = {
+      profile: 'bash',
+      dialect: 'posix',
+      pathStyle: 'native',
+      executable: '/bin/bash',
+      args: ['-c'],
+      displayName: 'Bash'
+    } as const
+    const left = { ...buildToolDefinition('mcp/read', 'left'), source: 'mcp' as const }
+    const right = { ...buildToolDefinition('mcp-read', 'right'), source: 'mcp' as const }
+
+    expect(() =>
+      toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'code',
+        providerId: 'openai-codex',
+        commandShell,
+        executionCatalog: [left, right]
+      })
+    ).toThrow("both map to 'mcp_read'")
+  })
+
   it('meets the frozen execution contract with current authority at dispatch', async () => {
     const definition = buildContractMcpDefinition()
     const resolveConversationExecutionAuthority = vi.fn(async (sessionId: string) => ({
@@ -4002,6 +4282,28 @@ describe('ToolService', () => {
     )
     expect(promptWithoutFocusedTools).not.toContain('rg -n')
     expect(promptWithoutFocusedTools).not.toContain('rg --files')
+
+    const minimalPrompt = toolService.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('exec', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('process', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('str_replace_editor', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    expect(minimalPrompt).toContain(
+      'Use canonical Agent tool names only: exec, process, str_replace_editor.'
+    )
+    expect(minimalPrompt).not.toContain('read, write, edit')
 
     const grepOnlyPrompt = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',

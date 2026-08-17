@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "模式",
+      "modelDefault": "模型默认",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "使用标准 Agent 工具集。",
+        "code": "通过代码编排当前启用的工具，需要完全访问权限模式。",
+        "minimal": "精简文件操作，同时保留其他已启用工具。"
+      },
+      "useModelDefault": "使用模型默认",
+      "saving": "正在保存模式...",
+      "locked": "本次回复结束后可切换模式。",
+      "updateFailed": "无法更新工具模式。",
+      "codeEntry": "代码入口",
+      "codeCallable": "Code 可调用",
+      "minimalTools": "编码工具"
+    },
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
     "fileUploadFailedMore": " 等 {count} 个",
@@ -207,10 +228,19 @@
   "compaction": {
     "compacting": "正在压缩上下文...",
     "compacted": "上下文已压缩",
+    "compactedWithoutSummary": "上下文已压缩，但未生成摘要",
+    "compactedWithoutLargerSummary": "上下文已压缩，未采用体积更大的摘要",
     "commandDescription": "压缩会话上下文",
     "noopTitle": "没有可压缩的上下文",
     "noopDescription": "当前还没有新的对话历史需要压缩。",
     "failedTitle": "压缩失败"
+  },
+  "contextOccupancy": {
+    "label": "上下文占用",
+    "details": "已用 {used} / {capacity} tokens",
+    "provider": "Provider 实测",
+    "estimated": "根据请求视图估算",
+    "stale": "模型、窗口或压缩边界变更后的旧数据"
   },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",

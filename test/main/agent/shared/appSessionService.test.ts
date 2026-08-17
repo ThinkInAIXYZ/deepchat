@@ -152,6 +152,7 @@ describe('AppSessionService', () => {
         parentSessionId: null,
         subagentMeta: null,
         orchestrationPolicy: 'explicit',
+        toolModeOverride: null,
         createdAt: 1000,
         updatedAt: 2000
       })

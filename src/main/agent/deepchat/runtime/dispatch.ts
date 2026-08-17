@@ -86,7 +86,10 @@ import {
   normalizeExecutionOperationIdentity,
   type ExecutionOperationIdentity
 } from '@/tape/domain/executionJournal'
-import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
+import type {
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter
+} from '@/tape/ports/capabilities'
 import type {
   LoopRunRequestToolSurfaceBinding,
   LoopRunRequestViewBinding
@@ -110,6 +113,10 @@ import {
 import { recordToolSurfaceCanarySettledToolResult } from './toolSurfaceCanaryDiagnostics'
 import { prepareProgrammaticExecParent } from './programmaticExecParent'
 import { preflightRequestContext } from './contextBudget'
+import {
+  CODE_MODE_TOOL_SERVER_NAME,
+  RUN_CODE_MAX_NESTED_CALLS
+} from '@shared/codeModeProtocol'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -1921,7 +1928,8 @@ async function runToolCall(params: {
   rendererFlushHandle: RendererFlushHandle
   allowProgressUpdates: boolean
   onToolCallStarted?: (toolCallId: string) => void
-  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
@@ -2206,6 +2214,70 @@ async function runToolCall(params: {
           activeSkillNames: effectiveActiveSkillNames,
           agentId: controls?.getAgentId?.(),
           commitDispatch,
+          commitNestedDispatch: (input) => {
+            if (!executionJournal.commitNestedDispatch) {
+              throw new ExecutionJournalError(
+                'Code Mode nested dispatch journal is unavailable.',
+                'invalid_fact'
+              )
+            }
+            if (!dispatchedOperation) {
+              throw new ExecutionJournalError(
+                'Code Mode child dispatch requires a committed parent dispatch.',
+                'invalid_fact'
+              )
+            }
+            const receipt = executionJournal.commitNestedDispatch({
+              sessionId: io.sessionId,
+              messageId: io.messageId,
+              operation: {
+                ...operation,
+                kind: 'nested',
+                childOrdinal: input.childOrdinal
+              },
+              toolName: input.toolName,
+              toolSource: input.toolSource,
+              normalizedArguments: input.normalizedArguments,
+              target: input.target,
+              definitionHash: input.definitionHash,
+              capabilityHash: input.capabilityHash
+            })
+            if (!receipt.created) {
+              throw new ExecutionJournalCorruptionError(
+                `Code Mode child dispatch already existed at ordinal ${input.childOrdinal}.`
+              )
+            }
+          },
+          commitNestedToolOutcome: (input) => {
+            if (!executionJournal.commitNestedToolOutcome) {
+              throw new ExecutionJournalError(
+                'Code Mode nested outcome journal is unavailable.',
+                'invalid_fact'
+              )
+            }
+            if (!dispatchedOperation) {
+              throw new ExecutionJournalError(
+                'Code Mode child outcome requires a committed parent dispatch.',
+                'invalid_fact'
+              )
+            }
+            const receipt = executionJournal.commitNestedToolOutcome({
+              sessionId: io.sessionId,
+              messageId: io.messageId,
+              operation: {
+                ...operation,
+                kind: 'nested',
+                childOrdinal: input.childOrdinal
+              },
+              responseText: input.responseText,
+              isError: input.isError
+            })
+            if (!receipt.created) {
+              throw new ExecutionJournalCorruptionError(
+                `Code Mode child outcome already existed at ordinal ${input.childOrdinal}.`
+              )
+            }
+          },
           registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
           ...(toolSurfaceContext ? { toolSurfaceContext } : {}),
           commandShell,
@@ -2224,8 +2296,11 @@ async function runToolCall(params: {
 
     let toolCallResult = await callTool()
     let toolRawData = toolCallResult.rawData
+    const allowsCodePermissionContinuation =
+      permissionMode === 'full_access' && toolContext.serverName === CODE_MODE_TOOL_SERVER_NAME
+    let codePermissionRetries = 0
 
-    if (toolRawData?.requiresPermission) {
+    while (toolRawData?.requiresPermission) {
       io.abortSignal.throwIfAborted()
       assertToolSurfaceAuthority()
       const pendingPermission = normalizePermissionRequest(
@@ -2237,17 +2312,48 @@ async function runToolCall(params: {
         }
       )
 
-      if (pendingPermission) {
+      if (!pendingPermission) break
+      if (pendingPermission.requiresUserConfirmation) {
         failPostDispatchPermission()
-        if (pendingPermission.requiresUserConfirmation) {
-          cancelProgrammaticParentBeforeDispatch()
-          return {
-            kind: 'permission',
-            permission: pendingPermission,
-            toolContext
-          }
+        cancelProgrammaticParentBeforeDispatch()
+        return {
+          kind: 'permission',
+          permission: pendingPermission,
+          toolContext
         }
-        if (permissionMode === 'full_access') {
+      }
+      if (!allowsCodePermissionContinuation) failPostDispatchPermission()
+      if (permissionMode === 'full_access') {
+        if (
+          allowsCodePermissionContinuation &&
+          codePermissionRetries >= RUN_CODE_MAX_NESTED_CALLS
+        ) {
+          throw new Error('Code Mode exceeded the nested permission retry limit.')
+        }
+        toolCallResult = await runWithAutoGrantedPermission(
+          controls,
+          pendingPermission,
+          callTool,
+          assertToolSurfaceAuthority
+        )
+        toolRawData = toolCallResult.rawData
+        if (allowsCodePermissionContinuation) {
+          codePermissionRetries += 1
+          continue
+        }
+      } else if (permissionMode === 'auto_approve') {
+        const review = await reviewAutoApproveAction({
+          controls,
+          io,
+          state,
+          batchToolCallBlocks,
+          rendererFlushHandle,
+          execution,
+          permission: pendingPermission,
+          reason: 'requires_permission'
+        })
+        assertToolSurfaceAuthority()
+        if (review === 'auto_allow') {
           toolCallResult = await runWithAutoGrantedPermission(
             controls,
             pendingPermission,
@@ -2255,34 +2361,6 @@ async function runToolCall(params: {
             assertToolSurfaceAuthority
           )
           toolRawData = toolCallResult.rawData
-        } else if (permissionMode === 'auto_approve') {
-          const review = await reviewAutoApproveAction({
-            controls,
-            io,
-            state,
-            batchToolCallBlocks,
-            rendererFlushHandle,
-            execution,
-            permission: pendingPermission,
-            reason: 'requires_permission'
-          })
-          assertToolSurfaceAuthority()
-          if (review === 'auto_allow') {
-            toolCallResult = await runWithAutoGrantedPermission(
-              controls,
-              pendingPermission,
-              callTool,
-              assertToolSurfaceAuthority
-            )
-            toolRawData = toolCallResult.rawData
-          } else {
-            cancelProgrammaticParentBeforeDispatch()
-            return {
-              kind: 'permission',
-              permission: pendingPermission,
-              toolContext
-            }
-          }
         } else {
           cancelProgrammaticParentBeforeDispatch()
           return {
@@ -2291,7 +2369,15 @@ async function runToolCall(params: {
             toolContext
           }
         }
+      } else {
+        cancelProgrammaticParentBeforeDispatch()
+        return {
+          kind: 'permission',
+          permission: pendingPermission,
+          toolContext
+        }
       }
+      break
     }
 
     // Never stage a permission payload as a successful tool result after auto-grant retry.
@@ -2650,7 +2736,8 @@ export interface SettleToolBatchParams {
   providerReplayProjector?: ChatMessageProviderReplayProjector
   collaborators?: ToolDispatchCollaborators
   providerId?: string
-  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
+    Partial<NestedExecutionJournalWriter>
   operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null

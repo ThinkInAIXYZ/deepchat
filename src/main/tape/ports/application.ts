@@ -5,7 +5,9 @@ import type {
   DeepChatTapeSourceType
 } from '../domain/entry'
 import type {
+  CompactionUsagePersistenceStore,
   ExecutionJournalPersistenceStore,
+  ProviderAttemptPersistenceStore,
   TapeBootstrapStore,
   TapeBootstrapIncarnationReader,
   TapeEntryLifecycleStore,
@@ -210,7 +212,9 @@ export type TapeApplicationEntryStore = TapeEntryStore &
 
 export interface TapeApplicationDatabase {
   readonly deepchatTapeEntriesTable: TapeApplicationEntryStore &
-    SkillMaterializationPersistenceStore
+    SkillMaterializationPersistenceStore &
+    ProviderAttemptPersistenceStore &
+    CompactionUsagePersistenceStore
   readonly deepchatExecutionJournalStore: ExecutionJournalPersistenceStore
   readonly tapeLifecycle: TapeEntryLifecycleStore
   readonly deepchatTapeSearchProjectionTable: TapeSearchProjectionStore
@@ -223,6 +227,8 @@ export interface TapeApplicationDatabase {
 export interface TapeApplicationProviders {
   getEntryStore(): TapeApplicationEntryStore
   getSkillMaterializationStore(): SkillMaterializationPersistenceStore
+  getProviderAttemptStore(): ProviderAttemptPersistenceStore
+  getCompactionUsageStore(): CompactionUsagePersistenceStore
   getEntryLifecycleStore(): TapeEntryLifecycleStore
   getSearchProjectionStore(): TapeSearchProjectionStore
   getLineageSessionReader(): TapeLineageSessionReader
@@ -237,6 +243,8 @@ export function createTapeApplicationProviders(
   return {
     getEntryStore: () => database.deepchatTapeEntriesTable,
     getSkillMaterializationStore: () => database.deepchatTapeEntriesTable,
+    getProviderAttemptStore: () => database.deepchatTapeEntriesTable,
+    getCompactionUsageStore: () => database.deepchatTapeEntriesTable,
     getEntryLifecycleStore: () => database.tapeLifecycle,
     getSearchProjectionStore: () => database.deepchatTapeSearchProjectionTable,
     getLineageSessionReader: () => database.newSessionsTable,

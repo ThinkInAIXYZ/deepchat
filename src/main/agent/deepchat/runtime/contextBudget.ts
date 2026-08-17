@@ -201,7 +201,11 @@ export function fitRequestMessagesToContextWindow(params: {
   reserveTokens: number
   minimumProtectedTailCount?: number
   contextContributions?: ContextRuntimeContributions
+  pinnedFirstUserContentHash?: string
 }): ChatMessage[] {
+  if (params.pinnedFirstUserContentHash && !params.contextContributions) {
+    throw new TypeError('Pinned first-user fitting requires cache-aware context contributions.')
+  }
   if (!Number.isFinite(params.contextLength) || params.contextLength <= 0) {
     return params.messages
   }
@@ -212,7 +216,9 @@ export function fitRequestMessagesToContextWindow(params: {
       params.messages,
       usableContextLength,
       params.reserveTokens,
-      params.contextContributions
+      params.contextContributions,
+      params.minimumProtectedTailCount ?? 0,
+      params.pinnedFirstUserContentHash
     )
   }
 
@@ -258,28 +264,61 @@ export function preflightRequestContext(params: {
   requestedMaxTokens: number
   minimumProtectedTailCount?: number
   contextContributions?: ContextRuntimeContributions
+  pinnedFirstUserContentHash?: string
+  promptTokenEstimate?: number
 }): RequestContextPreflightResult {
   const requestedMaxTokens = capAgentRequestMaxTokens(
     params.requestedMaxTokens,
     params.outputCapContextLength ?? params.contextLength
   )
   const toolReserveTokens = estimateToolReserveTokens(params.tools)
-  const fittedMessages = sanitizeToolContinuationMessages(
-    fitRequestMessagesToContextWindow({
-      messages: params.messages,
-      contextLength: params.contextLength,
-      reserveTokens: requestedMaxTokens + toolReserveTokens,
-      minimumProtectedTailCount: params.minimumProtectedTailCount,
-      contextContributions: params.contextContributions
-    })
-  )
-  const inputTokens = estimateMessagesTokens(fittedMessages)
   const usableContextLength = getUsableContextLength(params.contextLength)
+  const sanitizedCandidate = sanitizeToolContinuationMessages(params.messages)
+  const sanitizedCandidateMatchesInput =
+    sanitizedCandidate.length === params.messages.length &&
+    sanitizedCandidate.every((message, index) => message === params.messages[index])
+  const anchoredPromptEstimate =
+    typeof params.promptTokenEstimate === 'number' &&
+    Number.isSafeInteger(params.promptTokenEstimate) &&
+    params.promptTokenEstimate >= 0
+      ? params.promptTokenEstimate
+      : null
+  const validCandidatePromptEstimate =
+    sanitizedCandidateMatchesInput ? anchoredPromptEstimate : null
   const hasFiniteContext =
     Number.isFinite(usableContextLength) &&
     Number.isFinite(params.contextLength) &&
     params.contextLength > 0 &&
     usableContextLength > 0
+  const anchoredCandidateInputTokens =
+    validCandidatePromptEstimate === null
+      ? null
+      : Math.max(0, validCandidatePromptEstimate - toolReserveTokens)
+  const anchoredCandidateFits =
+    anchoredCandidateInputTokens !== null &&
+    (!hasFiniteContext ||
+      usableContextLength - anchoredCandidateInputTokens - toolReserveTokens >= 1)
+  const fittedMessages = anchoredCandidateFits
+    ? sanitizedCandidate
+    : sanitizeToolContinuationMessages(
+        fitRequestMessagesToContextWindow({
+          messages: sanitizedCandidate,
+          contextLength: params.contextLength,
+          reserveTokens: requestedMaxTokens + toolReserveTokens,
+          minimumProtectedTailCount: params.minimumProtectedTailCount,
+          contextContributions: params.contextContributions,
+          pinnedFirstUserContentHash: params.pinnedFirstUserContentHash
+        })
+      )
+  const fittedMatchesCandidate =
+    fittedMessages.length === params.messages.length &&
+    fittedMessages.every((message, index) => message === params.messages[index])
+  const validPromptTokenEstimate =
+    fittedMatchesCandidate ? anchoredPromptEstimate : null
+  const inputTokens =
+    validPromptTokenEstimate === null
+      ? estimateMessagesTokens(fittedMessages)
+      : Math.max(0, validPromptTokenEstimate - toolReserveTokens)
   const remainingOutputTokens = hasFiniteContext
     ? Math.floor(usableContextLength - inputTokens - toolReserveTokens)
     : requestedMaxTokens

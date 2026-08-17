@@ -72,6 +72,7 @@ import {
   TAPE_TOOL_CATALOG_EVENT_NAME,
   TAPE_TOOL_SURFACE_EVENT_NAME
 } from '@/tape/domain/toolSurfaceFacts'
+import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
 import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import { MAX_PROGRAMMATIC_TOOL_INPUT_BYTES } from '@/agent/deepchat/runtime/programmaticToolSurface'
@@ -302,6 +303,7 @@ function createMockSqlitePresenter() {
     getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
     listPageBySession: vi.fn().mockReturnValue([]),
     getByStatus: vi.fn().mockReturnValue([]),
+    getCompactionRecoveryCandidates: vi.fn().mockReturnValue([]),
     getIdsBySession: vi.fn().mockReturnValue([]),
     getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
     get: vi.fn(),
@@ -474,6 +476,20 @@ function createMockSqlitePresenter() {
           payload: { name: input.name, data: input.data }
         })
       }),
+      appendProviderAttemptEvent: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'event',
+          payload: { name: input.name, data: input.data }
+        })
+      }),
+      appendCompactionModelCallEvent: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'event',
+          payload: { name: input.name, data: input.data }
+        })
+      }),
       appendExecutionJournalEvent: vi.fn((input: any) => {
         return deepchatTapeEntriesTable.append({
           ...input,
@@ -610,6 +626,26 @@ function createMockSqlitePresenter() {
               entry.source_seq === sourceSeq
           )
       ),
+      getLatestEventBySource: vi.fn(
+        (
+          sessionId: string,
+          name: string,
+          sourceType: string,
+          sourceId: string,
+          sourceSeq: number
+        ) =>
+          tapeEntries
+            .filter(
+              (entry) =>
+                entry.session_id === sessionId &&
+                entry.kind === 'event' &&
+                entry.name === name &&
+                entry.source_type === sourceType &&
+                entry.source_id === sourceId &&
+                entry.source_seq === sourceSeq
+            )
+            .at(-1)
+      ),
       getEventsBySourceId: vi.fn(
         (sessionId: string, name: string, sourceType: string, sourceId: string) =>
           tapeEntries.filter(
@@ -648,6 +684,29 @@ function createMockSqlitePresenter() {
               .map((entry) => entry.source_seq)
           )
       ),
+      getLatestProviderContextPressureEvent: vi.fn(
+        (sessionId: string, providerId: string, modelId: string, afterEntryId: number) =>
+          tapeEntries
+            .filter((entry) => {
+              if (
+                entry.session_id !== sessionId ||
+                entry.kind !== 'event' ||
+                entry.name !== 'provider/attempt_completed' ||
+                entry.entry_id <= afterEntryId
+              ) {
+                return false
+              }
+              const data = JSON.parse(entry.payload_json).data ?? {}
+              return (
+                data.schemaVersion === 3 &&
+                data.providerId === providerId &&
+                data.modelId === modelId &&
+                (data.contextPressure?.kind === 'successful_prompt_overflow' ||
+                  data.contextPressure?.kind === 'zero_output_length_at_limit')
+              )
+            })
+            .sort((left, right) => right.entry_id - left.entry_id)[0]
+      ),
       getMaxEntryId: vi.fn((sessionId: string) =>
         Math.max(
           0,
@@ -677,6 +736,7 @@ function createMockSqlitePresenter() {
             )
             .sort((left, right) => right.entry_id - left.entry_id)[0]
       ),
+      getReconstructionAnchorByCompactionAttemptId: vi.fn(),
       getByProvenanceKey: vi.fn((sessionId: string, provenanceKey: string) =>
         tapeEntries.find(
           (entry) => entry.session_id === sessionId && entry.provenance_key === provenanceKey
@@ -2862,6 +2922,28 @@ describe('DeepChatAgentHarness', () => {
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
     })
 
+    it('reruns persisted runtime reconciliation after the database is reopened', () => {
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents
+      ).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatPendingInputsTable.listActive).toHaveBeenCalledOnce()
+      expect(
+        sqlitePresenter.deepchatMessagesTable.getCompactionRecoveryCandidates
+      ).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledOnce()
+
+      agent.reconcileAfterDatabaseReopen()
+
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents
+      ).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.deepchatPendingInputsTable.listActive).toHaveBeenCalledTimes(2)
+      expect(
+        sqlitePresenter.deepchatMessagesTable.getCompactionRecoveryCandidates
+      ).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledTimes(2)
+    })
+
     it('logs recovered count when > 0', () => {
       const loggerInfoMock = vi.mocked(logger.info)
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
@@ -3248,6 +3330,46 @@ describe('DeepChatAgentHarness', () => {
         )
       }
     )
+
+    it('keeps Code Mode outside Tool Surface virtualization', async () => {
+      const definitions = createAutomaticAdapterDefinitions(40)
+      const runCodeDefinition = {
+        ...definitions[0],
+        function: {
+          ...definitions[0].function,
+          name: 'run_code',
+          description: 'Run JavaScript against Code Mode subtools'
+        }
+      }
+      const resolveRunMode = vi.fn(() => ({
+        mode: 'automatic' as const,
+        cliProgrammaticCapability: 'proven' as const
+      }))
+      toolService.getAllToolDefinitions.mockResolvedValue(definitions)
+      toolService.configureToolMode = vi.fn(() => [runCodeDefinition])
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({ tool_mode_override: 'code' })
+      recreateAgentWithToolSurfaceRunMode(resolveRunMode)
+      let observedToolMode = ''
+      let observedToolSurfaceMode = ''
+      let observedToolNames: string[] = []
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        observedToolMode = params.run.resources.toolMode.mode
+        observedToolSurfaceMode = params.run.resources.toolSurfaceMode
+        observedToolNames = params.run.resources.toolDefinitions.map(
+          (definition) => definition.function.name
+        )
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(observedToolMode).toBe('code')
+      expect(observedToolSurfaceMode).toBe('legacy')
+      expect(observedToolNames).toEqual(['run_code'])
+      expect(resolveRunMode).not.toHaveBeenCalled()
+      expect(toolService.getToolDefinitionUniverse).not.toHaveBeenCalled()
+    })
 
     it('does not let canary diagnostics change a committed Run result', async () => {
       const definitions = createAutomaticAdapterDefinitions(1)
@@ -6120,6 +6242,35 @@ describe('DeepChatAgentHarness', () => {
         { role: 'assistant', content: 'First reply' },
         { role: 'user', content: 'Second message' }
       ])
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.run.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+        void _event
+      }
+      const manifestRow = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .find((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+      const manifest = JSON.parse(manifestRow.payload_json).data.manifest
+      expect(manifest).toMatchObject({
+        policy: 'cache_aware_context_v2',
+        contextBuilderVersion: 'cache-aware-v2'
+      })
+      expect(
+        manifest.included.find((ref: any) => ref.reason === 'pinned_first_user')
+      ).toMatchObject({
+        messageId: 'prev-user',
+        orderSeq: 1,
+        role: 'user',
+        source: 'tape',
+        sourceEntryIds: [expect.any(Number)],
+        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/)
+      })
     })
 
     it.each([
@@ -6328,7 +6479,7 @@ describe('DeepChatAgentHarness', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.run.messages[0].role).toBe('system')
       expect(callArgs.run.messages[0].content).not.toContain('## Conversation Summary')
-      expect(callArgs.run.messages[1]).toMatchObject({
+      expect(callArgs.run.messages[2]).toMatchObject({
         role: 'user',
         content: expect.stringContaining('Persisted Rolling Summary')
       })
@@ -6461,9 +6612,9 @@ describe('DeepChatAgentHarness', () => {
       expect(manifests[0]).toMatchObject({
         schemaVersion: 4,
         taskType: 'chat',
-        policy: 'cache_aware_context_v1',
+        policy: 'cache_aware_context_v2',
         policyVersion: 1,
-        contextBuilderVersion: 'cache-aware-v1',
+        contextBuilderVersion: 'cache-aware-v2',
         meta: {
           traceDebugEnabled: true
         }
@@ -6744,7 +6895,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('recovers requestSeq from an outcome when prior manifest and trace writes were lost', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      sqlitePresenter.deepchatTapeEntriesTable.appendEvent({
+      sqlitePresenter.deepchatTapeEntriesTable.appendProviderAttemptEvent({
         sessionId: 's1',
         name: 'provider/attempt_completed',
         source: { type: 'runtime_event', id: 'mock-msg-id', seq: 3 },
@@ -6796,9 +6947,9 @@ describe('DeepChatAgentHarness', () => {
       expect(JSON.parse(recoveredManifestRow.payload_json).data.manifest).toMatchObject({
         requestSeq: 4,
         taskType: 'chat',
-        policy: 'cache_aware_context_v1',
+        policy: 'cache_aware_context_v2',
         policyVersion: 1,
-        contextBuilderVersion: 'cache-aware-v1'
+        contextBuilderVersion: 'cache-aware-v2'
       })
     })
 
@@ -8597,7 +8748,11 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      expect(applyCompaction).toHaveBeenCalledWith(compactionIntent, expect.any(AbortSignal))
+      expect(applyCompaction).toHaveBeenCalledWith(
+        compactionIntent,
+        expect.any(AbortSignal),
+        expect.any(Function)
+      )
     })
 
     it('injects request trace context when trace debug is enabled', async () => {
@@ -10189,7 +10344,8 @@ describe('DeepChatAgentHarness', () => {
           resources: {
             toolDefinitions: [],
             activeSkillNames: [],
-            commandShell: POSIX_COMMAND_SHELL
+            commandShell: POSIX_COMMAND_SHELL,
+            toolMode: { mode: 'agent', source: 'fallback' }
           }
         })
       )
@@ -11500,7 +11656,8 @@ describe('DeepChatAgentHarness', () => {
         sessionId: 's1',
         status: 'idle',
         cursorOrderSeq: 1,
-        summaryUpdatedAt: null
+        summaryUpdatedAt: null,
+        boundaryReason: null
       })
     })
 
@@ -11598,6 +11755,31 @@ describe('DeepChatAgentHarness', () => {
       return records
     }
 
+    const installPressureRecoveryHistory = (
+      assistantMessageId: string,
+      currentUserText: string,
+      systemPrompt: string,
+      persistedUserText: string = currentUserText
+    ) => {
+      const records = [
+        ...createSentTurnRecords(3),
+        makeDeepchatUserRow(7, persistedUserText, 'pressure-current-user'),
+        makeDeepchatAssistantRow(8, '', assistantMessageId, 'pending')
+      ]
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(records)
+      return [
+        { role: 'system', content: systemPrompt },
+        ...records
+          .slice(0, 6)
+          .map((record) =>
+            record.role === 'user'
+              ? { role: 'user', content: JSON.parse(record.content).text }
+              : { role: 'assistant', content: JSON.parse(record.content)[0].content }
+          ),
+        { role: 'user', content: currentUserText }
+      ]
+    }
+
     async function collectProviderEvents(
       callArgs: any,
       requestMessages: any[],
@@ -11642,6 +11824,117 @@ describe('DeepChatAgentHarness', () => {
         ([input]: any[]) => input.name === 'auto_handoff/context_overflow'
       )
     }
+
+    function appendSilentContextPressure(providerId = 'openai', modelId = 'gpt-4') {
+      return sqlitePresenter.deepchatTapeEntriesTable.appendProviderAttemptEvent({
+        sessionId: 's1',
+        name: 'provider/attempt_completed',
+        data: buildTapeProviderAttemptEvent({
+          sessionId: 's1',
+          messageId: 'pressure-source',
+          logicalRound: 1,
+          requestSeq: 1,
+          physicalAttempt: 1,
+          requestOrigin: 'chat',
+          attemptOrigin: 'initial',
+          providerId,
+          modelId,
+          status: 'completed',
+          stopReason: 'complete',
+          failureClassification: null,
+          retryDecision: 'none',
+          httpStatus: null,
+          errorCode: null,
+          retryDelayMs: null,
+          usage: { inputTokens: 8_193, outputTokens: 1, totalTokens: 8_194 },
+          contextPressure: {
+            kind: 'successful_prompt_overflow',
+            contextWindowTokens: 8_192,
+            thresholdTokens: 8_192
+          }
+        })
+      })
+    }
+
+    it('consumes durable silent pressure as a next-turn overflow handoff', async () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(6)
+        .mockReturnValueOnce(7)
+        .mockReturnValueOnce(8)
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { contextLength: 8_192, maxTokens: 512 }
+      })
+      appendSilentContextPressure()
+
+      await agent.processMessage('s1', 'continue without replaying the completed response')
+
+      expect(getContextOverflowAnchorCalls()).toHaveLength(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('settles silent pressure behind a newer reconstruction anchor', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      appendSilentContextPressure()
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+        sessionId: 's1',
+        name: 'compaction/auto',
+        state: { summary: 'newer boundary', cursorOrderSeq: 3 }
+      })
+      const prepare = vi
+        .spyOn(CompactionService.prototype, 'prepareForNextUserTurn')
+        .mockResolvedValue(null)
+
+      await agent.processMessage('s1', 'next prompt')
+
+      expect(prepare).toHaveBeenCalledOnce()
+      expect(prepare.mock.calls[0][0].forceContextPressure).toBeUndefined()
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not consume silent pressure recorded for another model identity', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      appendSilentContextPressure('openai', 'gpt-4-old')
+      const prepare = vi
+        .spyOn(CompactionService.prototype, 'prepareForNextUserTurn')
+        .mockResolvedValue(null)
+
+      await agent.processMessage('s1', 'next prompt')
+
+      expect(prepare).toHaveBeenCalledOnce()
+      expect(prepare.mock.calls[0][0].forceContextPressure).toBeUndefined()
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('continues the next turn when pending pressure has no boundary to advance', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      appendSilentContextPressure()
+
+      await agent.processMessage('s1', 'only protected input exists')
+
+      expect(getContextOverflowAnchorCalls()).toEqual([])
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps pending pressure inert while automatic compaction is disabled', async () => {
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { contextLength: 8_192, maxTokens: 512 }
+      })
+      appendSilentContextPressure()
+
+      await agent.processMessage('s1', 'continue without automatic compaction')
+
+      expect(getContextOverflowAnchorCalls()).toEqual([])
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
 
     it('bypasses DeepChat context preflight for oversized ACP provider calls', async () => {
       await agent.initSession('s1', {
@@ -12036,9 +12329,13 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        'Hello',
+        'Base system prompt'
+      )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
@@ -12054,10 +12351,7 @@ describe('DeepChatAgentHarness', () => {
         })
       llmProvider.generateText.mockClear()
 
-      const events = await collectProviderEvents(callArgs, [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'user', content: 'Hello' }
-      ])
+      const events = await collectProviderEvents(callArgs, requestMessages)
       const anchorNames = sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.map(
         ([input]: any[]) => input.name
       )
@@ -12083,9 +12377,13 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        'Hello',
+        'Base system prompt'
+      )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
@@ -12098,10 +12396,7 @@ describe('DeepChatAgentHarness', () => {
         })
       llmProvider.generateText.mockClear()
 
-      const events = await collectProviderEvents(callArgs, [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'user', content: 'Hello' }
-      ])
+      const events = await collectProviderEvents(callArgs, requestMessages)
 
       expect(providerCoreStream).toHaveBeenCalledTimes(2)
       expect(events).toEqual([
@@ -12345,9 +12640,13 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        'Hello',
+        'Base system prompt'
+      )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
@@ -12362,10 +12661,7 @@ describe('DeepChatAgentHarness', () => {
         })
       llmProvider.generateText.mockClear()
 
-      const errorMessage = await collectProviderErrorMessage(callArgs, [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'user', content: 'Hello' }
-      ])
+      const errorMessage = await collectProviderErrorMessage(callArgs, requestMessages)
       const anchorNames = sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.map(
         ([input]: any[]) => input.name
       )
@@ -12389,9 +12685,13 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        'Hello',
+        'Base system prompt'
+      )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
@@ -12403,10 +12703,7 @@ describe('DeepChatAgentHarness', () => {
         })
       llmProvider.generateText.mockClear()
 
-      const errorMessage = await collectProviderErrorMessage(callArgs, [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'user', content: 'Hello' }
-      ])
+      const errorMessage = await collectProviderErrorMessage(callArgs, requestMessages)
 
       expect(providerCoreStream).toHaveBeenCalledTimes(2)
       expect(errorMessage).toContain('provider still reported a context overflow after DeepChat')
@@ -12518,16 +12815,17 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
       llmProvider.generateText.mockClear()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const pressureText = makeTextWithEstimatedTokens(4100)
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        pressureText,
+        'Base system prompt'
+      )
       for await (const _event of callArgs.coreStream(
-        [
-          { role: 'system', content: 'Base system prompt' },
-          { role: 'user', content: pressureText }
-        ],
+        requestMessages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
@@ -12624,7 +12922,7 @@ describe('DeepChatAgentHarness', () => {
       )
 
       expect(providerMessages).toEqual(runMessages)
-      expect(selectedHistoryRefs).toHaveLength(providerMessages.length - 2)
+      expect(selectedHistoryRefs).toHaveLength(providerMessages.length - 3)
       expect(manifest.excluded.some((ref: any) => ref.reason === 'out_of_budget')).toBe(true)
     })
 
@@ -12661,25 +12959,12 @@ describe('DeepChatAgentHarness', () => {
       })
       await agent.processMessage('s1', 'Hello')
       buildInjection.mockClear()
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
-      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
-        () => ({
-          session_id: 's1',
-          entry_id: 12,
-          kind: 'anchor',
-          name: 'handoff/pressure-order',
-          source_type: null,
-          source_id: null,
-          source_seq: null,
-          provenance_key: null,
-          payload_json: JSON.stringify({
-            name: 'handoff/pressure-order',
-            state: { summary: 'PRESSURE_RECONSTRUCTION_CONTENT' }
-          }),
-          meta_json: '{}',
-          created_at: 102
-        })
-      )
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+        sessionId: 's1',
+        name: 'handoff/pressure-order',
+        state: { summary: 'PRESSURE_RECONSTRUCTION_CONTENT' },
+        createdAt: 102
+      })
       llmProvider.generateText.mockClear()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
@@ -12691,11 +12976,14 @@ describe('DeepChatAgentHarness', () => {
         /Hello$/,
         pressureText
       )
+      const requestMessages = installPressureRecoveryHistory(
+        callArgs.run.messageId,
+        pressureUserContent,
+        'oversized request prompt',
+        pressureText
+      )
       for await (const _event of callArgs.coreStream(
-        [
-          { role: 'system', content: 'oversized request prompt' },
-          { role: 'user', content: pressureUserContent }
-        ],
+        requestMessages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
@@ -12706,13 +12994,21 @@ describe('DeepChatAgentHarness', () => {
 
       const providerMessages = providerCoreStream.mock.calls[0][0]
       const providerSystemPrompt = String(providerMessages[0]?.content ?? '')
-      const providerCheckpoint = String(providerMessages[1]?.content ?? '')
+      const providerCheckpoint = String(
+        providerMessages.find(
+          (message: any) =>
+            message.role === 'user' && String(message.content).includes('Persisted Rolling Summary')
+        )?.content ?? ''
+      )
       const providerActiveUser = String(providerMessages.at(-1)?.content ?? '')
       expect(llmProvider.generateText).toHaveBeenCalled()
       expect(providerSystemPrompt).not.toContain('PRESSURE_RECONSTRUCTION_CONTENT')
       expect(providerSystemPrompt).not.toContain('PRESSURE_MEMORY_CONTENT')
       expect(providerCheckpoint).toContain('Persisted Rolling Summary')
-      expect(providerCheckpoint).toContain('PRESSURE_RECONSTRUCTION_CONTENT')
+      expect(providerCheckpoint).toContain('Continue the session safely')
+      expect(String(llmProvider.generateText.mock.calls[0]?.[1])).toContain(
+        'PRESSURE_RECONSTRUCTION_CONTENT'
+      )
       expect(providerActiveUser).not.toContain('PRESSURE_MEMORY_CONTENT')
       expect(buildInjection).not.toHaveBeenCalled()
       const manifest = sqlitePresenter.deepchatTapeEntriesTable
@@ -12859,6 +13155,8 @@ describe('DeepChatAgentHarness', () => {
       expect(JSON.parse(insertRows[0].metadata)).toEqual({
         messageType: 'compaction',
         compactionStatus: 'compacting',
+        compactionAttemptId: expect.any(String),
+        compactionBoundaryReason: null,
         summaryUpdatedAt: null
       })
 
@@ -12885,6 +13183,8 @@ describe('DeepChatAgentHarness', () => {
       expect(JSON.parse(compactionInsert.metadata)).toEqual({
         messageType: 'compaction',
         compactionStatus: 'compacting',
+        compactionAttemptId: expect.any(String),
+        compactionBoundaryReason: null,
         summaryUpdatedAt: null
       })
 
@@ -12944,6 +13244,8 @@ describe('DeepChatAgentHarness', () => {
       expect(JSON.parse(insertRows[0].metadata)).toEqual({
         messageType: 'compaction',
         compactionStatus: 'compacting',
+        compactionAttemptId: expect.any(String),
+        compactionBoundaryReason: null,
         summaryUpdatedAt: null
       })
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
@@ -13186,7 +13488,7 @@ describe('DeepChatAgentHarness', () => {
       expect(prepareSpy).not.toHaveBeenCalled()
     })
 
-    it('falls back to the previous compacted state when compaction fails', async () => {
+    it('advances a boundary-only compacted state when summary generation fails', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -13221,11 +13523,22 @@ describe('DeepChatAgentHarness', () => {
         expect.objectContaining({
           sessionId: 's1',
           status: 'compacted',
-          cursorOrderSeq: 3,
-          summaryUpdatedAt: 111
+          cursorOrderSeq: 5,
+          summaryUpdatedAt: null
         })
       ])
-      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      const finalizedCompaction =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          ([, , , metadata]: any[]) =>
+            typeof metadata === 'string' && metadata.includes('"messageType":"compaction"')
+        )
+      expect(finalizedCompaction).toEqual([
+        'mock-msg-id',
+        expect.any(String),
+        'sent',
+        expect.stringContaining('"compactionStatus":"compacted"')
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
     })
 
     it('emits idle when clearMessages resets compaction state', async () => {
@@ -13243,12 +13556,14 @@ describe('DeepChatAgentHarness', () => {
         sessionId: 's1',
         status: 'idle',
         cursorOrderSeq: 1,
-        summaryUpdatedAt: null
+        summaryUpdatedAt: null,
+        boundaryReason: null
       })
       expect(instance.getCompactionState()).toEqual({
         status: 'idle',
         cursorOrderSeq: 1,
-        summaryUpdatedAt: null
+        summaryUpdatedAt: null,
+        boundaryReason: null
       })
     })
 
@@ -13259,7 +13574,8 @@ describe('DeepChatAgentHarness', () => {
       instance.setCompactionState({
         status: 'compacted',
         cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       })
 
       await agent.destroySession('s1')
@@ -13297,12 +13613,13 @@ describe('DeepChatAgentHarness', () => {
         toolService: toolService,
         hookObserver: noopHookObserver
       })
-      const compactionState = await reopenedAgent.getSessionCompactionState('s1')
+      const { state: compactionState } = await reopenedAgent.getSessionCompactionSnapshot('s1')
 
       expect(compactionState).toEqual({
         status: 'compacted',
         cursorOrderSeq: 7,
-        summaryUpdatedAt: 222
+        summaryUpdatedAt: 222,
+        boundaryReason: null
       })
     })
 
@@ -13314,12 +13631,13 @@ describe('DeepChatAgentHarness', () => {
         summaryUpdatedAt: 333
       })
 
-      const compactionState = await agent.getSessionCompactionState('s1')
+      const { state: compactionState } = await agent.getSessionCompactionSnapshot('s1')
 
       expect(compactionState).toEqual({
         status: 'compacted',
         cursorOrderSeq: 3,
-        summaryUpdatedAt: 333
+        summaryUpdatedAt: 333,
+        boundaryReason: null
       })
     })
 
@@ -13334,24 +13652,32 @@ describe('DeepChatAgentHarness', () => {
       instance.setCompactionState({
         status: 'compacting',
         cursorOrderSeq: 9,
-        summaryUpdatedAt: 111
+        summaryUpdatedAt: 111,
+        boundaryReason: null
       })
 
-      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
-        status: 'compacting',
-        cursorOrderSeq: 9,
-        summaryUpdatedAt: 111
+      await expect(agent.getSessionCompactionSnapshot('s1')).resolves.toMatchObject({
+        state: {
+          status: 'compacting',
+          cursorOrderSeq: 9,
+          summaryUpdatedAt: 111,
+          boundaryReason: null
+        }
       })
 
       instance.setCompactionState({
         status: 'idle',
         cursorOrderSeq: 1,
-        summaryUpdatedAt: null
+        summaryUpdatedAt: null,
+        boundaryReason: null
       })
-      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
-        status: 'compacted',
-        cursorOrderSeq: 7,
-        summaryUpdatedAt: 555
+      await expect(agent.getSessionCompactionSnapshot('s1')).resolves.toMatchObject({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 7,
+          summaryUpdatedAt: 555,
+          boundaryReason: null
+        }
       })
     })
   })
@@ -13367,6 +13693,7 @@ describe('DeepChatAgentHarness', () => {
         }
       })
       vi.spyOn(CompactionService.prototype, 'prepareForResumeTurn').mockResolvedValueOnce(null)
+      const pressureText = makeTextWithEstimatedTokens(4100)
       installSessionRows([
         makeDeepchatUserRow(1, 'A'.repeat(2400)),
         makeDeepchatAssistantRow(2, 'B'.repeat(2400)),
@@ -13374,7 +13701,7 @@ describe('DeepChatAgentHarness', () => {
         makeDeepchatAssistantRow(4, 'D'.repeat(2400)),
         makeDeepchatUserRow(5, 'E'.repeat(2400)),
         makeDeepchatAssistantRow(6, 'F'.repeat(2400)),
-        makeDeepchatUserRow(7, 'retry target', 'retry-user'),
+        makeDeepchatUserRow(7, pressureText, 'retry-user'),
         makeDeepchatAssistantRow(8, 'failed answer', 'retry-assistant', 'error')
       ])
 
@@ -13388,7 +13715,13 @@ describe('DeepChatAgentHarness', () => {
       for await (const _event of callArgs.coreStream(
         [
           { role: 'system', content: baseSystemPrompt },
-          { role: 'user', content: makeTextWithEstimatedTokens(4100) }
+          { role: 'user', content: 'A'.repeat(2400) },
+          { role: 'assistant', content: 'B'.repeat(2400) },
+          { role: 'user', content: 'C'.repeat(2400) },
+          { role: 'assistant', content: 'D'.repeat(2400) },
+          { role: 'user', content: 'E'.repeat(2400) },
+          { role: 'assistant', content: 'F'.repeat(2400) },
+          { role: 'user', content: pressureText }
         ],
         callArgs.modelId,
         callArgs.modelConfig,
@@ -13410,10 +13743,12 @@ describe('DeepChatAgentHarness', () => {
       expect(llmProvider.generateText).toHaveBeenCalled()
       expect(providerCoreStream).toHaveBeenCalledTimes(1)
       expect(providerMessages[0].content).toBe(baseSystemPrompt)
-      expect(providerMessages[1]).toMatchObject({
-        role: 'user',
-        content: expect.stringContaining('Persisted Rolling Summary')
-      })
+      expect(
+        providerMessages.some(
+          (message: any) =>
+            message.role === 'user' && String(message.content).includes('Persisted Rolling Summary')
+        )
+      ).toBe(true)
       expect(providerMaxTokens).toBeGreaterThan(0)
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
@@ -13511,7 +13846,12 @@ describe('DeepChatAgentHarness', () => {
         abortController,
         messages: [],
         streamState,
-        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: POSIX_COMMAND_SHELL,
+          toolMode: { mode: 'agent', source: 'fallback' }
+        }
       })
       instance.registerActiveGeneration(run)
       setRuntimeStatus(agent, 's1', 'generating')
@@ -15349,9 +15689,18 @@ describe('DeepChatAgentHarness', () => {
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 
-    it('cleans deferred offload files when resume budget downgrades the tool result', async () => {
-      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-cleanup-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+    it('does not rewrite a guard-owned deferred artifact before a budget downgrade', async () => {
+      const originalOffloadPath = '/tmp/original-tool-output.offload'
+      vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+        kind: 'ok',
+        content: 'guard-owned projection',
+        offloaded: true,
+        offloadPath: originalOffloadPath
+      })
+      const fitSpy = vi.spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+      const cleanupSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+        .mockResolvedValue()
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
@@ -15446,9 +15795,11 @@ describe('DeepChatAgentHarness', () => {
             })
           })
         )
-        await expect(
-          fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-        ).rejects.toThrow()
+        expect(fitSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ offloadPath: originalOffloadPath })
+        )
+        expect(cleanupSpy).toHaveBeenCalledOnce()
+        expect(cleanupSpy).toHaveBeenCalledWith(originalOffloadPath)
         expect(processStream).toHaveBeenCalledTimes(1)
       } finally {
         hasContextBudgetSpy.mockRestore()
@@ -15496,6 +15847,9 @@ describe('DeepChatAgentHarness', () => {
 
       const resume = approvePendingTool()
       await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+      expect(fitSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ offloadPath: '/tmp/original-tool-output.offload' })
+      )
       const persistedUpdateCount =
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
 

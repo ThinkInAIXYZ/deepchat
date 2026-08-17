@@ -26,10 +26,12 @@ function createMockSqlitePresenter() {
       updateMetadata: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
       getPendingAssistantBySession: vi.fn().mockReturnValue([]),
       hasBySession: vi.fn().mockReturnValue(false),
       listPageBySession: vi.fn().mockReturnValue([]),
       getByStatus: vi.fn().mockReturnValue([]),
+      getCompactionRecoveryCandidates: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
       get: vi.fn(),
@@ -939,6 +941,43 @@ describe('SessionTranscript', () => {
     })
   })
 
+  describe('cloneSentMessagesToSession', () => {
+    it('keeps compaction indicators out of the forked transcript', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySessionUpToOrderSeq.mockReturnValue([
+        createMessageRow({ id: 'user-1', order_seq: 1 }),
+        createMessageRow({
+          id: 'compaction-1',
+          order_seq: 2,
+          role: 'assistant',
+          content: '[]',
+          metadata: JSON.stringify({
+            messageType: 'compaction',
+            compactionStatus: 'compacted',
+            compactionAttemptId: 'source-attempt'
+          })
+        }),
+        createMessageRow({
+          id: 'assistant-1',
+          order_seq: 3,
+          role: 'assistant',
+          content: '[]'
+        })
+      ])
+
+      expect(store.cloneSentMessagesToSession('source', 'fork', 3)).toBe(2)
+      expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.deepchatMessagesTable.insert.mock.calls).toEqual([
+        [expect.objectContaining({ sessionId: 'fork', orderSeq: 1, role: 'user' })],
+        [expect.objectContaining({ sessionId: 'fork', orderSeq: 2, role: 'assistant' })]
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.stringContaining('source-attempt')
+        })
+      )
+    })
+  })
+
   describe('deleteBySession', () => {
     it('delegates to table', () => {
       store.deleteBySession('s1')
@@ -1025,9 +1064,24 @@ describe('SessionTranscript', () => {
         })
       )
 
-      store.updateCompactionMessage('compaction-message', 'compacted', 2000)
+      store.updateCompactionMessage('compaction-message', 'compacted', 2000, {
+        compactionAttemptId: 'compaction-attempt-1',
+        boundaryReason: 'summary_unavailable'
+      })
 
       expect(transaction).toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'compaction-message',
+        expect.any(String),
+        'sent',
+        JSON.stringify({
+          messageType: 'compaction',
+          compactionStatus: 'compacted',
+          compactionAttemptId: 'compaction-attempt-1',
+          compactionBoundaryReason: 'summary_unavailable',
+          summaryUpdatedAt: 2000
+        })
+      )
       expect(appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'message/compaction_indicator',

@@ -13,6 +13,7 @@ import type {
   DeepChatTapeViewManifestV5,
   DeepChatTapeViewManifestV6,
   DeepChatTapeViewManifestV7,
+  DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeSkillContext,
   DeepChatTapeSkillContextV7,
   DeepChatTapeViewSyntheticContribution,
@@ -48,7 +49,8 @@ export function isCompactionRecord(record: ChatMessageRecord): boolean {
 
 /** Stable event name persisted for deterministic view reconstruction. */
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
-export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'cache-aware-v1' as const
+export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'cache-aware-v2' as const
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/
 
 export function getTapeViewManifestExecutionContract(
   manifest: DeepChatTapeViewManifest
@@ -65,6 +67,7 @@ export function getTapeViewManifestExecutionContract(
 
 export type TapeViewManifestLookupMaps = {
   entryIdByMessageId?: Map<string, number>
+  messageContentHashByMessageId?: Map<string, string>
   toolCallEntryIdByToolId?: Map<string, number>
   toolResultEntryIdByToolId?: Map<string, number>
 }
@@ -116,6 +119,7 @@ export type TapeViewContextSelection = {
   includedRecords: Array<{
     record: ChatMessageRecord
     reason: DeepChatTapeViewEntryRef['reason']
+    contentHash?: string
   }>
   excludedRecords: Array<{
     record: ChatMessageRecord
@@ -124,6 +128,7 @@ export type TapeViewContextSelection = {
   summaryCursor?: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
   newUserMessageId?: string | null
+  pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
@@ -195,6 +200,60 @@ function executionContractMatchesManifest(
 function isDeeplyFrozen(value: unknown): boolean {
   if (!value || typeof value !== 'object') return true
   return Object.isFrozen(value) && Object.values(value).every(isDeeplyFrozen)
+}
+
+function resolveContextBuilderVersion(
+  input: TapeViewManifestBuildInput
+): DeepChatTapeViewManifest['contextBuilderVersion'] {
+  return (
+    input.contextBuilderVersion ??
+    (input.policy === 'cache_aware_context_v2'
+      ? 'cache-aware-v2'
+      : input.policy === 'cache_aware_context_v1'
+        ? 'cache-aware-v1'
+        : 'legacy-v1')
+  )
+}
+
+function validatePinnedFirstUserManifestRef(
+  input: TapeViewManifestBuildInput,
+  contextBuilderVersion: DeepChatTapeViewManifest['contextBuilderVersion']
+): void {
+  const pinnedRefs = input.included.filter((entry) => entry.reason === 'pinned_first_user')
+  if (pinnedRefs.length === 0) return
+  if (pinnedRefs.length !== 1 || contextBuilderVersion !== 'cache-aware-v2') {
+    throw new TypeError('Pinned first-user provenance requires one cache-aware-v2 View ref.')
+  }
+
+  const ref = pinnedRefs[0]
+  const expectedRefIndex = input.messages?.[0]?.role === 'system' ? 1 : 0
+  if (input.included.indexOf(ref) !== expectedRefIndex) {
+    throw new TypeError('Pinned first-user provenance must be the first authoritative View ref.')
+  }
+  if (
+    ref.entryId === null ||
+    !Number.isSafeInteger(ref.entryId) ||
+    ref.entryId <= 0 ||
+    ref.messageId === null ||
+    !ref.messageId.trim() ||
+    ref.orderSeq === null ||
+    !Number.isSafeInteger(ref.orderSeq) ||
+    ref.orderSeq <= 0 ||
+    ref.role !== 'user' ||
+    ref.source !== 'tape' ||
+    ref.sourceEntryIds?.length !== 1 ||
+    ref.sourceEntryIds[0] !== ref.entryId ||
+    typeof ref.contentHash !== 'string' ||
+    !SHA256_HEX_PATTERN.test(ref.contentHash)
+  ) {
+    throw new TypeError('Pinned first-user provenance must identify one authoritative Tape fact.')
+  }
+
+  const pinnedIndex = input.messages[0]?.role === 'system' ? 1 : 0
+  const pinnedMessage = input.messages[pinnedIndex]
+  if (pinnedMessage?.role !== 'user' || hashJsonData(pinnedMessage) !== ref.contentHash) {
+    throw new TypeError('Pinned first-user provenance does not match the protected View prefix.')
+  }
 }
 
 function requireExecutionContractMatchesInput(
@@ -307,6 +366,11 @@ export function verifyTapeViewManifestHash(
 export function createTapeViewManifest(
   input: TapeViewManifestBuildInput
 ): DeepChatTapeViewManifest {
+  const contextBuilderVersion = resolveContextBuilderVersion(input)
+  if (input.policy === 'cache_aware_context_v2' && contextBuilderVersion !== 'cache-aware-v2') {
+    throw new TypeError('Cache-aware-v2 policy requires the cache-aware-v2 context builder.')
+  }
+  validatePinnedFirstUserManifestRef(input, contextBuilderVersion)
   const assembledAt = input.assembledAt ?? Date.now()
   const excludedRanges = buildExcludedRanges(input.summaryCursor)
   const common = {
@@ -317,9 +381,7 @@ export function createTapeViewManifest(
     taskType: input.taskType,
     policy: input.policy,
     policyVersion: input.policyVersion ?? null,
-    contextBuilderVersion:
-      input.contextBuilderVersion ??
-      (input.policy === 'cache_aware_context_v1' ? 'cache-aware-v1' : 'legacy-v1'),
+    contextBuilderVersion,
     latestEntryId: input.latestEntryId,
     anchorEntryIds: [...input.anchorEntryIds],
     ...(input.reconstructionAnchorEntryId !== undefined
@@ -435,6 +497,45 @@ export function buildIncludedRefs(
     })
   }
 
+  const appendIncludedRecord = (item: TapeViewContextSelection['includedRecords'][number]) => {
+    const entryId = sourceMaps.entryIdByMessageId?.get(item.record.id) ?? null
+    if (item.reason === 'pinned_first_user') {
+      const pinned = selection.pinnedFirstUser
+      if (
+        !pinned ||
+        pinned.messageId !== item.record.id ||
+        pinned.orderSeq !== item.record.orderSeq ||
+        pinned.contentHash !== item.contentHash
+      ) {
+        throw new TypeError('Pinned first-user selection metadata is inconsistent.')
+      }
+      if (entryId === null) {
+        throw new TypeError('Pinned first-user selection has no authoritative Tape source.')
+      }
+      if (
+        sourceMaps.messageContentHashByMessageId?.get(item.record.id) !== pinned.sourceContentHash
+      ) {
+        throw new TypeError('Pinned first-user selection no longer matches its Tape source.')
+      }
+    }
+    refs.push({
+      entryId,
+      messageId: item.record.id,
+      orderSeq: item.record.orderSeq,
+      role: item.record.role,
+      source: entryId === null ? 'synthetic' : 'tape',
+      reason: item.reason,
+      ...(item.reason === 'pinned_first_user' && entryId !== null
+        ? { sourceEntryIds: [entryId] }
+        : {}),
+      ...(item.contentHash ? { contentHash: item.contentHash } : {})
+    })
+  }
+
+  for (const item of selection.includedRecords) {
+    if (item.reason === 'pinned_first_user') appendIncludedRecord(item)
+  }
+
   refs.push(
     ...buildSyntheticContributionRefs(
       (selection.syntheticContributions ?? []).filter(
@@ -445,14 +546,7 @@ export function buildIncludedRefs(
   )
 
   for (const item of selection.includedRecords) {
-    refs.push({
-      entryId: sourceMaps.entryIdByMessageId?.get(item.record.id) ?? null,
-      messageId: item.record.id,
-      orderSeq: item.record.orderSeq,
-      role: item.record.role,
-      source: sourceMaps.entryIdByMessageId?.has(item.record.id) ? 'tape' : 'synthetic',
-      reason: item.reason
-    })
+    if (item.reason !== 'pinned_first_user') appendIncludedRecord(item)
   }
 
   refs.push(
@@ -509,7 +603,8 @@ export function buildExcludedRefs(
 
 export function buildRequestRefs(
   messages: ChatMessage[],
-  sourceMaps: TapeViewManifestLookupMaps = {}
+  sourceMaps: TapeViewManifestLookupMaps = {},
+  pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
 ): DeepChatTapeViewEntryRef[] {
   const lastToolCallIndex = new Map<string, number>()
   const lastToolResultIndex = new Map<string, number>()
@@ -524,7 +619,38 @@ export function buildRequestRefs(
   })
 
   const refs: DeepChatTapeViewEntryRef[] = []
+  const pinnedFirstUserIndex = pinnedFirstUser ? (messages[0]?.role === 'system' ? 1 : 0) : -1
+  if (
+    pinnedFirstUser &&
+    (messages[pinnedFirstUserIndex]?.role !== 'user' ||
+      hashJsonData(messages[pinnedFirstUserIndex]) !== pinnedFirstUser.contentHash)
+  ) {
+    throw new TypeError('Pinned first-user request no longer matches the protected View prefix.')
+  }
   messages.forEach((message, index) => {
+    if (index === pinnedFirstUserIndex && pinnedFirstUser) {
+      const entryId = sourceMaps.entryIdByMessageId?.get(pinnedFirstUser.messageId) ?? null
+      if (entryId === null) {
+        throw new TypeError('Pinned first-user request has no authoritative Tape source.')
+      }
+      if (
+        sourceMaps.messageContentHashByMessageId?.get(pinnedFirstUser.messageId) !==
+        pinnedFirstUser.sourceContentHash
+      ) {
+        throw new TypeError('Pinned first-user request no longer matches its Tape source.')
+      }
+      refs.push({
+        entryId,
+        messageId: pinnedFirstUser.messageId,
+        orderSeq: pinnedFirstUser.orderSeq,
+        role: 'user',
+        source: 'tape',
+        reason: 'pinned_first_user',
+        sourceEntryIds: [entryId],
+        contentHash: pinnedFirstUser.contentHash
+      })
+      return
+    }
     if (message.role === 'assistant' && message.tool_calls?.length) {
       for (const toolCall of message.tool_calls) {
         const entryId =

@@ -15,9 +15,14 @@ import {
 } from '@shared/lib/agentOutputLimits'
 import { throwIfAbortRequested } from './abortErrors'
 import { preflightRequestContext } from './contextBudget'
+import { getProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
 
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 const TOOL_OUTPUT_OFFLOAD_MARKER = '[Tool output offloaded]'
+const TOOL_OUTPUT_VIEW_COMPACTION_MARKER = '[Tool output compacted from provider View]'
+const TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD = 8192
+const TOOL_OUTPUT_VIEW_COMPACTION_HEAD = 4096
+const TOOL_OUTPUT_VIEW_COMPACTION_TAIL = 1024
 const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
 const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
   ...TOOLS_REQUIRING_OFFLOAD,
@@ -50,8 +55,14 @@ interface PrepareToolOutputParams {
   rawContent: string
 }
 
-interface ContextFallbackParams extends PrepareToolOutputParams {
+interface ToolOutputArtifactOwnership {
+  /** Guard-created artifact backing the current response projection. */
+  offloadPath?: string
+  /** Tool-created artifact that the guard may reference but never overwrite or delete. */
   existingOffloadPath?: string
+}
+
+interface ContextFallbackParams extends PrepareToolOutputParams, ToolOutputArtifactOwnership {
   signal?: AbortSignal
 }
 
@@ -60,6 +71,10 @@ interface GuardToolOutputParams extends PrepareToolOutputParams {
   toolDefinitions: MCPToolDefinition[]
   contextLength: number
   maxTokens: number
+}
+
+interface FitExistingToolOutputParams extends GuardToolOutputParams, ToolOutputArtifactOwnership {
+  signal?: AbortSignal
 }
 
 interface ContextBudgetParams {
@@ -84,6 +99,94 @@ interface FitToolBatchOutputsParams extends ContextBudgetParams {
 type AgentOutputLimitsResolver = (
   sessionId: string
 ) => AgentOutputLimits | Promise<AgentOutputLimits>
+
+interface ClosedToolResultCompactionOptions {
+  preserveMostRecentClosedUnit?: boolean
+}
+
+interface ClosedToolResultUnit {
+  assistantIndex: number
+  resultIndexes: ReadonlyMap<string, number>
+}
+
+export function compactClosedToolResultsForContext(
+  messages: ChatMessage[],
+  protectedToolCallIds: ReadonlySet<string> = new Set(),
+  options: ClosedToolResultCompactionOptions = {}
+): ChatMessage[] {
+  const activeTurnStart = messages.findLastIndex((message) => message.role === 'user')
+  if (activeTurnStart < 0) return messages
+
+  const closedUnits: ClosedToolResultUnit[] = []
+  for (let index = activeTurnStart + 1; index < messages.length; index += 1) {
+    const assistant = messages[index]
+    if (
+      assistant.role !== 'assistant' ||
+      assistant.provider_replay ||
+      !assistant.tool_calls?.length
+    ) {
+      continue
+    }
+
+    const expectedCallIds = new Set(assistant.tool_calls.map((toolCall) => toolCall.id))
+    const resultIndexes = new Map<string, number>()
+    let cursor = index + 1
+    while (cursor < messages.length && messages[cursor].role === 'tool') {
+      const toolCallId = messages[cursor].tool_call_id
+      if (
+        !toolCallId ||
+        !expectedCallIds.has(toolCallId) ||
+        resultIndexes.has(toolCallId)
+      ) {
+        resultIndexes.clear()
+        break
+      }
+      resultIndexes.set(toolCallId, cursor)
+      cursor += 1
+    }
+    if (resultIndexes.size !== expectedCallIds.size) continue
+
+    closedUnits.push({ assistantIndex: index, resultIndexes })
+    index = Math.max(index, cursor - 1)
+  }
+
+  const preservedAssistantIndex =
+    options.preserveMostRecentClosedUnit === false
+      ? null
+      : (closedUnits.at(-1)?.assistantIndex ?? null)
+  let compacted: ChatMessage[] | null = null
+  for (const unit of closedUnits) {
+    if (unit.assistantIndex === preservedAssistantIndex) continue
+
+    for (const [toolCallId, resultIndex] of unit.resultIndexes) {
+      const toolMessage = messages[resultIndex]
+      if (
+        protectedToolCallIds.has(toolCallId) ||
+        toolMessage.provider_replay ||
+        getProviderProjectionIdentities(toolMessage).length > 0 ||
+        typeof toolMessage.content !== 'string' ||
+        toolMessage.content.length <= TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD
+      ) {
+        continue
+      }
+      const original = toolMessage.content
+      const compactedContent = [
+        TOOL_OUTPUT_VIEW_COMPACTION_MARKER,
+        `Tool call ID: ${toolCallId}`,
+        `Original characters: ${original.length}`,
+        'The complete result remains in Session Tape. Use tape_search and tape_context to recall persisted evidence if needed.',
+        `First ${TOOL_OUTPUT_VIEW_COMPACTION_HEAD} characters:`,
+        original.slice(0, TOOL_OUTPUT_VIEW_COMPACTION_HEAD),
+        `Last ${TOOL_OUTPUT_VIEW_COMPACTION_TAIL} characters:`,
+        original.slice(-TOOL_OUTPUT_VIEW_COMPACTION_TAIL)
+      ].join('\n')
+      compacted ??= [...messages]
+      compacted[resultIndex] = { ...toolMessage, content: compactedContent }
+    }
+  }
+
+  return compacted ?? messages
+}
 
 export class ToolOutputGuard {
   constructor(
@@ -162,7 +265,7 @@ export class ToolOutputGuard {
   ): Promise<PreparedToolOutput | null> {
     if (!CONTEXT_FALLBACK_OFFLOAD_TOOLS.has(params.toolName)) return null
     if (!params.rawContent) return null
-    if (params.rawContent.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)) return null
+    if (params.offloadPath) return null
 
     if (params.existingOffloadPath) {
       return {
@@ -213,7 +316,7 @@ export class ToolOutputGuard {
   }
 
   async fitExistingToolOutput(
-    params: GuardToolOutputParams & { existingOffloadPath?: string; signal?: AbortSignal }
+    params: FitExistingToolOutputParams
   ): Promise<ToolOutputGuardResult | null> {
     throwIfAbortRequested(params.signal)
     if (
@@ -310,12 +413,7 @@ export class ToolOutputGuard {
 
     for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
       const current = fittedResults[index]
-      if (
-        current.isError ||
-        current.requiresInline ||
-        current.offloadPath ||
-        current.responseText.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)
-      ) {
+      if (current.isError || current.requiresInline) {
         continue
       }
 
@@ -324,6 +422,7 @@ export class ToolOutputGuard {
         toolCallId: current.toolCallId,
         toolName: current.toolName,
         rawContent: current.responseText,
+        offloadPath: current.offloadPath,
         existingOffloadPath: current.existingOffloadPath
       })
       if (!fallback || fallback.kind === 'tool_error') continue

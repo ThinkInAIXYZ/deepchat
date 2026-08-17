@@ -47,7 +47,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   toolService: Pick<ToolServicePort, 'clearConversationToolMapping'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'normalizeProjectDir'>
-  compaction: Pick<CompactionRuntimeCoordinator, 'idleState'>
+  compaction: Pick<CompactionRuntimeCoordinator, 'idleState' | 'releaseSession'>
   memory: Pick<
     MemoryRuntimeCoordinator,
     'initializeSession' | 'beginSessionDestroy' | 'finishSessionDestroy'
@@ -139,6 +139,7 @@ export class SessionLifecycleCoordinator {
     this.deps.pendingInputs.deleteBySession(sessionId)
     this.deps.transcript.deleteBySession(sessionId)
     this.deps.sessionStore.delete(sessionId)
+    this.deps.compaction.releaseSession(sessionId)
     this.deps.programmaticToolParents.releaseSession(sessionId)
     this.deps.toolSurfaceCanaryDiagnostics.clearSession(sessionId)
     this.deps.interactionParking.clearSession(sessionId)

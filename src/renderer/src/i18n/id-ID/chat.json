@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Bawaan model",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Gunakan perangkat alat standar Agent.",
+        "code": "Rangkai alat yang aktif melalui kode. Memerlukan mode izin Akses penuh.",
+        "minimal": "Sederhanakan operasi file sambil mempertahankan alat lain yang diaktifkan."
+      },
+      "useModelDefault": "Gunakan bawaan model",
+      "saving": "Menyimpan mode...",
+      "locked": "Anda dapat mengganti mode setelah respons ini selesai.",
+      "updateFailed": "Mode alat tidak dapat diperbarui.",
+      "codeEntry": "Entri kode",
+      "codeCallable": "Dapat dipanggil dari kode",
+      "minimalTools": "Alat pengodean"
+    },
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
     "fileUploadFailedMore": " Tunggu {count}",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Mengompresi konteks...",
     "compacted": "Konteks dikompresi",
+    "compactedWithoutSummary": "Konteks dikompresi tanpa ringkasan",
+    "compactedWithoutLargerSummary": "Konteks dikompresi tanpa menggunakan ringkasan yang lebih besar",
     "commandDescription": "Kompres konteks sesi",
     "noopTitle": "Tidak ada konteks yang dapat dikompres",
     "noopDescription": "Saat ini tidak ada riwayat percakapan baru untuk dikompres.",
     "failedTitle": "Kompresi gagal"
+  },
+  "contextOccupancy": {
+    "label": "Penggunaan konteks",
+    "details": "{used} dari {capacity} token",
+    "provider": "Diukur oleh penyedia",
+    "estimated": "Diperkirakan dari tampilan permintaan",
+    "stale": "Usang setelah perubahan model, jendela, atau kompresi"
   },
   "rateLimit": {
     "queueTooltip": "Ada {count} permintaan dalam antrean, dengan selang waktu {interval} detik",

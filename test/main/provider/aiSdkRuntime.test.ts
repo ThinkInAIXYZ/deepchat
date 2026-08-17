@@ -681,6 +681,70 @@ describe('AI SDK runtime', () => {
     })
   })
 
+  it('does not turn unavailable generateText usage into measured zero tokens', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: {},
+      finalStep: {
+        reasoningText: undefined
+      }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toBeUndefined()
+  })
+
+  it('does not synthesize a total when generateText returns only partial usage', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: { inputTokens: 3, outputTokens: 5 },
+      finalStep: { reasoningText: undefined }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toEqual({
+      prompt_tokens: 3,
+      completion_tokens: 5
+    })
+  })
+
+  it('keeps valid usage fields when another field is malformed', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: { inputTokens: 3, outputTokens: -1, totalTokens: 3 },
+      finalStep: { reasoningText: undefined }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toEqual({ prompt_tokens: 3, total_tokens: 3 })
+  })
+
   it('builds image prompts from text-like content instead of object stringification', async () => {
     const context = {
       providerKind: 'openai-compatible',
@@ -2359,6 +2423,126 @@ describe('AI SDK runtime', () => {
     expect(request).toHaveProperty('temperature', 0.6)
     expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
     expect(events).toEqual([])
+  })
+
+  it('omits MiniMax-M3 temperature from non-streaming requests and traces when thinking is enabled', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      model: {},
+      endpoint: 'https://api.minimaxi.com/anthropic'
+    })
+    const stored = {
+      apiEndpoint: 'chat',
+      reasoning: true,
+      temperature: 0.6
+    }
+    const tracePayloads: Array<{
+      modelConfig: Record<string, unknown>
+      body?: Record<string, unknown>
+    }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'minimax',
+        apiType: 'anthropic'
+      },
+      providerSettings: createProviderSettings(),
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (modelConfig, payload) => {
+        tracePayloads.push({ modelConfig, ...payload })
+      })
+    } as any
+
+    await runAiSdkGenerateText(context, [], 'MiniMax-M3', stored as any, 0.6, 1024)
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('temperature')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+    expect(stored.temperature).toBe(0.6)
+  })
+
+  it('omits MiniMax-M3 temperature from streaming requests and traces when thinking is enabled', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      model: {},
+      endpoint: 'https://api.minimaxi.com/anthropic'
+    })
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'minimax-cn',
+        apiType: 'anthropic'
+      },
+      providerSettings: createProviderSettings(),
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [],
+      'MiniMaxAI/MiniMax-M3',
+      {
+        apiEndpoint: 'chat',
+        reasoning: true,
+        temperature: 0.4,
+        functionCall: false
+      } as any,
+      0.4,
+      2048,
+      []
+    )) {
+      events.push(event)
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('temperature')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+    expect(events).toEqual([])
+  })
+
+  it('keeps MiniMax-M3 temperature when thinking is disabled', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      model: {},
+      endpoint: 'https://api.minimaxi.com/anthropic'
+    })
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'minimax',
+        apiType: 'anthropic'
+      },
+      providerSettings: createProviderSettings(),
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'MiniMax-M3',
+      {
+        apiEndpoint: 'chat',
+        reasoning: false
+      } as any,
+      0.6,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toHaveProperty('temperature', 0.6)
+    expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
   })
 
   it('passes cache intent through OpenAI-compatible Zenmux conversation routes', async () => {

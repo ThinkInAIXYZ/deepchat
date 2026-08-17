@@ -6,6 +6,7 @@ import {
   projectTapeToolOrderSeq,
   searchEffectiveTapeRows
 } from '@/tape/domain/effectiveView'
+import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from '@/tape/domain/compactionUsage'
 import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
 import {
   messageRecordHasFinalToolUse,
@@ -105,6 +106,28 @@ describe('Tool Surface audit provenance', () => {
     expect(buildEffectiveTapeView(rows).rows).toEqual([])
     expect(searchEffectiveTapeRows(rows, 'private-tool-surface')).toEqual([])
     expect(buildEffectiveTapeView(rows, { includeAuditEvents: true }).rows).toEqual(rows)
+  })
+})
+
+describe('Compaction usage audit provenance', () => {
+  it('stays out of effective conversation views and ordinary search', () => {
+    const row: DeepChatTapeEntryRow = {
+      session_id: 's1',
+      entry_id: 1,
+      kind: 'event',
+      name: TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
+      source_type: 'runtime_event',
+      source_id: 'attempt-1',
+      source_seq: 0,
+      provenance_key: 'compaction-usage:attempt-1:0',
+      payload_json: JSON.stringify({ providerId: 'private-provider', totalTokens: 100 }),
+      meta_json: '{}',
+      created_at: 1
+    }
+
+    expect(buildEffectiveTapeView([row]).rows).toEqual([])
+    expect(searchEffectiveTapeRows([row], 'private-provider')).toEqual([])
+    expect(buildEffectiveTapeView([row], { includeAuditEvents: true }).rows).toEqual([row])
   })
 })
 

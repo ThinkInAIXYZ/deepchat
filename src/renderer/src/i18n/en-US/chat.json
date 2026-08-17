@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Model default",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Use the standard Agent tool set.",
+        "code": "Compose enabled tools through code. Requires Full Access permission mode.",
+        "minimal": "Simplify file operations while keeping other enabled tools."
+      },
+      "useModelDefault": "Use model default",
+      "saving": "Saving mode...",
+      "locked": "You can switch modes after this response finishes.",
+      "updateFailed": "The tool mode could not be updated.",
+      "codeEntry": "Code entry",
+      "codeCallable": "Code-callable",
+      "minimalTools": "Coding tools"
+    },
     "fileUploadFailed": "Attachment failed",
     "fileUploadFailedDesc": "Could not process {count} files: {names}",
     "fileUploadFailedMore": " and {count} more",
@@ -207,10 +228,19 @@
   "compaction": {
     "compacting": "Compacting context...",
     "compacted": "Context was compacted",
+    "compactedWithoutSummary": "Context was compacted without a summary",
+    "compactedWithoutLargerSummary": "Context was compacted without using a larger summary",
     "commandDescription": "Compact conversation context",
     "noopTitle": "No context to compact",
     "noopDescription": "There is no new conversation history to compact yet.",
     "failedTitle": "Compaction failed"
+  },
+  "contextOccupancy": {
+    "label": "Context usage",
+    "details": "{used} of {capacity} tokens",
+    "provider": "Provider measured",
+    "estimated": "Estimated from the request view",
+    "stale": "Stale after a model, window, or compaction change"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",

@@ -63,6 +63,27 @@
         "yobrowser": "Trình duyệt Yo"
       }
     },
+    "toolMode": {
+      "title": "Chế độ",
+      "modelDefault": "Mặc định của mô hình",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Sử dụng bộ công cụ Agent tiêu chuẩn.",
+        "code": "Kết hợp các công cụ đã bật bằng mã. Yêu cầu chế độ quyền Toàn quyền truy cập.",
+        "minimal": "Đơn giản hóa thao tác tệp và giữ các công cụ đã bật khác."
+      },
+      "useModelDefault": "Dùng mặc định của mô hình",
+      "saving": "Đang lưu chế độ...",
+      "locked": "Bạn có thể đổi chế độ sau khi phản hồi này hoàn tất.",
+      "updateFailed": "Không thể cập nhật chế độ công cụ.",
+      "codeEntry": "Điểm vào mã",
+      "codeCallable": "Có thể gọi từ mã",
+      "minimalTools": "Công cụ lập trình"
+    },
     "fileUploadFailed": "Tệp đính kèm không thành công",
     "fileUploadFailedDesc": "Không thể xử lý tệp {count}: {names}",
     "fileUploadFailedMore": " và {count} khác",
@@ -120,12 +141,21 @@
     "rateLimitMinutes": "tôi"
   },
   "compaction": {
-    "compacting": "Nén bối cảnh...",
-    "compacted": "Bối cảnh đã được nén",
-    "commandDescription": "Bối cảnh hội thoại nhỏ gọn",
-    "noopTitle": "Không có ngữ cảnh để thu gọn",
-    "noopDescription": "Chưa có lịch sử hội thoại mới nào được thu gọn.",
+    "compacting": "Đang nén ngữ cảnh...",
+    "compacted": "Ngữ cảnh đã được nén",
+    "compactedWithoutSummary": "Ngữ cảnh đã được nén mà không có bản tóm tắt",
+    "compactedWithoutLargerSummary": "Ngữ cảnh đã được nén mà không dùng bản tóm tắt lớn hơn",
+    "commandDescription": "Nén ngữ cảnh phiên",
+    "noopTitle": "Không có ngữ cảnh để nén",
+    "noopDescription": "Chưa có lịch sử hội thoại mới nào để nén.",
     "failedTitle": "Nén không thành công"
+  },
+  "contextOccupancy": {
+    "label": "Mức dùng ngữ cảnh",
+    "details": "{used} trên {capacity} token",
+    "provider": "Do nhà cung cấp đo",
+    "estimated": "Ước tính từ chế độ xem yêu cầu",
+    "stale": "Đã cũ sau khi đổi mô hình, cửa sổ hoặc nén"
   },
   "rateLimit": {
     "queueTooltip": "Yêu cầu {count} trong hàng đợi, khoảng thời gian {interval}",

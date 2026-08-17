@@ -48,7 +48,7 @@ import {
   getUsableContextLength
 } from './contextBudget'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
-import type { CompactionService } from './compactionService'
+import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService'
 import { isContextWindowErrorLike } from './contextWindowError'
 import { resolveInterleavedReasoningConfig } from './generationSettings'
 import {
@@ -59,7 +59,10 @@ import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
+import type {
+  TapeProviderAttemptReader,
+  TapeReconciliationPort
+} from '@/tape/ports/capabilities'
 import { isExecutionJournalError } from '@/tape/domain/executionJournal'
 import { isCommittedRunProjectionError } from './runTerminalProjectionError'
 import {
@@ -108,6 +111,12 @@ import {
   type MaterializedSkillProjection,
   type SkillProjectionBodies
 } from './skillContextMaterializer'
+import type { ResolvedToolMode } from '@shared/toolMode'
+import {
+  decorateExecForShell,
+  isCodexToolFrontend,
+  renderCodeModeSdk
+} from '@/tool/codeMode/toolModeTools'
 
 type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -151,7 +160,7 @@ export interface TurnCoordinatorPorts {
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   pendingInputs: Pick<SessionPendingInputs, 'createClaimedQueueUserMessage'>
-  tapeReconciliation: TapeReconciliationPort
+  tapeReconciliation: TapeReconciliationPort & TapeProviderAttemptReader
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
   compactionRuntimeCoordinator: CompactionRuntimeCoordinator
@@ -313,13 +322,28 @@ export class TurnCoordinator {
     const taskContractContext = strictDeepChatChild
       ? this.ports.taskContractContext.prepare(sessionId)
       : null
-    const tools = meetTaskContractToolDefinitions(sessionId, resolvedTools, taskContractContext)
-    const toolReserveTokens = estimateToolReserveTokens(tools)
+    const executionTools = meetTaskContractToolDefinitions(
+      sessionId,
+      resolvedTools,
+      taskContractContext
+    )
     throwIfAbortRequested(signal)
     const commandShell = await this.runPreStreamStep(
       { sessionId, messageId, step: 'command-shell', signal },
       () => awaitWithAbort(this.ports.commandShell.resolveForTurn(), signal)
     )
+    const toolMode = this.ports.toolResolver.resolveToolMode(
+      sessionId,
+      providerModelFacts.capabilitySnapshot.defaultToolMode
+    )
+    const tools = this.ports.toolResolver.configureToolMode({
+      conversationId: sessionId,
+      mode: toolMode.mode,
+      providerId: state.providerId,
+      commandShell,
+      executionCatalog: executionTools
+    })
+    const toolReserveTokens = estimateToolReserveTokens(tools)
     throwIfAbortRequested(signal)
     const basePromptAssembler = this.ports.promptAssembly.createBasePromptAssembler(instance)
 
@@ -334,7 +358,9 @@ export class TurnCoordinator {
       sessionActiveSkillNames: effectiveSessionActiveSkillNames,
       toolCatalogSnapshot,
       taskContractContext,
+      executionTools,
       tools,
+      toolMode,
       toolReserveTokens,
       commandShell,
       basePromptAssembler,
@@ -350,13 +376,16 @@ export class TurnCoordinator {
     basePromptAssembler: ReturnType<PromptAssemblyService['createBasePromptAssembler']>
     configuredPrompt: string
     tools: MCPToolDefinition[]
+    executionTools: MCPToolDefinition[]
+    toolMode: ResolvedToolMode
+    providerId: string
     activeSkillNames: string[]
     sessionActiveSkillNames: string[]
     sessionSkillBodies: SkillProjectionBodies['sessionSkillBodies']
     contextLength: number
     commandShell: Awaited<ReturnType<CommandShellService['resolveForTurn']>>
   }): Promise<DeepChatPromptAssembly> {
-    return await this.runPreStreamStep(
+    const assembly = await this.runPreStreamStep(
       {
         sessionId: input.sessionId,
         messageId: input.messageId,
@@ -377,6 +406,19 @@ export class TurnCoordinator {
           }),
           input.signal
         )
+    )
+    if (input.toolMode.mode !== 'code' || isCodexToolFrontend(input.providerId)) return assembly
+
+    return appendPromptAssemblySection(
+      assembly,
+      createPromptAssemblySection({
+        kind: 'tooling',
+        sourceRef: 'runtime:code-mode-sdk',
+        content: renderCodeModeSdk(
+          'function',
+          input.executionTools.map((tool) => decorateExecForShell(tool, input.commandShell))
+        )
+      })
     )
   }
 
@@ -606,7 +648,9 @@ export class TurnCoordinator {
         messageActiveSkillNames,
         sessionActiveSkillNames,
         taskContractContext,
+        executionTools,
         tools,
+        toolMode,
         toolCatalogSnapshot,
         toolReserveTokens,
         commandShell,
@@ -649,7 +693,10 @@ export class TurnCoordinator {
         signal: preStreamAbortSignal,
         basePromptAssembler,
         configuredPrompt,
+        providerId: state.providerId,
+        executionTools,
         tools,
+        toolMode,
         activeSkillNames,
         sessionActiveSkillNames,
         sessionSkillBodies: candidateSkillBodies.sessionSkillBodies,
@@ -692,6 +739,12 @@ export class TurnCoordinator {
         if (!useContextBudget) {
           return null
         }
+        const pendingContextPressure =
+          this.ports.tapeReconciliation.getPendingProviderContextPressure(
+            sessionId,
+            state.providerId,
+            state.modelId
+          )
         return await this.runPreStreamStep(
           {
             sessionId,
@@ -714,6 +767,7 @@ export class TurnCoordinator {
               preserveEmptyInterleavedReasoning:
                 interleavedReasoning.preserveEmptyReasoningContent === true,
               newUserContent: content,
+              ...(pendingContextPressure ? { forceContextPressure: true } : {}),
               historyRecords,
               signal: preStreamAbortSignal
             })
@@ -751,12 +805,14 @@ export class TurnCoordinator {
                 )
             ),
           readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
-          afterCompactionApplyReturned: (intent) =>
+          afterCompactionApplyReturned: (intent, summary) => {
+            if (!hasCompactionBoundaryAdvanced(intent.previousState, summary)) return
             this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
               session: instance.getMemorySessionHandle(),
               origin: 'initial',
               targetCursorOrderSeq: intent.targetCursorOrderSeq
-            }),
+            })
+          },
           checkpoints: {
             assertCurrent: () => scope.assertCurrent(),
             beforeHistoryRefresh: () => {
@@ -776,7 +832,8 @@ export class TurnCoordinator {
               sessionId,
               this.ports.messageStore.getNextOrderSeq(sessionId),
               'compacting',
-              intent.previousState.summaryUpdatedAt
+              intent.previousState.summaryUpdatedAt,
+              { compactionAttemptId: intent.compactionAttemptId }
             ),
           appendUserFact: () => {
             const preStreamUserMessageId = instance.getPreStreamTranscriptAnchorId()
@@ -816,7 +873,8 @@ export class TurnCoordinator {
               {
                 status: 'compacting',
                 cursorOrderSeq: intent.targetCursorOrderSeq,
-                summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+                summaryUpdatedAt: intent.previousState.summaryUpdatedAt,
+                boundaryReason: null
               },
               instance
             )
@@ -842,12 +900,14 @@ export class TurnCoordinator {
                 )
             ),
           readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
-          afterCompactionApplyReturned: (intent) =>
+          afterCompactionApplyReturned: (intent, summary) => {
+            if (!hasCompactionBoundaryAdvanced(intent.previousState, summary)) return
             this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
               session: instance.getMemorySessionHandle(),
               origin: 'initial',
               targetCursorOrderSeq: intent.targetCursorOrderSeq
-            }),
+            })
+          },
           checkpoints: {
             assertCurrent: () => scope.assertCurrent()
           }
@@ -1003,6 +1063,7 @@ export class TurnCoordinator {
           projectDir,
           promptPreview: content.text,
           search,
+          toolMode,
           tools,
           toolCatalogSnapshot,
           commandShell,
@@ -1439,7 +1500,9 @@ export class TurnCoordinator {
         messageActiveSkillNames,
         sessionActiveSkillNames,
         taskContractContext,
+        executionTools,
         tools,
+        toolMode,
         toolCatalogSnapshot,
         toolReserveTokens,
         commandShell,
@@ -1485,7 +1548,10 @@ export class TurnCoordinator {
         signal: preStreamAbortSignal,
         basePromptAssembler,
         configuredPrompt,
+        providerId: state.providerId,
+        executionTools,
         tools,
+        toolMode,
         activeSkillNames,
         sessionActiveSkillNames,
         sessionSkillBodies: recoveredSkillBodies.sessionSkillBodies,
@@ -1644,10 +1710,7 @@ export class TurnCoordinator {
             toolDefinitions: tools,
             contextLength: contextBudgetLength,
             maxTokens,
-            toolCallId: budgetToolCall.id,
-            toolName: budgetToolCall.name,
-            rawContent: budgetToolCall.responseText ?? '',
-            existingOffloadPath: budgetToolCall.existingOffloadPath,
+            budgetToolCall,
             signal: preStreamAbortSignal
           })
           throwIfAbortRequested(preStreamAbortSignal)
@@ -1742,6 +1805,7 @@ export class TurnCoordinator {
           resourceInstance: instance,
           providerModelFacts,
           taskContractContext,
+          toolMode,
           abortController: preStreamAbortController,
           tools,
           toolCatalogSnapshot,
@@ -1927,22 +1991,21 @@ export class TurnCoordinator {
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
     maxTokens: number
-    toolCallId: string
-    toolName: string
-    rawContent: string
-    existingOffloadPath?: string
+    budgetToolCall: ResumeBudgetToolCall
     signal?: AbortSignal
   }) {
+    const { budgetToolCall } = params
     return await this.ports.toolOutputGuard.fitExistingToolOutput({
       sessionId: params.sessionId,
       conversationMessages: params.resumeContext,
       toolDefinitions: params.toolDefinitions,
       contextLength: params.contextLength,
       maxTokens: params.maxTokens,
-      toolCallId: params.toolCallId,
-      toolName: params.toolName,
-      rawContent: params.rawContent,
-      existingOffloadPath: params.existingOffloadPath,
+      toolCallId: budgetToolCall.id,
+      toolName: budgetToolCall.name,
+      rawContent: budgetToolCall.responseText ?? '',
+      offloadPath: budgetToolCall.offloadPath,
+      existingOffloadPath: budgetToolCall.existingOffloadPath,
       signal: params.signal
     })
   }

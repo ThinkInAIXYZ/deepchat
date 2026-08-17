@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
@@ -10,12 +10,23 @@ const passthrough = (name: string) =>
 
 const ButtonStub = defineComponent({
   name: 'Button',
+  inheritAttrs: false,
   props: {
+    as: { type: String, default: 'button' },
     disabled: { type: Boolean, default: false }
   },
   emits: ['click'],
-  template:
-    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+  render() {
+    return h(
+      this.as,
+      {
+        ...this.$attrs,
+        disabled: this.as === 'button' ? this.disabled : undefined,
+        onClick: () => this.$emit('click')
+      },
+      this.$slots.default?.()
+    )
+  }
 })
 
 const SwitchStub = defineComponent({
@@ -55,6 +66,12 @@ const setup = async (options?: {
   disabledAgentTools?: string[]
   pluginEnabled?: boolean
   regularMcpEnabled?: boolean
+  providerId?: string
+  modelId?: string
+  defaultToolMode?: 'agent' | 'code' | 'minimal'
+  toolModeOverride?: 'agent' | 'code' | 'minimal' | null
+  sessionStatus?: 'completed' | 'working' | 'error' | 'none'
+  subagentsAvailable?: boolean
 }) => {
   vi.resetModules()
   let skillSessionChangedHandler:
@@ -102,12 +119,22 @@ const setup = async (options?: {
         : {
             id: 's1',
             agentId: options?.activeAgentId ?? 'deepchat',
-            projectDir: '/tmp/workspace'
-          }
+            projectDir: '/tmp/workspace',
+            providerId: options?.providerId ?? 'deepseek',
+            modelId: options?.modelId ?? 'deepseek-chat',
+            toolModeOverride: options?.toolModeOverride ?? null,
+            status: options?.sessionStatus ?? 'none'
+          },
+    setSessionToolMode: vi.fn(async (override: 'agent' | 'code' | 'minimal' | null) => {
+      if (sessionStore.activeSession) sessionStore.activeSession.toolModeOverride = override
+    })
   })
 
   const draftStore = reactive({
-    disabledAgentTools: [...(options?.disabledAgentTools ?? [])]
+    disabledAgentTools: [...(options?.disabledAgentTools ?? [])],
+    providerId: options?.providerId ?? 'deepseek',
+    modelId: options?.modelId ?? 'deepseek-chat',
+    toolModeOverride: options?.toolModeOverride ?? null
   })
 
   const agentStore = reactive({
@@ -163,6 +190,11 @@ const setup = async (options?: {
   }))
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
+  }))
+  vi.doMock('@/composables/useModelCapabilities', () => ({
+    useModelCapabilities: () => ({
+      snapshot: ref(options?.defaultToolMode ? { defaultToolMode: options.defaultToolMode } : null)
+    })
   }))
   vi.doMock('@api/ToolClient', () => ({
     createToolClient: vi.fn(() => ({
@@ -225,7 +257,23 @@ const setup = async (options?: {
           'chat.input.tools.groups.agentCore': 'Agent Core',
           'chat.input.tools.groups.agentSkills': 'Agent Skills',
           'chat.input.tools.groups.deepchatSettings': 'DeepChat Settings',
-          'chat.input.tools.groups.yobrowser': 'YoBrowser'
+          'chat.input.tools.groups.yobrowser': 'YoBrowser',
+          'chat.input.toolMode.title': 'Mode',
+          'chat.input.toolMode.modelDefault': 'Model default',
+          'chat.input.toolMode.useModelDefault': 'Use model default',
+          'chat.input.toolMode.options.agent': 'Agent',
+          'chat.input.toolMode.options.code': 'Code',
+          'chat.input.toolMode.options.minimal': 'Minimal',
+          'chat.input.toolMode.descriptions.agent': 'Direct tool calls',
+          'chat.input.toolMode.descriptions.code': 'Compose calls with code',
+          'chat.input.toolMode.descriptions.minimal':
+            'Simplified file operations with other enabled tools',
+          'chat.input.toolMode.codeEntry': 'Code entry',
+          'chat.input.toolMode.codeCallable': 'Code callable',
+          'chat.input.toolMode.minimalTools': 'Minimal tools',
+          'chat.input.toolMode.saving': 'Saving',
+          'chat.input.toolMode.locked': 'Available after this response',
+          'chat.input.toolMode.updateFailed': 'Update failed'
         }
 
         return translations[key] ?? key
@@ -241,6 +289,9 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
+    props: {
+      subagentsAvailable: options?.subagentsAvailable ?? false
+    },
     slots: {
       'generation-settings': '<div data-testid="generation-settings-slot" />'
     },
@@ -266,6 +317,7 @@ const setup = async (options?: {
   return {
     wrapper,
     draftStore,
+    sessionStore,
     toolService,
     agentSessionPresenter,
     skillEvents
@@ -452,5 +504,96 @@ describe('McpIndicator', () => {
       conversationId: 's1',
       agentWorkspacePath: '/tmp/workspace'
     })
+  })
+
+  it('shows fixed Code tools as active read-only items', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      providerId: 'deepseek',
+      defaultToolMode: 'code',
+      subagentsAvailable: true
+    })
+
+    expect(wrapper.text()).toContain('Model default')
+    expect(
+      wrapper.findAll('[role="radio"]').map((radio) => radio.element.parentElement?.textContent)
+    ).toEqual(['Agent', 'Code', 'Minimal'])
+    expect(wrapper.text()).toContain('run_code')
+    expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
+    expect(wrapper.text()).toContain('deepchat_question')
+    expect(wrapper.text()).toContain('deepchat_subagents')
+    const fixedToolNames = ['run_code', 'deepchat_question', 'deepchat_subagents']
+    const fixedToolItems = wrapper
+      .findAll('span')
+      .filter((item) => fixedToolNames.includes(item.text()))
+    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
+    expect(fixedToolItems.every((item) => item.classes().includes('bg-primary'))).toBe(true)
+    await fixedToolItems[1].trigger('click')
+    await fixedToolItems[2].trigger('click')
+    await flushPromises()
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('demo-server')
+  })
+
+  it('persists Minimal Mode and only replaces the filesystem tool group', async () => {
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
+      defaultToolMode: 'code',
+      pluginEnabled: true,
+      subagentsAvailable: true
+    })
+    const minimalRadio = wrapper.findAll('[role="radio"]')[2]
+
+    await minimalRadio.trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.setSessionToolMode).toHaveBeenCalledWith('minimal')
+    expect(wrapper.text()).toContain('exec')
+    expect(wrapper.text()).toContain('process')
+    expect(wrapper.text()).toContain('str_replace_editor')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'read')).toBe(false)
+    expect(wrapper.text()).toContain('update_plan')
+    expect(wrapper.text()).toContain('deepchat_question')
+    expect(wrapper.text()).toContain('deepchat_subagents')
+    expect(wrapper.text()).toContain('demo-server')
+    expect(wrapper.text()).toContain('CUA Driver')
+    const fixedToolNames = [
+      'exec',
+      'process',
+      'str_replace_editor',
+      'deepchat_question',
+      'deepchat_subagents'
+    ]
+    const fixedToolItems = wrapper
+      .findAll('span')
+      .filter((item) => fixedToolNames.includes(item.text()))
+    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
+    expect(fixedToolItems.every((item) => item.classes().includes('bg-primary'))).toBe(true)
+    await fixedToolItems[3].trigger('click')
+    await fixedToolItems[4].trigger('click')
+    await flushPromises()
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('hides the Minimal editor when a required filesystem tool is disabled', async () => {
+    const { wrapper } = await setup({
+      toolModeOverride: 'minimal',
+      disabledAgentTools: ['read']
+    })
+
+    expect(wrapper.text()).toContain('exec')
+    expect(wrapper.text()).toContain('process')
+    expect(wrapper.text()).not.toContain('str_replace_editor')
+  })
+
+  it('disables Tool Mode changes while the session is working', async () => {
+    const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
+    const radios = wrapper.findAll('[role="radio"]')
+
+    expect(radios).toHaveLength(3)
+    expect(radios.every((radio) => radio.attributes('disabled') !== undefined)).toBe(true)
+    await radios[1].trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.setSessionToolMode).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Available after this response')
   })
 })

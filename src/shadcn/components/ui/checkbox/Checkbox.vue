@@ -1,30 +1,40 @@
 <script setup lang="ts">
-import type { CheckboxRootEmits, CheckboxRootProps } from "reka-ui"
+import type { CheckboxRootProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
 import { computed } from "vue"
 import { Check } from "@lucide/vue"
 import { CheckboxIndicator, CheckboxRoot } from "reka-ui"
 import { cn } from '@shadcn/lib/utils'
 
-type ExtendedCheckboxProps = CheckboxRootProps & {
+type ExtendedCheckboxProps = Omit<CheckboxRootProps, "modelValue"> & {
   class?: HTMLAttributes["class"]
-  /** Optional alias that allows using v-model:checked */
-  checked?: boolean
 }
 
 const props = defineProps<ExtendedCheckboxProps>()
-const emits = defineEmits<CheckboxRootEmits & { 'update:checked': [boolean] }>()
 
-const resolvedModelValue = computed<CheckboxRootProps["modelValue"]>(() => props.checked ?? props.modelValue)
+// Explicit undefined defaults opt out of Vue's boolean-prop casting: an
+// absent model must stay undefined so the other model can drive the state
+// instead of pinning it to false.
+const modelValue = defineModel<boolean | "indeterminate">({ default: undefined as never })
+/** Optional alias that allows using v-model:checked */
+const checked = defineModel<boolean>("checked", { default: undefined as never })
 
-const forwardedProps = computed<Omit<ExtendedCheckboxProps, 'class' | 'checked' | 'modelValue'>>(() => {
-  const { class: _class, checked: _checked, modelValue: _modelValue, ...rest } = props
+const resolvedModelValue = computed<CheckboxRootProps["modelValue"]>(
+  () => checked.value ?? modelValue.value
+)
+
+const forwardedProps = computed<Omit<ExtendedCheckboxProps, "class">>(() => {
+  const { class: _class, ...rest } = props
   return rest
 })
 
-const handleUpdate = (value: boolean | 'indeterminate') => {
-  emits('update:modelValue', value)
-  emits('update:checked', value === 'indeterminate' ? true : value)
+const handleUpdate = (value: boolean | "indeterminate") => {
+  modelValue.value = value
+  // Only mirror into the alias when it is actually in use; writing an unbound
+  // defineModel stores a local value that would shadow modelValue above.
+  if (checked.value !== undefined) {
+    checked.value = value === "indeterminate" ? true : value
+  }
 }
 </script>
 

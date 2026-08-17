@@ -70,6 +70,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Tilstand",
+      "modelDefault": "Modelstandard",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Brug Agents standardværktøjssæt.",
+        "code": "Sammensæt aktiverede værktøjer via kode. Kræver tilladelsestilstanden Fuld adgang.",
+        "minimal": "Forenkler filhandlinger og bevarer andre aktiverede værktøjer."
+      },
+      "useModelDefault": "Brug modelstandard",
+      "saving": "Gemmer tilstand...",
+      "locked": "Du kan skifte tilstand, når dette svar er færdigt.",
+      "updateFailed": "Værktøjstilstanden kunne ikke opdateres.",
+      "codeEntry": "Kodeindgang",
+      "codeCallable": "Kan kaldes fra kode",
+      "minimalTools": "Kodeværktøjer"
+    },
     "fileUploadFailed": "Vedhæftning mislykkedes",
     "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",
     "fileUploadFailedMore": " og {count} flere",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "Komprimerer kontekst...",
     "compacted": "Konteksten blev komprimeret",
+    "compactedWithoutSummary": "Konteksten blev komprimeret uden et resumé",
+    "compactedWithoutLargerSummary": "Konteksten blev komprimeret uden at bruge et større resumé",
     "commandDescription": "Komprimer samtalekontekst",
     "noopTitle": "Ingen kontekst at komprimere",
     "noopDescription": "Der er endnu ingen ny samtalehistorik at komprimere.",
     "failedTitle": "Komprimering mislykkedes"
+  },
+  "contextOccupancy": {
+    "label": "Kontekstforbrug",
+    "details": "{used} af {capacity} tokens",
+    "provider": "Målt af udbyderen",
+    "estimated": "Estimeret fra anmodningsvisningen",
+    "stale": "Forældet efter ændring af model, vindue eller komprimering"
   },
   "newThread": {
     "title": "Byg og udforsk"

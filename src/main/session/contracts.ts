@@ -16,6 +16,7 @@ import type {
   ResolvedSubagentFacet,
   ResolvedTransferSource
 } from '@/agent/manager/agentManager'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type {
   AgentTransferImpact,
   AttachmentFallbackPolicy,
@@ -29,7 +30,9 @@ import type {
   PendingSessionInputRecord,
   PermissionMode,
   SendMessageInput,
+  SessionCompactionSnapshot,
   SessionCompactionState,
+  SessionContextOccupancySnapshot,
   SessionGenerationSettings,
   SessionKind,
   SessionLightweightListResult,
@@ -271,9 +274,10 @@ export type SessionTurnRuntimeSession =
   | (SessionTurnRuntimeBase & {
       readonly kind: 'deepchat'
       readonly compaction: {
-        getState(): Promise<SessionCompactionState>
+        getSnapshot(): Promise<SessionCompactionSnapshot>
         compact(): Promise<{ compacted: boolean; state: SessionCompactionState }>
       }
+      getContextOccupancy(): Promise<SessionContextOccupancySnapshot>
       isPendingQueueResumeAvailable(): Promise<boolean>
       resumePendingQueue(): Promise<boolean>
       retryPendingQueueInput(itemId: string): Promise<{ accepted: boolean; started: boolean }>
@@ -360,7 +364,8 @@ export interface SessionTurnPort {
   ): Promise<MessageStartResult>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
-  getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
+  getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot>
+  getSessionContextOccupancy(sessionId: string): Promise<SessionContextOccupancySnapshot>
   compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
   clearSessionMessages(sessionId: string): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
@@ -464,6 +469,7 @@ export interface SessionAssignmentStorePort {
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
   getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
   updateOrchestrationPolicy(sessionId: string, policy: OrchestrationPolicy): void
+  updateToolModeOverride(sessionId: string, override: ToolModeOverride): void
 }
 
 export interface SessionAssignmentRuntimePort {
@@ -509,6 +515,7 @@ export interface SessionLifecycleStorePort {
       isDraft?: boolean
       disabledAgentTools?: string[]
       orchestrationPolicy?: OrchestrationPolicy
+      toolModeOverride?: ToolModeOverride
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -624,6 +631,7 @@ export interface SessionAgentAssignmentPort {
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
+  setSessionToolMode(sessionId: string, override: ToolModeOverride): Promise<SessionWithState>
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>

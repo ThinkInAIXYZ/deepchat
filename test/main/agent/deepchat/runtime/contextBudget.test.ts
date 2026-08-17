@@ -4,6 +4,7 @@ import {
   buildRequestContextLedger,
   buildRequestContextBudgetDiagnostics,
   buildRequestContextOverflowErrorMessage,
+  fitRequestMessagesToContextWindow,
   getUsableContextLength,
   preflightRequestContext,
   resolveEffectiveContextBudget
@@ -19,6 +20,17 @@ vi.mock('tokenx', () => ({
 }))
 
 describe('agent request context budget', () => {
+  it('rejects pinned fitting without cache-aware context contributions', () => {
+    expect(() =>
+      fitRequestMessagesToContextWindow({
+        messages: [{ role: 'user', content: 'original task' }],
+        contextLength: 1_000,
+        reserveTokens: 100,
+        pinnedFirstUserContentHash: 'a'.repeat(64)
+      })
+    ).toThrow('Pinned first-user fitting requires cache-aware context contributions.')
+  })
+
   it('reserves a 256 token safety margin for normal model windows', () => {
     expect(getUsableContextLength(8192)).toBe(7936)
   })
@@ -48,6 +60,73 @@ describe('agent request context budget', () => {
 
     expect(result.effectiveMaxTokens).toBeLessThan(AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS)
     expect(result.requiresContextPressureRecovery).toBe(true)
+  })
+
+  it('uses an anchored prompt estimate when fitting preserves the exact candidate', () => {
+    const result = preflightRequestContext({
+      messages: [{ role: 'user', content: 'short local estimate' }],
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096,
+      promptTokenEstimate: 5000
+    })
+
+    expect(result.inputTokens).toBe(5000)
+    expect(result.requiresContextPressureRecovery).toBe(true)
+  })
+
+  it('does not discard history when anchored usage fits despite a high local estimate', () => {
+    const messages = [
+      { role: 'user' as const, content: 'x'.repeat(5000) },
+      { role: 'assistant' as const, content: 'old answer' },
+      { role: 'user' as const, content: 'current input' }
+    ]
+    const result = preflightRequestContext({
+      messages,
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096,
+      promptTokenEstimate: 1000
+    })
+
+    expect(result.messages).toEqual(messages)
+    expect(result.inputTokens).toBe(1000)
+    expect(result.fitsWithinContext).toBe(true)
+  })
+
+  it('fits an anchored candidate before the final overflow decision', () => {
+    const messages = [
+      { role: 'user' as const, content: 'x'.repeat(5000) },
+      { role: 'assistant' as const, content: 'old answer' },
+      { role: 'user' as const, content: 'current input' }
+    ]
+    const result = preflightRequestContext({
+      messages,
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096,
+      promptTokenEstimate: 8000
+    })
+
+    expect(result.messages).toEqual([{ role: 'user', content: 'current input' }])
+    expect(result.inputTokens).toBe('current input'.length)
+    expect(result.fitsWithinContext).toBe(true)
+  })
+
+  it('ignores an anchored estimate when protocol sanitization changes the candidate', () => {
+    const result = preflightRequestContext({
+      messages: [
+        { role: 'user', content: 'current input' },
+        { role: 'tool', tool_call_id: 'orphan', content: 'orphan result' }
+      ],
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096,
+      promptTokenEstimate: 7000
+    })
+
+    expect(result.messages).toEqual([{ role: 'user', content: 'current input' }])
+    expect(result.inputTokens).toBe('current input'.length)
   })
 
   it('reports zero effective output tokens when the fitted request cannot fit', () => {

@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modo",
+      "modelDefault": "Padrão do modelo",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Use o conjunto de ferramentas padrão do agente.",
+        "code": "Combine as ferramentas ativadas por código. Requer o modo de permissão Acesso total.",
+        "minimal": "Simplifica as operações de arquivo e mantém as outras ferramentas ativadas."
+      },
+      "useModelDefault": "Usar padrão do modelo",
+      "saving": "Salvando modo...",
+      "locked": "Você poderá trocar de modo após o fim desta resposta.",
+      "updateFailed": "Não foi possível atualizar o modo de ferramentas.",
+      "codeEntry": "Entrada de código",
+      "codeCallable": "Chamável pelo código",
+      "minimalTools": "Ferramentas de programação"
+    },
     "fileUploadFailed": "Falha ao processar anexo",
     "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",
     "fileUploadFailedMore": " e mais {count} arquivos",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "Compactando contexto...",
     "compacted": "O contexto foi compactado",
+    "compactedWithoutSummary": "O contexto foi compactado sem um resumo",
+    "compactedWithoutLargerSummary": "O contexto foi compactado sem usar um resumo maior",
     "commandDescription": "Compactar contexto da conversa",
     "noopTitle": "Nenhum contexto para compactar",
     "noopDescription": "Ainda não há novo histórico de conversa para compactar.",
     "failedTitle": "Falha ao compactar"
+  },
+  "contextOccupancy": {
+    "label": "Uso do contexto",
+    "details": "{used} de {capacity} tokens",
+    "provider": "Medido pelo provedor",
+    "estimated": "Estimado pela visualização da solicitação",
+    "stale": "Desatualizado após mudança de modelo, janela ou compactação"
   },
   "newThread": {
     "title": "Criar e explorar"

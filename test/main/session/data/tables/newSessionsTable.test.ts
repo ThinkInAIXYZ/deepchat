@@ -147,6 +147,30 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
+  it('persists and clears the nullable Tool Mode override', () => {
+    table.create('session-1', 'deepchat', 'Session', null, { toolModeOverride: 'code' })
+    const createdRevision = table.get('session-1')?.revision ?? 0
+
+    expect(table.get('session-1')?.tool_mode_override).toBe('code')
+
+    table.updateToolModeOverride('session-1', 'minimal')
+    expect(table.get('session-1')).toMatchObject({
+      tool_mode_override: 'minimal',
+      revision: createdRevision + 1
+    })
+
+    table.updateToolModeOverride('session-1', null)
+    expect(table.get('session-1')).toMatchObject({
+      tool_mode_override: null,
+      revision: createdRevision + 2
+    })
+    expect(() =>
+      db!
+        .prepare('UPDATE new_sessions SET tool_mode_override = ? WHERE id = ?')
+        .run('automatic', 'session-1')
+    ).toThrow()
+  })
+
   it('reassigns matching agent sessions and advances only their revisions', () => {
     table.create('matching-1', 'legacy-agent', 'First matching session', null)
     table.create('matching-2', 'legacy-agent', 'Second matching session', null)

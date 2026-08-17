@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "모드",
+      "modelDefault": "모델 기본값",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "표준 Agent 도구 모음을 사용합니다.",
+        "code": "활성화된 도구를 코드로 조합합니다. 전체 액세스 권한 모드가 필요합니다.",
+        "minimal": "파일 작업은 간소화하고 활성화된 다른 도구는 유지합니다."
+      },
+      "useModelDefault": "모델 기본값 사용",
+      "saving": "모드 저장 중...",
+      "locked": "이 응답이 끝나면 모드를 전환할 수 있습니다.",
+      "updateFailed": "도구 모드를 업데이트하지 못했습니다.",
+      "codeEntry": "코드 진입점",
+      "codeCallable": "코드에서 호출 가능",
+      "minimalTools": "코딩 도구"
+    },
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
     "fileUploadFailedMore": " 외 {count}개",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "컨텍스트를 압축하는 중...",
     "compacted": "컨텍스트가 압축되었습니다",
+    "compactedWithoutSummary": "요약 없이 컨텍스트가 압축되었습니다",
+    "compactedWithoutLargerSummary": "더 큰 요약을 사용하지 않고 컨텍스트가 압축되었습니다",
     "commandDescription": "대화 컨텍스트 압축",
     "noopTitle": "압축할 컨텍스트가 없습니다",
     "noopDescription": "아직 압축할 새 대화 기록이 없습니다.",
     "failedTitle": "압축 실패"
+  },
+  "contextOccupancy": {
+    "label": "컨텍스트 사용량",
+    "details": "{capacity} 토큰 중 {used}",
+    "provider": "프로바이더 측정값",
+    "estimated": "요청 뷰에서 추정",
+    "stale": "모델, 창 또는 압축 변경 후의 오래된 값"
   },
   "newThread": {
     "title": "만들고 탐색하기"

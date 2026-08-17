@@ -422,6 +422,70 @@
           </CardContent>
         </Card>
 
+        <Card class="border-none bg-card shadow-none">
+          <CardHeader class="pb-4">
+            <CardTitle>{{ t('settings.dashboard.breakdown.categoryTitle') }}</CardTitle>
+            <CardDescription>
+              {{ t('settings.dashboard.breakdown.categoryDescription') }}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              v-if="dashboard.categoryBreakdown.length === 0"
+              class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground"
+            >
+              {{ t('settings.dashboard.breakdown.empty') }}
+            </div>
+            <div v-else data-testid="category-breakdown-chart">
+              <div
+                v-for="item in categoryBreakdownCard.rows"
+                :key="item.id"
+                class="border-b border-border py-3 last:border-b-0"
+              >
+                <div
+                  class="space-y-2.5 lg:grid lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_88px] lg:items-center lg:gap-3 lg:space-y-0"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm">{{ item.label }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ item.eventLabel }}
+                      <template v-if="item.unknownUsageCount > 0">
+                        ·
+                        {{
+                          t('settings.dashboard.breakdown.unknownUsage', {
+                            count: item.unknownUsageCount
+                          })
+                        }}
+                      </template>
+                    </p>
+                  </div>
+                  <div class="min-w-0 lg:px-1">
+                    <div class="h-1.5 rounded-full bg-muted/35">
+                      <div
+                        class="h-full rounded-full bg-[hsl(var(--usage-low)/0.9)]"
+                        :style="breakdownBarStyle(item.barRatio)"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="text-left text-xs text-muted-foreground lg:text-right">
+                    <p
+                      :title="
+                        item.knownUsageCount > 0 ? formatFullTokens(item.totalTokens) : undefined
+                      "
+                    >
+                      {{
+                        item.knownUsageCount > 0
+                          ? formatTokens(item.totalTokens)
+                          : t('settings.dashboard.unavailable')
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div class="grid gap-4 xl:grid-cols-2">
           <Card class="border-none bg-card shadow-none">
             <CardHeader class="pb-4">
@@ -647,7 +711,11 @@ const localeFormatters = computed(() => {
   }
 })
 
-const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
+const hasData = computed(
+  () =>
+    (dashboard.value?.summary.messageCount ?? 0) > 0 ||
+    (dashboard.value?.categoryBreakdown.length ?? 0) > 0
+)
 
 const rtkStatusLabel = computed(() => {
   if (!dashboard.value?.rtk.enabled) {
@@ -727,6 +795,7 @@ const tokenUsageCard = computed(() => {
   const outputTokens = Math.max(summary.outputTokens, 0)
   const totalTokens = Math.max(summary.totalTokens, 0)
   const cachedTokens = Math.min(inputTokens, Math.max(summary.cachedInputTokens, 0))
+  const cachedRatio = Math.min(1, Math.max(summary.cacheHitRate, 0))
   const totalDenominator = Math.max(totalTokens, 1)
 
   return {
@@ -736,7 +805,7 @@ const tokenUsageCard = computed(() => {
     cachedTokens,
     inputRatio: inputTokens / totalDenominator,
     outputRatio: outputTokens / totalDenominator,
-    cachedRatio: inputTokens > 0 ? cachedTokens / inputTokens : 0
+    cachedRatio
   }
 })
 
@@ -826,6 +895,21 @@ const modelBreakdownCard = computed(() =>
     item.label !== item.id ? item.id : null
   )
 )
+
+const categoryBreakdownCard = computed(() => {
+  const items = dashboard.value?.categoryBreakdown ?? []
+  const maxTokens = Math.max(1, ...items.map((item) => item.totalTokens))
+  return {
+    rows: items.map((item) => ({
+      ...item,
+      label: t(`settings.dashboard.breakdown.category.${item.id}`),
+      eventLabel: t(`settings.dashboard.breakdown.${item.id}Events`, {
+        count: item.eventCount
+      }),
+      barRatio: item.totalTokens > 0 ? item.totalTokens / maxTokens : 0
+    }))
+  }
+})
 
 async function loadDashboard(): Promise<void> {
   if (!isDashboardMounted) {

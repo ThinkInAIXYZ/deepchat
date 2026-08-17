@@ -30,7 +30,7 @@ const implementation = (name: string) =>
     respondToolInteraction: vi.fn(),
     setSessionAgentContext: vi.fn(),
     setSessionModel: vi.fn(),
-    getSessionCompactionState: vi.fn(),
+    getSessionCompactionSnapshot: vi.fn(),
     compactSession: vi.fn(),
     linkSubagentTape: vi.fn((input: SubagentTapeLinkInput) =>
       Promise.resolve({

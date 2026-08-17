@@ -51,7 +51,8 @@ export const sessionsCompactionChangedEvent = defineEventContract({
   name: 'sessions.compaction.changed',
   payload: SessionCompactionStateSchema.extend({
     sessionId: EntityIdSchema,
-    version: z.number().int()
+    emitSeq: z.number().int().positive(),
+    latestAnchorEntryId: z.number().int().positive().nullable()
   })
 })
 

@@ -55,6 +55,7 @@ const REASONING_EFFORT_VALUES = ['none', 'minimal', 'low', 'medium', 'high', 'xh
 const VERBOSITY_VALUES = ['low', 'medium', 'high']
 const REASONING_MODE_VALUES = ['budget', 'effort', 'level', 'fixed', 'mixed']
 const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed', 'omitted', 'summarized']
+const TOOL_MODE_VALUES = ['agent', 'code', 'minimal']
 const isValidLowercaseProviderId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
 const isValidModelId = (id) =>
@@ -244,6 +245,10 @@ export function sanitizeAggregateJson(json) {
         limit,
         temperature: typeof m.temperature === 'boolean' ? m.temperature : undefined,
         tool_call: typeof m.tool_call === 'boolean' ? m.tool_call : undefined,
+        default_tool_mode:
+          typeof m.default_tool_mode === 'string' && TOOL_MODE_VALUES.includes(m.default_tool_mode)
+            ? m.default_tool_mode
+            : undefined,
         reasoning,
         extra_capabilities,
         search,

@@ -182,6 +182,87 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     connection.close()
   })
 
+  it('retains a prior summary hint without claiming a new summary timestamp', () => {
+    const { connection, database, store } = createStore()
+
+    store.create('s1', 'openai', 'gpt-4o', 'full_access')
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's1',
+      name: 'auto_handoff/context_overflow',
+      state: {
+        priorSummary: 'last valid summary',
+        cursorOrderSeq: 8,
+        reason: 'summary_unavailable',
+        summaryGap: { fromOrderSeq: 5, toOrderSeq: 7 }
+      },
+      createdAt: 120
+    })
+
+    expect(store.getSummaryState('s1')).toEqual({
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 8,
+      summaryUpdatedAt: null
+    })
+
+    connection.close()
+  })
+
+  it('normalizes summaries and prior summary hints read from reconstruction anchors', () => {
+    const { connection, database, store } = createStore()
+
+    store.create('s1', 'openai', 'gpt-4o', 'full_access')
+    store.create('s2', 'openai', 'gpt-4o', 'full_access')
+    store.create('s3', 'openai', 'gpt-4o', 'full_access')
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's1',
+      name: 'auto_handoff/context_overflow',
+      state: {
+        summary: '   ',
+        priorSummary: '  last valid summary  ',
+        cursorOrderSeq: 8,
+        reason: 'summary_unavailable'
+      },
+      createdAt: 120
+    })
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's2',
+      name: 'compaction/auto',
+      state: {
+        summary: '  generated summary  ',
+        cursorOrderSeq: 5
+      },
+      createdAt: 130
+    })
+    database.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's3',
+      name: 'compaction/auto',
+      state: {
+        summary: '   ',
+        summaryText: '  legacy summary  ',
+        cursorOrderSeq: 6
+      },
+      createdAt: 140
+    })
+
+    expect(store.getSummaryState('s1')).toEqual({
+      summaryText: 'last valid summary',
+      summaryCursorOrderSeq: 8,
+      summaryUpdatedAt: null
+    })
+    expect(store.getSummaryState('s2')).toEqual({
+      summaryText: 'generated summary',
+      summaryCursorOrderSeq: 5,
+      summaryUpdatedAt: 130
+    })
+    expect(store.getSummaryState('s3')).toEqual({
+      summaryText: 'legacy summary',
+      summaryCursorOrderSeq: 6,
+      summaryUpdatedAt: 140
+    })
+
+    connection.close()
+  })
+
   it('compares summary state against tape reconstruction anchors before writing compaction anchors', () => {
     const { connection, database, store } = createStore()
 
@@ -408,6 +489,148 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
 })
 
 describeIfSqlite('Session transcript and Tape order consistency', () => {
+  it('reconciles committed and stale compaction markers from Tape attempt identity', () => {
+    const connection = new MainDatabaseCtor(':memory:')
+    try {
+      const database = new SessionDatabaseCtor(connection)
+      const tape = new SessionTapeCtor(database)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape)
+      const summarizedMarkerId = transcript.createCompactionMessage('s1', 1, 'compacting', null, {
+        compactionAttemptId: 'summarized-attempt'
+      })
+      tape.appendAnchor({
+        sessionId: 's1',
+        name: 'compaction/auto',
+        state: {
+          compactionAttemptId: 'summarized-attempt',
+          summary: 'durable summary',
+          cursorOrderSeq: 2
+        },
+        createdAt: 100
+      })
+      const boundaryMarkerId = transcript.createCompactionMessage('s1', 2, 'compacting', null, {
+        compactionAttemptId: 'boundary-attempt'
+      })
+      tape.appendAnchor({
+        sessionId: 's1',
+        name: 'compaction/auto',
+        state: {
+          compactionAttemptId: 'boundary-attempt',
+          cursorOrderSeq: 3,
+          reason: 'summary_unavailable'
+        },
+        createdAt: 101
+      })
+      tape.appendAnchor({
+        sessionId: 's1',
+        name: 'handoff/later',
+        state: { summary: 'later handoff', cursorOrderSeq: 4 },
+        createdAt: 102
+      })
+      const staleMarkerId = transcript.createCompactionMessage('s1', 3, 'compacting', null, {
+        compactionAttemptId: 'stale-attempt'
+      })
+      database.deepchatMessagesTable.insert({
+        id: 'legacy-marker',
+        sessionId: 's1',
+        orderSeq: 4,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent',
+        metadata: JSON.stringify({
+          messageType: 'compaction',
+          compactionStatus: 'compacting',
+          summaryUpdatedAt: null
+        })
+      })
+
+      expect(transcript.reconcileCompactionMessages()).toEqual({
+        compacted: 2,
+        retracted: 2,
+        failed: 0
+      })
+      expect(JSON.parse(transcript.getMessage(summarizedMarkerId)?.metadata ?? '{}')).toMatchObject(
+        {
+          compactionStatus: 'compacted',
+          compactionAttemptId: 'summarized-attempt',
+          summaryUpdatedAt: 100
+        }
+      )
+      expect(JSON.parse(transcript.getMessage(boundaryMarkerId)?.metadata ?? '{}')).toMatchObject({
+        compactionStatus: 'compacted',
+        compactionAttemptId: 'boundary-attempt',
+        compactionBoundaryReason: 'summary_unavailable',
+        summaryUpdatedAt: null
+      })
+      expect(transcript.getMessage(staleMarkerId)).toBeNull()
+      expect(transcript.getMessage('legacy-marker')).toBeNull()
+
+      const retractions = database.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row) => row.name === 'message/retracted')
+        .map((row) => JSON.parse(row.payload_json) as { data: Record<string, unknown> })
+      expect(retractions.map((payload) => payload.data)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            messageId: staleMarkerId,
+            reason: 'stale_compaction_marker_recovered'
+          }),
+          expect.objectContaining({
+            messageId: 'legacy-marker',
+            reason: 'stale_compaction_marker_recovered'
+          })
+        ])
+      )
+      expect(transcript.reconcileCompactionMessages()).toEqual({
+        compacted: 0,
+        retracted: 0,
+        failed: 0
+      })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('continues reconciling later markers after one marker transaction fails', () => {
+    const connection = new MainDatabaseCtor(':memory:')
+    try {
+      const database = new SessionDatabaseCtor(connection)
+      const tape = new SessionTapeCtor(database)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape)
+      const failedMarkerId = transcript.createCompactionMessage('s1', 1, 'compacting', null, {
+        compactionAttemptId: 'committed-attempt'
+      })
+      tape.appendAnchor({
+        sessionId: 's1',
+        name: 'compaction/auto',
+        state: {
+          compactionAttemptId: 'committed-attempt',
+          summary: 'durable summary',
+          cursorOrderSeq: 2
+        },
+        createdAt: 100
+      })
+      const staleMarkerId = transcript.createCompactionMessage('s1', 2, 'compacting', null, {
+        compactionAttemptId: 'stale-attempt'
+      })
+      vi.spyOn(transcript, 'updateCompactionMessage').mockImplementationOnce(() => {
+        throw new Error('transaction failed')
+      })
+
+      expect(transcript.reconcileCompactionMessages()).toEqual({
+        compacted: 0,
+        retracted: 1,
+        failed: 1
+      })
+      expect(JSON.parse(transcript.getMessage(failedMarkerId)?.metadata ?? '{}')).toMatchObject({
+        compactionStatus: 'compacting'
+      })
+      expect(transcript.getMessage(staleMarkerId)).toBeNull()
+    } finally {
+      connection.close()
+    }
+  })
+
   it('does not rewrite tool facts for repeated shifts or the following backfill', () => {
     const connection = new MainDatabaseCtor(':memory:')
     try {
@@ -439,9 +662,11 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
 
       expect(readToolRows()).toHaveLength(2)
       transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        compactionAttemptId: 'compaction-attempt-1',
         shiftExistingMessages: true
       })
       transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        compactionAttemptId: 'compaction-attempt-2',
         shiftExistingMessages: true
       })
       expect(readToolRows()).toHaveLength(2)
@@ -473,7 +698,8 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
       const tapeFacts = {
         appendMessageRecord: vi.fn().mockReturnValue(1),
         appendMessageReplacement: vi.fn().mockReturnValue(1),
-        appendMessageRetraction: vi.fn().mockReturnValue(1)
+        appendMessageRetraction: vi.fn().mockReturnValue(1),
+        appendCompactionModelCall: vi.fn()
       }
       const transcript = new SessionTranscriptCtor(database, tapeFacts)
       database.getDatabase().transaction(() => {
@@ -491,6 +717,7 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
       const getBySessionAndIds = vi.spyOn(messagesTable, 'getBySessionAndIds')
 
       transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        compactionAttemptId: 'compaction-attempt-1',
         shiftExistingMessages: true
       })
 
@@ -534,14 +761,14 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
         2,
         'compacting',
         null,
-        { shiftExistingMessages: true }
+        { compactionAttemptId: 'compaction-attempt-1', shiftExistingMessages: true }
       )
       const latestCompactionMessageId = transcript.createCompactionMessageAtOrderSeq(
         's1',
         2,
         'compacting',
         null,
-        { shiftExistingMessages: true }
+        { compactionAttemptId: 'compaction-attempt-2', shiftExistingMessages: true }
       )
 
       expect(

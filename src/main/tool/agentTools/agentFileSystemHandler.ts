@@ -352,6 +352,49 @@ export class AgentFileSystemHandler {
     return this.isPathAllowed(normalized)
   }
 
+  async resolveValidatedPath(
+    requestedPath: string,
+    baseDirectory: string | undefined,
+    accessType: 'read' | 'write'
+  ): Promise<string> {
+    return await this.validatePath(requestedPath, baseDirectory, { accessType })
+  }
+
+  async resolveValidatedCreatePath(requestedPath: string, baseDirectory?: string): Promise<string> {
+    const target = this.resolvePath(requestedPath, baseDirectory)
+    const enforceAllowed = !this.allowExternalAccess
+    this.assertProtectedPathAllowed(target)
+    if (enforceAllowed && !this.isPathAllowed(target)) {
+      throw new Error(
+        `Access denied - path outside allowed directories: ${target} not in ${this.allowedDirectoryRoots.join(', ')}`
+      )
+    }
+
+    let ancestor = target
+    while (true) {
+      try {
+        const realAncestor = this.normalizePath(await fs.realpath(ancestor))
+        this.assertProtectedPathAllowed(realAncestor)
+        if (enforceAllowed && !this.isPathAllowed(realAncestor)) {
+          throw new Error('Access denied - symlink target outside allowed directories')
+        }
+        return target
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Access denied')) {
+          throw error
+        }
+        if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+          throw error
+        }
+        const parent = this.pathApi.dirname(ancestor)
+        if (parent === ancestor) {
+          throw new Error(`No existing parent directory for: ${target}`)
+        }
+        ancestor = parent
+      }
+    }
+  }
+
   private async validatePath(
     requestedPath: string,
     baseDirectory?: string,

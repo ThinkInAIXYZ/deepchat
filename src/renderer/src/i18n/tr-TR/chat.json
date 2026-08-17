@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mod",
+      "modelDefault": "Model varsayılanı",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Standart Agent araç setini kullanır.",
+        "code": "Etkin araçları kod aracılığıyla birleştirir. Tam Erişim izin modu gerekir.",
+        "minimal": "Dosya işlemlerini sadeleştirir ve diğer etkin araçları korur."
+      },
+      "useModelDefault": "Model varsayılanını kullan",
+      "saving": "Mod kaydediliyor...",
+      "locked": "Bu yanıt bittikten sonra mod değiştirebilirsiniz.",
+      "updateFailed": "Araç modu güncellenemedi.",
+      "codeEntry": "Kod girişi",
+      "codeCallable": "Koddan çağrılabilir",
+      "minimalTools": "Kodlama araçları"
+    },
     "fileUploadFailed": "Ek başarısız oldu",
     "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",
     "fileUploadFailedMore": "ve {count} daha",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Bağlam sıkıştırılıyor...",
     "compacted": "Bağlam sıkıştırıldı",
+    "compactedWithoutSummary": "Bağlam özet olmadan sıkıştırıldı",
+    "compactedWithoutLargerSummary": "Bağlam daha büyük bir özet kullanılmadan sıkıştırıldı",
     "commandDescription": "Kompakt konuşma bağlamı",
     "noopTitle": "Sıkıştırılacak bağlam yok",
     "noopDescription": "Henüz sıkıştırılacak yeni bir konuşma geçmişi yok.",
     "failedTitle": "Sıkıştırma başarısız oldu"
+  },
+  "contextOccupancy": {
+    "label": "Bağlam kullanımı",
+    "details": "{capacity} tokenın {used} kadarı",
+    "provider": "Sağlayıcı tarafından ölçüldü",
+    "estimated": "İstek görünümünden tahmin edildi",
+    "stale": "Model, pencere veya sıkıştırma değişikliğinden sonra güncelliğini yitirdi"
   },
   "rateLimit": {
     "queueTooltip": "Kuyruktaki {count} istekleri, {interval}s aralığı",

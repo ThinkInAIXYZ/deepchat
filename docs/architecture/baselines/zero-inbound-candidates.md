@@ -31,7 +31,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-main
 
-- Candidate count: 46
+- Candidate count: 45
 
 - `components/ChatConfig.vue`
 - `components/ChatConfig/ConfigSwitchField.vue`
@@ -42,7 +42,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `components/chat-input/VoiceCallWidget.vue`
 - `components/chat-input/components/ToolbarButton.vue`
 - `components/chat-input/composables/useAgentMcpData.ts`
-- `components/chat-input/composables/useContextLength.ts`
 - `components/chat-input/composables/useDragAndDrop.ts`
 - `components/chat-input/composables/useInputHistory.ts`
 - `components/chat-input/composables/useInputSettings.ts`
@@ -82,10 +81,9 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-settings
 
-- Candidate count: 11
+- Candidate count: 10
 
 - `components/AcpProfileManagerDialog.vue`
-- `components/common/AutoCompactionSettingsSection.vue`
 - `components/common/DefaultModelSettingsSection.vue`
 - `components/prompt/PromptSettingsHeader.vue`
 - `components/skills/SkillFolderTree.vue`

@@ -4,12 +4,18 @@ import type { SkillSourceType } from './skillManagement'
 export type DeepChatTapeViewTaskType = 'chat' | 'resume' | 'tool_loop'
 
 export type DeepChatTapeViewPolicy =
+  | 'cache_aware_context_v2'
   | 'cache_aware_context_v1'
   | 'legacy_context_v1'
   | 'legacy_context_shadow'
   | 'resume_shadow'
   | 'tool_loop_shadow'
   | 'context_pressure_recovery_shadow'
+
+export type DeepChatTapeViewContextBuilderVersion =
+  | 'legacy-v1'
+  | 'cache-aware-v1'
+  | 'cache-aware-v2'
 
 export type DeepChatTapeViewEntryRole = 'system' | 'user' | 'assistant' | 'tool' | null
 
@@ -21,6 +27,7 @@ export type DeepChatTapeViewEntryReason =
   | 'reconstruction_checkpoint'
   | 'memory_context'
   | 'directive_context'
+  | 'pinned_first_user'
   | 'selected_history'
   | 'new_user_input'
   | 'resume_target'
@@ -54,6 +61,13 @@ export interface DeepChatTapeViewSyntheticContribution {
     | 'memory_context'
     | 'directive_context'
   sourceEntryIds?: number[]
+  contentHash: string
+}
+
+export interface DeepChatTapeViewPinnedFirstUser {
+  messageId: string
+  orderSeq: number
+  sourceContentHash: string
   contentHash: string
 }
 
@@ -103,7 +117,7 @@ interface DeepChatTapeViewManifestBase {
   taskType: DeepChatTapeViewTaskType
   policy: DeepChatTapeViewPolicy
   policyVersion: number | null
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
   latestEntryId: number
   anchorEntryIds: number[]
   reconstructionAnchorEntryId?: number | null

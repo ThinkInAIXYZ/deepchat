@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "モード",
+      "modelDefault": "モデルの既定値",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "標準の Agent ツールセットを使用します。",
+        "code": "有効なツールをコードで組み合わせます。フルアクセス権限モードが必要です。",
+        "minimal": "ファイル操作を簡素化し、その他の有効なツールは保持します。"
+      },
+      "useModelDefault": "モデルの既定値を使用",
+      "saving": "モードを保存中...",
+      "locked": "この応答の完了後にモードを切り替えられます。",
+      "updateFailed": "ツールモードを更新できませんでした。",
+      "codeEntry": "コード入口",
+      "codeCallable": "コードから呼び出し可能",
+      "minimalTools": "コーディングツール"
+    },
     "fileUploadFailed": "添付ファイルの処理に失敗しました",
     "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
     "fileUploadFailedMore": " ほか {count} 件",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "コンテキストを圧縮しています...",
     "compacted": "コンテキストは圧縮されました",
+    "compactedWithoutSummary": "要約を使わずにコンテキストを圧縮しました",
+    "compactedWithoutLargerSummary": "より大きな要約を使わずにコンテキストを圧縮しました",
     "commandDescription": "会話コンテキストを圧縮",
     "noopTitle": "圧縮できるコンテキストがありません",
     "noopDescription": "まだ圧縮できる新しい会話履歴がありません。",
     "failedTitle": "圧縮に失敗しました"
+  },
+  "contextOccupancy": {
+    "label": "コンテキスト使用量",
+    "details": "{capacity} トークン中 {used}",
+    "provider": "プロバイダーによる実測",
+    "estimated": "リクエストビューからの推定",
+    "stale": "モデル、ウィンドウ、または圧縮の変更後の古い値"
   },
   "newThread": {
     "title": "作成して探索"

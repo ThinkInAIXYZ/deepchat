@@ -19,6 +19,7 @@ import type { CommandShellService } from '@/agent/shared/process/commandShellSer
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
+import type { ContextOccupancyCoordinator } from '@/agent/deepchat/runtime/contextOccupancyCoordinator'
 import type {
   InteractionContinuationAdmissionPort,
   InteractionCoordinator
@@ -113,9 +114,11 @@ export interface DeepChatRuntimeServices {
   interactionCoordinator: InteractionCoordinator
   pendingInputAdmission: PendingInputAdmissionCoordinator
   compaction: CompactionRuntimeCoordinator
+  contextOccupancy: ContextOccupancyCoordinator
   transcriptMutation: TranscriptMutationCoordinator
   memoryIngestionObserver: MemoryIngestionObserver
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistry
   toolSurfaceCanaryDiagnostics: ToolSurfaceCanaryDiagnosticsRegistry
   acpCompatibility: AcpAgentInstanceDependencyFactory
+  reconcileAfterDatabaseReopen(): void
 }

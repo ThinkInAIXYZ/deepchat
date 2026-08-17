@@ -1135,7 +1135,8 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     )
     const row = checkDb
       .prepare(
-        `SELECT message_id, cached_input_tokens, cache_write_input_tokens
+        `SELECT usage_id, message_id, usage_category, cached_input_tokens,
+           cache_write_input_tokens
          FROM deepchat_usage_stats
          WHERE message_id = ?`
       )
@@ -1148,12 +1149,80 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     expect(indexNames.has('idx_deepchat_usage_stats_date')).toBe(true)
     expect(indexNames.has('idx_deepchat_usage_stats_provider_date')).toBe(true)
     expect(indexNames.has('idx_deepchat_usage_stats_model_date')).toBe(true)
+    expect(indexNames.has('idx_deepchat_usage_stats_category_date')).toBe(true)
+    expect(indexNames.has('idx_deepchat_usage_stats_compaction_call')).toBe(true)
     expect(row).toEqual({
+      usage_id: 'message-1',
       message_id: 'message-1',
+      usage_category: 'chat',
       cached_input_tokens: 20,
       cache_write_input_tokens: 0
     })
     expect(versions.map((entry) => entry.version)).toContain(32)
+    expect(versions.map((entry) => entry.version)).toContain(68)
+    checkDb.close()
+  })
+
+  it('upgrades the current usage schema to category-aware records', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (67, ${Date.now()});
+      CREATE TABLE deepchat_usage_stats (
+        message_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT 'live',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO deepchat_usage_stats (
+        message_id, session_id, usage_date, provider_id, model_id, input_tokens, output_tokens,
+        total_tokens, cached_input_tokens, cache_write_input_tokens, source, created_at, updated_at
+      ) VALUES (
+        'message-current', 'session-1', '2026-08-15', 'openai', 'gpt-5', 120, 30, 150,
+        20, 5, 'live', 1000, 2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new MainDatabaseCtor(dbPath)
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const row = checkDb
+      .prepare(
+        `SELECT usage_id, message_id, usage_category, input_tokens, cached_input_tokens
+         FROM deepchat_usage_stats
+         WHERE usage_id = ?`
+      )
+      .get('message-current')
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+
+    expect(row).toEqual({
+      usage_id: 'message-current',
+      message_id: 'message-current',
+      usage_category: 'chat',
+      input_tokens: 120,
+      cached_input_tokens: 20
+    })
+    expect(versions.map((entry) => entry.version)).toContain(68)
     checkDb.close()
   })
 

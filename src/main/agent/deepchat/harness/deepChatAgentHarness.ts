@@ -6,7 +6,9 @@ import type {
   QueuePendingInputOptions,
   SendMessageInput,
   SessionAgentContextUpdate,
+  SessionCompactionSnapshot,
   SessionCompactionState,
+  SessionContextOccupancySnapshot,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
@@ -71,6 +73,8 @@ export class DeepChatAgentHarness
   refreshToolRegistry(): void {
     this.services.runtime.markToolRegistryChanged()
   }
+
+  readonly reconcileAfterDatabaseReopen = (): void => this.services.reconcileAfterDatabaseReopen()
 
   createAcpAgentInstanceDependencies(
     input: Parameters<AcpAgentInstanceDependencyFactory>[0]
@@ -291,8 +295,12 @@ export class DeepChatAgentHarness
     return true
   }
 
-  async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
-    return await this.services.compaction.getState(sessionId)
+  async getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot> {
+    return await this.services.compaction.getSnapshot(sessionId)
+  }
+
+  async getSessionContextOccupancy(sessionId: string): Promise<SessionContextOccupancySnapshot> {
+    return await this.services.contextOccupancy.getSnapshot(sessionId)
   }
 
   async compactSession(

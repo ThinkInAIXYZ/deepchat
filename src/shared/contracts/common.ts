@@ -30,6 +30,7 @@ import {
 } from '../types/attachment'
 import { isValidDocumentOcrTextPageSpans } from '../utils/documentOcrText'
 import { LiveDelegationSubagentContextSchema } from '../orchestration/liveDelegation'
+import { ToolModeSchema } from '../toolMode'
 import { JsonValueSchema, TimestampMsSchema } from './json'
 
 export {
@@ -122,11 +123,45 @@ export const SessionStatusSchema = z.enum(['idle', 'generating', 'error'])
 export const SessionKindSchema = z.enum(['regular', 'subagent'])
 export const AgentTypeSchema = z.enum(['deepchat', 'acp'])
 export const AgentSourceSchema = z.enum(['builtin', 'manual', 'registry'])
+export const SessionCompactionBoundaryReasonSchema = z.enum([
+  'summary_unavailable',
+  'summary_rejected_larger'
+])
 export const SessionCompactionStateSchema = z.object({
   status: z.enum(['idle', 'compacting', 'compacted']),
   cursorOrderSeq: z.number().int().positive(),
-  summaryUpdatedAt: TimestampMsSchema.nullable()
+  summaryUpdatedAt: TimestampMsSchema.nullable(),
+  boundaryReason: SessionCompactionBoundaryReasonSchema.nullable().default(null)
 })
+export const SessionCompactionSnapshotSchema = z.object({
+  state: SessionCompactionStateSchema,
+  emitSeq: z.number().int().nonnegative(),
+  latestAnchorEntryId: z.number().int().positive().nullable()
+})
+const SessionContextOccupancyEvidenceSchema = z.object({
+  source: z.enum(['provider', 'estimated']),
+  occupiedTokens: z.number().int().nonnegative(),
+  contextWindowTokens: z.number().int().positive(),
+  requestSeq: z.number().int().positive(),
+  manifestEntryId: z.number().int().positive(),
+  providerAttemptEntryId: z.number().int().positive().nullable(),
+  measuredAt: TimestampMsSchema
+})
+export const SessionContextOccupancySnapshotSchema = z.discriminatedUnion('freshness', [
+  SessionContextOccupancyEvidenceSchema.extend({
+    freshness: z.enum(['current', 'stale'])
+  }),
+  z.object({
+    freshness: z.literal('unavailable'),
+    source: z.null(),
+    occupiedTokens: z.null(),
+    contextWindowTokens: z.null(),
+    requestSeq: z.null(),
+    manifestEntryId: z.null(),
+    providerAttemptEntryId: z.null(),
+    measuredAt: z.null()
+  })
+])
 
 export const DeepChatSubagentMetaSchema = z
   .object({
@@ -141,7 +176,7 @@ export const SessionGenerationSettingsSchema = z.object({
   systemPrompt: z.string(),
   temperature: z.number(),
   topP: z.number().min(0.1).max(1).optional(),
-  contextLength: z.number().int(),
+  contextLength: z.number().int().positive(),
   maxTokens: z.number().int(),
   timeout: z.number().int(),
   thinkingBudget: z.number().int().optional(),
@@ -392,6 +427,7 @@ export const SessionWithStateSchema = z.object({
   parentSessionId: EntityIdSchema.nullable().optional(),
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   orchestrationPolicy: OrchestrationPolicySchema,
+  toolModeOverride: ToolModeSchema.nullable().default(null),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
   revision: RevisionSchema.optional(),

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ToolModeSchema } from '../toolMode'
 
 // ---------- Zod Schemas ----------
 
@@ -120,6 +121,7 @@ export const ModelSchema = z.object({
     .optional(),
   temperature: z.boolean().optional(),
   tool_call: z.boolean().optional(),
+  default_tool_mode: ToolModeSchema.optional(),
   reasoning: ReasoningSchema,
   extra_capabilities: ExtraCapabilitiesSchema,
   search: SearchSchema,
@@ -635,6 +637,7 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
       const rm = rmVal as Record<string, unknown>
       const mid = getString(rm, 'id')
       if (!isValidModelId(mid)) continue
+      const defaultToolMode = ToolModeSchema.safeParse(rm['default_tool_mode'])
 
       // limit
       let limit: ProviderModel['limit'] | undefined
@@ -665,6 +668,7 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
         limit,
         temperature: getBoolean(rm, 'temperature'),
         tool_call: getBoolean(rm, 'tool_call'),
+        default_tool_mode: defaultToolMode.success ? defaultToolMode.data : undefined,
         reasoning: getReasoning(rm['reasoning']),
         extra_capabilities: getExtraCapabilities(rm['extra_capabilities']),
         search: getSearch(rm['search']),

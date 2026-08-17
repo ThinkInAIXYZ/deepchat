@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "حالت",
+      "modelDefault": "پیش‌فرض مدل",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "از مجموعه ابزار استاندارد عامل استفاده کنید.",
+        "code": "ابزارهای فعال را از طریق کد ترکیب کنید. به حالت مجوز دسترسی کامل نیاز دارد.",
+        "minimal": "عملیات فایل را ساده می‌کند و سایر ابزارهای فعال را نگه می‌دارد."
+      },
+      "useModelDefault": "استفاده از پیش‌فرض مدل",
+      "saving": "در حال ذخیره حالت...",
+      "locked": "پس از پایان این پاسخ می‌توانید حالت را تغییر دهید.",
+      "updateFailed": "حالت ابزار به‌روزرسانی نشد.",
+      "codeEntry": "ورودی کد",
+      "codeCallable": "قابل فراخوانی از کد",
+      "minimalTools": "ابزارهای کدنویسی"
+    },
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
     "fileUploadFailedMore": " و {count} مورد دیگر",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "در حال فشرده سازی زمینه...",
     "compacted": "زمینه فشرده شد",
+    "compactedWithoutSummary": "زمینه بدون خلاصه فشرده شد",
+    "compactedWithoutLargerSummary": "زمینه بدون استفاده از خلاصه بزرگ تر فشرده شد",
     "commandDescription": "فشرده سازی زمینه گفتگو",
     "noopTitle": "زمینه ای برای فشرده سازی نیست",
     "noopDescription": "هنوز تاریخچه گفت وگوی جدیدی برای فشرده سازی وجود ندارد.",
     "failedTitle": "فشرده سازی ناموفق بود"
+  },
+  "contextOccupancy": {
+    "label": "میزان استفاده از زمینه",
+    "details": "{used} از {capacity} توکن",
+    "provider": "اندازه گیری شده توسط ارائه دهنده",
+    "estimated": "برآورد شده از نمای درخواست",
+    "stale": "پس از تغییر مدل، پنجره یا فشرده سازی قدیمی شده است"
   },
   "newThread": {
     "title": "بسازید و کاوش کنید"

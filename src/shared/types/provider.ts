@@ -22,9 +22,9 @@ export type LLMResponse = {
   tool_call_response_raw?: MCPToolResponse
   maximum_tool_calls_reached?: boolean
   totalUsage?: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
   }
 }
 
@@ -279,7 +279,7 @@ export interface ProviderRuntimePort {
     temperature?: number,
     maxTokens?: number,
     options?: { signal?: AbortSignal }
-  ): Promise<{ content: string }>
+  ): Promise<LLMResponse>
   stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>

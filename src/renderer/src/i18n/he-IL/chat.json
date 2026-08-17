@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "מצב",
+      "modelDefault": "ברירת המחדל של המודל",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "השתמש בערכת הכלים הרגילה של הסוכן.",
+        "code": "שלב כלים פעילים באמצעות קוד. נדרש מצב הרשאה של גישה מלאה.",
+        "minimal": "מפשט פעולות קבצים תוך שמירה על כלים מופעלים אחרים."
+      },
+      "useModelDefault": "השתמש בברירת המחדל של המודל",
+      "saving": "המצב נשמר...",
+      "locked": "ניתן להחליף מצב לאחר סיום התשובה הזאת.",
+      "updateFailed": "לא ניתן לעדכן את מצב הכלים.",
+      "codeEntry": "כניסת קוד",
+      "codeCallable": "ניתן לקריאה מהקוד",
+      "minimalTools": "כלי תכנות"
+    },
     "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
     "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
     "fileUploadFailedMore": " ועוד {count} נוספים",
@@ -306,10 +327,19 @@
   "compaction": {
     "compacting": "דחיסת ההקשר מתבצעת...",
     "compacted": "ההקשר נדחס",
+    "compactedWithoutSummary": "ההקשר נדחס ללא סיכום",
+    "compactedWithoutLargerSummary": "ההקשר נדחס מבלי להשתמש בסיכום גדול יותר",
     "commandDescription": "דחיסת הקשר השיחה",
     "noopTitle": "אין הקשר לדחיסה",
     "noopDescription": "עדיין אין היסטוריית שיחה חדשה לדחיסה.",
     "failedTitle": "הדחיסה נכשלה"
+  },
+  "contextOccupancy": {
+    "label": "שימוש בהקשר",
+    "details": "{used} מתוך {capacity} טוקנים",
+    "provider": "נמדד על ידי הספק",
+    "estimated": "הוערך מתצוגת הבקשה",
+    "stale": "מיושן לאחר שינוי מודל, חלון או דחיסה"
   },
   "newThread": {
     "title": "בנו וגלו"

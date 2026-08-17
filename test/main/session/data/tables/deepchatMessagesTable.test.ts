@@ -208,6 +208,85 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
     }
   })
 
+  it('loads only unfinished compaction markers through the recovery index', () => {
+    const { db, table } = createTable()
+    try {
+      const metadata = (compactionStatus: string, compactionAttemptId?: string) =>
+        JSON.stringify({ messageType: 'compaction', compactionStatus, compactionAttemptId })
+      for (const row of [
+        {
+          id: 'candidate-2',
+          sessionId: 's2',
+          orderSeq: 2,
+          role: 'assistant',
+          status: 'sent',
+          metadata: metadata('compacting', 'attempt-2')
+        },
+        {
+          id: 'candidate-1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant',
+          status: 'sent',
+          metadata: metadata('compacting')
+        },
+        {
+          id: 'completed',
+          sessionId: 's1',
+          orderSeq: 2,
+          role: 'assistant',
+          status: 'sent',
+          metadata: metadata('compacted', 'attempt-1')
+        },
+        {
+          id: 'normal',
+          sessionId: 's1',
+          orderSeq: 3,
+          role: 'assistant',
+          status: 'sent',
+          metadata: '{}'
+        },
+        {
+          id: 'malformed',
+          sessionId: 's1',
+          orderSeq: 4,
+          role: 'assistant',
+          status: 'sent',
+          metadata: '{'
+        }
+      ] as const) {
+        table.insert({ ...row, content: '[]' })
+      }
+
+      expect(table.getCompactionRecoveryCandidates().map((row) => row.id)).toEqual([
+        'candidate-1',
+        'candidate-2'
+      ])
+
+      const plan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN SELECT *
+           FROM deepchat_messages
+           WHERE role = 'assistant'
+             AND status = 'sent'
+             AND (CASE WHEN json_valid(metadata)
+               THEN json_extract(metadata, '$.messageType') END) = 'compaction'
+             AND (CASE WHEN json_valid(metadata)
+               THEN json_extract(metadata, '$.compactionStatus') END) = 'compacting'
+           ORDER BY session_id, order_seq, id`
+        )
+        .all() as Array<{ detail: string }>
+      expect(
+        plan.some((row) => /idx_deepchat_messages_compaction_recovery/i.test(row.detail))
+      ).toBe(true)
+      expect(
+        plan.some((row) => /\bSCAN deepchat_messages\b(?!.*USING INDEX)/i.test(row.detail))
+      ).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
   it('projects only assistant identity and result text for delegated result reads', () => {
     const { db, table } = createTable()
     try {

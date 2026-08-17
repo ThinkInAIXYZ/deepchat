@@ -144,9 +144,17 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;',
       orchestration_policy:
         "ALTER TABLE new_sessions ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'));",
+      tool_mode_override:
+        "ALTER TABLE new_sessions ADD COLUMN tool_mode_override TEXT CHECK (tool_mode_override IS NULL OR tool_mode_override IN ('agent', 'code', 'minimal'));",
       revision: 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
     },
-    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'orchestration_policy', 'revision']
+    typeCheckedColumns: [
+      'subagent_enabled',
+      'session_kind',
+      'orchestration_policy',
+      'tool_mode_override',
+      'revision'
+    ]
   },
   {
     name: 'new_projects',
@@ -245,9 +253,15 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatUsageStatsTable(db),
     repairableColumns: {
       cache_write_input_tokens:
-        'ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;'
+        'ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER;',
+      usage_category:
+        "ALTER TABLE deepchat_usage_stats ADD COLUMN usage_category TEXT NOT NULL DEFAULT 'chat';",
+      compaction_attempt_id:
+        'ALTER TABLE deepchat_usage_stats ADD COLUMN compaction_attempt_id TEXT;',
+      provider_call_id: 'ALTER TABLE deepchat_usage_stats ADD COLUMN provider_call_id TEXT;',
+      provider_call_seq: 'ALTER TABLE deepchat_usage_stats ADD COLUMN provider_call_seq INTEGER;'
     },
-    typeCheckedColumns: ['cache_write_input_tokens']
+    typeCheckedColumns: ['usage_category', 'provider_call_seq', 'cache_write_input_tokens']
   },
   {
     name: 'deepchat_tape_entries',

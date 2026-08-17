@@ -81,6 +81,23 @@ src/main/agent/deepchat/
 - `requestSeq` 标识一份确定的 provider payload 和 ViewManifest；`physicalAttempt` 标识该 request 的
   实际发送次数。context recovery 改变 payload，因此推进 requestSeq 并把 physicalAttempt 重置为 1；
   同 payload 的 transient retry 保持 requestSeq，只推进 physicalAttempt。
+- 每个 logical provider request 发送前都执行 context-pressure preflight。上一条成功 attempt 的
+  provider-reported prompt usage 只在 provider/model/generation/tool schema/消息前缀完全一致时作为
+  anchor，并只估新增 suffix；实际 fitted payload 与 continuation View 不一致或 usage 口径非法时不建立
+  该 attempt 的新 anchor，无法匹配已有 anchor 时回退全量估算。preflight 不得只因启发式估算而丢弃
+  system、当前 user input 或 tool protocol unit。
+- Context compact 推进的是 Tape reconstruction boundary 和 provider View，不改写 raw Tape。semantic
+  summary 失败时仍可提交 boundary-only anchor；semantic boundary recovery 只有在 durable cursor 前进且
+  重新派生的 View 严格变小时才算 applied。已闭合的大 tool result 可独立在当前 View 中稳定 stub 化，
+  原始 fact 保留在 Tape；先保护最新闭合 unit 的直接行动依据，较旧 unit 不足以解除压力时才允许压缩
+  最新 unit。该路径以协议闭合和 projection 确实变化为进度，不冒充 boundary progress。
+- Cache-aware v2 View 把当前 Tape incarnation 第一条 effective user fact 作为 authoritative protected
+  prefix，位于 system 之后、checkpoint 之前；连续 cursor 仍可越过该 fact，View 每次从 raw Tape 重投影。
+  pin 不使用 derivative 的 untrusted fence，不复制原文到 manifest，且只有 effective source entry、
+  source-content hash、identity 与精确前缀 hash 全部匹配时才能跨 provider round 继承。
+- 一次成功 provider response 重置 sequence-level context recovery latch；同一 Run 最多使用三条
+  recovery sequence。恢复不能重放可能已执行副作用的原 user prompt，每个变化后的 payload 都必须写
+  新 requestSeq 与 ViewManifest。
 - 工具 operation identity 为 `(runId, requestSeq, providerToolCallId)`。`run_started` 必须先于 Run
   registration；dispatch fact 必须位于所有本地拒绝 gate 之后、真实副作用调用之前；known outcome
   必须先于 result projection；terminal fact 必须先于 transcript、status、hook 和 renderer terminal

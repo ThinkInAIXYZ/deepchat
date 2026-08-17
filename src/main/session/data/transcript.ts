@@ -7,23 +7,32 @@ import type {
   MessageMetadata,
   MessagePageCursor,
   MessageTraceRecord,
+  SessionCompactionBoundaryReason,
   UserMessageContent,
   AssistantMessageBlock
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import logger from '@shared/logger'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { DeepChatAssistantBlockRow } from '@/session/data/tables/deepchatAssistantBlocks'
 import type { DeepChatUserMessageFileRow } from '@/session/data/tables/deepchatUserMessageFiles'
 import type { DeepChatUserMessageLinkRow } from '@/session/data/tables/deepchatUserMessageLinks'
 import type { DeepChatUserMessageRow } from '@/session/data/tables/deepchatUserMessages'
 import {
+  buildCompactionUsageStatsRecord,
   buildUsageStatsRecord,
   parseMessageMetadata,
   resolveUsageModelId,
   resolveUsageProviderId
 } from '@/session/usageStats'
-import type { ExecutionJournalAuditReader, TapeMessageFactWriter } from '@/tape/ports/capabilities'
+import type {
+  ExecutionJournalAuditReader,
+  TapeAnchorReader,
+  TapeCompactionModelCallWriter,
+  TapeMessageFactWriter
+} from '@/tape/ports/capabilities'
+import type { TapeCompactionModelCallInput } from '@/tape/domain/compactionUsage'
 import {
   getAttachmentSearchableText,
   normalizeAttachmentRepresentationPreference,
@@ -34,6 +43,41 @@ import {
 const MAX_SEARCHABLE_ATTACHMENT_CHARACTERS = 32_000
 const SEARCH_ATTACHMENT_TRUNCATION_MARKER = '[Attachment search text truncated]'
 const COMPACTION_SHIFT_MATERIALIZATION_BATCH_SIZE = 500
+const MAX_COMPACTION_ATTEMPT_ID_CHARACTERS = 128
+
+type CompactionMessageOptions = {
+  compactionAttemptId: string
+  boundaryReason?: SessionCompactionBoundaryReason | null
+}
+
+function normalizeCompactionAttemptId(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized && normalized.length <= MAX_COMPACTION_ATTEMPT_ID_CHARACTERS ? normalized : null
+}
+
+function normalizeCompactionBoundaryReason(value: unknown): SessionCompactionBoundaryReason | null {
+  return value === 'summary_unavailable' || value === 'summary_rejected_larger' ? value : null
+}
+
+function parseTapeAnchorState(row: DeepChatTapeEntryRow): Record<string, unknown> | null {
+  try {
+    const payload = JSON.parse(row.payload_json) as unknown
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+    const state = (payload as Record<string, unknown>).state
+    return state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function summaryUpdatedAtFromCompactionAnchor(row: DeepChatTapeEntryRow): number | null {
+  const state = parseTapeAnchorState(row)
+  const generatedSummary = state?.summary ?? state?.summaryText
+  return typeof generatedSummary === 'string' && generatedSummary.trim() ? row.created_at : null
+}
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -167,17 +211,23 @@ function isLowSurrogate(code: number): boolean {
 export class SessionTranscript {
   private database: SessionDatabase
   private readonly tapeFacts: TapeMessageFactWriter
+  private readonly compactionUsage: TapeCompactionModelCallWriter
 
   constructor(
     database: SessionDatabase,
-    tapeFacts: TapeMessageFactWriter,
+    tapeFacts: TapeMessageFactWriter & TapeCompactionModelCallWriter,
     private readonly executionAudit?: Pick<
       ExecutionJournalAuditReader,
       'listMessageIdsWithNestedExecutionAudit'
+    >,
+    private readonly compactionAnchors?: Pick<
+      TapeAnchorReader,
+      'getReconstructionAnchorByCompactionAttemptId'
     >
   ) {
     this.database = database
     this.tapeFacts = tapeFacts
+    this.compactionUsage = tapeFacts
   }
 
   private runInDatabaseTransaction<T>(operation: () => T): T {
@@ -227,7 +277,8 @@ export class SessionTranscript {
     sessionId: string,
     orderSeq: number,
     status: 'compacting' | 'compacted',
-    summaryUpdatedAt: number | null
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions
   ): string {
     const id = nanoid()
     this.database.deepchatMessagesTable.insert({
@@ -237,7 +288,14 @@ export class SessionTranscript {
       role: 'assistant',
       content: JSON.stringify(this.buildCompactionBlocks(status)),
       status: 'sent',
-      metadata: JSON.stringify(this.buildCompactionMetadata(status, summaryUpdatedAt))
+      metadata: JSON.stringify(
+        this.buildCompactionMetadata(
+          status,
+          summaryUpdatedAt,
+          options.compactionAttemptId,
+          options.boundaryReason
+        )
+      )
     })
     this.appendLiveTapeFacts(id)
     return id
@@ -247,9 +305,12 @@ export class SessionTranscript {
     sessionId: string,
     orderSeq: number,
     status: 'compacting' | 'compacted',
-    summaryUpdatedAt: number | null
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions
   ): string {
-    return this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt)
+    return this.runInDatabaseTransaction(() =>
+      this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt, options)
+    )
   }
 
   createCompactionMessageAtOrderSeq(
@@ -257,7 +318,7 @@ export class SessionTranscript {
     orderSeq: number,
     status: 'compacting' | 'compacted',
     summaryUpdatedAt: number | null,
-    options?: { shiftExistingMessages?: boolean }
+    options: CompactionMessageOptions & { shiftExistingMessages?: boolean }
   ): string {
     let messageId = ''
     this.runInDatabaseTransaction(() => {
@@ -269,7 +330,13 @@ export class SessionTranscript {
         this.database.deepchatMessagesTable.incrementOrderSeqFrom(sessionId, orderSeq)
         this.appendCompactionOrderShiftFacts(sessionId, shiftedMessageIds)
       }
-      messageId = this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt)
+      messageId = this.insertCompactionMessageRecord(
+        sessionId,
+        orderSeq,
+        status,
+        summaryUpdatedAt,
+        options
+      )
     })
     return messageId
   }
@@ -410,16 +477,37 @@ export class SessionTranscript {
   updateCompactionMessage(
     messageId: string,
     status: 'compacting' | 'compacted',
-    summaryUpdatedAt: number | null
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions
   ): void {
     this.runInDatabaseTransaction(() => {
       this.database.deepchatMessagesTable.updateContentAndStatus(
         messageId,
         JSON.stringify(this.buildCompactionBlocks(status)),
         'sent',
-        JSON.stringify(this.buildCompactionMetadata(status, summaryUpdatedAt))
+        JSON.stringify(
+          this.buildCompactionMetadata(
+            status,
+            summaryUpdatedAt,
+            options.compactionAttemptId,
+            options.boundaryReason
+          )
+        )
       )
       this.appendLiveTapeFacts(messageId)
+    })
+  }
+
+  recordCompactionModelCall(input: TapeCompactionModelCallInput): void {
+    this.runInDatabaseTransaction(() => {
+      const receipt = this.compactionUsage.appendCompactionModelCall(input)
+      this.database.deepchatUsageStatsTable.upsert(
+        buildCompactionUsageStatsRecord({
+          sessionId: receipt.row.session_id,
+          event: receipt.event,
+          source: 'live'
+        })
+      )
     })
   }
 
@@ -601,10 +689,14 @@ export class SessionTranscript {
   }
 
   deleteMessage(messageId: string): void {
+    this.deleteMessageWithReason(messageId, 'message_deleted')
+  }
+
+  private deleteMessageWithReason(messageId: string, reason: string): void {
     this.runInDatabaseTransaction(() => {
       const record = this.getMessage(messageId)
       if (record) {
-        this.tapeFacts.appendMessageRetraction(record, 'message_deleted')
+        this.tapeFacts.appendMessageRetraction(record, reason)
       }
       this.database.deepchatSearchDocumentsTable.delete(`message:${messageId}`)
       this.database.deepchatAssistantBlocksTable.delete(messageId)
@@ -751,7 +843,10 @@ export class SessionTranscript {
   ): number {
     const sourceRows = this.database.deepchatMessagesTable
       .getBySessionUpToOrderSeq(sourceSessionId, maxOrderSeq)
-      .filter((row) => row.status === 'sent')
+      .filter(
+        (row) =>
+          row.status === 'sent' && parseMessageMetadata(row.metadata).messageType !== 'compaction'
+      )
     const sourceRecords = this.toRecords(sourceRows)
 
     let nextOrderSeq = 1
@@ -821,6 +916,54 @@ export class SessionTranscript {
       recoveredCount += 1
     }
     return recoveredCount
+  }
+
+  reconcileCompactionMessages(): { compacted: number; retracted: number; failed: number } {
+    if (!this.compactionAnchors) return { compacted: 0, retracted: 0, failed: 0 }
+
+    let compacted = 0
+    let retracted = 0
+    let failed = 0
+    for (const row of this.database.deepchatMessagesTable.getCompactionRecoveryCandidates()) {
+      try {
+        const metadata = parseMessageMetadata(row.metadata)
+        const compactionAttemptId = normalizeCompactionAttemptId(metadata.compactionAttemptId)
+        const anchor = compactionAttemptId
+          ? this.compactionAnchors.getReconstructionAnchorByCompactionAttemptId(
+              row.session_id,
+              compactionAttemptId
+            )
+          : undefined
+
+        if (anchor && compactionAttemptId) {
+          this.updateCompactionMessage(
+            row.id,
+            'compacted',
+            summaryUpdatedAtFromCompactionAnchor(anchor),
+            {
+              compactionAttemptId,
+              boundaryReason: normalizeCompactionBoundaryReason(
+                parseTapeAnchorState(anchor)?.reason
+              )
+            }
+          )
+          compacted += 1
+          continue
+        }
+
+        this.deleteMessageWithReason(row.id, 'stale_compaction_marker_recovered')
+        retracted += 1
+      } catch (error) {
+        failed += 1
+        logger.warn(
+          'Failed to reconcile compaction marker',
+          { sessionId: row.session_id, messageId: row.id },
+          error
+        )
+      }
+    }
+
+    return { compacted, retracted, failed }
   }
 
   backfillMessageRow(row: DeepChatMessageRow): void {
@@ -997,11 +1140,15 @@ export class SessionTranscript {
 
   private buildCompactionMetadata(
     status: 'compacting' | 'compacted',
-    summaryUpdatedAt: number | null
+    summaryUpdatedAt: number | null,
+    compactionAttemptId: string,
+    boundaryReason: SessionCompactionBoundaryReason | null = null
   ): MessageMetadata {
     return {
       messageType: 'compaction',
       compactionStatus: status,
+      compactionAttemptId,
+      compactionBoundaryReason: boundaryReason,
       summaryUpdatedAt
     }
   }

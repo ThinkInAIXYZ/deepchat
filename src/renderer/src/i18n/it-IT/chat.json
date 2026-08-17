@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modalità",
+      "modelDefault": "Predefinita del modello",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Usa il set di strumenti standard dell’agente.",
+        "code": "Combina gli strumenti abilitati tramite codice. Richiede la modalità di autorizzazione Accesso completo.",
+        "minimal": "Semplifica le operazioni sui file mantenendo gli altri strumenti abilitati."
+      },
+      "useModelDefault": "Usa predefinita del modello",
+      "saving": "Salvataggio modalità...",
+      "locked": "Puoi cambiare modalità al termine di questa risposta.",
+      "updateFailed": "Impossibile aggiornare la modalità degli strumenti.",
+      "codeEntry": "Ingresso codice",
+      "codeCallable": "Richiamabile dal codice",
+      "minimalTools": "Strumenti di programmazione"
+    },
     "fileUploadFailed": "Elaborazione allegati non riuscita",
     "fileUploadFailedDesc": "Impossibile elaborare {count} file: {names}",
     "fileUploadFailedMore": " e altri {count}",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Compressione contesto...",
     "compacted": "Contesto compresso",
+    "compactedWithoutSummary": "Il contesto è stato compresso senza un riepilogo",
+    "compactedWithoutLargerSummary": "Il contesto è stato compresso senza usare un riepilogo più grande",
     "commandDescription": "Comprimi il contesto della sessione",
     "noopTitle": "Nessun contesto da comprimere",
     "noopDescription": "Non c'è ancora nuova cronologia della conversazione da comprimere.",
     "failedTitle": "Compressione non riuscita"
+  },
+  "contextOccupancy": {
+    "label": "Utilizzo del contesto",
+    "details": "{used} di {capacity} token",
+    "provider": "Misurato dal provider",
+    "estimated": "Stimato dalla vista della richiesta",
+    "stale": "Obsoleto dopo una modifica a modello, finestra o compressione"
   },
   "rateLimit": {
     "queueTooltip": "{count} richieste in coda, intervallo di {interval} secondi",

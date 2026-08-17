@@ -6,7 +6,9 @@ import type {
   MessageStartResult,
   PendingSessionInputRecord,
   SendMessageInput,
+  SessionCompactionSnapshot,
   SessionCompactionState,
+  SessionContextOccupancySnapshot,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -389,13 +391,40 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     return await this.dependencies.transcript.editUserMessage(sessionId, messageId, text)
   }
 
-  async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
+  async getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot> {
     this.requireSession(sessionId)
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     if (runtime.kind === 'acp') {
-      return { status: 'idle', cursorOrderSeq: 1, summaryUpdatedAt: null }
+      return {
+        state: {
+          status: 'idle',
+          cursorOrderSeq: 1,
+          summaryUpdatedAt: null,
+          boundaryReason: null
+        },
+        emitSeq: 0,
+        latestAnchorEntryId: null
+      }
     }
-    return await runtime.compaction.getState()
+    return await runtime.compaction.getSnapshot()
+  }
+
+  async getSessionContextOccupancy(sessionId: string): Promise<SessionContextOccupancySnapshot> {
+    this.requireSession(sessionId)
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    if (runtime.kind === 'acp') {
+      return {
+        freshness: 'unavailable',
+        source: null,
+        occupiedTokens: null,
+        contextWindowTokens: null,
+        requestSeq: null,
+        manifestEntryId: null,
+        providerAttemptEntryId: null,
+        measuredAt: null
+      }
+    }
+    return await runtime.getContextOccupancy()
   }
 
   async compactSession(

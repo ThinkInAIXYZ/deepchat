@@ -1,5 +1,6 @@
 import type {
   DeepChatLoopTapePort,
+  NestedExecutionJournalWriter,
   TapeEffectiveUserMessageSourceReader,
   TapeExecutionViewManifestReader,
   TapeIncarnationReader,
@@ -49,7 +50,10 @@ export function createSkillExecutionAuthorityTapePort(
   })
 }
 
-export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepChatLoopTapePort {
+export function createDeepChatLoopTapePort(
+  source: Omit<DeepChatLoopTapePort, keyof NestedExecutionJournalWriter>,
+  nestedExecutionJournal: NestedExecutionJournalWriter
+): DeepChatLoopTapePort {
   return Object.freeze({
     ensureSessionTapeReady: (...args: Parameters<DeepChatLoopTapePort['ensureSessionTapeReady']>) =>
       source.ensureSessionTapeReady(...args),
@@ -86,12 +90,20 @@ export function createDeepChatLoopTapePort(source: DeepChatLoopTapePort): DeepCh
     getMaxProviderAttemptRequestSeq: (
       ...args: Parameters<DeepChatLoopTapePort['getMaxProviderAttemptRequestSeq']>
     ) => source.getMaxProviderAttemptRequestSeq(...args),
+    getPendingProviderContextPressure: (
+      ...args: Parameters<DeepChatLoopTapePort['getPendingProviderContextPressure']>
+    ) => source.getPendingProviderContextPressure(...args),
     commitRunStarted: (input: Parameters<DeepChatLoopTapePort['commitRunStarted']>[0]) =>
       source.commitRunStarted(input),
     commitDispatch: (input: Parameters<DeepChatLoopTapePort['commitDispatch']>[0]) =>
       source.commitDispatch(input),
     commitToolOutcome: (input: Parameters<DeepChatLoopTapePort['commitToolOutcome']>[0]) =>
       source.commitToolOutcome(input),
+    commitNestedDispatch: (input: Parameters<DeepChatLoopTapePort['commitNestedDispatch']>[0]) =>
+      nestedExecutionJournal.commitNestedDispatch(input),
+    commitNestedToolOutcome: (
+      input: Parameters<DeepChatLoopTapePort['commitNestedToolOutcome']>[0]
+    ) => nestedExecutionJournal.commitNestedToolOutcome(input),
     commitRunTerminal: (input: Parameters<DeepChatLoopTapePort['commitRunTerminal']>[0]) =>
       source.commitRunTerminal(input)
   })

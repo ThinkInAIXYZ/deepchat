@@ -12,6 +12,7 @@ import type {
   PermissionMode,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
 
 export interface StartDeeplinkPayload {
   token: number
@@ -51,6 +52,7 @@ export const useDraftStore = defineStore('draft', () => {
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
   const orchestrationPolicy = ref<OrchestrationPolicy>(DEFAULT_ORCHESTRATION_POLICY)
+  const toolModeOverride = ref<ToolModeOverride>(null)
   const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
   let nextStartToken = 0
 
@@ -108,6 +110,7 @@ export const useDraftStore = defineStore('draft', () => {
       permissionMode: permissionMode.value,
       disabledAgentTools: [...disabledAgentTools.value],
       orchestrationPolicy: orchestrationPolicy.value,
+      toolModeOverride: toolModeOverride.value,
       generationSettings: toGenerationSettings()
     }
   }
@@ -178,6 +181,7 @@ export const useDraftStore = defineStore('draft', () => {
     permissionMode.value = 'full_access'
     disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
     orchestrationPolicy.value = DEFAULT_ORCHESTRATION_POLICY
+    toolModeOverride.value = null
     resetGenerationSettings()
   }
 
@@ -217,6 +221,7 @@ export const useDraftStore = defineStore('draft', () => {
     permissionMode,
     disabledAgentTools,
     orchestrationPolicy,
+    toolModeOverride,
     pendingStartDeeplink,
     toGenerationSettings,
     toCreateInput,

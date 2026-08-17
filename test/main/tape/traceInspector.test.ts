@@ -571,7 +571,10 @@ describe('Tape Trace Inspector storage contracts', () => {
       const traces = new DeepChatMessageTracesTable(db)
       tape.createTable()
       traces.createTable()
-      const attempts = new TapeProviderAttemptService({ getEntryStore: () => tape })
+      const attempts = new TapeProviderAttemptService({
+        getEntryStore: () => tape,
+        getProviderAttemptStore: () => tape
+      })
       const appendAttempt = (physicalAttempt: number) =>
         attempts.appendProviderAttempt({
           sessionId: 'session-1',

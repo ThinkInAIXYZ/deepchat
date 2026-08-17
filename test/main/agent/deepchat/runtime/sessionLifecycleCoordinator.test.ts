@@ -30,7 +30,10 @@ function createHarness() {
     },
     identity: { getAgentId: vi.fn(() => 'deepchat') },
     sessionSettings: { normalizeProjectDir: vi.fn(() => null) },
-    compaction: { idleState: vi.fn(() => ({ state: 'idle' })) },
+    compaction: {
+      idleState: vi.fn(() => ({ state: 'idle' })),
+      releaseSession: vi.fn(record('compaction.releaseSession'))
+    },
     memory: {
       initializeSession: vi.fn(),
       beginSessionDestroy: vi.fn(record('memory.beginSessionDestroy')),
@@ -124,6 +127,7 @@ describe('SessionLifecycleCoordinator', () => {
       'pendingInputs.deleteBySession',
       'transcript.deleteBySession',
       'sessionStore.delete',
+      'compaction.releaseSession',
       'programmaticToolParents.releaseSession',
       'toolSurfaceCanaryDiagnostics.clearSession',
       'interactionParking.clearSession',
@@ -146,6 +150,7 @@ describe('SessionLifecycleCoordinator', () => {
       'pendingInputs.deleteBySession',
       'transcript.deleteBySession',
       'sessionStore.delete',
+      'compaction.releaseSession',
       'programmaticToolParents.releaseSession',
       'toolSurfaceCanaryDiagnostics.clearSession',
       'interactionParking.clearSession',

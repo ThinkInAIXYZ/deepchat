@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modus",
+      "modelDefault": "Modellstandard",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Den Standardwerkzeugsatz des Agenten verwenden.",
+        "code": "Aktivierte Werkzeuge über Code zusammenstellen. Erfordert den Berechtigungsmodus Vollzugriff.",
+        "minimal": "Vereinfacht Dateioperationen und behält andere aktivierte Werkzeuge bei."
+      },
+      "useModelDefault": "Modellstandard verwenden",
+      "saving": "Modus wird gespeichert...",
+      "locked": "Der Modus kann nach Abschluss dieser Antwort gewechselt werden.",
+      "updateFailed": "Der Werkzeugmodus konnte nicht aktualisiert werden.",
+      "codeEntry": "Code-Einstieg",
+      "codeCallable": "Per Code aufrufbar",
+      "minimalTools": "Programmierwerkzeuge"
+    },
     "fileUploadFailed": "Anhang konnte nicht verarbeitet werden",
     "fileUploadFailedDesc": "{count} Dateien konnten nicht verarbeitet werden: {names}",
     "fileUploadFailedMore": " und {count} weitere",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Kontext wird komprimiert...",
     "compacted": "Kontext wurde komprimiert",
+    "compactedWithoutSummary": "Der Kontext wurde ohne Zusammenfassung komprimiert",
+    "compactedWithoutLargerSummary": "Der Kontext wurde komprimiert, ohne eine größere Zusammenfassung zu verwenden",
     "commandDescription": "Chat-Kontext komprimieren",
     "noopTitle": "Kein Kontext zum Komprimieren",
     "noopDescription": "Es gibt noch keinen neuen Chatverlauf, der komprimiert werden muss.",
     "failedTitle": "Komprimierung fehlgeschlagen"
+  },
+  "contextOccupancy": {
+    "label": "Kontextnutzung",
+    "details": "{used} von {capacity} Tokens",
+    "provider": "Vom Anbieter gemessen",
+    "estimated": "Aus der Anfrageansicht geschätzt",
+    "stale": "Veraltet nach Modell-, Fenster- oder Komprimierungsänderung"
   },
   "rateLimit": {
     "queueTooltip": "{count} Anfragen in der Warteschlange, Intervall {interval} Sekunden",

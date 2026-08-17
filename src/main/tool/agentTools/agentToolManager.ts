@@ -115,6 +115,18 @@ import {
   searchToolSurfaceSnapshot
 } from './toolSearchTool'
 import type { ProgrammaticToolParentRegistration } from '@/cli/programmaticToolParentRegistry'
+import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
+import {
+  applyUpdateChunks,
+  collectApplyPatchPaths,
+  formatApplyPatchSummary,
+  formatStrReplaceFileView,
+  lineNumbersAt,
+  matchOffsets,
+  parseApplyPatch,
+  truncateEditorOutput,
+  type ApplyPatchOperation
+} from './minimalEditorAdapter'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -309,6 +321,18 @@ export class AgentToolManager {
       newText: z.string().max(10000).describe('The replacement text'),
       replaceAll: z.boolean().default(true),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
+    }),
+    [APPLY_PATCH_TOOL_NAME]: z.object({
+      patch: z.string().min(1)
+    }),
+    [STR_REPLACE_EDITOR_TOOL_NAME]: z.object({
+      command: z.enum(['view', 'create', 'str_replace', 'insert']),
+      path: z.string().min(1),
+      file_text: z.string().optional(),
+      insert_line: z.number().int().optional(),
+      new_str: z.string().optional(),
+      old_str: z.string().optional(),
+      view_range: z.array(z.number().int()).optional()
     }),
     [GLOB_TOOL_NAME]: FffGlobArgsSchema,
     [GREP_TOOL_NAME]: FffGrepArgsSchema,
@@ -1218,6 +1242,8 @@ export class AgentToolManager {
       'read',
       'write',
       'edit',
+      APPLY_PATCH_TOOL_NAME,
+      STR_REPLACE_EDITOR_TOOL_NAME,
       GLOB_TOOL_NAME,
       GREP_TOOL_NAME,
       'exec',
@@ -1230,9 +1256,19 @@ export class AgentToolManager {
     return toolName === 'process'
   }
 
-  private getRequiredFilePermission(toolName: string): FilePermissionLevel {
+  private getRequiredFilePermission(
+    toolName: string,
+    args?: Record<string, unknown>
+  ): FilePermissionLevel {
     if (toolName === 'exec') return 'all'
-    if (toolName === 'write' || toolName === 'edit') return 'write'
+    if (
+      toolName === 'write' ||
+      toolName === 'edit' ||
+      toolName === APPLY_PATCH_TOOL_NAME ||
+      (toolName === STR_REPLACE_EDITOR_TOOL_NAME && args?.command !== 'view')
+    ) {
+      return 'write'
+    }
     return 'read'
   }
 
@@ -1391,7 +1427,7 @@ export class AgentToolManager {
     const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
       includeSkillRoots: toolName !== 'exec',
       includeRuntimeRoots: toolName !== 'exec',
-      requiredPermission: this.getRequiredFilePermission(toolName),
+      requiredPermission: this.getRequiredFilePermission(toolName, parsedArgs),
       activeSkillNames: options.activeSkillNames,
       provisionalLeaseId:
         options.permissionLease?.kind === 'file' ? options.permissionLease.leaseId : undefined
@@ -1401,124 +1437,172 @@ export class AgentToolManager {
       options.activeSkillNames
     )
 
-    if (toolName === 'exec') {
-      if (!this.bashHandler) {
-        throw new Error('Bash handler not initialized for exec tool')
-      }
-      const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
-      const bashHandler = new AgentBashHandler(
-        allowedDirectories,
-        this.settings,
-        this.commandPermissionHandler,
-        this.commandEnvironment
-      )
-      const execArgs = parsedArgs as {
-        command: string
-        stdin?: string
-        timeoutMs?: number
-        description?: string
-        cwd?: string
-        background?: boolean
-        yieldMs?: number
-      }
-      const isProgrammaticInvocation = options.programmaticToolParent !== undefined
-      if (isProgrammaticInvocation) {
-        if (!options.programmaticToolCapability) {
-          throw new Error('Programmatic exec requires an active Programmatic Tool capability.')
-        }
-        const invocationInput = execArgs.stdin ?? execArgs.command
-        if (
-          Buffer.byteLength(invocationInput, 'utf8') >
-          options.programmaticToolCapability.quotas.maxInputBytes
-        ) {
-          throw new Error(
-            'Programmatic exec input exceeds the active Programmatic Tool input quota.'
-          )
-        }
-        if (execArgs.timeoutMs !== undefined) {
-          throw new Error('Programmatic exec duration is owned by its active capability.')
-        }
-      } else if (execArgs.stdin !== undefined) {
-        if (!options.programmaticToolCapability) {
-          throw new Error('Owned exec stdin requires an active Programmatic Tool capability.')
-        }
-        throw new Error('Owned exec stdin requires an active Programmatic Tool parent operation.')
-      }
-      if (execArgs.cwd) {
-        const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
-          conversationId,
-          allowExternalAccess: true,
-          protectedDirectoryRules,
-          commandShellPathStyle: options.commandShell.pathStyle
-        })
-        skillScopeGuard.assertReadAllowedAbsolute(
-          skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
-        )
-      }
-      if (isProgrammaticInvocation) {
-        options.signal?.throwIfAborted()
-      }
-      const commandResult = await bashHandler.executeCommand(
-        {
-          command: execArgs.command,
-          timeout: execArgs.timeoutMs,
-          description: execArgs.description ?? 'Execute command',
-          cwd: execArgs.cwd,
-          background: execArgs.background,
-          yieldMs: execArgs.yieldMs
-        },
-        {
-          conversationId,
-          commandShell: options.commandShell,
-          oneShotCommandGrantId: options.oneShotCommandGrantId,
-          stdin: execArgs.stdin,
-          programmatic: isProgrammaticInvocation,
-          signal: isProgrammaticInvocation ? options.signal : undefined,
-          maxTimeoutMs: isProgrammaticInvocation
-            ? options.programmaticToolCapability?.quotas.maxDurationMs
-            : undefined,
-          allowExternalCwd: allowExternalFileAccess,
-          outputPreviewChars: outputLimits.commandOutputInlineChars,
-          beforeExecute: this.createAgentDispatchCommit(
-            toolName,
-            'agent-filesystem',
-            parsedArgs,
-            options
-          )
-        }
-      )
-      const content =
-        typeof commandResult.output === 'string'
-          ? commandResult.output
-          : JSON.stringify(commandResult.output)
-      return {
-        content,
-        rawData: {
-          content,
-          rtkApplied: commandResult.rtkApplied,
-          rtkMode: commandResult.rtkMode,
-          rtkFallbackReason: commandResult.rtkFallbackReason,
-          outputOffloadPath: commandResult.outputOffloadPath
-        }
-      }
-    }
-
-    if (!this.fileSystemHandler) {
-      throw new Error('FileSystem handler not initialized')
-    }
-
-    // Priority: explicit base_directory → conversation workdir → default
-    const explicitBaseDirectory = (parsedArgs as any).base_directory
-    const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
-      conversationId,
-      allowExternalAccess: allowExternalFileAccess,
-      protectedDirectoryRules,
-      commandShellPathStyle: options.commandShell.pathStyle
-    })
-
     try {
+      if (toolName === 'exec') {
+        if (!this.bashHandler) {
+          throw new Error('Bash handler not initialized for exec tool')
+        }
+        const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
+        const bashHandler = new AgentBashHandler(
+          allowedDirectories,
+          this.settings,
+          this.commandPermissionHandler,
+          this.commandEnvironment
+        )
+        const execArgs = parsedArgs as {
+          command: string
+          stdin?: string
+          timeoutMs?: number
+          description?: string
+          cwd?: string
+          background?: boolean
+          yieldMs?: number
+        }
+        const isProgrammaticInvocation = options.programmaticToolParent !== undefined
+        if (isProgrammaticInvocation) {
+          if (!options.programmaticToolCapability) {
+            throw new Error('Programmatic exec requires an active Programmatic Tool capability.')
+          }
+          const invocationInput = execArgs.stdin ?? execArgs.command
+          if (
+            Buffer.byteLength(invocationInput, 'utf8') >
+            options.programmaticToolCapability.quotas.maxInputBytes
+          ) {
+            throw new Error(
+              'Programmatic exec input exceeds the active Programmatic Tool input quota.'
+            )
+          }
+          if (execArgs.timeoutMs !== undefined) {
+            throw new Error('Programmatic exec duration is owned by its active capability.')
+          }
+        } else if (execArgs.stdin !== undefined) {
+          if (!options.programmaticToolCapability) {
+            throw new Error('Owned exec stdin requires an active Programmatic Tool capability.')
+          }
+          throw new Error('Owned exec stdin requires an active Programmatic Tool parent operation.')
+        }
+        if (execArgs.cwd) {
+          const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
+            conversationId,
+            allowExternalAccess: true,
+            protectedDirectoryRules,
+            commandShellPathStyle: options.commandShell.pathStyle
+          })
+          skillScopeGuard.assertReadAllowedAbsolute(
+            skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
+          )
+        }
+        if (isProgrammaticInvocation) {
+          options.signal?.throwIfAborted()
+        }
+        const commandResult = await bashHandler.executeCommand(
+          {
+            command: execArgs.command,
+            timeout: execArgs.timeoutMs,
+            description: execArgs.description ?? 'Execute command',
+            cwd: execArgs.cwd,
+            background: execArgs.background,
+            yieldMs: execArgs.yieldMs
+          },
+          {
+            conversationId,
+            commandShell: options.commandShell,
+            oneShotCommandGrantId: options.oneShotCommandGrantId,
+            stdin: execArgs.stdin,
+            programmatic: isProgrammaticInvocation,
+            signal: isProgrammaticInvocation ? options.signal : undefined,
+            maxTimeoutMs: isProgrammaticInvocation
+              ? options.programmaticToolCapability?.quotas.maxDurationMs
+              : undefined,
+            allowExternalCwd: allowExternalFileAccess,
+            outputPreviewChars: outputLimits.commandOutputInlineChars,
+            beforeExecute: this.createAgentDispatchCommit(
+              toolName,
+              'agent-filesystem',
+              parsedArgs,
+              options
+            )
+          }
+        )
+        const content =
+          typeof commandResult.output === 'string'
+            ? commandResult.output
+            : JSON.stringify(commandResult.output)
+        return {
+          content,
+          rawData: {
+            content,
+            rtkApplied: commandResult.rtkApplied,
+            rtkMode: commandResult.rtkMode,
+            rtkFallbackReason: commandResult.rtkFallbackReason,
+            outputOffloadPath: commandResult.outputOffloadPath
+          }
+        }
+      }
+
+      if (!this.fileSystemHandler) {
+        throw new Error('FileSystem handler not initialized')
+      }
+
+      // Priority: explicit base_directory → conversation workdir → default
+      const explicitBaseDirectory = (parsedArgs as any).base_directory
+      const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+        conversationId,
+        allowExternalAccess: allowExternalFileAccess,
+        protectedDirectoryRules,
+        commandShellPathStyle: options.commandShell.pathStyle
+      })
+
       switch (toolName) {
+        case APPLY_PATCH_TOOL_NAME:
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'write',
+            allowExternalFileAccess
+          )
+          return {
+            content: await this.applyMinimalPatch(
+              (parsedArgs as { patch: string }).patch,
+              baseDirectory,
+              fileSystemHandler,
+              options,
+              parsedArgs
+            )
+          }
+        case STR_REPLACE_EDITOR_TOOL_NAME: {
+          const command = (parsedArgs as { command: 'view' | 'create' | 'str_replace' | 'insert' })
+            .command
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            command === 'view' ? 'read' : 'write',
+            allowExternalFileAccess
+          )
+          return {
+            content: await this.callStrReplaceEditor(
+              parsedArgs as {
+                command: 'view' | 'create' | 'str_replace' | 'insert'
+                path: string
+                file_text?: string
+                insert_line?: number
+                new_str?: string
+                old_str?: string
+                view_range?: number[]
+              },
+              baseDirectory,
+              fileSystemHandler,
+              options
+            )
+          }
+        }
         case 'read': {
           await this.assertFileAccessPermission(
             toolName,
@@ -1770,6 +1854,346 @@ export class AgentToolManager {
       }
       throw error
     }
+  }
+
+  private async applyMinimalPatch(
+    patch: string,
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    options: AgentFileSystemExecutionOptions,
+    parsedArgs: Record<string, unknown>
+  ): Promise<string> {
+    const operations = parseApplyPatch(patch)
+    const commitDispatch = this.createAgentDispatchCommit(
+      APPLY_PATCH_TOOL_NAME,
+      'agent-filesystem',
+      parsedArgs,
+      options
+    )
+    let dispatchCommitted = false
+    let applied = 0
+    const commitOnce = () => {
+      if (dispatchCommitted) return
+      commitDispatch?.()
+      dispatchCommitted = true
+    }
+
+    await this.validateMinimalPatchOperations(operations, baseDirectory, fileSystemHandler, options)
+
+    try {
+      for (const operation of operations) {
+        options.signal?.throwIfAborted()
+        await this.applyMinimalPatchOperation(
+          operation,
+          baseDirectory,
+          fileSystemHandler,
+          commitOnce
+        )
+        applied += 1
+      }
+    } catch (error) {
+      if (!dispatchCommitted) throw error
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `${message}\n${applied} earlier patch operation${applied === 1 ? '' : 's'} completed before this failure; the current operation may also be partial. Re-view affected files before retrying.`
+      )
+    }
+
+    return formatApplyPatchSummary(operations)
+  }
+
+  private async validateMinimalPatchOperations(
+    operations: readonly ApplyPatchOperation[],
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    options: AgentFileSystemExecutionOptions
+  ): Promise<void> {
+    type VirtualFile = {
+      key: string
+      source: string
+      exists: boolean
+      content: string
+    }
+
+    const files = new Map<string, VirtualFile>()
+    const load = async (requestedPath: string): Promise<VirtualFile> => {
+      const key = await fileSystemHandler.resolveValidatedCreatePath(requestedPath, baseDirectory)
+      const cached = files.get(key)
+      if (cached) return cached
+
+      try {
+        await fs.promises.stat(key)
+      } catch (error) {
+        if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+          throw error
+        }
+        const missing = { key, source: key, exists: false, content: '' }
+        files.set(key, missing)
+        return missing
+      }
+
+      const source = await fileSystemHandler.resolveValidatedPath(
+        requestedPath,
+        baseDirectory,
+        'write'
+      )
+      const sourceInfo = await fs.promises.stat(source)
+      if (!sourceInfo.isFile()) throw new Error(`Path is not a regular file: ${source}`)
+      const existing = {
+        key,
+        source,
+        exists: true,
+        content: await fs.promises.readFile(source, 'utf8')
+      }
+      files.set(key, existing)
+      return existing
+    }
+
+    for (const operation of operations) {
+      options.signal?.throwIfAborted()
+      const source = await load(operation.path)
+      if (operation.type === 'add') {
+        if (source.exists) throw new Error(`Path already exists: ${source.key}`)
+        source.exists = true
+        source.content = operation.content
+        continue
+      }
+      if (!source.exists) throw new Error(`Path does not exist: ${source.key}`)
+      if (operation.type === 'delete') {
+        source.exists = false
+        source.content = ''
+        continue
+      }
+
+      const updated = applyUpdateChunks(source.content, operation.path, operation.chunks)
+      if (!operation.movePath) {
+        source.content = updated
+        continue
+      }
+      const destination = await load(operation.movePath)
+      if (destination.key === source.source) {
+        source.content = updated
+        continue
+      }
+      if (destination.exists) throw new Error(`Path already exists: ${destination.key}`)
+      destination.exists = true
+      destination.content = updated
+      source.exists = false
+      source.content = ''
+    }
+  }
+
+  private async applyMinimalPatchOperation(
+    operation: ApplyPatchOperation,
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    commitOnce: () => void
+  ): Promise<void> {
+    if (operation.type === 'add') {
+      const target = await fileSystemHandler.resolveValidatedCreatePath(
+        operation.path,
+        baseDirectory
+      )
+      commitOnce()
+      await fs.promises.mkdir(path.dirname(target), { recursive: true })
+      await fs.promises.writeFile(target, operation.content, { encoding: 'utf8', flag: 'wx' })
+      return
+    }
+
+    const source = await fileSystemHandler.resolveValidatedPath(
+      operation.path,
+      baseDirectory,
+      'write'
+    )
+    const sourceInfo = await fs.promises.stat(source)
+    if (!sourceInfo.isFile()) throw new Error(`Path is not a regular file: ${source}`)
+
+    if (operation.type === 'delete') {
+      commitOnce()
+      await fs.promises.unlink(source)
+      return
+    }
+
+    const original = await fs.promises.readFile(source, 'utf8')
+    const updated = applyUpdateChunks(original, operation.path, operation.chunks)
+    if (!operation.movePath) {
+      commitOnce()
+      await fs.promises.writeFile(source, updated, 'utf8')
+      return
+    }
+
+    const destination = await fileSystemHandler.resolveValidatedCreatePath(
+      operation.movePath,
+      baseDirectory
+    )
+    if (destination === source) {
+      commitOnce()
+      await fs.promises.writeFile(source, updated, 'utf8')
+      return
+    }
+    commitOnce()
+    await fs.promises.mkdir(path.dirname(destination), { recursive: true })
+    await fs.promises.writeFile(destination, updated, { encoding: 'utf8', flag: 'wx' })
+    await fs.promises.unlink(source)
+  }
+
+  private async callStrReplaceEditor(
+    args: {
+      command: 'view' | 'create' | 'str_replace' | 'insert'
+      path: string
+      file_text?: string
+      insert_line?: number
+      new_str?: string
+      old_str?: string
+      view_range?: number[]
+    },
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    options: AgentFileSystemExecutionOptions
+  ): Promise<string> {
+    if (
+      !path.isAbsolute(args.path) &&
+      !path.posix.isAbsolute(args.path) &&
+      !path.win32.isAbsolute(args.path)
+    ) {
+      throw new Error(
+        `The path ${args.path} is not an absolute path, it should start with \`/\`. Maybe you meant /${args.path}?`
+      )
+    }
+
+    const accessType = args.command === 'view' ? 'read' : 'write'
+    const target =
+      args.command === 'create'
+        ? await fileSystemHandler.resolveValidatedCreatePath(args.path, baseDirectory)
+        : await fileSystemHandler.resolveValidatedPath(args.path, baseDirectory, accessType)
+    options.signal?.throwIfAborted()
+
+    if (args.command === 'view') {
+      const info = await fs.promises.stat(target)
+      if (info.isDirectory()) {
+        if (args.view_range !== undefined) {
+          throw new Error(
+            'The `view_range` parameter is not allowed when `path` points to a directory.'
+          )
+        }
+        return await this.listStrReplaceDirectory(target, fileSystemHandler, options.signal)
+      }
+      if (!info.isFile()) {
+        throw new Error(`cannot view "${target}": not a regular file or directory`)
+      }
+      return formatStrReplaceFileView(
+        target,
+        await fs.promises.readFile(target, 'utf8'),
+        args.view_range
+      )
+    }
+
+    const commitDispatch = this.createAgentDispatchCommit(
+      STR_REPLACE_EDITOR_TOOL_NAME,
+      'agent-filesystem',
+      args,
+      options
+    )
+    if (args.command === 'create') {
+      if (args.file_text === undefined) {
+        throw new Error('Parameter `file_text` is required for command: create')
+      }
+      try {
+        await fs.promises.stat(target)
+        throw new Error(
+          `File already exists at: ${target}. Cannot overwrite files using command \`create\`.`
+        )
+      } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error
+      }
+      commitDispatch?.()
+      await fs.promises.writeFile(target, args.file_text, { encoding: 'utf8', flag: 'wx' })
+      return `New file created successfully at: ${target}`
+    }
+
+    const info = await fs.promises.stat(target)
+    if (!info.isFile()) {
+      throw new Error(
+        `The path ${target} is a directory and only the \`view\` command can be used on directories`
+      )
+    }
+    const before = await fs.promises.readFile(target, 'utf8')
+    let after: string
+    if (args.command === 'str_replace') {
+      if (args.old_str === undefined) {
+        throw new Error('Parameter `old_str` is required for command: str_replace')
+      }
+      if (!args.old_str) {
+        throw new Error('Parameter `old_str` is empty for command: str_replace')
+      }
+      const offsets = matchOffsets(before, args.old_str)
+      const offset = offsets[0]
+      if (offset === undefined) {
+        throw new Error(
+          `No replacement was performed, old_str \`${args.old_str}\` did not appear verbatim in ${target}.`
+        )
+      }
+      if (offsets.length > 1) {
+        throw new Error(
+          `No replacement was performed. Multiple occurrences of old_str \`${args.old_str}\` in lines [${lineNumbersAt(before, offsets).join(', ')}]. Please ensure it is unique`
+        )
+      }
+      const replacement = args.new_str ?? ''
+      after = before.slice(0, offset) + replacement + before.slice(offset + args.old_str.length)
+    } else {
+      if (args.insert_line === undefined) {
+        throw new Error('Parameter `insert_line` is required for command: insert')
+      }
+      if (args.new_str === undefined) {
+        throw new Error('Parameter `new_str` is required for command: insert')
+      }
+      const lines = before.split('\n')
+      if (args.insert_line < 0 || args.insert_line > lines.length) {
+        throw new Error(
+          `Invalid \`insert_line\` parameter: ${args.insert_line}. It should be within the range of lines of the file: [0, ${lines.length}]`
+        )
+      }
+      after = [
+        ...lines.slice(0, args.insert_line),
+        ...args.new_str.split('\n'),
+        ...lines.slice(args.insert_line)
+      ].join('\n')
+    }
+    commitDispatch?.()
+    await fs.promises.writeFile(target, after, 'utf8')
+    return `The file ${target} has been edited successfully.`
+  }
+
+  private async listStrReplaceDirectory(
+    root: string,
+    fileSystemHandler: AgentFileSystemHandler,
+    signal?: AbortSignal
+  ): Promise<string> {
+    const rows = [`d\t${root}`]
+    const visit = async (directory: string, depth: number): Promise<void> => {
+      signal?.throwIfAborted()
+      const entries = await fs.promises.readdir(directory, { withFileTypes: true })
+      for (const entry of entries) {
+        if (
+          entry.name.startsWith('.') ||
+          entry.name === 'node_modules' ||
+          entry.name === '__pycache__'
+        ) {
+          continue
+        }
+        const candidate = path.join(directory, entry.name)
+        const validated = await fileSystemHandler.resolveValidatedPath(candidate, undefined, 'read')
+        rows.push(`${entry.isDirectory() ? 'd' : entry.isFile() ? 'f' : '?'}\t${validated}`)
+        if (entry.isDirectory() && depth < 2) await visit(validated, depth + 1)
+      }
+    }
+    await visit(root, 1)
+    rows.sort((left, right) => {
+      const leftPath = left.slice(left.indexOf('\t') + 1)
+      const rightPath = right.slice(right.indexOf('\t') + 1)
+      return leftPath < rightPath ? -1 : leftPath > rightPath ? 1 : 0
+    })
+    return `Here're the files and directories up to 2 levels deep in ${root}, excluding hidden items, node_modules, and Python cache directories:\n${truncateEditorOutput(`${rows.join('\n')}\n`)}\n`
   }
 
   private async buildAllowedDirectories(
@@ -2304,9 +2728,19 @@ export class AgentToolManager {
   private collectWriteTargets(toolName: string, args: Record<string, unknown>): string[] {
     switch (toolName) {
       case 'write':
-      case 'edit': {
+      case 'edit':
+      case STR_REPLACE_EDITOR_TOOL_NAME: {
         const pathArg = args.path
         return typeof pathArg === 'string' ? [pathArg] : []
+      }
+      case APPLY_PATCH_TOOL_NAME: {
+        const patch = args.patch
+        if (typeof patch !== 'string') return []
+        try {
+          return collectApplyPatchPaths(parseApplyPatch(patch))
+        } catch {
+          return []
+        }
       }
       default:
         return []
@@ -2317,6 +2751,10 @@ export class AgentToolManager {
     switch (toolName) {
       case 'read':
       case 'ls': {
+        const pathArg = args.path
+        return typeof pathArg === 'string' ? [pathArg] : []
+      }
+      case STR_REPLACE_EDITOR_TOOL_NAME: {
         const pathArg = args.path
         return typeof pathArg === 'string' ? [pathArg] : []
       }
@@ -2593,8 +3031,18 @@ export class AgentToolManager {
     rememberable?: boolean
     requiresUserConfirmation?: boolean
   } | null> {
-    const writeTools = ['write', 'edit']
-    const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
+    const writeTools = [
+      'write',
+      'edit',
+      APPLY_PATCH_TOOL_NAME,
+      ...(args.command === 'view' ? [] : [STR_REPLACE_EDITOR_TOOL_NAME])
+    ]
+    const readTools = [
+      'read',
+      GLOB_TOOL_NAME,
+      GREP_TOOL_NAME,
+      ...(args.command === 'view' ? [STR_REPLACE_EDITOR_TOOL_NAME] : [])
+    ]
     const allowExternalFileAccess = options.allowExternalFileAccess === true
 
     if (toolName === CRON_JOB_AGENT_TOOL_NAME && cronJobActionNeedsPermission(args)) {
@@ -2663,7 +3111,7 @@ export class AgentToolManager {
       const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
         includeSkillRoots: toolName !== 'exec',
         includeRuntimeRoots: toolName !== 'exec',
-        requiredPermission: this.getRequiredFilePermission(toolName),
+        requiredPermission: this.getRequiredFilePermission(toolName, args),
         activeSkillNames: options.activeSkillNames
       })
       const protectedDirectoryRules = await this.buildProtectedSkillDirectoryRules(

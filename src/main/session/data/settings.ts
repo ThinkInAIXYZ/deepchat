@@ -67,6 +67,10 @@ function normalizeCursorOrderSeq(value: unknown): number {
   return 1
 }
 
+function normalizeSummaryText(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null
+}
+
 function summaryStateFromTapeAnchor(
   row: DeepChatTapeEntryRow | undefined
 ): SessionSummaryState | null {
@@ -83,26 +87,23 @@ function summaryStateFromTapeAnchor(
   }
 
   const state = resolveAnchorState(row)
-  const summary =
-    typeof state?.summary === 'string'
-      ? state.summary
-      : typeof state?.summaryText === 'string'
-        ? state.summaryText
-        : null
+  const generatedSummary =
+    normalizeSummaryText(state?.summary) ?? normalizeSummaryText(state?.summaryText)
+  const priorSummary = normalizeSummaryText(state?.priorSummary)
   const cursorOrderSeq = normalizeCursorOrderSeq(
     state?.cursorOrderSeq ?? state?.summaryCursorOrderSeq
   )
 
-  if (!summary?.trim()) {
+  if (!generatedSummary) {
     return {
-      summaryText: null,
+      summaryText: priorSummary,
       summaryCursorOrderSeq: cursorOrderSeq,
       summaryUpdatedAt: null
     }
   }
 
   return {
-    summaryText: summary,
+    summaryText: generatedSummary,
     summaryCursorOrderSeq: cursorOrderSeq,
     summaryUpdatedAt: row.created_at
   }
@@ -219,6 +220,15 @@ export class SessionSettingsStore {
 
   getReconstructionAnchorPromptState(id: string): ReconstructionAnchorPromptState | null {
     return reconstructionAnchorPromptStateFromRow(this.tape.getLatestReconstructionAnchor(id))
+  }
+
+  getReconstructionAnchorPromptStateByCompactionAttemptId(
+    id: string,
+    compactionAttemptId: string
+  ): ReconstructionAnchorPromptState | null {
+    return reconstructionAnchorPromptStateFromRow(
+      this.tape.getReconstructionAnchorByCompactionAttemptId(id, compactionAttemptId)
+    )
   }
 
   updateSummaryState(id: string, state: SessionSummaryState): void {

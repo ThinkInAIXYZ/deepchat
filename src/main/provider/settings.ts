@@ -64,7 +64,10 @@ import type {
   ResolvedCapabilityIdentity,
   ResolvedModelCapabilitySnapshot
 } from '@shared/types/model-capabilities'
-import { getMoonshotKimiTemperaturePolicy } from '@shared/modelRequestPolicy'
+import {
+  getMoonshotKimiTemperaturePolicy,
+  isMiniMaxM3AdaptiveThinkingModel
+} from '@shared/modelRequestPolicy'
 import { resolveDeepSeekResponsesRoute } from './deepseekResponsesAdapter'
 
 // Create interface for model storage
@@ -556,14 +559,13 @@ export class ProviderSettings implements ProviderSettingsPort {
       input.routeOverride,
       resolvedModelConfig
     )
-    const fixedTemperaturePolicy = getMoonshotKimiTemperaturePolicy(
-      identity.providerId,
-      identity.requestModelId
-    )
+    const reasoningDependentPolicy =
+      getMoonshotKimiTemperaturePolicy(identity.providerId, identity.requestModelId) ||
+      isMiniMaxM3AdaptiveThinkingModel(identity.providerId, identity.requestModelId)
     const reasoningEnabled =
       input.reasoningEnabled ??
       resolvedModelConfig?.reasoning ??
-      (fixedTemperaturePolicy
+      (reasoningDependentPolicy
         ? this.getModelConfig(modelId, providerId, identity).reasoning
         : undefined)
 

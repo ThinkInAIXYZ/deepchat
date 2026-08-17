@@ -1,5 +1,9 @@
 <template>
-  <section v-if="isWindows" class="flex flex-col gap-2" data-testid="command-shell-settings">
+  <section
+    v-if="shellSettingsSupported"
+    class="flex flex-col gap-2"
+    data-testid="command-shell-settings"
+  >
     <div class="flex min-h-10 flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
       <span
         class="flex shrink-0 items-center gap-2 text-sm font-medium sm:min-w-[220px]"
@@ -29,12 +33,25 @@
             @focusout="saveOverride"
           >
             <SelectItem value="auto">{{ t('settings.common.commandShell.auto') }}</SelectItem>
-            <SelectItem value="windows-powershell">
-              {{ t('settings.common.commandShell.windowsPowerShell') }}
-            </SelectItem>
-            <SelectItem value="git-bash">
-              {{ t('settings.common.commandShell.gitBash') }}
-            </SelectItem>
+            <template v-if="isWindows">
+              <SelectItem value="windows-powershell">
+                {{ t('settings.common.commandShell.windowsPowerShell') }}
+              </SelectItem>
+              <SelectItem value="powershell-core">
+                {{ t('settings.common.commandShell.powerShellCore') }}
+              </SelectItem>
+              <SelectItem value="cmd">
+                {{ t('settings.common.commandShell.commandPrompt') }}
+              </SelectItem>
+              <SelectItem value="git-bash">
+                {{ t('settings.common.commandShell.gitBash') }}
+              </SelectItem>
+            </template>
+            <template v-else>
+              <SelectItem value="bash">{{ t('settings.common.commandShell.bash') }}</SelectItem>
+              <SelectItem value="zsh">{{ t('settings.common.commandShell.zsh') }}</SelectItem>
+              <SelectItem value="fish">{{ t('settings.common.commandShell.fish') }}</SelectItem>
+            </template>
           </SelectContent>
         </Select>
       </div>
@@ -144,6 +161,7 @@ const deviceClient = createDeviceClient()
 const settingsClient = createSettingsClient()
 
 const isWindows = ref(false)
+const shellSettingsSupported = ref(false)
 const loading = ref(true)
 const saving = ref(false)
 const checking = ref(false)
@@ -335,7 +353,8 @@ onMounted(async () => {
     const deviceInfo = await deviceClient.getDeviceInfo()
     if (disposed) return
     isWindows.value = deviceInfo.platform === 'win32'
-    if (!isWindows.value) return
+    shellSettingsSupported.value = ['darwin', 'linux', 'win32'].includes(deviceInfo.platform)
+    if (!shellSettingsSupported.value) return
 
     currentConfigLoadRequestId = ++configLoadRequestId
     const savedConfig = await settingsClient.getCommandShell()

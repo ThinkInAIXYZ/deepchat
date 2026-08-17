@@ -299,10 +299,19 @@ declare module 'vue-i18n' {
     compaction: {
       compacting: string
       compacted: string
+      compactedWithoutSummary: string
+      compactedWithoutLargerSummary: string
       commandDescription: string
       noopTitle: string
       noopDescription: string
       failedTitle: string
+    }
+    contextOccupancy: {
+      label: string
+      details: string
+      provider: string
+      estimated: string
+      stale: string
     }
     rateLimit: {
       queueTooltip: string
@@ -1533,6 +1542,7 @@ declare module 'vue-i18n' {
       view: string
       entries: string
       budget: string
+      execution: string
     }
     serverList: string
     addServer: string
@@ -2083,18 +2093,6 @@ declare module 'vue-i18n' {
       privacyModeNpmRegistry: string
       privacyModeManualActions: string
       privacyModeIntegrations: string
-      autoCompaction: {
-        title: string
-        enabled: string
-        description: string
-        thresholdLabel: string
-        thresholdMin: string
-        thresholdMax: string
-        thresholdDescription: string
-        retainPairsLabel: string
-        retainPairsValue: string
-        retainPairsDescription: string
-      }
       searchAssistantModel: string
       selectModel: string
       proxyMode: string
@@ -2946,6 +2944,15 @@ declare module 'vue-i18n' {
         providerDescription: string
         modelTitle: string
         modelDescription: string
+        categoryTitle: string
+        categoryDescription: string
+        category: {
+          chat: string
+          compaction: string
+        }
+        chatEvents: string
+        compactionEvents: string
+        unknownUsage: string
         messages: string
         empty: string
       }
@@ -4157,6 +4164,20 @@ declare module 'vue-i18n' {
     requestUnavailableDesc: string
     manifestUnavailable: string
     manifestUnavailableDesc: string
+    execution: {
+      empty: string
+      emptyDesc: string
+      corrupt: string
+      corruptDesc: string
+      unavailable: string
+      unavailableDesc: string
+      truncated: string
+      status: {
+        success: string
+        error: string
+        indeterminate: string
+      }
+    }
     viewId: string
     policy: string
     policyVersion: string

@@ -8,6 +8,7 @@ import {
   type MCPToolDefinitionBase,
   type MCPToolResponse,
   type ToolDispatchCommit,
+  type ToolDispatchCommitInput,
   type ToolExecutionContract,
   type ToolOutcomeProjectionRegistrar
 } from '@shared/types/mcp'
@@ -15,6 +16,7 @@ import type {
   ToolCallOptions,
   ToolDefinitionContext,
   ToolDefinitionUniverseSnapshot,
+  ToolModeConfiguration,
   ToolPermissionPreCheckResult,
   ToolServicePort
 } from '@shared/types/tool'
@@ -121,6 +123,24 @@ import {
   ExecutionContractDispatchError,
   assertExecutionContractAllowsDispatch
 } from '@/tape/domain/executionContract'
+import { RunCodeRuntimeManager } from './codeMode/runCodeRuntimeManager'
+import {
+  APPLY_PATCH_TOOL_NAME,
+  CODE_MODE_EXEC_TOOL_NAME,
+  CODE_MODE_WAIT_TOOL_NAME,
+  RUN_CODE_TOOL_NAME,
+  STR_REPLACE_EDITOR_TOOL_NAME,
+  createApplyPatchToolDefinition,
+  createCodexCodeModeToolDefinitions,
+  createRunCodeToolDefinition,
+  createStrReplaceEditorToolDefinition,
+  decorateExecForShell,
+  filterCodeModeExecutionCatalog,
+  isCodeModeDirectToolName,
+  isCodexToolFrontend,
+  normalizeCodexToolName
+} from './codeMode/toolModeTools'
+import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -143,7 +163,10 @@ interface ToolServiceOptions {
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
+const MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS = new Set(['read', 'write', 'edit', 'glob', 'grep'])
+const MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS = ['read', 'write', 'edit'] as const
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
+const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
@@ -198,6 +221,35 @@ type SubagentExecutionToolPolicy = {
   enabledMcpServerIds: string[] | undefined
 }
 
+type ConversationToolModeContext = {
+  mode: ToolModeConfiguration['mode']
+  frontend: 'codex' | 'function'
+  executionCatalog: readonly MCPToolDefinition[]
+}
+
+type InternalToolCallOptions = ToolCallOptions & {
+  codeModeNested?: boolean
+}
+
+type CodexExecInput = {
+  source: string
+  yieldTimeMs: number
+  maxOutputTokens: number
+}
+
+type CodexWaitInput = {
+  cellId: string
+  yieldTimeMs: number
+  maxTokens: number
+  terminate: boolean
+}
+
+const CODE_MODE_DEFAULT_YIELD_TIME_MS = 10_000
+const CODE_MODE_DEFAULT_MAX_OUTPUT_TOKENS = 10_000
+const CODE_MODE_MIN_YIELD_TIME_MS = 250
+const CODE_MODE_MAX_YIELD_TIME_MS = 300_000
+const CODE_MODE_MAX_OUTPUT_TOKENS = 100_000
+
 /**
  * Owns the merged Tool catalog and routes calls to MCP or built-in handlers.
  */
@@ -213,12 +265,37 @@ export class ToolService implements ToolServicePort {
   private globalMcpDefinitions = new Map<string, MCPToolDefinition>()
   private agentToolManager: AgentToolManager | null = null
   private globalAgentDefinitions = new Map<string, MCPToolDefinition>()
+  private readonly conversationToolModes = new Map<string, ConversationToolModeContext>()
+  private readonly runCodeRuntime: RunCodeRuntimeManager
 
   constructor(options: ToolServiceOptions) {
     this.options = options
     this.permissionBroker = options.permissionBroker ?? new ToolPermissionBroker()
     this.mapper = new ToolMapper()
     this.conversationMappers = new Map()
+    this.runCodeRuntime = new RunCodeRuntimeManager({
+      executeNested: async (input) =>
+        await this.callTool(
+          {
+            id: input.callId,
+            type: 'function',
+            function: {
+              name: input.definition.function.name,
+              arguments:
+                input.definition.providerPresentation?.type === 'freeform' &&
+                typeof input.arguments === 'string'
+                  ? input.arguments
+                  : JSON.stringify(input.arguments ?? {})
+            },
+            conversationId: input.sessionId
+          },
+          {
+            ...input.options,
+            runId: input.runId ?? input.options.runId,
+            codeModeNested: true
+          } as InternalToolCallOptions
+        )
+    })
   }
 
   private createAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
@@ -473,6 +550,102 @@ export class ToolService implements ToolServicePort {
     })
   }
 
+  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[] {
+    const conversationId = input.conversationId.trim()
+    if (!conversationId) throw new Error('Tool mode configuration requires a conversation ID.')
+
+    const decoratedCatalog = input.executionCatalog.map((definition) =>
+      decorateExecForShell(definition, input.commandShell)
+    )
+    const executionCatalog =
+      input.mode === 'code' ? filterCodeModeExecutionCatalog(decoratedCatalog) : decoratedCatalog
+    const codeModeDirectTools =
+      input.mode === 'code'
+        ? decoratedCatalog.filter((definition) =>
+            isCodeModeDirectToolName(definition.function.name.trim())
+          )
+        : []
+    const frontend = isCodexToolFrontend(input.providerId) ? 'codex' : 'function'
+    const previousMode = this.conversationToolModes.get(conversationId)
+    if (
+      previousMode?.mode === 'code' &&
+      (input.mode !== 'code' || previousMode.frontend !== frontend)
+    ) {
+      this.runCodeRuntime.cancelSession(conversationId, 'Tool Mode changed.')
+    }
+
+    if (input.mode === 'minimal') {
+      const retainedCatalog = executionCatalog.filter(
+        (definition) =>
+          !(
+            definition.source === 'agent' &&
+            definition.server.name === 'agent-filesystem' &&
+            MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS.has(definition.function.name)
+          )
+      )
+      const execDefinition = retainedCatalog.find(
+        (definition) =>
+          definition.source === 'agent' && definition.function.name === CODE_MODE_EXEC_TOOL_NAME
+      )
+      if (!execDefinition) {
+        throw new Error('Minimal Mode requires the built-in exec tool.')
+      }
+      const processDefinition = retainedCatalog.find(
+        (definition) => definition.source === 'agent' && definition.function.name === 'process'
+      )
+      if (!processDefinition) {
+        throw new Error('Minimal Mode requires the built-in process tool.')
+      }
+      const editorAvailable = MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS.every((toolName) =>
+        decoratedCatalog.some(
+          (definition) =>
+            definition.source === 'agent' &&
+            definition.server.name === 'agent-filesystem' &&
+            definition.function.name === toolName
+        )
+      )
+      const editorDefinition = editorAvailable
+        ? frontend === 'codex'
+          ? createApplyPatchToolDefinition()
+          : createStrReplaceEditorToolDefinition()
+        : null
+      const minimalCatalog = [
+        execDefinition,
+        processDefinition,
+        ...(editorDefinition ? [editorDefinition] : []),
+        ...retainedCatalog.filter(
+          (definition) => definition !== execDefinition && definition !== processDefinition
+        )
+      ]
+      this.publishConfiguredCatalog(conversationId, minimalCatalog)
+      this.conversationToolModes.set(conversationId, {
+        mode: input.mode,
+        frontend,
+        executionCatalog: minimalCatalog
+      })
+      return minimalCatalog
+    }
+
+    if (input.mode === 'code') this.assertCodeModeCatalog(frontend, executionCatalog)
+    this.publishConfiguredCatalog(conversationId, [...executionCatalog, ...codeModeDirectTools])
+    this.conversationToolModes.set(conversationId, {
+      mode: input.mode,
+      frontend,
+      executionCatalog
+    })
+
+    if (input.mode === 'agent') return executionCatalog
+    const codeEntryTools =
+      frontend === 'codex'
+        ? createCodexCodeModeToolDefinitions(decoratedCatalog)
+        : [createRunCodeToolDefinition()]
+    return [...codeEntryTools, ...codeModeDirectTools]
+  }
+
+  async shutdownCodeRuntime(): Promise<void> {
+    await this.runCodeRuntime.shutdown()
+  }
+
   clearConversationToolMapping(conversationId: string): void {
     const normalizedConversationId = conversationId.trim()
     if (!normalizedConversationId) {
@@ -484,6 +657,8 @@ export class ToolService implements ToolServicePort {
     this.conversationMcpAccessContexts.delete(normalizedConversationId)
     this.conversationMcpDefinitions.delete(normalizedConversationId)
     revokeToolSurfaceDeferredDispatchesForSession(normalizedConversationId)
+    this.conversationToolModes.delete(normalizedConversationId)
+    this.runCodeRuntime.cancelSession(normalizedConversationId)
     this.permissionBroker.cancelConversation(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
@@ -505,6 +680,21 @@ export class ToolService implements ToolServicePort {
     options?: MainProcessToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     options?.signal?.throwIfAborted()
+    const internalOptions = options as InternalToolCallOptions | undefined
+    if (!internalOptions?.codeModeNested) {
+      const codeModeResult = await this.callCodeModeEntry(request, options)
+      if (codeModeResult) return codeModeResult
+      const sessionId = request.conversationId?.trim()
+      if (
+        sessionId &&
+        this.conversationToolModes.get(sessionId)?.mode === 'code' &&
+        !isCodeModeDirectToolName(request.function.name)
+      ) {
+        throw new Error(
+          `Direct tool '${request.function.name}' is unavailable in Code Mode; use the code entrypoint.`
+        )
+      }
+    }
     const toolName = request.function.name
     const toolSurfaceContext = options?.toolSurfaceContext
     const toolSurfaceSnapshot = options?.toolSurfaceSnapshot ?? toolSurfaceContext?.snapshot
@@ -706,7 +896,7 @@ export class ToolService implements ToolServicePort {
       if (!this.agentToolManager) {
         throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
       }
-      const args = this.parseAgentToolArguments(request.function.arguments)
+      const args = this.parseAgentToolArguments(request.function.arguments, toolName)
       const preflightPolicy = await this.resolveSubagentExecutionToolPolicy(
         request.conversationId,
         options?.signal
@@ -930,6 +1120,17 @@ export class ToolService implements ToolServicePort {
   ): Promise<ToolPermissionPreCheckResult | null> {
     options?.signal?.throwIfAborted()
     this.assertToolSurfaceAuthority(request, options)
+    const toolMode = request.conversationId
+      ? this.conversationToolModes.get(request.conversationId)
+      : undefined
+    if (
+      toolMode?.mode === 'code' &&
+      (request.function.name === RUN_CODE_TOOL_NAME ||
+        request.function.name === CODE_MODE_EXEC_TOOL_NAME ||
+        request.function.name === CODE_MODE_WAIT_TOOL_NAME)
+    ) {
+      return null
+    }
     const toolName = request.function.name
     const source = this.getToolSource(toolName, request.conversationId)
 
@@ -948,7 +1149,7 @@ export class ToolService implements ToolServicePort {
         return null
       }
 
-      const args = this.parseAgentToolArguments(request.function.arguments)
+      const args = this.parseAgentToolArguments(request.function.arguments, toolName)
 
       const result = await awaitWithAbort(
         this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
@@ -1001,8 +1202,223 @@ export class ToolService implements ToolServicePort {
     return response
   }
 
-  private parseAgentToolArguments(argumentsText: string | undefined): Record<string, unknown> {
+  private publishConfiguredCatalog(conversationId: string, definitions: MCPToolDefinition[]): void {
+    const mapper = new ToolMapper()
+    const names = new Set<string>()
+    for (const definition of definitions) {
+      const name = definition.function.name.trim()
+      if (!name) throw new Error('Tool catalog contains an empty tool name.')
+      if (names.has(name)) throw new Error(`Tool catalog contains duplicate name '${name}'.`)
+      names.add(name)
+      mapper.registerTools([definition], definition.source === 'mcp' ? 'mcp' : 'agent')
+    }
+    this.publishMapper(
+      conversationId,
+      mapper,
+      definitions,
+      definitions.filter((definition) => definition.source === 'mcp')
+    )
+  }
+
+  private assertCodeModeCatalog(
+    frontend: ConversationToolModeContext['frontend'],
+    definitions: readonly MCPToolDefinition[]
+  ): void {
+    const exposedNames = new Map<string, string>()
+    for (const definition of definitions) {
+      const rawName = definition.function.name.trim()
+      if (UNSAFE_CODE_MODE_TOOL_NAMES.has(rawName)) {
+        throw new Error(`Code Mode execution catalog rejects unsafe tool name '${rawName}'.`)
+      }
+      if (frontend === 'function' && rawName === RUN_CODE_TOOL_NAME) {
+        throw new Error(`Code Mode execution catalog reserves '${RUN_CODE_TOOL_NAME}'.`)
+      }
+
+      const exposedName = frontend === 'codex' ? normalizeCodexToolName(rawName) : rawName
+      const conflictingName = exposedNames.get(exposedName)
+      if (conflictingName) {
+        throw new Error(
+          `Code Mode tool names '${conflictingName}' and '${rawName}' both map to '${exposedName}'.`
+        )
+      }
+      exposedNames.set(exposedName, rawName)
+    }
+  }
+
+  private async callCodeModeEntry(
+    request: MCPToolCall,
+    options?: ToolCallOptions
+  ): Promise<{ content: unknown; rawData: MCPToolResponse } | null> {
+    const sessionId = request.conversationId?.trim()
+    if (!sessionId) return null
+    const context = this.conversationToolModes.get(sessionId)
+    if (!context || context.mode !== 'code') return null
+
+    const toolName = request.function.name
+    const isExec = context.frontend === 'codex' && toolName === CODE_MODE_EXEC_TOOL_NAME
+    const isWait = context.frontend === 'codex' && toolName === CODE_MODE_WAIT_TOOL_NAME
+    const isRunCode = context.frontend === 'function' && toolName === RUN_CODE_TOOL_NAME
+    if (!isExec && !isWait && !isRunCode) return null
+    if (options?.permissionMode !== 'full_access') {
+      const content = 'Code Mode requires Full Access permission mode.'
+      return {
+        content,
+        rawData: { toolCallId: request.id, content, isError: true }
+      }
+    }
+
+    const waitInput = isWait ? this.requireCodeModeWaitInput(request.function.arguments) : null
+    const execInput = isExec ? this.requireCodexExecInput(request.function.arguments) : null
+    const outerDispatch: ToolDispatchCommitInput = {
+      toolName,
+      toolSource: 'agent',
+      normalizedArguments: execInput
+        ? { source: execInput.source }
+        : this.parseAgentToolArguments(request.function.arguments, toolName),
+      target: { serverName: CODE_MODE_TOOL_SERVER_NAME, originalName: toolName }
+    }
+    const result = waitInput
+      ? await this.runCodeRuntime.wait({
+          sessionId,
+          cellId: waitInput.cellId,
+          toolCallId: request.id,
+          yieldTimeMs: waitInput.yieldTimeMs,
+          maxTokens: waitInput.maxTokens,
+          terminate: waitInput.terminate,
+          outerDispatch,
+          options: options ?? {}
+        })
+      : await this.runCodeRuntime.execute({
+          sessionId,
+          runId: options?.runId,
+          toolCallId: request.id,
+          frontend: context.frontend,
+          source: execInput?.source ?? this.requireRunCodeSource(request.function.arguments),
+          ...(execInput
+            ? {
+                yieldTimeMs: execInput.yieldTimeMs,
+                maxOutputTokens: execInput.maxOutputTokens
+              }
+            : {}),
+          executionCatalog: context.executionCatalog,
+          outerDispatch,
+          options: options ?? {}
+        })
+    const rawData = result.rawData ?? {
+      content: result.content,
+      isError: false,
+      toolResult: createAgentToolSuccessResult(toolName, result.content, {
+        data: { content: result.content, source: 'agent' }
+      })
+    }
+    return {
+      content: rawData.content ?? result.content,
+      rawData: {
+        ...rawData,
+        toolCallId: request.id,
+        content: rawData.content ?? result.content
+      }
+    }
+  }
+
+  private requireRunCodeSource(argumentsText: string): string {
+    const args = this.parseAgentToolArguments(argumentsText)
+    const code = typeof args.code === 'string' ? args.code : ''
+    const description = typeof args.description === 'string' ? args.description.trim() : ''
+    if (!code) throw new Error('run_code requires a non-empty code string.')
+    if (!description) throw new Error('run_code requires a non-empty description string.')
+    return code
+  }
+
+  private requireCodexExecInput(argumentsText: string): CodexExecInput {
+    const match = argumentsText.match(/^\s*\/\/\s*@exec:\s*([^\r\n]+)(?:\r?\n|$)/)
+    if (!match) {
+      if (!argumentsText.trim()) throw new Error('exec requires non-empty JavaScript source.')
+      return {
+        source: argumentsText,
+        yieldTimeMs: CODE_MODE_DEFAULT_YIELD_TIME_MS,
+        maxOutputTokens: CODE_MODE_DEFAULT_MAX_OUTPUT_TOKENS
+      }
+    }
+
+    let pragma: Record<string, unknown>
+    try {
+      pragma = JSON.parse(match[1]) as Record<string, unknown>
+    } catch {
+      throw new Error('exec pragma must contain a valid JSON object.')
+    }
+    if (!pragma || typeof pragma !== 'object' || Array.isArray(pragma)) {
+      throw new Error('exec pragma must contain a JSON object.')
+    }
+    const source = argumentsText.slice(match[0].length)
+    if (!source.trim()) throw new Error('exec requires non-empty JavaScript source.')
+    return {
+      source,
+      yieldTimeMs: this.readBoundedCodeModeNumber(
+        pragma.yield_time_ms,
+        'yield_time_ms',
+        CODE_MODE_DEFAULT_YIELD_TIME_MS,
+        CODE_MODE_MIN_YIELD_TIME_MS,
+        CODE_MODE_MAX_YIELD_TIME_MS
+      ),
+      maxOutputTokens: this.readBoundedCodeModeNumber(
+        pragma.max_output_tokens,
+        'max_output_tokens',
+        CODE_MODE_DEFAULT_MAX_OUTPUT_TOKENS,
+        1,
+        CODE_MODE_MAX_OUTPUT_TOKENS
+      )
+    }
+  }
+
+  private requireCodeModeWaitInput(argumentsText: string): CodexWaitInput {
+    const args = this.parseAgentToolArguments(argumentsText)
+    const cellId = typeof args.cell_id === 'string' ? args.cell_id.trim() : ''
+    if (!cellId) throw new Error('wait requires a non-empty cell_id.')
+    return {
+      cellId,
+      yieldTimeMs: this.readBoundedCodeModeNumber(
+        args.yield_time_ms,
+        'yield_time_ms',
+        CODE_MODE_DEFAULT_YIELD_TIME_MS,
+        CODE_MODE_MIN_YIELD_TIME_MS,
+        CODE_MODE_MAX_YIELD_TIME_MS
+      ),
+      maxTokens: this.readBoundedCodeModeNumber(
+        args.max_tokens,
+        'max_tokens',
+        CODE_MODE_DEFAULT_MAX_OUTPUT_TOKENS,
+        1,
+        CODE_MODE_MAX_OUTPUT_TOKENS
+      ),
+      terminate: args.terminate === true
+    }
+  }
+
+  private readBoundedCodeModeNumber(
+    value: unknown,
+    name: string,
+    fallback: number,
+    minimum: number,
+    maximum: number
+  ): number {
+    if (value === undefined) return fallback
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      throw new Error(`${name} must be an integer.`)
+    }
+    const parsed = value as number
+    if (parsed < minimum || parsed > maximum) {
+      throw new Error(`${name} must be between ${minimum} and ${maximum}.`)
+    }
+    return parsed
+  }
+
+  private parseAgentToolArguments(
+    argumentsText: string | undefined,
+    toolName?: string
+  ): Record<string, unknown> {
     const raw = argumentsText ?? ''
+    if (toolName === APPLY_PATCH_TOOL_NAME) return { patch: raw }
     if (!raw.trim()) return {}
 
     try {
@@ -1747,7 +2163,11 @@ export class ToolService implements ToolServicePort {
   }
 
   private buildFilesystemPrompt(toolNames: Set<string>, offloadPath: string): string {
-    const filesystemTools = FILESYSTEM_TOOL_ORDER.filter((toolName) => toolNames.has(toolName))
+    const filesystemTools = [
+      ...FILESYSTEM_TOOL_ORDER,
+      APPLY_PATCH_TOOL_NAME,
+      STR_REPLACE_EDITOR_TOOL_NAME
+    ].filter((toolName) => toolNames.has(toolName))
     if (filesystemTools.length === 0) {
       return ''
     }

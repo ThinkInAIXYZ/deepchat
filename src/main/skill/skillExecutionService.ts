@@ -410,7 +410,14 @@ export class SkillExecutionService {
     signal?: AbortSignal
   ): Promise<RuntimeCommand> {
     if (script.runtime === 'shell') {
-      if (commandShell.profile !== 'posix' && commandShell.profile !== 'git-bash') {
+      const supportedProfile =
+        process.platform === 'win32'
+          ? commandShell.profile === 'git-bash'
+          : ['posix', 'bash', 'zsh', 'fish'].includes(commandShell.profile)
+      if (commandShell.dialect !== 'posix' || !supportedProfile) {
+        if (process.platform !== 'win32') {
+          throw new Error('Shell skill scripts require a platform-compatible POSIX command shell')
+        }
         throw new Error('Shell skill scripts on Windows require the Git Bash command shell')
       }
       return { command: commandShell.executable, mode: 'shell' }

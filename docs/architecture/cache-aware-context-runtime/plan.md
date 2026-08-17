@@ -60,11 +60,18 @@ gateway, whose one-shot path now has isolated cache intent.
 
 ## ViewManifest and Attempt Outcomes
 
-Register `cache_aware_context_v1` as the default policy while retaining the legacy policy in the
-registry. Add `cache-aware-v1` to the builder-version union and pass the assembler's version into
-each provider attempt manifest. Advance new manifests to schema version 3. Extend included refs
-with optional source entry IDs and content hashes for `summary_checkpoint`,
-`reconstruction_checkpoint`, and `memory_context`.
+The original implementation registered `cache_aware_context_v1` as the default policy while
+retaining the legacy policy. The compaction follow-up advances the default to
+`cache_aware_context_v2` / `cache-aware-v2`, keeps v1 explicitly selectable, and adds an
+authoritative `pinned_first_user` ref. The pin is selected from the existing effective-history
+projection, placed after system and before checkpoint, protected by request fitting, and grounded
+to one effective Tape source using both the raw source-content hash and the exact provider-message
+hash. Provider attempts continue to receive the assembler's version. Historical manifest schemas
+and hashes remain unchanged and replay according to their stored policy identity.
+
+The existing included refs for `summary_checkpoint`, `reconstruction_checkpoint`, and
+`memory_context` remain synthetic derivatives with optional source entry IDs and content hashes;
+the pinned first user is not added to that synthetic contribution family.
 
 Add a narrow `TapeProviderAttemptWriter` capability. The context coordinator captures the last
 usage and stop event inside each request-sequence attempt, classifies completion, overflow, abort,

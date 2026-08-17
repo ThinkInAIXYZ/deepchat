@@ -141,6 +141,8 @@ export function useGenerationNumericInputs(options: {
         return t('chat.advancedSettings.validation.finiteNumber')
       case 'non_negative_integer':
         return t('chat.advancedSettings.validation.nonNegativeInteger')
+      case 'context_length_non_positive':
+        return t('settings.model.modelConfig.validation.contextLengthMin')
       case 'context_length_below_max_tokens':
         return t('chat.advancedSettings.validation.contextLengthAtLeastMaxTokens')
       case 'max_tokens_exceed_context_length':

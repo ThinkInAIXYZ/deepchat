@@ -3,6 +3,8 @@ import {
   TAPE_TOOL_SURFACE_EVENT_NAME,
   TOOL_SURFACE_TAPE_EVENT_NAMES
 } from '@/tape/domain/toolSurfaceFacts'
+import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
+import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule ? await import('@/session/data/tables/deepchatTapeEntries') : null
@@ -95,6 +97,107 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('reads the latest request evidence through indexed lookups', () => {
+    const { db, table } = createTable()
+
+    const firstManifest = table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'message-1', seq: 1 },
+      data: { manifest: { requestSeq: 1 } },
+      createdAt: 100
+    })
+    const latestManifest = table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'message-2', seq: 2 },
+      data: { manifest: { requestSeq: 2 } },
+      createdAt: 101
+    })
+    table.appendEvent({
+      sessionId: 's2',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'message-other', seq: 1 },
+      data: { manifest: { requestSeq: 1 } },
+      createdAt: 102
+    })
+    const firstAttempt = table.appendProviderAttemptEvent({
+      sessionId: 's1',
+      name: 'provider/attempt_completed',
+      source: { type: 'runtime_event', id: 'message-2', seq: 2 },
+      provenanceKey: 'provider-attempt:s1:message-2:2:1',
+      data: { physicalAttempt: 1 },
+      createdAt: 103
+    })
+    const finalAttempt = table.appendProviderAttemptEvent({
+      sessionId: 's1',
+      name: 'provider/attempt_completed',
+      source: { type: 'runtime_event', id: 'message-2', seq: 2 },
+      provenanceKey: 'provider-attempt:s1:message-2:2:2',
+      data: { physicalAttempt: 2 },
+      createdAt: 104
+    })
+
+    expect(firstManifest.entry_id).toBeLessThan(latestManifest.entry_id)
+    expect(table.getLatestViewManifestEvent('s1')?.entry_id).toBe(latestManifest.entry_id)
+    expect(firstAttempt.entry_id).toBeLessThan(finalAttempt.entry_id)
+    expect(
+      table.getLatestEventBySource(
+        's1',
+        'provider/attempt_completed',
+        'runtime_event',
+        'message-2',
+        2
+      )?.entry_id
+    ).toBe(finalAttempt.entry_id)
+
+    const viewPlan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'event'
+           AND name = 'view/assembled'
+           AND source_type = 'runtime_event'
+         ORDER BY entry_id DESC
+         LIMIT 1`
+      )
+      .all('s1') as Array<{ detail: string }>
+    expect(
+      viewPlan.some((row) => /\bSEARCH deepchat_tape_entries\b.*\bUSING INDEX\b/i.test(row.detail))
+    ).toBe(true)
+    expect(
+      viewPlan.some((row) => /\bSCAN deepchat_tape_entries\b(?!.*USING INDEX)/i.test(row.detail))
+    ).toBe(false)
+
+    const attemptPlan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'event'
+           AND name = ?
+           AND source_type = ?
+           AND source_id = ?
+           AND source_seq = ?
+         ORDER BY entry_id DESC
+         LIMIT 1`
+      )
+      .all('s1', 'provider/attempt_completed', 'runtime_event', 'message-2', 2) as Array<{
+      detail: string
+    }>
+    expect(
+      attemptPlan.some((row) =>
+        /\bSEARCH deepchat_tape_entries\b.*\bUSING INDEX\b/i.test(row.detail)
+      )
+    ).toBe(true)
+    expect(
+      attemptPlan.some((row) => /\bSCAN deepchat_tape_entries\b(?!.*USING INDEX)/i.test(row.detail))
+    ).toBe(false)
+
+    db.close()
+  })
+
   it('reserves Tool Surface provenance names for the dedicated writer', () => {
     const { db, table } = createTable()
 
@@ -174,7 +277,11 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
       ['s1', 'provider/attempt_completed', 'a2', 11],
       ['s2', 'provider/attempt_completed', 'a1', 13]
     ] as const) {
-      table.appendEvent({
+      const append =
+        name === 'provider/attempt_completed'
+          ? table.appendProviderAttemptEvent.bind(table)
+          : table.appendEvent.bind(table)
+      append({
         sessionId,
         name,
         source: { type: 'runtime_event', id: sourceId, seq: sourceSeq },
@@ -188,6 +295,146 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     expect(
       table.getMaxEventSourceSeq('s1', 'provider/attempt_completed', 'runtime_event', 'missing')
     ).toBe(0)
+
+    db.close()
+  })
+
+  it('round-trips silent pressure through the authoritative writer and store', () => {
+    const { db, table } = createTable()
+    const service = new TapeProviderAttemptService({
+      getEntryStore: () => table,
+      getProviderAttemptStore: () => table
+    })
+
+    const written = service.appendProviderAttempt({
+      sessionId: 's1',
+      messageId: 'message-1',
+      logicalRound: 1,
+      requestSeq: 1,
+      physicalAttempt: 1,
+      requestOrigin: 'chat',
+      attemptOrigin: 'initial',
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      status: 'completed',
+      stopReason: 'max_tokens',
+      failureClassification: null,
+      retryDecision: 'none',
+      httpStatus: null,
+      errorCode: null,
+      retryDelayMs: null,
+      usage: { inputTokens: 990, outputTokens: 0, totalTokens: 990 },
+      contextPressure: {
+        kind: 'zero_output_length_at_limit',
+        contextWindowTokens: 1_000,
+        thresholdTokens: 990
+      }
+    })
+
+    expect(service.getPendingProviderContextPressure('s1', 'provider-1', 'model-1')).toMatchObject({
+      entryId: written.entry_id,
+      attempt: {
+        messageId: 'message-1',
+        contextPressure: {
+          kind: 'zero_output_length_at_limit',
+          contextWindowTokens: 1_000,
+          thresholdTokens: 990
+        }
+      }
+    })
+
+    db.close()
+  })
+
+  it('reads the latest matching provider pressure after a reconstruction anchor by index', () => {
+    const { db, table } = createTable()
+    const buildAttempt = (providerId: string, modelId: string) =>
+      buildTapeProviderAttemptEvent({
+        sessionId: 's1',
+        messageId: `message-${providerId}-${modelId}`,
+        logicalRound: 1,
+        requestSeq: 1,
+        physicalAttempt: 1,
+        requestOrigin: 'chat',
+        attemptOrigin: 'initial',
+        providerId,
+        modelId,
+        status: 'completed',
+        stopReason: 'complete',
+        failureClassification: null,
+        retryDecision: 'none',
+        httpStatus: null,
+        errorCode: null,
+        retryDelayMs: null,
+        usage: { inputTokens: 1_001, outputTokens: 1, totalTokens: 1_002 },
+        contextPressure: {
+          kind: 'successful_prompt_overflow',
+          contextWindowTokens: 1_000,
+          thresholdTokens: 1_000
+        }
+      })
+    const appendAttempt = (data: object) =>
+      table.appendProviderAttemptEvent({
+        sessionId: 's1',
+        name: 'provider/attempt_completed',
+        data: { ...data }
+      })
+
+    const legacy = { ...buildAttempt('provider-1', 'model-1'), schemaVersion: 2 } as Record<
+      string,
+      unknown
+    >
+    delete legacy.contextPressure
+    appendAttempt(legacy)
+    const settled = appendAttempt(buildAttempt('provider-1', 'model-1'))
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/auto',
+      state: { summary: 'settled old pressure', cursorOrderSeq: 3 }
+    })
+    appendAttempt({ ...buildAttempt('provider-1', 'model-1'), contextPressure: null })
+    appendAttempt({
+      ...buildAttempt('provider-1', 'model-1'),
+      contextPressure: { kind: 'invalid', contextWindowTokens: 1_000, thresholdTokens: 1_000 }
+    })
+    appendAttempt(buildAttempt('provider-2', 'model-1'))
+    appendAttempt(buildAttempt('provider-1', 'model-2'))
+    const latest = appendAttempt(buildAttempt('provider-1', 'model-1'))
+
+    expect(
+      table.getLatestProviderContextPressureEvent('s1', 'provider-1', 'model-1', settled.entry_id)
+    ).toMatchObject({ entry_id: latest.entry_id })
+    expect(
+      table.getLatestProviderContextPressureEvent('s1', 'provider-1', 'model-1', latest.entry_id)
+    ).toBeUndefined()
+    expect(
+      table.getLatestProviderContextPressureEvent('s1', 'provider-3', 'model-1', 0)
+    ).toBeUndefined()
+
+    const plan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'event'
+           AND name = 'provider/attempt_completed'
+           AND (CASE WHEN json_valid(payload_json)
+             THEN json_extract(payload_json, '$.data.schemaVersion') END) = 3
+           AND (CASE WHEN json_valid(payload_json)
+             THEN json_extract(payload_json, '$.data.providerId') END) = ?
+           AND (CASE WHEN json_valid(payload_json)
+             THEN json_extract(payload_json, '$.data.modelId') END) = ?
+           AND (CASE WHEN json_valid(payload_json)
+             THEN json_extract(payload_json, '$.data.contextPressure.kind') END)
+             IN ('successful_prompt_overflow', 'zero_output_length_at_limit')
+           AND entry_id > ?
+         ORDER BY entry_id DESC
+         LIMIT 1`
+      )
+      .all('s1', 'provider-1', 'model-1', settled.entry_id) as Array<{ detail: string }>
+    expect(
+      plan.some((row) => /idx_deepchat_tape_entries_provider_context_pressure/i.test(row.detail))
+    ).toBe(true)
 
     db.close()
   })
@@ -337,6 +584,53 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
       name: 'auto_handoff/custom',
       entry_id: 2
     })
+
+    db.close()
+  })
+
+  it('resolves a committed compaction by attempt identity after a later handoff', () => {
+    const { db, table } = createTable()
+
+    table.ensureBootstrapAnchor('s1')
+    const compactionAnchor = table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/auto',
+      state: {
+        compactionAttemptId: 'attempt-1',
+        summary: 'committed summary',
+        cursorOrderSeq: 3
+      },
+      createdAt: 100
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'handoff/phase_done',
+      state: { summary: 'later handoff', cursorOrderSeq: 8 },
+      createdAt: 101
+    })
+
+    expect(table.getReconstructionAnchorByCompactionAttemptId('s1', 'attempt-1')).toMatchObject({
+      name: 'compaction/auto',
+      entry_id: compactionAnchor.entry_id
+    })
+    expect(table.getReconstructionAnchorByCompactionAttemptId('s1', 'missing')).toBeUndefined()
+    expect(table.getReconstructionAnchorByCompactionAttemptId('s2', 'attempt-1')).toBeUndefined()
+
+    const plan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'anchor'
+           AND (CASE WHEN json_valid(payload_json)
+             THEN json_extract(payload_json, '$.state.compactionAttemptId') END) = ?
+         ORDER BY entry_id DESC
+         LIMIT 1`
+      )
+      .all('s1', 'attempt-1') as Array<{ detail: string }>
+    expect(
+      plan.some((row) => /idx_deepchat_tape_entries_compaction_attempt/i.test(row.detail))
+    ).toBe(true)
 
     db.close()
   })

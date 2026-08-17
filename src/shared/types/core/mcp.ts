@@ -54,6 +54,14 @@ export const TOOL_EXECUTION = Object.freeze({
 export interface MCPToolDefinitionBase {
   type: string
   source?: 'mcp' | 'agent'
+  providerPresentation?:
+    | { type: 'function' }
+    | {
+        type: 'freeform'
+        format?:
+          | { type: 'text' }
+          | { type: 'grammar'; syntax: 'lark' | 'regex'; definition: string }
+      }
   function: {
     name: string
     description: string
@@ -105,6 +113,20 @@ export interface ToolDispatchCommitInput {
 }
 
 export type ToolDispatchCommit = (input: ToolDispatchCommitInput) => void
+
+export interface NestedToolDispatchCommitInput extends ToolDispatchCommitInput {
+  childOrdinal: number
+  definitionHash: string
+  capabilityHash: string
+}
+
+export type NestedToolDispatchCommit = (input: NestedToolDispatchCommitInput) => void
+
+export type NestedToolOutcomeCommit = (input: {
+  childOrdinal: number
+  responseText: string
+  isError: boolean
+}) => void
 
 export type ToolOutcomeProjection = () => void
 

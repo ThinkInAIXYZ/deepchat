@@ -1,9 +1,8 @@
 import type { DeepChatTapeEntryRow } from './entry'
 import { hashJson, hashJsonData, stableJsonStringify } from './canonicalJson'
-import { MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN } from './toolSurfaceFacts'
-
 export const EXECUTION_JOURNAL_PROTOCOL_VERSION = 1 as const
 export const EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION = 2 as const
+export const MAX_EXECUTION_JOURNAL_NESTED_CHILDREN = 128
 export const EXECUTION_JOURNAL_FACT_FAMILY = 'execution_journal' as const
 export const EXECUTION_JOURNAL_EVENT_NAMES = [
   'execution/run_started',
@@ -355,10 +354,10 @@ export function normalizeNestedExecutionOperationIdentity(
   if (
     !Number.isSafeInteger(record.childOrdinal) ||
     (record.childOrdinal as number) < 0 ||
-    (record.childOrdinal as number) >= MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN
+    (record.childOrdinal as number) >= MAX_EXECUTION_JOURNAL_NESTED_CHILDREN
   ) {
     throw new ExecutionJournalError(
-      `childOrdinal must be a non-negative safe integer below ${MAX_TAPE_PROGRAMMATIC_TOOL_CHILDREN}.`,
+      `childOrdinal must be a non-negative safe integer below ${MAX_EXECUTION_JOURNAL_NESTED_CHILDREN}.`,
       'invalid_fact'
     )
   }

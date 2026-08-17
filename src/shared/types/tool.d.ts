@@ -6,6 +6,8 @@ import type {
   MCPToolDefinition,
   MCPToolCall,
   MCPToolResponse,
+  NestedToolDispatchCommit,
+  NestedToolOutcomeCommit,
   ToolDispatchCommit,
   ToolOutcomeProjectionRegistrar
 } from '../core/mcp'
@@ -13,6 +15,7 @@ import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '..
 import type { AgentPlanSnapshot } from '../agent-plan'
 import type { DeepChatExecutionContract } from './execution-contract'
 import type { CommandShellProfile, ResolvedCommandShell } from '../commandShell'
+import type { ToolMode } from '../toolMode'
 
 export type AgentToolProgressUpdate =
   | {
@@ -42,6 +45,14 @@ export interface ToolDefinitionContext {
   subagentCapability?: DeepChatSubagentCapability
 }
 
+export interface ToolModeConfiguration {
+  conversationId: string
+  mode: ToolMode
+  providerId: string
+  commandShell: ResolvedCommandShell
+  executionCatalog: readonly MCPToolDefinition[]
+}
+
 export interface ToolCallOptions {
   runId?: string
   messageId?: string
@@ -56,6 +67,8 @@ export interface ToolCallOptions {
   agentId?: string
   enabledMcpServerIds?: string[]
   commitDispatch?: ToolDispatchCommit
+  commitNestedDispatch?: NestedToolDispatchCommit
+  commitNestedToolOutcome?: NestedToolOutcomeCommit
   registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
   commandShell?: ResolvedCommandShell
   oneShotCommandGrantId?: string
@@ -163,6 +176,10 @@ export interface ToolServicePort {
    * Reset only the per-turn agent plan state for a conversation.
    */
   clearAgentPlanState(conversationId: string): void
+
+  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[]
+
+  shutdownCodeRuntime(): Promise<void>
 
   /**
    * Build system prompt section for tool-related behavior.

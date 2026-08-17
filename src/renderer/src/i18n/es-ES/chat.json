@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modo",
+      "modelDefault": "Predeterminado del modelo",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Usa el conjunto de herramientas estándar del agente.",
+        "code": "Combina las herramientas activadas mediante código. Requiere el modo de permisos Acceso completo.",
+        "minimal": "Simplifica las operaciones de archivos y conserva las demás herramientas habilitadas."
+      },
+      "useModelDefault": "Usar predeterminado del modelo",
+      "saving": "Guardando modo...",
+      "locked": "Puedes cambiar de modo cuando termine esta respuesta.",
+      "updateFailed": "No se pudo actualizar el modo de herramientas.",
+      "codeEntry": "Entrada de código",
+      "codeCallable": "Invocable desde código",
+      "minimalTools": "Herramientas de programación"
+    },
     "fileUploadFailed": "No se ha podido adjuntar",
     "fileUploadFailedDesc": "No se han podido procesar {count} archivos: {names}",
     "fileUploadFailedMore": " y {count} más",
@@ -122,10 +143,19 @@
   "compaction": {
     "compacting": "Compactando el contexto...",
     "compacted": "El contexto se ha compactado",
+    "compactedWithoutSummary": "El contexto se ha compactado sin un resumen",
+    "compactedWithoutLargerSummary": "El contexto se ha compactado sin usar un resumen más grande",
     "commandDescription": "Compactar el contexto de la conversación",
     "noopTitle": "Sin contexto para compactar",
     "noopDescription": "Aún no hay historial de conversación nuevo que compactar.",
     "failedTitle": "La compactación ha fallado"
+  },
+  "contextOccupancy": {
+    "label": "Uso del contexto",
+    "details": "{used} de {capacity} tokens",
+    "provider": "Medido por el proveedor",
+    "estimated": "Estimado desde la vista de solicitud",
+    "stale": "Obsoleto tras cambiar el modelo, la ventana o la compactación"
   },
   "rateLimit": {
     "queueTooltip": "{count} peticiones en cola, intervalo de {interval}s",

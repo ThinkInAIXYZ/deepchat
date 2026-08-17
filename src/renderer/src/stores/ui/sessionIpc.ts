@@ -1,4 +1,7 @@
 import { createSessionClient } from '../../../api/SessionClient'
+import type { DeepchatEventPayload } from '@shared/contracts/events'
+
+export type SessionCompactionChangedPayload = DeepchatEventPayload<'sessions.compaction.changed'>
 
 interface BindSessionStoreIpcOptions {
   webContentsId: () => number | null
@@ -8,6 +11,7 @@ interface BindSessionStoreIpcOptions {
   onActivated: (sessionId: string) => void | Promise<void>
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string, version: number) => void
+  onCompactionChanged: (payload: SessionCompactionChangedPayload) => void
 }
 
 type TargetedSessionUpdate = {
@@ -92,6 +96,9 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): Sessio
     }),
     sessionClient.onStatusChanged((payload) => {
       options.onStatusChanged(payload.sessionId, payload.status, payload.version)
+    }),
+    sessionClient.onCompactionChanged((payload) => {
+      options.onCompactionChanged(payload)
     })
   ]
 
