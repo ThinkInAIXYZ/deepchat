@@ -100,7 +100,7 @@ describe('TapeInspectorHeadWatcher', () => {
     expect(stopWatching.get(22)).toHaveBeenCalledOnce()
   })
 
-  it('survives read failures and synchronous renderer destruction without leaking work', () => {
+  it('backs off read failures and survives synchronous renderer destruction without leaks', () => {
     const timer = createScheduler()
     const emit = vi.fn()
     const onError = vi.fn()
@@ -130,10 +130,16 @@ describe('TapeInspectorHeadWatcher', () => {
     expect(timer.callbacks.size).toBe(1)
 
     timer.tick()
+    expect(readCount).toBe(2)
     expect(onError).toHaveBeenCalledOnce()
     expect(emit).not.toHaveBeenCalled()
 
     timer.tick()
+    expect(readCount).toBe(3)
+    expect(onError).toHaveBeenCalledOnce()
+
+    for (let index = 0; index < 4; index += 1) timer.tick()
+    expect(readCount).toBe(4)
     expect(emit).toHaveBeenCalledWith(11, {
       sessionId: 'session-1',
       tapeIncarnationId: 'incarnation-1',

@@ -597,6 +597,8 @@ timer. This refresh never changes or advances the Tape cursor and never returns 
 
 The interval naturally coalesces bursts and always reads the current committed head. An
 after-commit notifier remains a future optimization only if measured latency requires it.
+Transient read failures retain the active subscription but exponentially back off reads to a
+30-second cap. A successful read or subscription resets the normal polling cadence.
 
 ## Renderer Architecture
 

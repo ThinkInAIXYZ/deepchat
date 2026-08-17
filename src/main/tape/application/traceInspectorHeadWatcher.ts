@@ -1,6 +1,7 @@
 import type { TapeInspectorHead, TapeInspectorHeadPulse } from '@shared/types/tape-inspector'
 
 const DEFAULT_POLL_INTERVAL_MS = 500
+const MAX_READ_RETRY_DELAY_MS = 30_000
 const MAX_SUBSCRIPTIONS_PER_RENDERER = 16
 
 export interface TapeInspectorHeadWatcherScheduler {
@@ -21,6 +22,8 @@ interface WatchedSession {
   subscriptions: Map<string, number>
   lastHead: TapeInspectorHead
   timer: unknown
+  consecutiveReadFailures: number
+  pollsUntilReadRetry: number
   readFailureReported: boolean
 }
 
@@ -89,12 +92,19 @@ export class TapeInspectorHeadWatcher {
         subscriptions: new Map(),
         lastHead: head,
         timer: this.scheduler.setInterval(() => this.poll(input.sessionId), this.pollIntervalMs),
+        consecutiveReadFailures: 0,
+        pollsUntilReadRetry: 0,
         readFailureReported: false
       }
       this.sessions.set(input.sessionId, watchedSession)
-    } else if (!sameHead(watchedSession.lastHead, head)) {
-      watchedSession.lastHead = head
-      this.emitHead(input.sessionId, watchedSession)
+    } else {
+      watchedSession.consecutiveReadFailures = 0
+      watchedSession.pollsUntilReadRetry = 0
+      watchedSession.readFailureReported = false
+      if (!sameHead(watchedSession.lastHead, head)) {
+        watchedSession.lastHead = head
+        this.emitHead(input.sessionId, watchedSession)
+      }
     }
 
     watchedSession.subscriptions.set(subscriptionKey, input.webContentsId)
@@ -128,17 +138,32 @@ export class TapeInspectorHeadWatcher {
   private poll(sessionId: string): void {
     const watchedSession = this.sessions.get(sessionId)
     if (!watchedSession) return
+    if (watchedSession.pollsUntilReadRetry > 0) {
+      watchedSession.pollsUntilReadRetry -= 1
+      return
+    }
     try {
       const head = this.options.readHead(sessionId)
       if (!head) {
         this.releaseSession(sessionId)
         return
       }
+      watchedSession.consecutiveReadFailures = 0
+      watchedSession.pollsUntilReadRetry = 0
       watchedSession.readFailureReported = false
       if (sameHead(watchedSession.lastHead, head)) return
       watchedSession.lastHead = head
       this.emitHead(sessionId, watchedSession)
     } catch (error) {
+      watchedSession.consecutiveReadFailures += 1
+      const retryDelayMs = Math.min(
+        MAX_READ_RETRY_DELAY_MS,
+        this.pollIntervalMs * 2 ** Math.min(watchedSession.consecutiveReadFailures, 16)
+      )
+      watchedSession.pollsUntilReadRetry = Math.max(
+        0,
+        Math.ceil(retryDelayMs / this.pollIntervalMs) - 1
+      )
       if (!watchedSession.readFailureReported) {
         watchedSession.readFailureReported = true
         this.options.onError?.(error, sessionId)

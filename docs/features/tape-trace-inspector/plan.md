@@ -155,6 +155,7 @@ and pause changes only automatic fetching/follow.
 - [x] Cover evidence-only append, cursor deduplication, pause, and teardown cleanup.
 - [x] Cover terminal facts arriving at the end of a burst.
 - [x] Cover session deletion and renderer destruction while a watcher is active.
+- [x] Cover bounded read-failure backoff and automatic recovery.
 
 Completion condition: the watcher has no timer, window, or session leaks and never pushes row
 payloads.
