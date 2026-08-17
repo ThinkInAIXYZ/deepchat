@@ -1268,7 +1268,19 @@ describe('ToolService', () => {
     })
     const agentToolManager = (toolService as any).ensureAgentToolManager(null)
     agentToolManager.callTool = vi.fn().mockResolvedValue('question_requested')
-    const exec = { ...buildToolDefinition('exec', 'agent-filesystem'), source: 'agent' as const }
+    const execBase = buildToolDefinition('exec', 'agent-filesystem')
+    const exec = {
+      ...execBase,
+      source: 'agent' as const,
+      function: {
+        ...execBase.function,
+        parameters: {
+          type: 'object',
+          properties: { command: { type: 'string', description: 'The shell command to execute' } },
+          required: ['command']
+        }
+      }
+    }
     const detailedFilesystem = ['read', 'write', 'edit', 'glob', 'grep'].map((name) => ({
       ...buildToolDefinition(name, 'agent-filesystem'),
       source: 'agent' as const
@@ -1329,6 +1341,11 @@ describe('ToolService', () => {
       'remote_search'
     ])
     expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
+    expect(agent[0].function.parameters.properties.command).toEqual({
+      type: 'string',
+      description: 'The Zsh command to execute.'
+    })
+    expect(agent[1].function.description).not.toContain('Selected shell')
     expect(agent.map((definition) => definition.function.description).join('\n')).not.toContain(
       'Code Mode subtools'
     )

@@ -18,6 +18,24 @@ export const WINDOWS_POWERSHELL_COMMAND_SHELL: ResolvedCommandShell = Object.fre
   displayName: 'Windows PowerShell'
 })
 
+export const POWERSHELL_CORE_COMMAND_SHELL: ResolvedCommandShell = Object.freeze({
+  profile: 'powershell-core',
+  dialect: 'powershell',
+  pathStyle: 'win32',
+  executable: 'pwsh.exe',
+  args: Object.freeze(['-NoProfile', '-Command']),
+  displayName: 'PowerShell 7'
+})
+
+export const FISH_COMMAND_SHELL: ResolvedCommandShell = Object.freeze({
+  profile: 'fish',
+  dialect: 'posix',
+  pathStyle: 'native',
+  executable: '/opt/homebrew/bin/fish',
+  args: Object.freeze(['-c']),
+  displayName: 'Fish'
+})
+
 export const CMD_COMMAND_SHELL: ResolvedCommandShell = Object.freeze({
   profile: 'cmd',
   dialect: 'cmd',

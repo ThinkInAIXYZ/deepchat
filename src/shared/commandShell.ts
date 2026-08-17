@@ -167,19 +167,60 @@ export function normalizeAgentCommandShellConfig(value: unknown): AgentCommandSh
   return parsed.success ? parsed.data : DEFAULT_AGENT_COMMAND_SHELL_CONFIG
 }
 
+const MAX_SHELL_DISPLAY_NAME_CHARS = 128
+
+function sanitizeShellDisplayName(value: string): string {
+  const trimmed = value.trim()
+  return /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(trimmed)
+    ? trimmed.slice(0, MAX_SHELL_DISPLAY_NAME_CHARS)
+    : ''
+}
+
 function executableBasename(executable: string): string {
   return executable.split(/[\\/]/).filter(Boolean).at(-1) ?? executable
 }
 
+function commandShellDialectHint(profile: CommandShellProfile): string {
+  switch (profile) {
+    case 'windows-powershell':
+      return 'It does not support && or ||; use ; for unconditional sequential execution.'
+    case 'powershell-core':
+    case 'cmd':
+      return 'It supports && and ||.'
+    case 'git-bash':
+      return 'Use POSIX syntax. Use Windows-native paths with file tools; MSYS drive paths such as /c/... are for shell commands.'
+    case 'fish':
+      return 'Fish is not POSIX; bash idioms such as export do not work.'
+    case 'posix':
+    case 'bash':
+    case 'zsh':
+      return ''
+  }
+}
+
+function shellDisplayName(shell: ResolvedCommandShell): string {
+  // The posix profile is the only one whose display name comes from the user's $SHELL.
+  return shell.profile === 'posix'
+    ? sanitizeShellDisplayName(shell.displayName) || 'POSIX shell'
+    : shell.displayName
+}
+
+function withDialectHint(lead: string, profile: CommandShellProfile): string {
+  const hint = commandShellDialectHint(profile)
+  return hint ? `${lead} ${hint}` : lead
+}
+
+export function formatCommandShellPromptLine(shell: ResolvedCommandShell): string {
+  return withDialectHint(`Shell: ${shellDisplayName(shell)}.`, shell.profile)
+}
+
 export function formatCommandShellForModel(shell: ResolvedCommandShell): string {
-  const cwdSemantics =
-    shell.pathStyle === 'msys'
-      ? 'cwd accepts Windows paths and is translated for the MSYS shell.'
-      : shell.pathStyle === 'win32'
-        ? 'cwd uses Windows paths.'
-        : 'cwd uses native POSIX paths.'
-  return [
-    `Selected shell: ${shell.displayName} (${executableBasename(shell.executable)}).`,
-    `Dialect: ${shell.dialect}; path style: ${shell.pathStyle}; ${cwdSemantics}`
-  ].join(' ')
+  const displayName = shellDisplayName(shell)
+  const executable = sanitizeShellDisplayName(executableBasename(shell.executable))
+  const identity = executable ? `${displayName} (${executable})` : displayName
+  return withDialectHint(`Selected shell: ${identity}.`, shell.profile)
+}
+
+export function formatExecCommandDescription(shell: ResolvedCommandShell): string {
+  return withDialectHint(`The ${shellDisplayName(shell)} command to execute.`, shell.profile)
 }
