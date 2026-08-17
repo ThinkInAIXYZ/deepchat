@@ -325,6 +325,13 @@ export interface ProcessParams {
   modelConfig: ModelConfig
   temperature: number
   maxTokens: number
+  prepareToolContinuationContext?: (
+    requestedMaxTokens: number,
+    messages: ChatMessage[],
+    tools: MCPToolDefinition[]
+  ) =>
+    | { contextLength: number; outputCapContextLength: number }
+    | Promise<{ contextLength: number; outputCapContextLength: number }>
   interleavedReasoning: InterleavedReasoningConfig
   permissionMode: PermissionMode
   initialBlocks?: AssistantMessageBlock[]

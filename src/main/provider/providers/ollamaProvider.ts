@@ -281,10 +281,9 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   private matchesRequestedModelName(actualModelName: string, requestedModelName: string): boolean {
-    return (
-      actualModelName === requestedModelName ||
-      (!requestedModelName.includes(':') && actualModelName === `${requestedModelName}:latest`)
-    )
+    const normalizeLatestTag = (name: string): string =>
+      name.endsWith(':latest') ? name.slice(0, -':latest'.length) : name
+    return normalizeLatestTag(actualModelName) === normalizeLatestTag(requestedModelName)
   }
 
   private normalizeRuntimeContextLength(value: unknown): number | undefined {

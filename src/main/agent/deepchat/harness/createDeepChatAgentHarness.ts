@@ -408,6 +408,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const turnCoordinator = new TurnCoordinator({
     publishEvent,
+    providerRuntime,
     providerSettings,
     traceSettings,
     toolService,

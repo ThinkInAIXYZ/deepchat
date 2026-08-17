@@ -81,6 +81,7 @@ interface ContextBudgetParams {
   conversationMessages: ChatMessage[]
   toolDefinitions: MCPToolDefinition[]
   contextLength: number
+  outputCapContextLength?: number
   maxTokens: number
 }
 
@@ -517,11 +518,18 @@ export class ToolOutputGuard {
   }
 
   hasContextBudget(params: ContextBudgetParams): boolean {
-    const { conversationMessages, toolDefinitions, contextLength, maxTokens } = params
+    const {
+      conversationMessages,
+      toolDefinitions,
+      contextLength,
+      outputCapContextLength,
+      maxTokens
+    } = params
     return preflightRequestContext({
       messages: conversationMessages,
       tools: toolDefinitions,
       contextLength,
+      outputCapContextLength,
       requestedMaxTokens: maxTokens
     }).fitsWithinContext
   }

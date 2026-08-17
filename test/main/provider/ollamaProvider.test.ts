@@ -368,6 +368,26 @@ describe('OllamaProvider.fetchModels', () => {
     expect(ps).toHaveBeenCalledTimes(2)
   })
 
+  it('matches the implicit latest tag in either model-name direction', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ps = vi
+      .fn()
+      .mockResolvedValueOnce({
+        models: [{ name: 'qwen3', context_length: 8192 }]
+      })
+      .mockResolvedValueOnce({
+        models: [{ name: 'qwen3:latest', context_length: 16384 }]
+      })
+      .mockResolvedValueOnce({
+        models: [{ name: 'qwen3:8b', context_length: 32768 }]
+      })
+    ;(ollamaProvider as any).ollama = { ps }
+
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:latest')).resolves.toBe(8192)
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3')).resolves.toBe(16384)
+    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3')).resolves.toBeUndefined()
+  })
+
   it('bounds a stalled runtime context query without loading the model', async () => {
     vi.useFakeTimers()
     try {

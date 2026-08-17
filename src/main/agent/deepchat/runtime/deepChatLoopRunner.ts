@@ -41,6 +41,8 @@ import {
   resolveEffectiveActiveSkillNames
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import {
+  appendAttachmentTextSafetySection,
+  appendPromptAssemblySection,
   createOpaquePromptAssembly,
   reconcilePromptAssembly
 } from '@/agent/deepchat/resources/promptAssembly'
@@ -364,6 +366,7 @@ export type DeepChatLoopRunInput = {
   projectDir: string | null
   resourceInstance?: DeepChatAgentInstance
   providerModelFacts?: ProviderModelRuntimeFacts
+  initialRuntimeContextLimitTokens?: number | null
   taskContractContext: DeepChatTaskContractContext | null
   tools?: MCPToolDefinition[]
   toolCatalogSnapshot?: DeepChatToolCatalogSnapshot
@@ -651,6 +654,7 @@ export class DeepChatLoopRunner {
       projectDir,
       resourceInstance: providedResourceInstance,
       providerModelFacts: providedProviderModelFacts,
+      initialRuntimeContextLimitTokens,
       taskContractContext,
       tools: providedTools,
       toolCatalogSnapshot: providedToolCatalogSnapshot,
@@ -742,12 +746,88 @@ export class DeepChatLoopRunner {
         generationSettings,
         capabilitySnapshot
       )
-    const contextBudgetLength = resolveDeepChatContextBudgetLength(
-      state.providerId,
-      generationSettings.contextLength,
-      baseModelConfig,
-      state.modelId
+    const resolveRequestContextBudget = (
+      requestModelId: string,
+      requestModelConfig: ModelConfig,
+      requestedMaxTokens: number,
+      runtimeContextLimitTokens: number | undefined
+    ) => {
+      const configuredContextBudgetLength = resolveDeepChatContextBudgetLength(
+        state.providerId,
+        requestModelConfig.contextLength,
+        requestModelConfig,
+        requestModelId
+      )
+      if (
+        shouldBypassDeepChatContextBudget(
+          state.providerId,
+          requestModelConfig,
+          requestModelId
+        )
+      ) {
+        return {
+          contextLength: configuredContextBudgetLength,
+          outputCapContextLength: configuredContextBudgetLength
+        }
+      }
+      const observation = resourceInstance.getContextWindowObservation(
+        state.providerId,
+        requestModelId
+      )
+      const providerContextLimits = [
+        runtimeContextLimitTokens,
+        observation?.providerContextLimitTokens
+      ].filter(
+        (value): value is number =>
+          typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+      )
+      return resolveEffectiveContextBudget({
+        configuredContextLength: configuredContextBudgetLength,
+        requestedMaxTokens,
+        providerContextLimitTokens:
+          providerContextLimits.length > 0 ? Math.min(...providerContextLimits) : undefined,
+        providerPromptLimitTokens: observation?.providerPromptLimitTokens
+      })
+    }
+    const initialRuntimeContextLimit =
+      typeof initialRuntimeContextLimitTokens === 'number' &&
+      Number.isSafeInteger(initialRuntimeContextLimitTokens) &&
+      initialRuntimeContextLimitTokens > 0
+        ? initialRuntimeContextLimitTokens
+        : undefined
+    let currentRuntimeContextLimitTokens = initialRuntimeContextLimit
+    let initialRuntimeContextObservationPending = initialRuntimeContextLimit !== undefined
+    const refreshRuntimeContextLimit = async (requestModelId: string): Promise<void> => {
+      currentRuntimeContextLimitTokens = undefined
+      try {
+        currentRuntimeContextLimitTokens = await awaitWithAbort(
+          this.ports.providerRuntime.getRuntimeContextLimitTokens(
+            state.providerId,
+            requestModelId,
+            abortSignal
+          ),
+          abortSignal
+        )
+      } catch (error) {
+        abortSignal.throwIfAborted()
+        logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
+          providerId: state.providerId,
+          modelId: requestModelId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      resourceScope.assertCurrent()
+    }
+    const initialContextBudget = resolveRequestContextBudget(
+      state.modelId,
+      {
+        ...baseModelConfig,
+        contextLength: generationSettings.contextLength
+      },
+      generationSettings.maxTokens,
+      currentRuntimeContextLimitTokens
     )
+    const contextBudgetLength = initialContextBudget.contextLength
     const capabilityProviderId = capabilitySnapshot.identity.providerId
     const reasoningPortrait = capabilitySnapshot.reasoningPortrait
     const modelConfig: ModelConfig = {
@@ -755,7 +835,10 @@ export class DeepChatLoopRunner {
       temperature: generationSettings.temperature,
       topP: generationSettings.topP,
       contextLength: generationSettings.contextLength,
-      maxTokens: capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength),
+      maxTokens: capAgentRequestMaxTokens(
+        generationSettings.maxTokens,
+        initialContextBudget.outputCapContextLength
+      ),
       timeout: generationSettings.timeout,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
@@ -822,7 +905,10 @@ export class DeepChatLoopRunner {
       resourceInstance.activateRuntimeSkill(recovered.identity.skillName)
     }
     const temperature = generationSettings.temperature
-    const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
+    const maxTokens = capAgentRequestMaxTokens(
+      generationSettings.maxTokens,
+      initialContextBudget.outputCapContextLength
+    )
     const effectiveSystemPrompt =
       messages[0]?.role === 'system' && typeof messages[0].content === 'string'
         ? messages[0].content
@@ -1232,11 +1318,19 @@ export class DeepChatLoopRunner {
         name: projection.context.skillName,
         content: projection.effectiveContent
       }))
+    const preserveAttachmentTextSafety = initialPromptAssembly.sections.some(
+      (section) => section.sourceRef === 'runtime:attachment-text-safety'
+    )
+    const codeModeSdkSection = initialPromptAssembly.sections.find(
+      (section) => section.sourceRef === 'runtime:code-mode-sdk'
+    )
+    let promptAssemblyContextLength = contextBudgetLength
     const resolveRefreshedPromptAssembly = async (
       activeSkillNames: string[] | undefined,
-      refreshedTools: MCPToolDefinition[]
+      refreshedTools: MCPToolDefinition[],
+      promptContextLength = promptAssemblyContextLength
     ): Promise<DeepChatPromptAssembly> => {
-      const refreshedAssembly = await this.ports.promptAssembly
+      let refreshedAssembly = await this.ports.promptAssembly
         .createBasePromptAssembler(resourceInstance)
         .assembleWithProvenance({
           sessionId: toAppSessionId(sessionId),
@@ -1248,9 +1342,15 @@ export class DeepChatLoopRunner {
           ),
           sessionActiveSkillNames: sessionSkillBodiesOverride.map((skill) => skill.name),
           sessionSkillBodiesOverride,
-          contextLength: contextBudgetLength,
+          contextLength: promptContextLength,
           commandShell
         })
+      if (codeModeSdkSection) {
+        refreshedAssembly = appendPromptAssemblySection(refreshedAssembly, codeModeSdkSection)
+      }
+      if (preserveAttachmentTextSafety) {
+        refreshedAssembly = appendAttachmentTextSafetySection(refreshedAssembly)
+      }
       return toolSurfaceMode === 'cli-programmatic'
         ? appendCliProgrammaticToolAdapterSection(refreshedAssembly)
         : refreshedAssembly
@@ -1281,6 +1381,39 @@ export class DeepChatLoopRunner {
       },
       initialRequestSeq
     })
+    let activeBaseSystemPrompt = baseSystemPrompt
+    const shrinkPromptAssemblyToContext = async (
+      requestMessages: ChatMessage[],
+      requestTools: MCPToolDefinition[],
+      effectiveContextLength: number
+    ): Promise<void> => {
+      if (
+        requestMessages[0]?.role !== 'system' ||
+        !Number.isSafeInteger(effectiveContextLength) ||
+        effectiveContextLength <= 0 ||
+        effectiveContextLength >= promptAssemblyContextLength
+      ) {
+        return
+      }
+      const refreshedAssembly = await resolveRefreshedPromptAssembly(
+        [...loopRun.resources.activeSkillNames],
+        requestTools,
+        effectiveContextLength
+      )
+      abortSignal.throwIfAborted()
+      resourceScope.assertCurrent()
+      const priorSystemPrompt =
+        typeof requestMessages[0].content === 'string' ? requestMessages[0].content : ''
+      const effectiveSystemPrompt = refreshedAssembly.prompt || priorSystemPrompt
+      const projectedMessages = projectSystemPrompt(requestMessages, effectiveSystemPrompt)
+      requestMessages.splice(0, requestMessages.length, ...projectedMessages)
+      loopRun.resources.promptAssembly = reconcilePromptAssembly(
+        refreshedAssembly,
+        effectiveSystemPrompt
+      )
+      activeBaseSystemPrompt = effectiveSystemPrompt
+      promptAssemblyContextLength = effectiveContextLength
+    }
     loopRun.resources.tapeIncarnationId = tapeIncarnationId
     for (const projection of materializedSkillContexts) {
       const providerMessageIndex =
@@ -1443,49 +1576,27 @@ export class DeepChatLoopRunner {
           const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
           // ACP and non-chat media routes are not safe to replay before their first visible event.
           const allowTransientRetry = !requestBypassesContextBudget && !isTtsRequest
-          let runtimeContextLimitTokens: number | undefined
           if (!requestBypassesContextBudget) {
-            try {
-              runtimeContextLimitTokens = await awaitWithAbort(
-                ports.providerRuntime.getRuntimeContextLimitTokens(
-                  state.providerId,
-                  requestModelId,
-                  abortSignal
-                ),
-                abortSignal
-              )
-            } catch (error) {
-              abortSignal.throwIfAborted()
-              logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
-                providerId: state.providerId,
-                modelId: requestModelId,
-                error: error instanceof Error ? error.message : String(error)
-              })
+            const useInitialRuntimeContextObservation =
+              initialRuntimeContextObservationPending && requestModelId === state.modelId
+            initialRuntimeContextObservationPending = false
+            if (!useInitialRuntimeContextObservation) {
+              await refreshRuntimeContextLimit(requestModelId)
             }
             resourceScope.assertCurrent()
           }
-          const getEffectiveContextBudget = (requestedMaxTokens: number) => {
-            const observation = resourceInstance.getContextWindowObservation(
-              state.providerId,
-              requestModelId
-            )
-            const effectiveProviderContextLimits = [
-              runtimeContextLimitTokens,
-              observation?.providerContextLimitTokens
-            ].filter(
-              (value): value is number =>
-                typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-            )
-            return resolveEffectiveContextBudget({
-              configuredContextLength: requestModelConfig.contextLength,
+          const getEffectiveContextBudget = (requestedMaxTokens: number) =>
+            resolveRequestContextBudget(
+              requestModelId,
+              requestModelConfig,
               requestedMaxTokens,
-              providerContextLimitTokens:
-                effectiveProviderContextLimits.length > 0
-                  ? Math.min(...effectiveProviderContextLimits)
-                  : undefined,
-              providerPromptLimitTokens: observation?.providerPromptLimitTokens
-            })
-          }
+              currentRuntimeContextLimitTokens
+            )
+          await shrinkPromptAssemblyToContext(
+            requestMessages,
+            effectiveRequestTools,
+            getEffectiveContextBudget(requestMaxTokens).contextLength
+          )
           const buildCurrentContextLedger = (
             preflight: ReturnType<typeof preflightRequestContext>
           ) =>
@@ -1654,8 +1765,8 @@ export class DeepChatLoopRunner {
                   modelId: requestModelId,
                   requestMessages,
                   baseSystemPrompt:
-                    toolSurfaceMode === 'cli-programmatic' ? undefined : baseSystemPrompt,
-                  contextLength: requestModelConfig.contextLength,
+                    toolSurfaceMode === 'cli-programmatic' ? undefined : activeBaseSystemPrompt,
+                  contextLength: getEffectiveContextBudget(requestedMaxTokens).contextLength,
                   requestedMaxTokens,
                   tools,
                   supportsVision,
@@ -1933,6 +2044,31 @@ export class DeepChatLoopRunner {
         modelConfig,
         temperature,
         maxTokens,
+        prepareToolContinuationContext: async (
+          requestedMaxTokens,
+          requestMessages,
+          requestTools
+        ) => {
+          if (
+            !shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)
+          ) {
+            await refreshRuntimeContextLimit(state.modelId)
+            initialRuntimeContextObservationPending =
+              currentRuntimeContextLimitTokens !== undefined
+          }
+          const effectiveContextBudget = resolveRequestContextBudget(
+            state.modelId,
+            modelConfig,
+            requestedMaxTokens,
+            currentRuntimeContextLimitTokens
+          )
+          await shrinkPromptAssemblyToContext(
+            requestMessages,
+            requestTools,
+            effectiveContextBudget.contextLength
+          )
+          return effectiveContextBudget
+        },
         interleavedReasoning,
         permissionMode: state.permissionMode,
         initialBlocks,
@@ -2032,6 +2168,7 @@ export class DeepChatLoopRunner {
                         ]
                         loopRun.resources.promptAssembly = preparedPromptAssembly
                         if (refreshedAssembly.prompt) {
+                          activeBaseSystemPrompt = refreshedAssembly.prompt
                           if (loopRun.messages[0]?.role === 'system') {
                             const currentSystemMessage = loopRun.messages[0]
                             loopRun.messages[0] = inheritProviderProjectionIdentities(

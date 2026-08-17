@@ -263,6 +263,7 @@ interface CommitStagedToolResultsParams {
   toolResults: ToolResultPort
   tools: MCPToolDefinition[]
   contextLength: number
+  outputCapContextLength?: number
   maxTokens: number
   rendererFlushHandle: RendererFlushHandle
   toolSurfaceSnapshot?: ToolSurfaceSnapshot
@@ -293,6 +294,7 @@ async function commitStagedToolResults(
     toolResults,
     tools,
     contextLength,
+    outputCapContextLength,
     maxTokens,
     rendererFlushHandle,
     toolSurfaceSnapshot,
@@ -336,6 +338,7 @@ async function commitStagedToolResults(
       })),
       toolDefinitions: tools,
       contextLength,
+      outputCapContextLength,
       maxTokens
     })
     if (fittedResults.kind !== 'ok') {
@@ -2731,6 +2734,7 @@ export interface SettleToolBatchParams {
   permissionMode: PermissionMode
   toolResults: ToolResultPort
   contextLength: number
+  outputCapContextLength?: number
   maxTokens: number
   rendererFlushHandle: RendererFlushHandle
   providerReplayProjector?: ChatMessageProviderReplayProjector
@@ -2767,6 +2771,7 @@ export async function settleToolBatch(
     permissionMode,
     toolResults,
     contextLength,
+    outputCapContextLength,
     maxTokens,
     rendererFlushHandle,
     providerReplayProjector,
@@ -3146,6 +3151,7 @@ export async function settleToolBatch(
       toolResults,
       tools,
       contextLength,
+      outputCapContextLength,
       maxTokens,
       rendererFlushHandle,
       toolSurfaceSnapshot: toolSurface?.snapshot,
@@ -3475,6 +3481,7 @@ export async function settleToolBatch(
     toolResults,
     tools,
     contextLength,
+    outputCapContextLength,
     maxTokens,
     rendererFlushHandle,
     toolSurfaceSnapshot: toolSurface?.snapshot,

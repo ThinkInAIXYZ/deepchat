@@ -1322,6 +1322,26 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             ? [...batch.toolSurface.snapshot.toolDefinitions]
             : currentTools
           const toolBatchMessageStart = conversationMessages.length
+          const preparedContinuationBudget =
+            providerId === 'acp'
+              ? undefined
+              : await params.prepareToolContinuationContext?.(
+                  maxTokens,
+                  conversationMessages,
+                  settledTools
+                )
+          const continuationContextLength =
+            providerId === 'acp'
+              ? Number.MAX_SAFE_INTEGER
+              : (toPositiveInteger(preparedContinuationBudget?.contextLength) ??
+                (modelConfig.contextLength > 0
+                  ? modelConfig.contextLength
+                  : UNKNOWN_CONTEXT_LIMIT))
+          const continuationOutputCapContextLength =
+            providerId === 'acp'
+              ? Number.MAX_SAFE_INTEGER
+              : (toPositiveInteger(preparedContinuationBudget?.outputCapContextLength) ??
+                continuationContextLength)
           let startedToolCallCount = 0
           let executed: Awaited<ReturnType<typeof settleToolBatch>>
           try {
@@ -1348,12 +1368,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               },
               requestView: batch.requestView,
               commandShell: run.resources.commandShell,
-              contextLength:
-                providerId === 'acp'
-                  ? Number.MAX_SAFE_INTEGER
-                  : modelConfig.contextLength > 0
-                    ? modelConfig.contextLength
-                    : UNKNOWN_CONTEXT_LIMIT,
+              contextLength: continuationContextLength,
+              outputCapContextLength: continuationOutputCapContextLength,
               maxTokens,
               rendererFlushHandle: echo,
               providerReplayProjector: params.providerReplayProjector,

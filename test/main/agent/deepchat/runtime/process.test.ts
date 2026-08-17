@@ -2897,6 +2897,58 @@ describe('processStream', () => {
     })
   })
 
+  it('fits tool results against the current effective context length', async () => {
+    const fitToolBatchOutputs = vi.fn(async ({ results }) => ({
+      kind: 'ok' as const,
+      results: results.map((result) => ({
+        ...result,
+        contextResponseText: result.responseText,
+        downgraded: false
+      }))
+    }))
+    const toolResults = createToolResultPort({
+      outputGuard: {
+        prepareToolOutput: vi.fn(async ({ rawContent }) => ({
+          kind: 'ok' as const,
+          content: rawContent,
+          offloaded: false
+        })),
+        fitToolBatchOutputs
+      },
+      normalize: async ({ content }) => content
+    })
+    const prepareToolContinuationContext = vi.fn().mockReturnValue({
+      contextLength: 8192,
+      outputCapContextLength: 16384
+    })
+
+    await expect(
+      processStream(
+        createParams({
+          coreStream: createToolThenCompleteStream('action'),
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'raw result' })),
+          toolResults,
+          tools: [makeTool('action')],
+          modelConfig: { contextLength: 262144 } as any,
+          prepareToolContinuationContext
+        })
+      )
+    ).resolves.toMatchObject({ status: 'completed' })
+
+    expect(prepareToolContinuationContext).toHaveBeenCalledWith(
+      4096,
+      expect.any(Array),
+      expect.any(Array)
+    )
+    expect(fitToolBatchOutputs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contextLength: 8192,
+        outputCapContextLength: 16384,
+        maxTokens: 4096
+      })
+    )
+  })
+
   it('accumulates resumed accounting across provider and tool rounds', async () => {
     let callCount = 0
     const coreStream = vi.fn(function () {

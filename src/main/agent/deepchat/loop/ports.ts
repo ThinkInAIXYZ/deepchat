@@ -209,6 +209,7 @@ export interface ToolResultPort {
     conversationMessages: ChatMessage[]
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
+    outputCapContextLength?: number
     maxTokens: number
     results: ToolBatchOutputCandidate[]
   }): Promise<ToolBatchOutputFit>
