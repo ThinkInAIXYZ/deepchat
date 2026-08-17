@@ -47,6 +47,7 @@ import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NodeRenderer, {
+  type CodeBlockMonacoTheme,
   type CodeBlockPreviewPayload,
   type ParsedNode,
   type ParseOptions
@@ -115,7 +116,7 @@ const customRendererId = computed(() =>
     fallbackMessageId
   ].join('::')
 )
-const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
+const codeBlockThemes: CodeBlockMonacoTheme[] = ['vitesse-dark', 'vitesse-light']
 const codeBlockOptions = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   overflow: 'wrap' as const

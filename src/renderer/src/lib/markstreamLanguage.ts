@@ -1,5 +1,5 @@
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
-import { resolveLanguageId } from 'markstream-vue'
+import { normalizeLanguageIdentifier } from 'markstream-vue'
 
 // The shared filename map also serves Monaco and contains IDs that Shiki does not provide.
 const MARKSTREAM_LANGUAGE_REPLACEMENTS: Readonly<Record<string, string>> = {
@@ -14,14 +14,14 @@ const replaceUnsupportedLanguage = (language: string): string =>
   MARKSTREAM_LANGUAGE_REPLACEMENTS[language] ?? language
 
 export const getMarkstreamLanguageFromFilename = (filename?: string): string =>
-  replaceUnsupportedLanguage(resolveLanguageId(getLanguageFromFilename(filename)))
+  replaceUnsupportedLanguage(normalizeLanguageIdentifier(getLanguageFromFilename(filename)))
 
 export const normalizeMarkstreamCodeFenceLanguages = (content: string): string =>
   content.replace(/(^|\n)(`{3,}|~{3,})([^\r\n]*)/g, (fence, lineStart, delimiter, info) => {
     const [languageWithSuffix, ...meta] = info.trim().split(/\s+/)
     const [language] = languageWithSuffix.split(':')
     const suffix = languageWithSuffix.slice(language.length)
-    const resolvedLanguage = resolveLanguageId(language)
+    const resolvedLanguage = normalizeLanguageIdentifier(language)
     const replacement = replaceUnsupportedLanguage(resolvedLanguage)
     if (replacement === resolvedLanguage) return fence
 
