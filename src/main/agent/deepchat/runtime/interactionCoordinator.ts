@@ -39,7 +39,7 @@ import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
 import {
   buildUsageFromMetadata,
   incrementToolCallAccounting,
-  stampTerminalMetadata
+  stampInteractionResolution
 } from './runtimeMetadata'
 import type { DeferredToolExecutionResult, DeferredToolExecutor } from './deferredToolExecutor'
 import {
@@ -528,7 +528,7 @@ export class InteractionCoordinator {
             instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
           }
           if (execution.terminalError) {
-            const terminalMetadata = stampTerminalMetadata(resumeAccounting, 'error', 'tool_error')
+            const terminalMetadata = stampInteractionResolution(resumeAccounting, 'error')
             instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
             hooks.emit({
               event: 'PostToolUseFailure',
@@ -647,16 +647,24 @@ export class InteractionCoordinator {
       const awaitsUserFollowUp = waitingForUserMessage || hasQuestionFollowUpIntent(blocks)
       const finishesForUserFollowUp = awaitsUserFollowUp && remainingPending.length === 0
       const persistedMetadata = finishesForUserFollowUp
-        ? stampTerminalMetadata(resumeAccounting, 'completed', 'user_follow_up')
+        ? stampInteractionResolution(resumeAccounting, 'follow_up')
         : resumeAccounting
       if (remainingPending.length === 0 && !awaitsUserFollowUp) {
         await resumeWaitingAdmission()
       }
-      this.ports.messageStore.updateAssistantContent(
-        messageId,
-        blocks,
-        finishesForUserFollowUp || accountingChanged ? JSON.stringify(persistedMetadata) : undefined
-      )
+      if (finishesForUserFollowUp) {
+        this.ports.messageStore.finalizeAssistantMessage(
+          messageId,
+          blocks,
+          JSON.stringify(persistedMetadata)
+        )
+      } else {
+        this.ports.messageStore.updateAssistantContent(
+          messageId,
+          blocks,
+          accountingChanged ? JSON.stringify(resumeAccounting) : undefined
+        )
+      }
       replacePendingInteractions(instance, remainingPending)
       this.ports.messageProjection.refresh(sessionId, messageId)
 
@@ -670,7 +678,6 @@ export class InteractionCoordinator {
 
       if (awaitsUserFollowUp) {
         emitResolvedToolHook?.()
-        this.ports.messageStore.updateMessageStatus(messageId, 'sent')
         this.ports.runLifecycle.observeTerminal(sessionId, {
           status: 'completed',
           stopReason: 'user_follow_up',
@@ -726,7 +733,7 @@ export class InteractionCoordinator {
           sessionId,
           messageId,
           undefined,
-          JSON.stringify(stampTerminalMetadata(accounting, 'aborted', 'user_stop'))
+          JSON.stringify(stampInteractionResolution(accounting, 'cancelled'))
         )
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
         return { resumed: false }

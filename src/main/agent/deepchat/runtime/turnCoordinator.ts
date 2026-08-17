@@ -59,7 +59,11 @@ import {
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import type { DeepChatEventPublisher, ProcessResult } from './types'
-import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
+import {
+  buildUsageFromMetadata,
+  stampInteractionResolution,
+  stampTerminalMetadata
+} from './runtimeMetadata'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type {
   TapeProviderAttemptReader,
@@ -1798,11 +1802,7 @@ export class TurnCoordinator {
           )
         } else if (resumeBudget?.kind === 'terminal_error') {
           updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
-          const terminalMetadata = stampTerminalMetadata(
-            resumeAccounting,
-            'error',
-            'context_window'
-          )
+          const terminalMetadata = stampInteractionResolution(resumeAccounting, 'error')
           this.ports.messageStore.setMessageError(
             messageId,
             initialBlocks,
@@ -1948,12 +1948,14 @@ export class TurnCoordinator {
             messageId,
             parseAssistantBlocks(message.content),
             JSON.stringify(
-              stampTerminalMetadata(
-                resumeAccounting,
-                'completed',
-                PENDING_INPUT_ABORT_REASON,
-                streamRunId
-              )
+              streamRunId
+                ? stampTerminalMetadata(
+                    resumeAccounting,
+                    'completed',
+                    PENDING_INPUT_ABORT_REASON,
+                    streamRunId
+                  )
+                : stampInteractionResolution(resumeAccounting, 'pending_input')
             )
           )
           this.ports.messageProjection.refresh(sessionId, messageId)
@@ -1985,7 +1987,9 @@ export class TurnCoordinator {
           messageId,
           streamRunId,
           JSON.stringify(
-            stampTerminalMetadata(resumeAccounting, 'aborted', 'user_stop', streamRunId)
+            streamRunId
+              ? stampTerminalMetadata(resumeAccounting, 'aborted', 'user_stop', streamRunId)
+              : stampInteractionResolution(resumeAccounting, 'cancelled')
           )
         )
         // Stop/steer: continue the queue automatically with the next item (steer items first).
@@ -1998,12 +2002,9 @@ export class TurnCoordinator {
       const stopReason =
         committedErrorTerminal?.stopReason ??
         (isContextWindowErrorLike(errorToProject) ? 'context_window' : 'pre_stream_error')
-      const terminalMetadata = stampTerminalMetadata(
-        resumeAccounting,
-        'error',
-        stopReason,
-        streamRunId
-      )
+      const terminalMetadata = streamRunId
+        ? stampTerminalMetadata(resumeAccounting, 'error', stopReason, streamRunId)
+        : stampInteractionResolution(resumeAccounting, 'error')
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
       this.ports.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
       this.ports.messageProjection.refresh(sessionId, messageId)

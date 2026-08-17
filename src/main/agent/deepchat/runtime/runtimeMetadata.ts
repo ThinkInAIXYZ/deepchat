@@ -1,4 +1,4 @@
-import type { MessageMetadata } from '@shared/types/agent-interface'
+import type { InteractionResolution, MessageMetadata } from '@shared/types/agent-interface'
 
 export function incrementToolCallAccounting(metadata: MessageMetadata): MessageMetadata {
   const currentToolCalls =
@@ -17,6 +17,14 @@ export function stampTerminalMetadata(
   runId?: string
 ): MessageMetadata {
   return { ...metadata, ...(runId ? { runId } : {}), runOutcome, runStopReason }
+}
+
+/** Session-layer close of an already journaled Run. Never rewrites runOutcome. */
+export function stampInteractionResolution(
+  metadata: MessageMetadata,
+  interactionResolution: InteractionResolution
+): MessageMetadata {
+  return { ...metadata, interactionResolution }
 }
 
 export function buildUsageFromMetadata(

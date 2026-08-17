@@ -416,10 +416,13 @@ export interface AgentNoProgressToolLoopMetadata {
   evidence: 'strong' | 'weak'
 }
 
+export type InteractionResolution = 'cancelled' | 'follow_up' | 'error' | 'pending_input'
+
 export interface MessageMetadata {
   runId?: string
   runOutcome?: 'completed' | 'paused' | 'aborted' | 'error'
   runStopReason?: string
+  interactionResolution?: InteractionResolution
   noProgressToolLoop?: AgentNoProgressToolLoopMetadata
   totalTokens?: number
   inputTokens?: number

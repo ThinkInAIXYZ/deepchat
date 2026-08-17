@@ -23,7 +23,7 @@ import {
 } from './interactionProjection'
 import { resolveProviderPermissionSafely } from './providerPermissionResolution'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
-import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
+import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
 import type { SessionStatusPublisher } from './sessionStatusPublisher'
 import type { MessageProjectionService } from './messageProjectionService'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId'
@@ -294,7 +294,7 @@ export class RunLifecycleCoordinator {
       )
       return {
         messageId,
-        terminalMetadata: stampTerminalMetadata(metadata, 'aborted', 'user_stop')
+        terminalMetadata: stampInteractionResolution(metadata, 'cancelled')
       }
     })
     for (const { messageId, terminalMetadata } of terminalMessages) {

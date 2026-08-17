@@ -8,7 +8,7 @@ import {
   type ProviderPermissionProjection
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
-import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
+import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
 import type {
   DeepChatEventPublisher,
   PendingToolInteraction,
@@ -225,10 +225,9 @@ export class ProviderPermissionCoordinator {
     const blocks = parseAssistantBlocks(message.content)
     applyProviderPermissionProjection(blocks, input, { status: 'error', message: errorMessage })
     const terminalBlocks = buildTerminalErrorBlocks(blocks, errorMessage)
-    const terminalMetadata = stampTerminalMetadata(
+    const terminalMetadata = stampInteractionResolution(
       parseMessageMetadata(message.metadata),
-      'error',
-      'provider_error'
+      'error'
     )
     this.deps.messageStore.setMessageError(
       input.messageId,

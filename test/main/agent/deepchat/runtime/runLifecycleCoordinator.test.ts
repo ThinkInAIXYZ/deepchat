@@ -304,7 +304,7 @@ describe('RunLifecycleCoordinator', () => {
       'message-paused',
       [createPendingAction('tool-1')],
       1,
-      '{"runId":"run-1"}'
+      '{"runId":"run-1","runOutcome":"paused","runStopReason":"interaction"}'
     )
     const { coordinator, pendingInputWakeup, terminalObserver, transcript } = createHarness([
       message
@@ -318,6 +318,20 @@ describe('RunLifecycleCoordinator', () => {
     expect(scope.instance.getPendingInteractions()).toEqual([])
     expect(scope.state()?.status).toBe('idle')
     expect(transcript.setMessageError).toHaveBeenCalledOnce()
+    expect(transcript.setMessageError).toHaveBeenCalledWith(
+      'message-paused',
+      expect.any(Array),
+      expect.stringContaining('"interactionResolution":"cancelled"')
+    )
+    const canceledMetadata = JSON.parse(
+      vi.mocked(transcript.setMessageError).mock.calls[0][2] ?? '{}'
+    )
+    expect(canceledMetadata).toMatchObject({
+      runId: 'run-1',
+      runOutcome: 'paused',
+      runStopReason: 'interaction',
+      interactionResolution: 'cancelled'
+    })
     expect(terminalObserver.observeTerminal).toHaveBeenCalledOnce()
     expect(pendingInputWakeup.drain).toHaveBeenCalledWith(SESSION_ID, 'completed')
   })
