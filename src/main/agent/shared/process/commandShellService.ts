@@ -30,8 +30,10 @@ const POWERSHELL_CORE_MIN_MAJOR_VERSION = 7
 function isSupportedPowerShellCoreIdentity(stdout: string): boolean {
   const trimmed = stdout.trim()
   if (!trimmed.startsWith(POWERSHELL_CORE_IDENTITY_PREFIX)) return false
-  const major = Number.parseInt(trimmed.slice(POWERSHELL_CORE_IDENTITY_PREFIX.length), 10)
-  return Number.isInteger(major) && major >= POWERSHELL_CORE_MIN_MAJOR_VERSION
+  const version = trimmed.slice(POWERSHELL_CORE_IDENTITY_PREFIX.length)
+  const match = /^(\d+)(?:\.\d+)*(?:-[0-9A-Za-z.]+)?$/.exec(version)
+  if (!match) return false
+  return Number(match[1]) >= POWERSHELL_CORE_MIN_MAJOR_VERSION
 }
 
 const POSIX_SHELL_CANDIDATES = {

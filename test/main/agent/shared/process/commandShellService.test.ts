@@ -685,6 +685,16 @@ describe('CommandShellService', () => {
     await expect(service.resolveForTurn()).rejects.toThrow('PowerShell 7 is unavailable.')
     expect(runCommand).toHaveBeenCalledOnce()
   })
+
+  it('rejects malformed PowerShell Core identity output', async () => {
+    const { service, runCommand } = createHarness({
+      config: { preference: 'powershell-core' },
+      runCommand: async () => ({ stdout: 'deepchat-pwsh:7garbage', stderr: '' })
+    })
+
+    await expect(service.resolveForTurn()).rejects.toThrow('PowerShell 7 is unavailable.')
+    expect(runCommand).toHaveBeenCalledOnce()
+  })
 })
 
 describe('deriveGitBashCandidates', () => {
