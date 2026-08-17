@@ -14,7 +14,9 @@ import type {
   SessionListItem,
   SessionWithState,
   CreateSessionInput,
-  SendMessageInput
+  SendMessageInput,
+  SessionCompactionSnapshot,
+  SessionContextOccupancySnapshot
 } from '@shared/types/agent-interface'
 import {
   normalizeOrchestrationPolicy,
@@ -32,7 +34,7 @@ import { useAgentPlanStore } from './agentPlan'
 import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
-import { bindSessionStoreIpc } from './sessionIpc'
+import { bindSessionStoreIpc, type SessionCompactionChangedPayload } from './sessionIpc'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import type { ToolModeOverride } from '@shared/toolMode'
 
@@ -82,6 +84,12 @@ export type StartNewConversationOptions = {
 export type CloseSessionOptions = {
   refresh?: boolean
 }
+type ActiveCompactionSync = {
+  sessionId: string
+  requestId: number
+  snapshotPending: boolean
+  bufferedEvents: SessionCompactionChangedPayload[]
+}
 type SubmissionRequestOptions = {
   submissionId?: string
   isCancellationRequested?: () => boolean
@@ -90,6 +98,10 @@ type SubmissionRequestOptions = {
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
 const DEFAULT_SESSION_PAGE_SIZE = 30
+const CONTEXT_OCCUPANCY_RETRY_DELAY_MS = 250
+const CONTEXT_OCCUPANCY_MAX_ATTEMPTS = 2
+const COMPACTION_SNAPSHOT_RETRY_DELAY_MS = 250
+const COMPACTION_SNAPSHOT_MAX_ATTEMPTS = 2
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const SESSION_TITLE_COLLATOR = new Intl.Collator(undefined, {
   numeric: true,
@@ -345,6 +357,9 @@ export const useSessionStore = defineStore('session', () => {
   const removedSessionIds = new Set<string>()
   let sessionByIdsErrorRevision: number | null = null
   let activationNavigationRequestId = 0
+  let compactionSyncRequestId = 0
+  let contextOccupancyRequestId = 0
+  let activeCompactionSync: ActiveCompactionSync | null = null
   let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
 
@@ -352,6 +367,8 @@ export const useSessionStore = defineStore('session', () => {
   const bootstrapActiveSession = ref<UISession | null>(null)
   const activeSessionSummary = ref<UIActiveSessionSummary | null>(null)
   const activeSessionId = ref<string | null>(null)
+  const activeCompactionSnapshot = ref<SessionCompactionSnapshot | null>(null)
+  const activeContextOccupancy = ref<SessionContextOccupancySnapshot | null>(null)
   const searchIntents = shallowReactive(new Map<string, boolean>())
   const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
@@ -372,10 +389,143 @@ export const useSessionStore = defineStore('session', () => {
       console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
     })
 
+  const applyCompactionEvent = (payload: SessionCompactionChangedPayload): void => {
+    const current = activeCompactionSnapshot.value
+    if (current && payload.emitSeq <= current.emitSeq) {
+      return
+    }
+
+    activeCompactionSnapshot.value = {
+      state: {
+        status: payload.status,
+        cursorOrderSeq: payload.cursorOrderSeq,
+        summaryUpdatedAt: payload.summaryUpdatedAt,
+        boundaryReason: payload.boundaryReason
+      },
+      emitSeq: payload.emitSeq,
+      latestAnchorEntryId: payload.latestAnchorEntryId
+    }
+    if (payload.status === 'compacted') {
+      synchronizeContextOccupancy(payload.sessionId)
+    }
+  }
+
+  const handleCompactionChanged = (payload: SessionCompactionChangedPayload): void => {
+    if (activeSessionId.value !== payload.sessionId) {
+      return
+    }
+
+    const sync = activeCompactionSync
+    if (
+      sync?.sessionId === payload.sessionId &&
+      sync.requestId === compactionSyncRequestId &&
+      sync.snapshotPending
+    ) {
+      sync.bufferedEvents.push(payload)
+      return
+    }
+
+    applyCompactionEvent(payload)
+  }
+
+  const synchronizeContextOccupancy = (sessionId: string): void => {
+    const requestId = ++contextOccupancyRequestId
+    void (async () => {
+      for (let attempt = 1; attempt <= CONTEXT_OCCUPANCY_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const snapshot = await sessionClient.getContextOccupancy(sessionId)
+          if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+            return
+          }
+          activeContextOccupancy.value = snapshot
+          return
+        } catch (snapshotError) {
+          if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+            return
+          }
+          if (attempt < CONTEXT_OCCUPANCY_MAX_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, CONTEXT_OCCUPANCY_RETRY_DELAY_MS))
+            if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+              return
+            }
+            continue
+          }
+          activeContextOccupancy.value = null
+          console.warn('[sessionStore] Failed to read context occupancy:', snapshotError)
+        }
+      }
+    })()
+  }
+
+  const synchronizeCompactionState = (sessionId: string): void => {
+    const requestId = ++compactionSyncRequestId
+    const sync: ActiveCompactionSync = {
+      sessionId,
+      requestId,
+      snapshotPending: true,
+      bufferedEvents: []
+    }
+    activeCompactionSync = sync
+    activeCompactionSnapshot.value = null
+
+    const ownsSync = (): boolean =>
+      activeCompactionSync === sync &&
+      activeSessionId.value === sessionId &&
+      compactionSyncRequestId === requestId
+    const applyBufferedEvents = (): void => {
+      sync.bufferedEvents.sort((left, right) => left.emitSeq - right.emitSeq)
+      for (const event of sync.bufferedEvents) {
+        applyCompactionEvent(event)
+      }
+      sync.bufferedEvents.length = 0
+    }
+
+    void (async () => {
+      let snapshotError: unknown
+      for (let attempt = 1; attempt <= COMPACTION_SNAPSHOT_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const snapshot = await sessionClient.getCompactionSnapshot(sessionId)
+          if (!ownsSync()) return
+          activeCompactionSnapshot.value = snapshot
+          applyBufferedEvents()
+          sync.snapshotPending = false
+          return
+        } catch (error) {
+          if (!ownsSync()) return
+          snapshotError = error
+          if (attempt < COMPACTION_SNAPSHOT_MAX_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, COMPACTION_SNAPSHOT_RETRY_DELAY_MS))
+            if (!ownsSync()) return
+          }
+        }
+      }
+
+      applyBufferedEvents()
+      sync.snapshotPending = false
+      activeCompactionSync = null
+      console.warn('[sessionStore] Failed to synchronize compaction state:', snapshotError)
+    })()
+  }
+
   const setActiveSessionId = (sessionId: string | null): void => {
+    const changed = activeSessionId.value !== sessionId
     activeSessionId.value = sessionId
     messageStore.setCurrentSessionId(sessionId)
+    if (!sessionId) {
+      compactionSyncRequestId += 1
+      activeCompactionSync = null
+      activeCompactionSnapshot.value = null
+      contextOccupancyRequestId += 1
+      activeContextOccupancy.value = null
+    } else if (changed || !activeCompactionSync) {
+      contextOccupancyRequestId += 1
+      activeContextOccupancy.value = null
+      synchronizeCompactionState(sessionId)
+      synchronizeContextOccupancy(sessionId)
+    }
   }
+
+  const activeCompactionState = computed(() => activeCompactionSnapshot.value?.state ?? null)
 
   const getSearchIntent = (sessionId: string): boolean => searchIntents.get(sessionId) === true
 
@@ -615,11 +765,11 @@ export const useSessionStore = defineStore('session', () => {
     agentStore.setSelectedAgent(targetAgentId)
   }
 
-  const applySessionStatus = (sessionId: string, status: string, version?: number): void => {
+  const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
     if (version !== undefined) {
       const observed = observedSessionStatuses.get(sessionId)
       if (observed && version < observed.version) {
-        return
+        return false
       }
       observedSessionStatuses.set(sessionId, {
         version,
@@ -656,6 +806,7 @@ export const useSessionStore = defineStore('session', () => {
         status: nextStatus
       }
     }
+    return true
   }
 
   const applyConfirmedOrchestrationPolicy = (
@@ -1187,6 +1338,7 @@ export const useSessionStore = defineStore('session', () => {
       commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
+        synchronizeContextOccupancy(sessionId)
       }
       await completeOnboardingStep('switch-model')
     } catch (updateError) {
@@ -1396,15 +1548,27 @@ export const useSessionStore = defineStore('session', () => {
       pageRouter.goToNewThread()
     },
     onStatusChanged: (sessionId, status, version) => {
-      applySessionStatus(sessionId, status, version)
-    }
+      const applied = applySessionStatus(sessionId, status, version)
+      if (applied && activeSessionId.value === sessionId && status !== 'generating') {
+        synchronizeContextOccupancy(sessionId)
+      }
+    },
+    onCompactionChanged: handleCompactionChanged
   })
-  registerStoreCleanup(sessionIpcBinding.cleanup)
+  registerStoreCleanup(() => {
+    compactionSyncRequestId += 1
+    activeCompactionSync = null
+    contextOccupancyRequestId += 1
+    sessionIpcBinding?.cleanup()
+  })
   void ensureGroupModeLoaded()
 
   return {
     sessions,
     activeSessionId,
+    activeCompactionSnapshot,
+    activeCompactionState,
+    activeContextOccupancy,
     newConversationProjectDirIntent,
     groupMode,
     loading,
@@ -1428,6 +1592,7 @@ export const useSessionStore = defineStore('session', () => {
     createSession,
     sendMessage,
     setSessionModel,
+    synchronizeContextOccupancy,
     setSessionToolMode,
     applyConfirmedOrchestrationPolicy,
     selectSession,

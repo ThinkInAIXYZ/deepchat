@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "預設模型",
       "chatModel": "預設聊天模型"
-    },
-    "autoCompaction": {
-      "title": "自動壓縮",
-      "enabled": "啟用自動壓縮",
-      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動摘要較早的歷史紀錄，幫助工作階段繼續進行。關閉後，DeepChat 不會產生摘要，但仍會在必要時裁剪請求檢視，盡量避免供應商原始 context-window 錯誤。",
-      "thresholdLabel": "觸發閾值",
-      "thresholdMin": "提前（{value}%）",
-      "thresholdMax": "延後（{value}%）",
-      "thresholdDescription": "當 prompt 佔用達到有效歷史預算的這個比例時開始壓縮。值越低緩衝越大，值越高保留的原始上下文越多。",
-      "retainPairsLabel": "保留最近訊息對",
-      "retainPairsValue": "{count} 對",
-      "retainPairsDescription": "始終保留最近完成的 user 和 assistant 訊息對，不參與壓縮。當前最後一次 query 不計入其中。"
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "快取命中",
       "cachedTokensUncachedLabel": "未命中",
       "cacheHitRate": "快取命中率",
-      "cacheHitRateDescription": "快取 prompt token 佔總輸入 token 的比例。",
+      "cacheHitRateDescription": "快取 prompt token 佔有快取指標的 usage 記錄中輸入 token 的比例。",
       "recordingStartedAt": "統計開始時間",
       "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
       "withDeepChatDaysLabel": "陪伴天數",
@@ -545,6 +533,15 @@
       "providerDescription": "按總 token 排序。",
       "modelTitle": "模型排行",
       "modelDescription": "按總 token 排序的前 10 個模型。",
+      "categoryTitle": "按活動查看用量",
+      "categoryDescription": "將對話用量與用於內容壓縮的內部模型呼叫分開統計。",
+      "category": {
+        "chat": "對話",
+        "compaction": "內容壓縮"
+      },
+      "chatEvents": "{count} 則訊息",
+      "compactionEvents": "{count} 次模型呼叫",
+      "unknownUsage": "{count} 筆用量不明",
       "messages": "{count} 則訊息",
       "empty": "暫時還沒有可顯示的明細資料。"
     },

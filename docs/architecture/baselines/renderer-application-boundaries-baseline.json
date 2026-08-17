@@ -184,10 +184,6 @@
       "specifier": "@/stores/theme"
     },
     {
-      "file": "src/renderer/settings/components/common/AutoCompactionSettingsSection.vue",
-      "specifier": "@/stores/uiSettingsStore"
-    },
-    {
       "file": "src/renderer/settings/components/common/CommandShellSettingsSection.vue",
       "specifier": "@/stores/language"
     },
@@ -536,5 +532,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 121
+  "settingsToChatAppImportCount": 120
 }

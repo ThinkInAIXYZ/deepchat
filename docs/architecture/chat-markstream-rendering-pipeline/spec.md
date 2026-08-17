@@ -4,7 +4,8 @@
 
 PR #2000 已把高频流式消息从稳定历史列表中拆出，并为消息窗口增加 append-only tail
 快路径、批量测量和显式行级 streaming 状态。与此同时，聊天正文仍经过 DeepChat 自己的
-内容防抖，再交给当前 `markstream-vue@1.0.7-beta.4` 的 smooth streaming、解析合并、节点批量挂载和重节点延迟机制。增强代码块使用其 `stream-diffs@0.0.2` peer。
+内容防抖，再交给当前精确锁定的 `markstream-vue@2.0.0-beta.2` 的 smooth streaming、解析合并、
+节点批量挂载和重节点延迟机制。增强代码块使用其 `stream-diffs@0.0.2` peer。
 
 当前端到端链路如下：
 
@@ -21,7 +22,7 @@ provider token events
   -> MarkdownRenderer stream handoff
   -> Markstream smooth streaming (up to 20 commits/s)
   -> incremental Markdown parse + node batching
-  -> Monaco / Mermaid / KaTeX viewport deferral
+  -> stream-diffs / Mermaid / KaTeX viewport deferral
   -> DOM measurement -> outer message window / scroll follow
 ```
 
@@ -32,10 +33,11 @@ provider token events
 
 1. 聊天流内容在进入 Markstream 前再经过 32 ms 或 96 ms 防抖。它不能减少 main snapshot
    数量，却增加首段之外每个 snapshot 的延迟，并可能让 `final` 先于最新防抖内容生效。
-2. 旧集成曾把 `codeRenderer="monaco"` 误当作流式期间即时创建 Monaco 的开关，并因此尝试在
-   应用层把 renderer 从 `pre` 重建为 `monaco`。当前 Markstream 的该兼容名称实际选择由
-   `stream-diffs` 驱动的增强 `CodeBlockNode`：它在 block streaming 时保留内建 `<pre>`，仅在
-   block 完成且可见后才升级同一宿主。因此外部 remount 会破坏受支持的 handoff，并可能造成完成闪烁或瞬时几何。
+2. 旧集成曾把 1.x 的 `codeRenderer="monaco"` 兼容名称误当作流式期间即时创建 Monaco 的开关，
+   并因此尝试在应用层把 renderer 从 `pre` 重建为 `monaco`。Markstream 2.0 已删除该 selector，
+   安装 `stream-diffs` 后默认使用增强 `CodeBlockNode`：它在 block streaming 时保留内建 `<pre>`，
+   仅在 block 完成且可见后才升级同一宿主。因此外部 remount 或显式选择 renderer 都会破坏受
+   支持的 handoff，并可能造成完成闪烁或瞬时几何。
 3. generic `code_block` 自定义映射会绕过 Markstream 内建的 renderer selection、异步 fallback 和
    viewport-deferred `stream-diffs` 路径。仅安装 optional peer 或直接导入其 controller 都不能替代该路径。
 4. 该阶段曾为尾部 inline stream 引入 stable/tail layout segments；后续
@@ -53,7 +55,9 @@ provider token events
 
 1. 让 main 进程负责 snapshot 合帧，Markstream 负责文本 pacing；聊天集成层同步转交流式内容。
 2. 从 streaming 到 final 的同一消息、MarkdownRenderer、NodeRenderer 与内建 CodeBlockNode 都保持身份稳定；最终内容不会被旧的防抖回调覆盖。
-3. 整个生命周期保持 Markstream `codeRenderer="monaco"`，并仅以 `codeBlockStream` / `final` 表达流式状态；内建 `CodeBlockNode` 在 streaming 时呈现 `<pre>`，完成且可见后才挂载 `stream-diffs` 表面。内层 node virtualization 继续在 streaming 阶段关闭，避免 typewriter 尾部被节点窗口裁掉。
+3. 整个生命周期不设置 `renderCodeBlocksAsPre`，仅以 `codeBlockStream` / `final` 表达流式状态；
+   内建 `CodeBlockNode` 在 streaming 时呈现 `<pre>`，完成且可见后才挂载 `stream-diffs` 表面。
+   内层 node virtualization 继续在 streaming 阶段关闭，避免 typewriter 尾部被节点窗口裁掉。
 4. completed 历史消息继续使用 Markstream node virtualization 及可见性延迟；聊天搜索、截图和其他要求
    完整 DOM 的路径仍可通过 `virtualizeNodes=false` 同时关闭虚拟化与视口延迟。
 5. ordinary fenced code 使用 Markstream 内建 `stream-diffs` 路径；streaming 时先显示轻量 fallback，
@@ -85,10 +89,16 @@ provider token events
 2. streaming -> final 时，NodeRenderer 同步收到最终 content 和 `final=true`；任何较早的静态防抖
    任务都不能回写旧内容。
 3. 非流式内容更新继续走已有 fast/slow debounce；现有 docs/artifact 行为不变。
-4. 正常 streaming chat 配置为 `nodeVirtual=false`、`maxLiveNodes=0`、`codeRenderer="monaco"`、`codeBlockStream=true`；完成态在同一 NodeRenderer 上设为 `final=true` 与 `codeBlockStream=false`。Markstream 在流式阶段展示内建 `<pre>`，完成且可见后才升级 `stream-diffs` surface。`viewportPriority` 与 `deferNodesUntilVisible` 仍仅由 `virtualizeNodes` 控制。
+4. 正常 streaming chat 配置为 `nodeVirtual=false`、`maxLiveNodes=0`、`codeBlockStream=true`，且不设置
+   `renderCodeBlocksAsPre`；完成态在同一 NodeRenderer 上设为 `final=true` 与
+   `codeBlockStream=false`。Markstream 在流式阶段展示内建 `<pre>`，完成且可见后才升级
+   `stream-diffs` surface。`viewportPriority` 与 `deferNodesUntilVisible` 仍仅由
+   `virtualizeNodes` 控制。
 5. `virtualizeNodes=false` 时，node virtualization、viewport priority 和 visible deferral 均关闭，
    保证搜索、截图和完整 DOM 消费者可用。
-6. NodeRenderer 在 live chat 和 completed/static 内容均保持 `codeRenderer="monaco"`，只通过 `codeBlockStream` 与 `final` 交给 Markstream 管理单一代码块 handoff；preview event 与 strict Mermaid 仍可用。
+6. NodeRenderer 在 live chat 和 completed/static 内容均使用 Markstream 默认增强代码块路径，只通过
+   `codeBlockStream` 与 `final` 交给 Markstream 管理单一代码块 handoff；preview event 与 strict
+   Mermaid 仍可用。
 7. MarkdownRenderer 不写入 Markstream 全局 custom component registry；内建 link/reference 事件经
    根级委托保持 DeepChat 导航和引用交互，同消息多个 text part 互不覆盖。
 8. inline stream 在完整 display-list 中保持 `messageIds` 顺序；未变化记录的转换缓存、单行
@@ -103,7 +113,7 @@ provider token events
 - 单个 stream snapshot 的 display-message 转换复用未变化记录；外层 geometry 仍以完整 display-list
   计算，并由虚拟窗口限制实际挂载的行数。
 - 已校验 blocks 不得在 renderer 同步热路径再次 JSON.parse。
-- 重节点在接近视口前不得启动 Monaco/Mermaid/KaTeX 重工作；完成态的 fallback 到 enhanced
+- 重节点在接近视口前不得启动 stream-diffs/Mermaid/KaTeX 重工作；完成态的 fallback 到 enhanced
   切换不得替换外层 message row。
 - 沿用 chat scroll ownership 的每帧最多一次 scroll write、1 px anchor 误差和无新增 >50 ms
   long task 预算；jsdom 测试覆盖可自动化的调度和 handoff 回归。

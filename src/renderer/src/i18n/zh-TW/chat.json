@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "正在壓縮上下文...",
     "compacted": "上下文已壓縮",
+    "compactedWithoutSummary": "上下文已壓縮，但未產生摘要",
+    "compactedWithoutLargerSummary": "上下文已壓縮，未採用體積更大的摘要",
     "commandDescription": "壓縮會話上下文",
     "noopTitle": "沒有可壓縮的上下文",
     "noopDescription": "目前還沒有新的對話歷史需要壓縮。",
     "failedTitle": "壓縮失敗"
+  },
+  "contextOccupancy": {
+    "label": "上下文佔用",
+    "details": "已用 {used} / {capacity} tokens",
+    "provider": "Provider 實測",
+    "estimated": "根據請求檢視估算",
+    "stale": "模型、視窗或壓縮邊界變更後的舊資料"
   },
   "rateLimit": {
     "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",

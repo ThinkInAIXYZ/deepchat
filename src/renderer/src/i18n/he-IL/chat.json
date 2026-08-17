@@ -327,10 +327,19 @@
   "compaction": {
     "compacting": "דחיסת ההקשר מתבצעת...",
     "compacted": "ההקשר נדחס",
+    "compactedWithoutSummary": "ההקשר נדחס ללא סיכום",
+    "compactedWithoutLargerSummary": "ההקשר נדחס מבלי להשתמש בסיכום גדול יותר",
     "commandDescription": "דחיסת הקשר השיחה",
     "noopTitle": "אין הקשר לדחיסה",
     "noopDescription": "עדיין אין היסטוריית שיחה חדשה לדחיסה.",
     "failedTitle": "הדחיסה נכשלה"
+  },
+  "contextOccupancy": {
+    "label": "שימוש בהקשר",
+    "details": "{used} מתוך {capacity} טוקנים",
+    "provider": "נמדד על ידי הספק",
+    "estimated": "הוערך מתצוגת הבקשה",
+    "stale": "מיושן לאחר שינוי מודל, חלון או דחיסה"
   },
   "newThread": {
     "title": "בנו וגלו"

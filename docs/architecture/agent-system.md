@@ -91,6 +91,10 @@ src/main/agent/deepchat/
   重新派生的 View 严格变小时才算 applied。已闭合的大 tool result 可独立在当前 View 中稳定 stub 化，
   原始 fact 保留在 Tape；先保护最新闭合 unit 的直接行动依据，较旧 unit 不足以解除压力时才允许压缩
   最新 unit。该路径以协议闭合和 projection 确实变化为进度，不冒充 boundary progress。
+- Cache-aware v2 View 把当前 Tape incarnation 第一条 effective user fact 作为 authoritative protected
+  prefix，位于 system 之后、checkpoint 之前；连续 cursor 仍可越过该 fact，View 每次从 raw Tape 重投影。
+  pin 不使用 derivative 的 untrusted fence，不复制原文到 manifest，且只有 effective source entry、
+  source-content hash、identity 与精确前缀 hash 全部匹配时才能跨 provider round 继承。
 - 一次成功 provider response 重置 sequence-level context recovery latch；同一 Run 最多使用三条
   recovery sequence。恢复不能重放可能已执行副作用的原 user prompt，每个变化后的 payload 都必须写
   新 requestSeq 与 ViewManifest。

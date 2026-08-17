@@ -327,10 +327,19 @@
   "compaction": {
     "compacting": "Compactage du contexte...",
     "compacted": "Le contexte a été compacté",
+    "compactedWithoutSummary": "Le contexte a été compacté sans résumé",
+    "compactedWithoutLargerSummary": "Le contexte a été compacté sans utiliser un résumé plus volumineux",
     "commandDescription": "Compacter le contexte de conversation",
     "noopTitle": "Aucun contexte à compacter",
     "noopDescription": "Il n'y a pas encore de nouvel historique de conversation à compacter.",
     "failedTitle": "Échec de la compaction"
+  },
+  "contextOccupancy": {
+    "label": "Utilisation du contexte",
+    "details": "{used} sur {capacity} jetons",
+    "provider": "Mesuré par le fournisseur",
+    "estimated": "Estimé depuis la vue de requête",
+    "stale": "Obsolète après un changement de modèle, de fenêtre ou de compactage"
   },
   "newThread": {
     "title": "Créer et explorer"

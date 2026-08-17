@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "Automatyczne wykrywanie rejestru MCP npm",
     "privacyModeManualActions": "Ręczne kontrole i ręczne czynności odświeżania pozostają dostępne.",
     "privacyModeIntegrations": "Skonfigurowane integracje innych firm pozostają dostępne.",
-    "autoCompaction": {
-      "title": "Automatyczne zagęszczanie",
-      "enabled": "Włącz automatyczne zagęszczanie",
-      "description": "Kiedy rozmowa zbliża się do limitu okna kontekstu modelu, DeepChat może automatycznie podsumować starszą historię, aby sesja mogła trwać dalej. Po wyłączeniu DeepChat nie będzie generować podsumowań, ale w razie potrzeby nadal przytnie widok żądania, aby uniknąć surowych błędów context-window od dostawcy.",
-      "thresholdLabel": "Próg wyzwalania",
-      "thresholdMin": "Wczesny ({value}%)",
-      "thresholdMax": "Późno ({value}%)",
-      "thresholdDescription": "Rozpocznij zagęszczanie, gdy użycie prompt osiągnie tę część efektywnego budżetu historii. Niższe wartości zapewniają większy zapas; wyższe wartości zachowują bardziej surowy kontekst.",
-      "retainPairsLabel": "Zachowaj ostatnie pary wiadomości",
-      "retainPairsValue": "Pary {count}",
-      "retainPairsDescription": "Zachowaj najnowsze ukończone pary użytkowników i asystentów poza zagęszczaniem. Bieżące zapytanie nie jest uwzględnione."
-    },
     "searchAssistantModel": "Modelka Asystenta",
     "selectModel": "Wybierz Model",
     "proxyMode": "Tryb proxy",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "Buforowane",
       "cachedTokensUncachedLabel": "Nieumieszczone w pamięci podręcznej",
       "cacheHitRate": "Współczynnik trafień w pamięci podręcznej",
-      "cacheHitRateDescription": "Buforowane prompt tokens podzielone przez całkowite dane wejściowe tokens.",
+      "cacheHitRateDescription": "Tokeny promptu z pamięci podręcznej podzielone przez tokeny wejściowe z rekordów zawierających metryki pamięci podręcznej.",
       "recordingStartedAt": "Rozpoczęło się nagrywanie",
       "recordingStartedAtDescription": "Najwcześniejszy zapis użycia aktualnie przechowywany w tym panelu kontrolnym.",
       "withDeepChatDaysLabel": "Dni razem",
@@ -909,6 +897,15 @@
       "providerDescription": "Uszeregowane według łącznej liczby tokenów.",
       "modelTitle": "Najlepsze modele",
       "modelDescription": "10 najlepszych modeli według łącznej liczby tokenów.",
+      "categoryTitle": "Użycie według aktywności",
+      "categoryDescription": "Oddziela użycie w rozmowach od wewnętrznych wywołań modelu służących do kompresji kontekstu.",
+      "category": {
+        "chat": "Rozmowa",
+        "compaction": "Kompresja kontekstu"
+      },
+      "chatEvents": "Liczba wiadomości: {count}",
+      "compactionEvents": "Liczba wywołań modelu: {count}",
+      "unknownUsage": "Liczba użyć o nieznanym typie: {count}",
       "messages": "Komunikaty {count}",
       "empty": "Nie ma jeszcze danych dotyczących podziału."
     },

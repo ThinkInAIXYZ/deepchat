@@ -1,4 +1,5 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
+import { randomUUID } from 'node:crypto'
 import { approximateTokenSize } from 'tokenx'
 import type {
   ChatMessageRecord,
@@ -9,10 +10,16 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ProviderExecutionPort } from '@shared/types/provider'
+import type { DeepChatTapeViewPinnedFirstUser } from '@shared/types/tape-view-manifest'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
+import type {
+  SessionSettingsStore,
+  SessionSummaryState,
+  SummaryTapeAnchorInput
+} from '@/session/data/settings'
 import {
+  buildPinnedFirstUser,
   buildHistoryTurns,
   buildUserMessageContent,
   createUserChatMessage,
@@ -21,9 +28,16 @@ import {
   formatApprovedMcpAppModelContext,
   isContextHistoryRecord,
   normalizeUserInput,
+  type ContextPinnedFirstUser,
   type HistoryTurn
 } from './contextBuilder'
-import { buildContextCheckpoint } from './contextContributions'
+import {
+  buildContextCheckpoint,
+  isSummaryGapReason,
+  SUMMARY_REJECTED_LARGER_REASON,
+  SUMMARY_UNAVAILABLE_REASON,
+  type SummaryGapReason
+} from './contextContributions'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 
@@ -59,10 +73,13 @@ export type ModelSpec = {
 }
 
 export type CompactionIntent = {
+  compactionAttemptId: string
   sessionId: string
   previousState: SessionSummaryState
   targetCursorOrderSeq: number
   summaryBlocks: string[]
+  currentCheckpointTokenEstimate: number
+  newlyHiddenVisibleTokenEstimate: number
   currentModel: ModelSpec
   reserveTokens: number
   anchorName?: string
@@ -75,12 +92,34 @@ export type CompactionIntent = {
   retainedTurnCount: number
   retainedTokenEstimate: number
   retainedTokenTarget: number
+  pinnedFirstUserTokenEstimate?: number
 }
 
 export type CompactionExecutionResult = {
   outcome: 'summarized' | 'boundary_only' | 'unchanged'
+  anchorCommitted: boolean
   summaryState: SessionSummaryState
 }
+
+export type CompactionModelCallObservation = {
+  sessionId: string
+  compactionAttemptId: string
+  providerCallId: string
+  providerId: string
+  modelId: string
+  status: 'completed' | 'error' | 'aborted'
+  usage: {
+    inputTokens: number | null
+    outputTokens: number | null
+    totalTokens: number | null
+  } | null
+  startedAt: number
+  completedAt: number
+}
+
+export type CompactionModelCallObserver = (
+  observation: CompactionModelCallObservation
+) => void
 
 type OrderSeqRange = NonNullable<CompactionIntent['summaryRange']>
 
@@ -101,6 +140,10 @@ function floorNonNegative(value: number): number {
   if (value === Number.POSITIVE_INFINITY) return Number.MAX_SAFE_INTEGER
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.floor(value))
+}
+
+function measuredTokenCount(value: unknown): number | null {
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : null
 }
 
 function normalizeOrderSeqRange(value: unknown): OrderSeqRange | null {
@@ -151,6 +194,12 @@ function calculateRetainedTailTokenTarget(params: {
     RETAINED_TAIL_TOKEN_CAP,
     floorNonNegative(inputBudget * RETAINED_TAIL_INPUT_RATIO)
   )
+}
+
+function assertValidContextLength(contextLength: number): void {
+  if (!Number.isFinite(contextLength) || contextLength <= 0) {
+    throw new RangeError('Compaction requires a finite, positive model context length.')
+  }
 }
 
 function selectRetainedTail(
@@ -360,6 +409,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     newUserContent: SendMessageInput
+    forceContextPressure?: boolean
     historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
@@ -378,10 +428,16 @@ export class CompactionService {
     )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
+    const pinnedFirstUser = buildPinnedFirstUser(
+      historyRecords,
+      params.supportsVision,
+      params.supportsAudioInput === true
+    )
 
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
+      pinnedFirstUser,
       minimumRetainedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: [
@@ -391,7 +447,10 @@ export class CompactionService {
           params.supportsAudioInput === true
         )
       ],
-      anchorName: 'compaction/auto'
+      force: params.forceContextPressure === true,
+      anchorName: params.forceContextPressure
+        ? 'auto_handoff/context_overflow'
+        : 'compaction/auto'
     })
   }
 
@@ -438,10 +497,24 @@ export class CompactionService {
       }
       return isContextHistoryRecord(record)
     })
+    const targetIndex = resumeRecords.findIndex((record) => record.id === params.messageId)
+    let ownerUserMessageId: string | undefined
+    for (let index = targetIndex; index >= 0; index -= 1) {
+      if (resumeRecords[index]?.role === 'user') {
+        ownerUserMessageId = resumeRecords[index].id
+        break
+      }
+    }
 
     return this.prepareCompaction({
       ...params,
       records: resumeRecords,
+      pinnedFirstUser: buildPinnedFirstUser(
+        resumeRecords,
+        params.supportsVision,
+        params.supportsAudioInput === true,
+        ownerUserMessageId
+      ),
       minimumRetainedTurnCount: settings.retainRecentPairs + 1,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: [],
@@ -462,6 +535,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     projectedMessages: ChatMessage[]
+    pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser | null
     historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
@@ -480,10 +554,21 @@ export class CompactionService {
     )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
+    const pinnedFirstUser =
+      params.pinnedFirstUser === null
+        ? null
+        : buildPinnedFirstUser(
+            historyRecords,
+            params.supportsVision,
+            params.supportsAudioInput === true,
+            undefined,
+            params.pinnedFirstUser
+          )
 
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
+      pinnedFirstUser,
       minimumRetainedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: params.projectedMessages,
@@ -518,6 +603,11 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
+      pinnedFirstUser: buildPinnedFirstUser(
+        historyRecords,
+        params.supportsVision,
+        params.supportsAudioInput === true
+      ),
       minimumRetainedTurnCount: 0,
       retainedTokenTarget: 0,
       triggerThreshold: 0,
@@ -529,8 +619,10 @@ export class CompactionService {
 
   async applyCompaction(
     intent: CompactionIntent,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    observeModelCall?: CompactionModelCallObserver
   ): Promise<CompactionExecutionResult> {
+    assertValidContextLength(intent.currentModel.contextLength)
     let nextSummary: string | null = null
     try {
       throwIfAbortRequested(signal)
@@ -540,7 +632,9 @@ export class CompactionService {
         summaryBlocks: intent.summaryBlocks,
         currentModel: intent.currentModel,
         reserveTokens: intent.reserveTokens,
-        signal
+        signal,
+        compactionAttemptId: intent.compactionAttemptId,
+        observeModelCall
       })
       throwIfAbortRequested(signal)
     } catch (error) {
@@ -554,14 +648,21 @@ export class CompactionService {
     }
 
     throwIfAbortRequested(signal)
-    return nextSummary
-      ? this.commitSummaryBoundary(intent, nextSummary)
-      : this.commitBoundaryOnly(intent)
+    if (!nextSummary) {
+      return this.commitBoundaryOnly(intent)
+    }
+
+    const summaryAnchor = this.buildSummaryAnchor(intent, nextSummary)
+    if (!this.isSummaryCheckpointSmaller(intent, nextSummary, summaryAnchor)) {
+      return this.commitBoundaryOnly(intent, SUMMARY_REJECTED_LARGER_REASON)
+    }
+    return this.commitSummaryBoundary(intent, nextSummary, summaryAnchor)
   }
 
   private commitSummaryBoundary(
     intent: CompactionIntent,
-    nextSummary: string
+    nextSummary: string,
+    summaryAnchor: SummaryTapeAnchorInput
   ): CompactionExecutionResult {
     const summaryUpdatedAt = Date.now()
     const updatedState: SessionSummaryState = {
@@ -573,19 +674,19 @@ export class CompactionService {
       intent.sessionId,
       intent.previousState,
       updatedState,
-      this.buildAnchor(intent, {
-        summary: nextSummary,
-        cursorOrderSeq: updatedState.summaryCursorOrderSeq,
-        range: intent.summaryRange ?? null
-      })
+      summaryAnchor
     )
     return {
       outcome: this.resolveStoredOutcome(intent.previousState, compareAndSet.currentState),
+      anchorCommitted: compareAndSet.applied,
       summaryState: compareAndSet.currentState
     }
   }
 
-  private commitBoundaryOnly(intent: CompactionIntent): CompactionExecutionResult {
+  private commitBoundaryOnly(
+    intent: CompactionIntent,
+    reason: SummaryGapReason = SUMMARY_UNAVAILABLE_REASON
+  ): CompactionExecutionResult {
     const previousAnchor = this.sessionStore.getReconstructionAnchorPromptState(intent.sessionId)
     const previousCursor =
       typeof previousAnchor?.state.cursorOrderSeq === 'number' &&
@@ -594,7 +695,7 @@ export class CompactionService {
         : null
     const previousGap =
       previousCursor === intent.previousState.summaryCursorOrderSeq &&
-      previousAnchor?.state.reason === 'summary_unavailable'
+      isSummaryGapReason(previousAnchor?.state.reason)
         ? normalizeOrderSeqRange(previousAnchor.state.summaryGap)
         : null
     const currentGap =
@@ -617,7 +718,7 @@ export class CompactionService {
       updatedState,
       this.buildAnchor(intent, {
         cursorOrderSeq: updatedState.summaryCursorOrderSeq,
-        reason: 'summary_unavailable',
+        reason,
         summaryGap,
         ...(intent.previousState.summaryText
           ? { priorSummary: intent.previousState.summaryText }
@@ -626,27 +727,56 @@ export class CompactionService {
     )
     return {
       outcome: this.resolveStoredOutcome(intent.previousState, compareAndSet.currentState),
+      anchorCommitted: compareAndSet.applied,
       summaryState: compareAndSet.currentState
     }
+  }
+
+  private buildSummaryAnchor(
+    intent: CompactionIntent,
+    nextSummary: string
+  ): SummaryTapeAnchorInput {
+    return this.buildAnchor(intent, {
+      summary: nextSummary,
+      cursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+      range: intent.summaryRange ?? null
+    })
+  }
+
+  private isSummaryCheckpointSmaller(
+    intent: CompactionIntent,
+    nextSummary: string,
+    summaryAnchor: SummaryTapeAnchorInput
+  ): boolean {
+    const checkpoint = buildContextCheckpoint(nextSummary, {
+      entryId: 0,
+      name: summaryAnchor.name,
+      state: summaryAnchor.state,
+      createdAt: 0
+    }).message
+    const nextCheckpointTokenEstimate = checkpoint ? estimateMessagesTokens([checkpoint]) : 0
+    const replacedTokenEstimate =
+      intent.currentCheckpointTokenEstimate + intent.newlyHiddenVisibleTokenEstimate
+    return nextCheckpointTokenEstimate < replacedTokenEstimate
   }
 
   private buildAnchor(
     intent: CompactionIntent,
     reconstructionState: Record<string, unknown>
-  ): {
-    name: string
-    state: Record<string, unknown>
-    meta: Record<string, unknown>
-  } {
+  ): SummaryTapeAnchorInput {
     return {
       name: intent.anchorName ?? 'compaction/auto',
       state: {
         ...reconstructionState,
+        compactionAttemptId: intent.compactionAttemptId,
         sourceMessageIds: intent.sourceMessageIds ?? [],
         summaryableTurnCount: intent.summaryableTurnCount ?? intent.summaryBlocks.length,
         retainedTurnCount: floorNonNegative(intent.retainedTurnCount),
         retainedTokenEstimate: floorNonNegative(intent.retainedTokenEstimate),
         retainedTokenTarget: floorNonNegative(intent.retainedTokenTarget),
+        pinnedFirstUserTokenEstimate: floorNonNegative(
+          intent.pinnedFirstUserTokenEstimate ?? 0
+        ),
         previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
       },
       meta: {
@@ -678,6 +808,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     records: ChatMessageRecord[]
+    pinnedFirstUser?: ContextPinnedFirstUser | null
     minimumRetainedTurnCount: number
     retainedTokenTarget?: number
     triggerThreshold: number
@@ -685,24 +816,33 @@ export class CompactionService {
     force?: boolean
     anchorName?: string
   }): CompactionIntent | null {
+    assertValidContextLength(params.contextLength)
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
     const reconstructionAnchor =
       this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
     const pendingSummaryGap =
-      reconstructionAnchor?.state.reason === 'summary_unavailable' &&
+      isSummaryGapReason(reconstructionAnchor?.state.reason) &&
       reconstructionAnchor.state.cursorOrderSeq === summaryState.summaryCursorOrderSeq
         ? normalizeOrderSeqRange(reconstructionAnchor.state.summaryGap)
         : null
+    const pinnedFirstUserRecord = params.pinnedFirstUser?.record ?? null
+    const canonicalPinnedFirstUserMessages = params.pinnedFirstUser
+      ? [params.pinnedFirstUser.message]
+      : []
+    const pinnedFirstUserTokenEstimate = estimateMessagesTokens(canonicalPinnedFirstUserMessages)
     const pendingGapRecords = pendingSummaryGap
       ? params.records.filter(
           (record) =>
+            record.id !== pinnedFirstUserRecord?.id &&
             record.orderSeq >= pendingSummaryGap.fromOrderSeq &&
             record.orderSeq <= pendingSummaryGap.toOrderSeq &&
             record.orderSeq < summaryState.summaryCursorOrderSeq
         )
       : []
     const scopedRecords = params.records.filter(
-      (record) => record.orderSeq >= summaryState.summaryCursorOrderSeq
+      (record) =>
+        record.id !== pinnedFirstUserRecord?.id &&
+        record.orderSeq >= summaryState.summaryCursorOrderSeq
     )
     if (scopedRecords.length === 0) {
       return null
@@ -726,12 +866,19 @@ export class CompactionService {
       return null
     }
 
-    const checkpoint = buildContextCheckpoint(summaryState.summaryText, null).message
+    const checkpoint = buildContextCheckpoint(
+      summaryState.summaryText,
+      reconstructionAnchor
+    ).message
+    const currentCheckpointTokenEstimate = checkpoint
+      ? estimateMessagesTokens([checkpoint])
+      : 0
     const projectedHistory = turns.flatMap((turn) => turn.messages)
     const projectedPrompt = [
       ...(params.systemPrompt
         ? [{ role: 'system' as const, content: params.systemPrompt }]
         : []),
+      ...canonicalPinnedFirstUserMessages,
       ...(checkpoint ? [checkpoint] : []),
       ...projectedHistory,
       ...params.projectedMessages
@@ -747,15 +894,17 @@ export class CompactionService {
       }
     }
 
+    const retainedTokenTarget =
+      params.retainedTokenTarget ??
+      calculateRetainedTailTokenTarget({
+        contextLength: params.contextLength,
+        reserveTokens: params.reserveTokens,
+        extraReserveTokens: params.extraReserveTokens ?? 0
+      })
     const retainedTail = selectRetainedTail(
       turns,
       params.minimumRetainedTurnCount,
-      params.retainedTokenTarget ??
-        calculateRetainedTailTokenTarget({
-          contextLength: params.contextLength,
-          reserveTokens: params.reserveTokens,
-          extraReserveTokens: params.extraReserveTokens ?? 0
-        })
+      Math.max(0, retainedTokenTarget - pinnedFirstUserTokenEstimate)
     )
     if (retainedTail.summaryableTurns.length === 0) {
       return null
@@ -790,10 +939,16 @@ export class CompactionService {
       (scopedRecords[scopedRecords.length - 1]?.orderSeq ?? summaryState.summaryCursorOrderSeq) + 1
 
     return {
+      compactionAttemptId: randomUUID(),
       sessionId: params.sessionId,
       previousState: summaryState,
       targetCursorOrderSeq: Math.max(1, nextCursor),
       summaryBlocks,
+      currentCheckpointTokenEstimate,
+      newlyHiddenVisibleTokenEstimate: summaryableTurns.reduce(
+        (total, turn) => total + turn.tokens,
+        0
+      ),
       currentModel: this.getCurrentModelSpec(
         params.providerId,
         params.modelId,
@@ -807,8 +962,10 @@ export class CompactionService {
         summaryableTurns.length +
         (pendingGapRecords.length > 0 ? Math.max(1, pendingGapTurnCount) : 0),
       retainedTurnCount: rawTailTurns.length,
-      retainedTokenEstimate: retainedTail.retainedTokenEstimate,
-      retainedTokenTarget: retainedTail.retainedTokenTarget
+      retainedTokenEstimate:
+        retainedTail.retainedTokenEstimate + pinnedFirstUserTokenEstimate,
+      retainedTokenTarget,
+      pinnedFirstUserTokenEstimate
     }
   }
 
@@ -906,11 +1063,13 @@ export class CompactionService {
 
   private async generateRollingSummary(params: {
     sessionId: string
+    compactionAttemptId: string
     previousSummary: string | null
     summaryBlocks: string[]
     currentModel: ModelSpec
     reserveTokens: number
     signal?: AbortSignal
+    observeModelCall?: CompactionModelCallObserver
   }): Promise<string> {
     throwIfAbortRequested(params.signal)
     const currentModel = params.currentModel
@@ -936,7 +1095,12 @@ export class CompactionService {
       previousSummary: params.previousSummary,
       model: preferredModel,
       reserveTokens: params.reserveTokens,
-      signal: params.signal
+      signal: params.signal,
+      callContext: {
+        sessionId: params.sessionId,
+        compactionAttemptId: params.compactionAttemptId,
+        observeModelCall: params.observeModelCall
+      }
     })
   }
 
@@ -947,6 +1111,11 @@ export class CompactionService {
       model: ModelSpec
       reserveTokens: number
       signal?: AbortSignal
+      callContext: {
+        sessionId: string
+        compactionAttemptId: string
+        observeModelCall?: CompactionModelCallObserver
+      }
     }
   ): Promise<string> {
     throwIfAbortRequested(options.signal)
@@ -970,7 +1139,8 @@ export class CompactionService {
         options.reserveTokens,
         options.previousSummary,
         normalizedBlocks.join('\n\n'),
-        options.signal
+        options.signal,
+        options.callContext
       )
     }
 
@@ -994,7 +1164,8 @@ export class CompactionService {
             options.reserveTokens,
             options.previousSummary,
             joinedSplitBlocks,
-            options.signal
+            options.signal,
+            options.callContext
           )
         }
 
@@ -1022,6 +1193,11 @@ export class CompactionService {
       model: ModelSpec
       reserveTokens: number
       signal?: AbortSignal
+      callContext: {
+        sessionId: string
+        compactionAttemptId: string
+        observeModelCall?: CompactionModelCallObserver
+      }
     }
   ): Promise<string> {
     throwIfAbortRequested(options.signal)
@@ -1034,7 +1210,8 @@ export class CompactionService {
           options.reserveTokens,
           null,
           chunk.join('\n\n'),
-          options.signal
+          options.signal,
+          options.callContext
         )
       )
     }
@@ -1131,7 +1308,12 @@ export class CompactionService {
     reserveTokens: number,
     previousSummary: string | null,
     spanText: string,
-    signal?: AbortSignal
+    signal: AbortSignal | undefined,
+    callContext: {
+      sessionId: string
+      compactionAttemptId: string
+      observeModelCall?: CompactionModelCallObserver
+    }
   ): Promise<string> {
     throwIfAbortRequested(signal)
     const prompt = this.buildSummaryPrompt(previousSummary, spanText)
@@ -1141,22 +1323,81 @@ export class CompactionService {
       await this.providerRuntime.executeWithRateLimit(model.providerId)
     }
     throwIfAbortRequested(signal)
-    const response = await awaitWithAbort(
-      this.providerRuntime.generateText(
-        model.providerId,
-        prompt,
-        model.modelId,
-        0.2,
-        this.getSummaryOutputTokens(reserveTokens),
-        { signal }
-      ),
-      signal
-    )
+    const providerCallId = randomUUID()
+    const startedAt = Date.now()
+    let response: Awaited<ReturnType<ProviderExecutionPort['generateText']>>
+    try {
+      response = await awaitWithAbort(
+        this.providerRuntime.generateText(
+          model.providerId,
+          prompt,
+          model.modelId,
+          0.2,
+          this.getSummaryOutputTokens(reserveTokens),
+          { signal }
+        ),
+        signal
+      )
+    } catch (error) {
+      this.notifyModelCall(callContext.observeModelCall, {
+        sessionId: callContext.sessionId,
+        compactionAttemptId: callContext.compactionAttemptId,
+        providerCallId,
+        providerId: model.providerId,
+        modelId: model.modelId,
+        status: signal?.aborted || isAbortError(error) ? 'aborted' : 'error',
+        usage: null,
+        startedAt,
+        completedAt: Math.max(startedAt, Date.now())
+      })
+      throw error
+    }
+    this.notifyModelCall(callContext.observeModelCall, {
+      sessionId: callContext.sessionId,
+      compactionAttemptId: callContext.compactionAttemptId,
+      providerCallId,
+      providerId: model.providerId,
+      modelId: model.modelId,
+      status: 'completed',
+      usage: this.normalizeModelCallUsage(response.totalUsage),
+      startedAt,
+      completedAt: Math.max(startedAt, Date.now())
+    })
     throwIfAbortRequested(signal)
     const summary = sanitizeSummaryContent(response.content || '')
     if (!summary) {
       throw new Error('Compaction summary generation returned empty content.')
     }
     return summary
+  }
+
+  private normalizeModelCallUsage(
+    usage: Awaited<ReturnType<ProviderExecutionPort['generateText']>>['totalUsage']
+  ): CompactionModelCallObservation['usage'] {
+    if (!usage) return null
+    const inputTokens = measuredTokenCount(usage.prompt_tokens)
+    const outputTokens = measuredTokenCount(usage.completion_tokens)
+    const totalTokens = measuredTokenCount(usage.total_tokens)
+    if (inputTokens === null && outputTokens === null && totalTokens === null) return null
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens
+    }
+  }
+
+  private notifyModelCall(
+    observer: CompactionModelCallObserver | undefined,
+    observation: CompactionModelCallObservation
+  ): void {
+    if (!observer) return
+    try {
+      observer(observation)
+    } catch (error) {
+      console.warn(
+        `[CompactionService] Failed to persist model-call usage for session ${observation.sessionId}.`,
+        redactRuntimeErrorForLog(error)
+      )
+    }
   }
 }

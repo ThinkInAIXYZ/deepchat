@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm kayıt defteri otomatik algılama",
     "privacyModeManualActions": "Manuel kontroller ve manuel yenileme eylemleri kullanılabilir durumda kalır.",
     "privacyModeIntegrations": "Yapılandırılmış üçüncü taraf entegrasyonları kullanılabilir durumda kalır.",
-    "autoCompaction": {
-      "title": "Otomatik Sıkıştırma",
-      "enabled": "Otomatik sıkıştırmayı etkinleştir",
-      "description": "Bir konuşma model bağlam penceresi sınırına yaklaştığında, DeepChat eski geçmişi otomatik olarak özetleyerek oturumun devam etmesini sağlayabilir. Devre dışı bırakılırsa DeepChat özet oluşturmaz, ancak ham sağlayıcı context-window hatalarından kaçınmak için gerektiğinde istek görünümünü yine de kırpar.",
-      "thresholdLabel": "Tetik eşiği",
-      "thresholdMin": "Erken ({value}%)",
-      "thresholdMax": "Geç ({value}%)",
-      "thresholdDescription": "prompt kullanımı etkin geçmiş bütçesinin bu payına ulaştığında sıkıştırmayı başlatın. Daha düşük değerler daha fazla boşluk yaratır; daha yüksek değerler daha fazla ham bağlamı korur.",
-      "retainPairsLabel": "Son mesaj çiftlerini koru",
-      "retainPairsValue": "{count} çift(ler)i",
-      "retainPairsDescription": "En son tamamlanan kullanıcı ve asistan çiftlerini sıkıştırmanın dışında tutun. Geçerli sorgu dahil edilmedi."
-    },
     "searchAssistantModel": "Asistan Modeli",
     "selectModel": "Modeli Seçin",
     "proxyMode": "Proxy Modu",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "Önbelleğe alındı",
       "cachedTokensUncachedLabel": "Önbelleğe alınmamış",
       "cacheHitRate": "Önbellek isabet oranı",
-      "cacheHitRateDescription": "Önbelleğe alınan prompt tokens toplam giriş tokens'ye bölünür.",
+      "cacheHitRateDescription": "Önbelleğe alınmış istem tokenlerinin, önbellek ölçümleri bildiren kullanım kayıtlarındaki giriş tokenlerine oranı.",
       "recordingStartedAt": "Kayıt başladı",
       "recordingStartedAtDescription": "Şu anda bu kontrol panelinde saklanan en eski kullanım kaydı.",
       "withDeepChatDaysLabel": "Birlikte geçirdiğimiz günler",
@@ -909,6 +897,15 @@
       "providerDescription": "Toplam token sayısına göre sıralanır.",
       "modelTitle": "En iyi modeller",
       "modelDescription": "Toplam token sayısına göre en iyi 10 model.",
+      "categoryTitle": "Etkinliğe göre kullanım",
+      "categoryDescription": "Konuşma kullanımını bağlam sıkıştırmaya yönelik dahili model çağrılarından ayırır.",
+      "category": {
+        "chat": "Konuşma",
+        "compaction": "Bağlam sıkıştırma"
+      },
+      "chatEvents": "{count} mesaj",
+      "compactionEvents": "{count} model çağrısı",
+      "unknownUsage": "{count} kullanım bilinmiyor",
       "messages": "{count} mesajları",
       "empty": "Henüz arıza verisi yok."
     },

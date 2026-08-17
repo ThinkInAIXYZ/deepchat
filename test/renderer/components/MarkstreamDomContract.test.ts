@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import NodeRenderer from 'markstream-vue'
+import NodeRenderer, { CodeBlockNode } from 'markstream-vue'
 
 const originalCssStyleSheet = globalThis.CSSStyleSheet
 const originalResizeObserver = globalThis.ResizeObserver
@@ -55,7 +55,7 @@ async function mountMarkstream(content: string) {
       deferNodesUntilVisible: false,
       viewportPriority: false,
       nodeVirtual: false,
-      codeRenderer: 'pre'
+      renderCodeBlocksAsPre: true
     }
   })
   await settleRenderer()
@@ -78,7 +78,6 @@ describe('Markstream DOM contracts used by MarkdownRenderer delegation', () => {
           deferNodesUntilVisible: false,
           viewportPriority: false,
           nodeVirtual: false,
-          codeRenderer: 'monaco',
           codeBlockStream: true
         }
       })
@@ -110,7 +109,6 @@ describe('Markstream DOM contracts used by MarkdownRenderer delegation', () => {
         deferNodesUntilVisible: false,
         viewportPriority: false,
         nodeVirtual: false,
-        codeRenderer: 'monaco',
         codeBlockStream: true
       }
     })
@@ -123,6 +121,34 @@ describe('Markstream DOM contracts used by MarkdownRenderer delegation', () => {
 
     expect(wrapper.get('[data-markstream-code-block="1"]').element).toBe(codeBlock)
     expect(wrapper.get('pre.code-pre-fallback').text()).toContain('const answer = 43')
+  })
+
+  it('settles a completed standalone diff node', async () => {
+    const StandaloneDiff = defineComponent({
+      setup: () => () =>
+        h('div', { class: 'markstream-vue' }, [
+          h(CodeBlockNode, {
+            node: {
+              type: 'code_block',
+              language: 'typescript',
+              code: 'const answer = 43',
+              raw: 'const answer = 43',
+              diff: true,
+              originalCode: 'const answer = 42',
+              updatedCode: 'const answer = 43'
+            },
+            loading: false,
+            stream: false
+          })
+        ])
+    })
+    const wrapper = mount(StandaloneDiff)
+
+    await settleRenderer()
+
+    const codeBlock = wrapper.get('[data-markstream-code-block="1"]')
+    expect(codeBlock.attributes('data-markstream-code-block-state')).toBe('settled')
+    expect(codeBlock.text()).toContain('const answer = 43')
   })
 
   it('marks both Markdown and normalized safe HTML links for delegation', async () => {

@@ -681,6 +681,70 @@ describe('AI SDK runtime', () => {
     })
   })
 
+  it('does not turn unavailable generateText usage into measured zero tokens', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: {},
+      finalStep: {
+        reasoningText: undefined
+      }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toBeUndefined()
+  })
+
+  it('does not synthesize a total when generateText returns only partial usage', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: { inputTokens: 3, outputTokens: 5 },
+      finalStep: { reasoningText: undefined }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toEqual({
+      prompt_tokens: 3,
+      completion_tokens: 5
+    })
+  })
+
+  it('keeps valid usage fields when another field is malformed', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: { inputTokens: 3, outputTokens: -1, totalTokens: 3 },
+      finalStep: { reasoningText: undefined }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      0.7,
+      1024
+    )
+
+    expect(response.totalUsage).toEqual({ prompt_tokens: 3, total_tokens: 3 })
+  })
+
   it('builds image prompts from text-like content instead of object stringification', async () => {
     const context = {
       providerKind: 'openai-compatible',

@@ -196,6 +196,123 @@ describe('tapeViewManifest', () => {
     expect(JSON.stringify(refs)).not.toContain('do not persist this text')
   })
 
+  it('orders and grounds an authoritative pinned user before the checkpoint', () => {
+    const pinnedMessage = { role: 'user' as const, content: 'original task' }
+    const pinnedHash = hashJsonData(pinnedMessage)
+    const pinnedRecord = createRecord({ id: 'u1', orderSeq: 1, content: 'raw original task' })
+    const refs = buildIncludedRefs(
+      {
+        includesSystemPrompt: true,
+        includedRecords: [
+          {
+            record: createRecord({ id: 'u3', orderSeq: 3 }),
+            reason: 'selected_history'
+          },
+          {
+            record: pinnedRecord,
+            reason: 'pinned_first_user',
+            contentHash: pinnedHash
+          }
+        ],
+        excludedRecords: [],
+        pinnedFirstUser: {
+          messageId: pinnedRecord.id,
+          orderSeq: pinnedRecord.orderSeq,
+          sourceContentHash: hashJsonData(pinnedRecord.content),
+          contentHash: pinnedHash
+        },
+        syntheticContributions: [
+          {
+            role: 'user',
+            reason: 'summary_checkpoint',
+            sourceEntryIds: [31],
+            contentHash: 'a'.repeat(64)
+          }
+        ]
+      },
+      {
+        entryIdByMessageId: new Map([
+          ['u1', 11],
+          ['u3', 13]
+        ]),
+        messageContentHashByMessageId: new Map([['u1', hashJsonData(pinnedRecord.content)]])
+      }
+    )
+
+    expect(refs).toEqual([
+      {
+        entryId: null,
+        messageId: null,
+        orderSeq: null,
+        role: 'system',
+        source: 'synthetic',
+        reason: 'system_prompt'
+      },
+      {
+        entryId: 11,
+        messageId: 'u1',
+        orderSeq: 1,
+        role: 'user',
+        source: 'tape',
+        reason: 'pinned_first_user',
+        sourceEntryIds: [11],
+        contentHash: pinnedHash
+      },
+      {
+        entryId: null,
+        messageId: null,
+        orderSeq: null,
+        role: 'user',
+        source: 'synthetic',
+        reason: 'summary_checkpoint',
+        sourceEntryIds: [31],
+        contentHash: 'a'.repeat(64)
+      },
+      {
+        entryId: 13,
+        messageId: 'u3',
+        orderSeq: 3,
+        role: 'user',
+        source: 'tape',
+        reason: 'selected_history'
+      }
+    ])
+    expect(JSON.stringify(refs)).not.toContain('raw original task')
+  })
+
+  it('rejects pinned selections without matching metadata or an authoritative Tape source', () => {
+    const pinnedRecord = createRecord({ id: 'u1', orderSeq: 1 })
+    const pinnedFirstUser = {
+      messageId: pinnedRecord.id,
+      orderSeq: pinnedRecord.orderSeq,
+      sourceContentHash: hashJsonData(pinnedRecord.content),
+      contentHash: hashJsonData({ role: 'user', content: 'original task' })
+    }
+    const selection = {
+      includesSystemPrompt: false,
+      includedRecords: [
+        {
+          record: pinnedRecord,
+          reason: 'pinned_first_user' as const,
+          contentHash: pinnedFirstUser.contentHash
+        }
+      ],
+      excludedRecords: [],
+      pinnedFirstUser
+    }
+
+    expect(() => buildIncludedRefs(selection)).toThrow(/no authoritative Tape source/)
+    expect(() =>
+      buildIncludedRefs(
+        {
+          ...selection,
+          pinnedFirstUser: { ...pinnedFirstUser, messageId: 'different-user' }
+        },
+        { entryIdByMessageId: new Map([['u1', 11]]) }
+      )
+    ).toThrow(/selection metadata is inconsistent/)
+  })
+
   it('creates deterministic prompt and manifest hashes without storing prompt bodies', () => {
     const input = {
       sessionId: 's1',
@@ -849,6 +966,71 @@ describe('tapeViewManifest', () => {
     expect(verifyTapeViewManifestHash(manifest)).toBe('valid')
   })
 
+  it('validates the cache-aware v2 policy and pinned-user manifest reason', () => {
+    const pinnedMessage = { role: 'user' as const, content: 'original task' }
+    const manifest = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat',
+      policy: 'cache_aware_context_v2',
+      policyVersion: 1,
+      contextBuilderVersion: 'cache-aware-v2',
+      messages: [pinnedMessage],
+      tools: [],
+      latestEntryId: 11,
+      anchorEntryIds: [1],
+      included: [
+        {
+          entryId: 11,
+          messageId: 'u1',
+          orderSeq: 1,
+          role: 'user',
+          source: 'tape',
+          reason: 'pinned_first_user',
+          sourceEntryIds: [11],
+          contentHash: hashJsonData(pinnedMessage)
+        }
+      ],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 2,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    })
+
+    expect(verifyTapeViewManifestHash(manifest)).toBe('valid')
+    expect(normalizeStoredTapeViewManifest(manifest, 's1')).toEqual(manifest)
+    expect(normalizeStoredTapeViewManifest({ ...manifest, schemaVersion: 3 }, 's1')).toBeNull()
+    expect(
+      normalizeStoredTapeViewManifest(
+        { ...manifest, contextBuilderVersion: 'cache-aware-v1' },
+        's1'
+      )
+    ).toBeNull()
+    expect(() =>
+      createTapeViewManifest({
+        ...manifest,
+        included: [{ ...manifest.included[0], source: 'synthetic', sourceEntryIds: undefined }]
+      })
+    ).toThrow(/authoritative Tape fact/)
+    expect(() =>
+      createTapeViewManifest({
+        ...manifest,
+        messages: [{ role: 'system', content: 'system prompt' }, pinnedMessage]
+      })
+    ).toThrow(/first authoritative View ref/)
+  })
+
   it('normalizes prior schemas without widening their synthetic contribution contract', () => {
     const schema4 = createTapeViewManifest({
       sessionId: 's1',
@@ -1006,6 +1188,64 @@ describe('tapeViewManifest', () => {
       { role: 'user', reason: 'selected_history', source: 'synthetic' },
       { role: 'tool', reason: 'tool_loop_message', source: 'synthetic', entryId: null }
     ])
+  })
+
+  it('preserves pinned provenance in tool-loop refs only for the exact visible message', () => {
+    const pinnedMessage = { role: 'user' as const, content: 'original task' }
+    const pinnedFirstUser = {
+      messageId: 'u1',
+      orderSeq: 1,
+      sourceContentHash: hashJsonData('raw original task'),
+      contentHash: hashJsonData(pinnedMessage)
+    }
+    const sourceMaps = {
+      entryIdByMessageId: new Map([['u1', 11]]),
+      messageContentHashByMessageId: new Map([['u1', pinnedFirstUser.sourceContentHash]])
+    }
+
+    expect(buildRequestRefs([pinnedMessage], sourceMaps, pinnedFirstUser)).toEqual([
+      {
+        entryId: 11,
+        messageId: 'u1',
+        orderSeq: 1,
+        role: 'user',
+        source: 'tape',
+        reason: 'pinned_first_user',
+        sourceEntryIds: [11],
+        contentHash: pinnedFirstUser.contentHash
+      }
+    ])
+    expect(() =>
+      buildRequestRefs(
+        [{ role: 'user', content: 'changed projection' }],
+        sourceMaps,
+        pinnedFirstUser
+      )
+    ).toThrow(/no longer matches the protected View prefix/)
+    expect(() =>
+      buildRequestRefs(
+        [
+          { role: 'system', content: 'system' },
+          { role: 'user', content: 'changed projection' },
+          pinnedMessage
+        ],
+        sourceMaps,
+        pinnedFirstUser
+      )
+    ).toThrow(/no longer matches the protected View prefix/)
+    expect(() => buildRequestRefs([pinnedMessage], {}, pinnedFirstUser)).toThrow(
+      /no authoritative Tape source/
+    )
+    expect(() =>
+      buildRequestRefs(
+        [pinnedMessage],
+        {
+          entryIdByMessageId: new Map([['u1', 12]]),
+          messageContentHashByMessageId: new Map([['u1', hashJsonData('edited task')]])
+        },
+        pinnedFirstUser
+      )
+    ).toThrow(/no longer matches its Tape source/)
   })
 
   it('grounds tool-loop refs to real tape entries via source maps', () => {

@@ -315,8 +315,8 @@ importers:
         specifier: ^0.16.47
         version: 0.16.47
       markstream-vue:
-        specifier: 1.0.7-beta.4
-        version: 1.0.7-beta.4(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(stream-monaco@0.0.49(monaco-editor@0.55.1))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
+        specifier: 2.0.0-beta.2
+        version: 2.0.0-beta.2(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
       mermaid:
         specifier: ^11.16.1
         version: 11.16.1
@@ -5209,6 +5209,9 @@ packages:
   linkify-it@5.0.2:
     resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
 
+  linkify-it@6.1.0:
+    resolution: {integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==}
+
   locate-path@3.0.0:
     resolution: {integrity: sha512-7AO748wWnIhNqAuaty2ZWHkQHRSNfPVIsPIfwEOWO22AmaoVrWavlOcMR5nzTLNYvp36X220/maaRsrec1G65A==}
     engines: {node: '>=6'}
@@ -5304,18 +5307,15 @@ packages:
   markdown-it-mark@4.0.0:
     resolution: {integrity: sha512-YLhzaOsU9THO/cal0lUjfMjrqSMPjjyjChYM7oyj4DnyaXEzA8gnW6cVJeyCrCVeyesrY2PlEdUYJSPFYL4Nkg==}
 
-  markdown-it-sub@2.0.0:
-    resolution: {integrity: sha512-iCBKgwCkfQBRg2vApy9vx1C1Tu6D8XYo8NvevI3OlwzBRmiMtsJ2sXupBgEA7PPxiDwNni3qIUkhZ6j5wofDUA==}
-
   markdown-it-sup@2.0.0:
     resolution: {integrity: sha512-5VgmdKlkBd8sgXuoDoxMpiU+BiEt3I49GItBzzw7Mxq9CxvnhE/k09HFli09zgfFDRixDQDfDxi0mgBCXtaTvA==}
 
   markdown-it-task-checkbox@1.0.6:
     resolution: {integrity: sha512-7pxkHuvqTOu3iwVGmDPeYjQg+AIS9VQxzyLP9JCg9lBjgPAJXGEkChK6A2iFuj3tS0GV3HG2u5AMNhcQqwxpJw==}
 
-  markdown-it-ts@1.0.4:
-    resolution: {integrity: sha512-FmCjj7D0C54EhWNn6WdSIBoyEbEoLeqE/Orgzik+CHSIz3aQJW3/U3uc8BEOMdGl/SE4O+s4BjwKhtO7LPOwWA==}
-    engines: {node: '>=18'}
+  markdown-it-ts@1.0.10:
+    resolution: {integrity: sha512-8FIKgiTAewMr67TMwikpwMj2u3dVSBLMJ9RZOG4HdqjE0Q+g0o3wDT1LFOXSddQr+RAr6ZT4PFiICU4kRX1l5Q==}
+    engines: {node: '>=20.19'}
 
   markdown-it@14.3.0:
     resolution: {integrity: sha512-RCEsPjR+sr0x+AuYp601tKTkgFG4YEPLCzHST3cQ/fhlJkqAkz1L2/Qbp1j9qw5SBwQHFBoW8+hoN5xssOF0Tw==}
@@ -5331,19 +5331,17 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  markstream-core@1.0.3:
-    resolution: {integrity: sha512-QXn+yERo1q+RD6YlGDW61zc/af65uhkQEH3K8YvEKkprHbgRJ/JIeBeEQjELCTyBnPoxqtKQ7I565rylY+PePg==}
+  markstream-core@1.1.0-beta.2:
+    resolution: {integrity: sha512-aylQdwVOT9DP5zhl5+YfO4ZDaflaZaPUIwbxAYNuFNHcqTDiGJ9c9anqD5y6JU/bj8P7SWbxLBfshSH/0hH8/w==}
 
-  markstream-vue@1.0.7-beta.4:
-    resolution: {integrity: sha512-i1WtxzZ0XB+z3Dmb5E8oKd+ec30FgtXMDHXuTMu6SUlFuzqxWeCSm7QBbFomK05ucQk9g9a2nG4ae1X9j40U/Q==}
+  markstream-vue@2.0.0-beta.2:
+    resolution: {integrity: sha512-Hc65EsJUiuZfAIxGRGYYB6wWzLQwb7Jur807WHeHWa7T8Q0fu8ZIyS8MuL6CWisIae/mXV3LRC+kqRSG4DieLQ==}
     peerDependencies:
       '@antv/infographic': ^0.2.3
       '@terrastruct/d2': '>=0.1.33'
       katex: '>=0.16.22'
       mermaid: '>=11'
       stream-diffs: '>=0.0.2'
-      stream-markdown: '>=0.0.16'
-      stream-monaco: '>=0.0.48'
       vue: '>=3.0.0'
       vue-i18n: '>=9'
     peerDependenciesMeta:
@@ -5356,10 +5354,6 @@ packages:
       mermaid:
         optional: true
       stream-diffs:
-        optional: true
-      stream-markdown:
-        optional: true
-      stream-monaco:
         optional: true
       vue-i18n:
         optional: true
@@ -6389,8 +6383,8 @@ packages:
       vue:
         optional: true
 
-  stream-markdown-parser@1.1.3:
-    resolution: {integrity: sha512-tge6aKbOGU36vBLeeroHGBAJ7qiNcsTYyvmgqevVN0+5kMiLOjAyeDmv3PQkniTMbgOsswVHN9izmgmSw5bsBQ==}
+  stream-markdown-parser@1.2.6-beta.1:
+    resolution: {integrity: sha512-ist3dgeqxFAtxD83N2/i42F8U6Z7pZOuVuQ44oLasN1Me0ju5SyJRpptP1B32x/bo7GyJEMe8jgquExjhSIoww==}
 
   stream-monaco@0.0.49:
     resolution: {integrity: sha512-ksZYJXw45NralnpgWqcptqrgDdbGZaTyYmvATvhlK8eY0tyeTxs0iuQzMTF4cpGf5OlIgkNJOfbFh4M97OozSw==}
@@ -6659,6 +6653,9 @@ packages:
 
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
+
+  uc.micro@3.0.0:
+    resolution: {integrity: sha512-U3PppEkleoTnIfi8BozMx3yju3qc/L6SwqWo2Sw+54PX+PX0q9I+r1Um5HCmqD7n9VDX5/v3vQH/AjA6deDdtw==}
 
   ufo@1.6.4:
     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
@@ -12069,6 +12066,10 @@ snapshots:
     dependencies:
       uc.micro: 2.1.0
 
+  linkify-it@6.1.0:
+    dependencies:
+      uc.micro: 3.0.0
+
   locate-path@3.0.0:
     dependencies:
       p-locate: 3.0.0
@@ -12181,21 +12182,16 @@ snapshots:
 
   markdown-it-mark@4.0.0: {}
 
-  markdown-it-sub@2.0.0: {}
-
   markdown-it-sup@2.0.0: {}
 
   markdown-it-task-checkbox@1.0.6: {}
 
-  markdown-it-ts@1.0.4:
+  markdown-it-ts@1.0.10:
     dependencies:
-      '@types/linkify-it': 5.0.0
-      '@types/mdurl': 2.0.0
-      entities: 4.5.0
-      linkify-it: 5.0.2
+      entities: 8.0.0
+      linkify-it: 6.1.0
       mdurl: 2.1.0
       punycode.js: 2.3.1
-      uc.micro: 2.1.0
 
   markdown-it@14.3.0:
     dependencies:
@@ -12210,21 +12206,20 @@ snapshots:
 
   marked@16.4.2: {}
 
-  markstream-core@1.0.3: {}
+  markstream-core@1.1.0-beta.2: {}
 
-  markstream-vue@1.0.7-beta.4(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(stream-monaco@0.0.49(monaco-editor@0.55.1))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)):
+  markstream-vue@2.0.0-beta.2(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)):
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@floating-ui/dom': 1.8.0
-      markstream-core: 1.0.3
-      stream-markdown-parser: 1.1.3
+      markstream-core: 1.1.0-beta.2
+      stream-markdown-parser: 1.2.6-beta.1
       vue: 3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)
     optionalDependencies:
       '@antv/infographic': 0.2.19
       katex: 0.16.47
       mermaid: 11.16.1
       stream-diffs: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
-      stream-monaco: 0.0.49(monaco-editor@0.55.1)
       vue-i18n: 11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
 
   matcher@3.0.0:
@@ -13388,16 +13383,15 @@ snapshots:
       - react
       - react-dom
 
-  stream-markdown-parser@1.1.3:
+  stream-markdown-parser@1.2.6-beta.1:
     dependencies:
       markdown-it-container: 4.0.0
       markdown-it-footnote: 4.0.0
       markdown-it-ins: 4.0.0
       markdown-it-mark: 4.0.0
-      markdown-it-sub: 2.0.0
       markdown-it-sup: 2.0.0
       markdown-it-task-checkbox: 1.0.6
-      markdown-it-ts: 1.0.4
+      markdown-it-ts: 1.0.10
 
   stream-monaco@0.0.49(monaco-editor@0.55.1):
     dependencies:
@@ -13672,6 +13666,8 @@ snapshots:
       '@typescript-native-bridge/win32-x64': 6.0.3-bridge.7.tsgo.7.0.2
 
   uc.micro@2.1.0: {}
+
+  uc.micro@3.0.0: {}
 
   ufo@1.6.4: {}
 

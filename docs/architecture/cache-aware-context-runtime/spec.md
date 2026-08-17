@@ -43,16 +43,19 @@ summarization calls.
 Provider-visible context is ordered as:
 
 1. deterministic base system instructions;
-2. an optional synthetic user checkpoint derived from the current summary and visible handoff
+2. the authoritative first effective user fact in the current Tape incarnation, when it is not
+   already the protected active owner;
+3. an optional synthetic user checkpoint derived from the current summary and visible handoff
    state;
-3. complete history turns after the summary cursor;
-4. the active user turn with an optional untrusted Memory contribution;
-5. the current user payload or partial assistant continuation.
+4. complete history turns after the summary cursor;
+5. the active user turn with an optional untrusted Memory contribution;
+6. the current user payload or partial assistant continuation.
 
 Summary, reconstruction state, and Memory content never use the system role. Their text remains
 bounded, fenced, and labeled untrusted. A resume injects Memory into the user message that owns the
 target assistant; it never appends a new user message after a partial assistant. If that owner
-cannot be identified, Memory is omitted.
+cannot be identified, Memory is omitted. The pinned first user remains an original user fact and
+does not receive the derivative-content fence.
 
 Tool or skill refresh replaces only the deterministic leading system instructions. It does not
 repeat Memory retrieval, Memory access accounting, or `memory/view_assembled` persistence.
@@ -89,10 +92,11 @@ telemetry.
 
 ### Context fitting and compaction
 
-The base system, checkpoint, and active turn are protected. Optional Memory is removed before
-historical turns. History is removed from the oldest complete turn and tool call/result groups are
-not split. If protected content still does not fit, the runtime follows its explicit overflow
-failure path rather than silently dropping trusted instructions or current user input.
+The base system, pinned first user, checkpoint, and active turn are protected. Optional Memory is
+removed before historical turns. History is removed from the oldest complete turn and tool
+call/result groups are not split. If protected content still does not fit, the runtime follows its
+explicit overflow failure path rather than silently dropping trusted instructions or current user
+input.
 Initial chat and resume selection use the same usable context length, including the provider
 safety margin, as request preflight so manifest record provenance cannot describe history removed
 only at the final provider boundary.
@@ -115,10 +119,18 @@ anchor state.
 
 ### Tape provenance and attempt telemetry
 
-New context writes use policy `cache_aware_context_v1`, policy version 1, builder
-`cache-aware-v1`, and ViewManifest schema version 3. Schema versions 1 and 2 and builder
-`legacy-v1` remain readable and hash-verifiable. Schema 3 may record synthetic contribution
-reasons, source entry identifiers, and content hashes without copying source text.
+New context writes use policy `cache_aware_context_v2`, policy version 1, and builder
+`cache-aware-v2`. The first-user manifest ref is authoritative rather than synthetic and records
+the latest effective Tape source entry, message/order identity, and the hash of the exact protected
+provider message. Before writing that ref, assembly also verifies a Run-local raw source-content
+hash against the effective source. `cache_aware_context_v1`, `cache-aware-v1`, schema versions 1
+and 2, and builder `legacy-v1` remain readable and hash-verifiable. Existing schema families may
+record contribution reasons, source entry identifiers, and content hashes without copying source
+text.
+
+The initial View fixes pin presence and identity for the Run. Context-pressure reconstruction must
+inherit and verify that descriptor, or explicitly preserve its absence; it never reselects a pin
+from history that changed after the Run began.
 
 Each provider stream that actually starts appends one idempotent `provider/attempt_completed`
 event keyed by Session, message, request sequence, and physical attempt. Schema version 2 records
@@ -164,6 +176,9 @@ creation time plus trace ID as a stable tie-breaker.
     GitHub issue, push, or pull request is created.
 12. Transient retries reuse a manifest only before semantic output is committed; context recovery
     writes a new manifest, and non-chat provider modes are never transparently replayed.
+13. Cache-aware v2 requests retain exactly one authoritative first-user fact across compaction,
+    resume, tool-loop fitting, and context pressure, or fail before provider dispatch when its
+    protected identity or budget cannot be preserved.
 
 ## Constraints
 

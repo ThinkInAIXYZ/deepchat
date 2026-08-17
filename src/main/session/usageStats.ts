@@ -4,25 +4,32 @@ import type {
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
+import type { TapeCompactionModelCallEvent } from '@/tape/domain/compactionUsage'
 
 import { providerDbLoader } from '@/provider/providerDbLoader'
 
-export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV1'
+export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV2'
 export const DASHBOARD_BACKFILL_STALE_MS = 10 * 60 * 1000
 
 export type UsageStatsSource = 'backfill' | 'live'
+export type UsageStatsCategory = 'chat' | 'compaction'
 
 export interface UsageStatsRecordInput {
-  messageId: string
+  usageId: string
+  messageId: string | null
+  category: UsageStatsCategory
+  compactionAttemptId: string | null
+  providerCallId: string | null
+  providerCallSeq: number | null
   sessionId: string
   usageDate: string
   providerId: string
   modelId: string
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  cachedInputTokens: number
-  cacheWriteInputTokens: number
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
+  cachedInputTokens: number | null
+  cacheWriteInputTokens: number | null
   source: UsageStatsSource
   createdAt: number
   updatedAt: number
@@ -199,7 +206,12 @@ export function buildUsageStatsRecord(params: {
   }
 
   return {
+    usageId: params.messageId,
     messageId: params.messageId,
+    category: 'chat',
+    compactionAttemptId: null,
+    providerCallId: null,
+    providerCallSeq: null,
     sessionId: params.sessionId,
     usageDate: getLocalDateKey(params.createdAt),
     providerId,
@@ -212,6 +224,34 @@ export function buildUsageStatsRecord(params: {
     source: params.source,
     createdAt: params.createdAt,
     updatedAt: params.updatedAt
+  }
+}
+
+export function buildCompactionUsageStatsRecord(params: {
+  sessionId: string
+  event: TapeCompactionModelCallEvent
+  source: UsageStatsSource
+}): UsageStatsRecordInput {
+  const { event } = params
+  return {
+    usageId: `compaction:${params.sessionId}:${event.compactionAttemptId}:${event.providerCallId}`,
+    messageId: event.compactionMessageId,
+    category: 'compaction',
+    compactionAttemptId: event.compactionAttemptId,
+    providerCallId: event.providerCallId,
+    providerCallSeq: event.callSeq,
+    sessionId: params.sessionId,
+    usageDate: getLocalDateKey(event.completedAt),
+    providerId: event.providerId,
+    modelId: event.modelId,
+    inputTokens: event.usage?.inputTokens ?? null,
+    outputTokens: event.usage?.outputTokens ?? null,
+    totalTokens: event.usage?.totalTokens ?? null,
+    cachedInputTokens: null,
+    cacheWriteInputTokens: null,
+    source: params.source,
+    createdAt: event.completedAt,
+    updatedAt: event.completedAt
   }
 }
 

@@ -17,7 +17,10 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { SessionTranscript } from '@/session/data/transcript'
-import type { DeepChatTapeViewSyntheticContribution } from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatTapeViewPinnedFirstUser,
+  DeepChatTapeViewSyntheticContribution
+} from '@shared/types/tape-view-manifest'
 import {
   getContextSyntheticContributions,
   type ContextRuntimeContributions
@@ -35,6 +38,7 @@ import {
 import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
 import { inheritProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
+import { hashJsonData } from '@/tape/domain/canonicalJson'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -90,6 +94,8 @@ export function formatApprovedMcpAppModelContext(block: AssistantMessageBlock): 
 export type ContextBuildOptions = {
   summaryCursorOrderSeq?: number
   historyRecords?: ChatMessageRecord[]
+  pinFirstUser?: boolean
+  runPinnedFirstUser?: DeepChatTapeViewPinnedFirstUser | null
   fallbackProtectedTurnCount?: number
   preserveInterleavedReasoning?: boolean
   preserveEmptyInterleavedReasoning?: boolean
@@ -120,12 +126,16 @@ export type HistoryTurn = {
   tokens: number
 }
 
-export type ContextIncludedReason = 'selected_history' | 'resume_target'
+export type ContextIncludedReason =
+  | 'pinned_first_user'
+  | 'selected_history'
+  | 'resume_target'
 export type ContextExcludedReason = 'empty_after_formatting' | 'out_of_budget'
 
 export type ContextIncludedRecord = {
   record: ChatMessageRecord
   reason: ContextIncludedReason
+  contentHash?: string
 }
 
 export type ContextExcludedRecord = {
@@ -140,11 +150,19 @@ export type ContextSummaryCursorMetadata = {
   preCursorCount: number
 }
 
+export type ContextPinnedFirstUser = {
+  record: ChatMessageRecord
+  message: ChatMessage
+  sourceContentHash: string
+  contentHash: string
+}
+
 export type ContextBuildMetadata = {
   includedRecords: ContextIncludedRecord[]
   excludedRecords: ContextExcludedRecord[]
   summaryCursor: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
+  pinnedFirstUser?: ContextPinnedFirstUser
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
@@ -1453,11 +1471,15 @@ function selectCompleteTailTurns<T extends TokenizedTurn>(
 
 function buildCacheAwareLeadingMessages(
   systemPrompt: string,
-  context: ContextRuntimeContributions
+  context: ContextRuntimeContributions,
+  pinnedFirstUser?: ContextPinnedFirstUser | null
 ): ChatMessage[] {
   const messages: ChatMessage[] = []
   if (systemPrompt) {
     messages.push({ role: 'system', content: systemPrompt })
+  }
+  if (pinnedFirstUser) {
+    messages.push(pinnedFirstUser.message)
   }
   if (context.checkpoint.message) {
     messages.push(context.checkpoint.message)
@@ -1497,14 +1519,34 @@ function buildCacheAwareOverflowError(input: {
   protectedTokens: number
   reserveTokens: number
   extraReserveTokens: number
+  includesPinnedFirstUser: boolean
 }): Error {
+  const protectedContent = [
+    'base system prompt',
+    ...(input.includesPinnedFirstUser ? ['pinned initial user instruction'] : []),
+    'conversation checkpoint',
+    'active turn',
+    'explicitly protected recent turns'
+  ].join(', ')
   return new Error(
     [
-      'Request was not sent because it cannot fit within the model context window without dropping the base system prompt, conversation checkpoint, active turn, or explicitly protected recent turns.',
+      `Request was not sent because it cannot fit within the model context window without dropping the ${protectedContent}.`,
       `Budget: usable context ${Math.floor(input.contextLength)} tokens, protected prompt ${input.protectedTokens} tokens, output reserve ${Math.max(0, input.reserveTokens)} tokens, extra reserve ${Math.max(0, input.extraReserveTokens)} tokens.`,
       'Shorten the current input or attachments, reduce active tools or system instructions, lower max output tokens, or increase the model context length.'
     ].join(' ')
   )
+}
+
+function requirePinnedFirstUserMessage(
+  messages: ChatMessage[],
+  index: number,
+  contentHash: string
+): ChatMessage {
+  const message = messages[index]
+  if (message?.role !== 'user' || hashJsonData(message) !== contentHash) {
+    throw new Error('Pinned initial user instruction no longer matches the protected View prefix.')
+  }
+  return message
 }
 
 function stripLeadingUserContext(
@@ -1639,12 +1681,16 @@ function buildCacheAwareMetadata(input: {
   emittedTurns: HistoryTurn[]
   cursor: number
   context: ContextRuntimeContributions
+  pinnedFirstUser?: ContextPinnedFirstUser | null
   resumeTargetId?: string
   includesSystemPrompt: boolean
 }): ContextBuildMetadata {
   const selectedRecordIds = new Set(
     input.selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
+  if (input.pinnedFirstUser) {
+    selectedRecordIds.add(input.pinnedFirstUser.record.id)
+  }
   const emittedRecordIds = new Set(
     input.emittedTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
@@ -1653,15 +1699,26 @@ function buildCacheAwareMetadata(input: {
   )
 
   return {
-    includedRecords: input.selectedTurns.flatMap((turn) =>
-      turn.records.map((record) => ({
-        record,
-        reason:
-          record.id === input.resumeTargetId
-            ? ('resume_target' as const)
-            : ('selected_history' as const)
-      }))
-    ),
+    includedRecords: [
+      ...(input.pinnedFirstUser
+        ? [
+            {
+              record: input.pinnedFirstUser.record,
+              reason: 'pinned_first_user' as const,
+              contentHash: input.pinnedFirstUser.contentHash
+            }
+          ]
+        : []),
+      ...input.selectedTurns.flatMap((turn) =>
+        turn.records.map((record) => ({
+          record,
+          reason:
+            record.id === input.resumeTargetId
+              ? ('resume_target' as const)
+              : ('selected_history' as const)
+        }))
+      )
+    ],
     excludedRecords: [
       ...input.cursorRecords
         .filter((record) => !emittedRecordIds.has(record.id))
@@ -1678,8 +1735,74 @@ function buildCacheAwareMetadata(input: {
     ],
     summaryCursor: buildSummaryCursorMetadata(preCursorRecords, input.cursor),
     includesSystemPrompt: input.includesSystemPrompt,
+    ...(input.pinnedFirstUser ? { pinnedFirstUser: input.pinnedFirstUser } : {}),
     syntheticContributions: getContextSyntheticContributions(input.context)
   }
+}
+
+export function buildPinnedFirstUser(
+  records: ChatMessageRecord[],
+  supportsVision: boolean,
+  supportsAudioInput: boolean,
+  excludedRecordId?: string,
+  expected?: DeepChatTapeViewPinnedFirstUser
+): ContextPinnedFirstUser | null {
+  let record: ChatMessageRecord | undefined
+  for (const candidate of records) {
+    if (
+      candidate.role !== 'user' ||
+      (candidate.id === excludedRecordId && candidate.id !== expected?.messageId) ||
+      (expected && candidate.id !== expected.messageId)
+    ) {
+      continue
+    }
+    if (
+      !record ||
+      candidate.orderSeq < record.orderSeq ||
+      (candidate.orderSeq === record.orderSeq &&
+        Buffer.compare(Buffer.from(candidate.id), Buffer.from(record.id)) < 0)
+    ) {
+      record = candidate
+    }
+  }
+  if (!record) {
+    if (expected) {
+      throw new Error('Pinned initial user instruction is no longer present in the effective View.')
+    }
+    return null
+  }
+
+  const [message, ...extraMessages] = recordToChatMessages(
+    record,
+    supportsVision,
+    false,
+    false,
+    supportsAudioInput
+  )
+  if (!message || extraMessages.length > 0 || message.role !== 'user') {
+    if (expected) {
+      throw new Error('Pinned initial user instruction no longer has a canonical user projection.')
+    }
+    return null
+  }
+  const pinned = {
+    record,
+    message,
+    sourceContentHash: hashJsonData(record.content),
+    contentHash: hashJsonData(message)
+  }
+  if (
+    expected &&
+    (record.orderSeq !== expected.orderSeq ||
+      pinned.sourceContentHash !== expected.sourceContentHash ||
+      pinned.contentHash !== expected.contentHash)
+  ) {
+    throw new Error('Pinned initial user instruction changed during the active Run.')
+  }
+  if (record.id === excludedRecordId) {
+    return null
+  }
+  return pinned
 }
 
 function filterRecordsFromCursor(
@@ -1705,7 +1828,19 @@ export function buildCacheAwareContextWithMetadata(
   const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
   const contextCandidateRecords = candidateRecords.filter(isContextHistoryRecord)
   const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
-  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
+  const pinnedFirstUser =
+    options.pinFirstUser && options.runPinnedFirstUser !== null
+      ? buildPinnedFirstUser(
+          contextCandidateRecords,
+          supportsVision,
+          supportsAudioInput,
+          undefined,
+          options.runPinnedFirstUser
+        )
+    : null
+  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor).filter(
+    (record) => record.id !== pinnedFirstUser?.record.id
+  )
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
@@ -1715,7 +1850,7 @@ export function buildCacheAwareContextWithMetadata(
     undefined,
     options.providerReplayProjector
   )
-  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context)
+  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context, pinnedFirstUser)
   const inputBudget = resolveFiniteInputBudget(
     contextLength,
     reserveTokens,
@@ -1781,7 +1916,8 @@ export function buildCacheAwareContextWithMetadata(
       contextLength,
       protectedTokens: fixedTokens,
       reserveTokens,
-      extraReserveTokens: options.extraReserveTokens ?? 0
+      extraReserveTokens: options.extraReserveTokens ?? 0,
+      includesPinnedFirstUser: pinnedFirstUser !== null
     })
   }
 
@@ -1799,6 +1935,7 @@ export function buildCacheAwareContextWithMetadata(
       emittedTurns: historyTurns,
       cursor,
       context,
+      pinnedFirstUser,
       includesSystemPrompt: Boolean(systemPrompt)
     })
   }
@@ -1837,7 +1974,20 @@ export function buildCacheAwareResumeContextWithMetadata(
     context.directivesIncluded = false
   }
 
+  const contextCandidateRecords = recordsThroughTarget.filter(isContextHistoryRecord)
+  const pinnedFirstUser =
+    options.pinFirstUser && options.runPinnedFirstUser !== null
+      ? buildPinnedFirstUser(
+          contextCandidateRecords,
+          supportsVision,
+          supportsAudioInput,
+          ownerUser?.id,
+          options.runPinnedFirstUser
+        )
+    : null
+
   const historyRecords = recordsThroughTarget.filter((record) => {
+    if (record.id === pinnedFirstUser?.record.id) return false
     if (record.id === assistantMessageId) return true
     if (!isContextHistoryRecord(record)) return false
     return record.orderSeq >= cursor || Boolean(ownerUser && record.orderSeq >= ownerUser.orderSeq)
@@ -1865,7 +2015,7 @@ export function buildCacheAwareResumeContextWithMetadata(
   }
   let activeTurn = activeTurnIndex >= 0 ? historyTurns[activeTurnIndex] : null
   const historyPrefix = activeTurnIndex >= 0 ? historyTurns.slice(0, activeTurnIndex) : historyTurns
-  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context)
+  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context, pinnedFirstUser)
   const inputBudget = resolveFiniteInputBudget(
     contextLength,
     reserveTokens,
@@ -1918,13 +2068,13 @@ export function buildCacheAwareResumeContextWithMetadata(
       contextLength,
       protectedTokens: fixedTokens,
       reserveTokens,
-      extraReserveTokens: options.extraReserveTokens ?? 0
+      extraReserveTokens: options.extraReserveTokens ?? 0,
+      includesPinnedFirstUser: pinnedFirstUser !== null
     })
   }
 
   const selectedHistory = selectCompleteTailTurns(historyPrefix, inputBudget - fixedTokens)
   const selectedTurns = [...selectedHistory, ...(activeTurn ? [activeTurn] : [])]
-  const contextCandidateRecords = recordsThroughTarget.filter(isContextHistoryRecord)
   return {
     messages: [...leadingMessages, ...flattenTurns(selectedTurns)],
     metadata: buildCacheAwareMetadata({
@@ -1934,6 +2084,7 @@ export function buildCacheAwareResumeContextWithMetadata(
       emittedTurns: historyTurns,
       cursor,
       context,
+      pinnedFirstUser,
       resumeTargetId: assistantMessageId,
       includesSystemPrompt: Boolean(systemPrompt)
     })
@@ -2121,7 +2272,8 @@ export function fitCacheAwareMessagesToContextWindow(
   contextLength: number,
   reserveTokens: number,
   context: ContextRuntimeContributions,
-  minimumProtectedTailCount: number = 0
+  minimumProtectedTailCount: number = 0,
+  pinnedFirstUserContentHash?: string
 ): ChatMessage[] {
   if (
     messages.length === 0 ||
@@ -2135,6 +2287,12 @@ export function fitCacheAwareMessagesToContextWindow(
   const leadingMessages: ChatMessage[] = []
   if (messages[offset]?.role === 'system') {
     leadingMessages.push(messages[offset])
+    offset += 1
+  }
+  if (pinnedFirstUserContentHash) {
+    leadingMessages.push(
+      requirePinnedFirstUserMessage(messages, offset, pinnedFirstUserContentHash)
+    )
     offset += 1
   }
   if (
@@ -2222,7 +2380,8 @@ export function fitCacheAwareMessagesToContextWindow(
       contextLength,
       protectedTokens: retainedTokens,
       reserveTokens,
-      extraReserveTokens: 0
+      extraReserveTokens: 0,
+      includesPinnedFirstUser: Boolean(pinnedFirstUserContentHash)
     })
   }
 

@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
-import type { PermissionMode } from '../../../src/shared/types/agent-interface'
+import type {
+  PermissionMode,
+  SessionContextOccupancySnapshot
+} from '../../../src/shared/types/agent-interface'
 import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
 import type {
   OrchestrationPolicy,
@@ -79,6 +82,7 @@ type SetupOptions = {
   orchestrationCapability?: OrchestrationCapability
   orchestrationCapabilityError?: Error
   setOrchestrationPolicyError?: Error
+  contextOccupancy?: SessionContextOccupancySnapshot | null
 }
 
 const createDeferred = <T>() => {
@@ -396,6 +400,7 @@ const setup = async (options: SetupOptions = {}) => {
   const sessionStore = reactive({
     hasActiveSession,
     activeSessionId: hasActiveSession ? 's1' : null,
+    activeContextOccupancy: options.contextOccupancy ?? null,
     activeSession: hasActiveSession
       ? {
           id: 's1',
@@ -411,6 +416,7 @@ const setup = async (options: SetupOptions = {}) => {
     setSessionModel: options.setSessionModelError
       ? vi.fn().mockRejectedValue(options.setSessionModelError)
       : vi.fn().mockResolvedValue(undefined),
+    synchronizeContextOccupancy: vi.fn(),
     applyConfirmedOrchestrationPolicy: vi.fn((sessionId: string, policy: OrchestrationPolicy) => {
       if (sessionStore.activeSession?.id === sessionId) {
         sessionStore.activeSession.orchestrationPolicy = policy
@@ -719,6 +725,7 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
+      locale: ref('en-US'),
       t: (key: string) => key
     })
   }))
@@ -842,6 +849,132 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
+  it('shows provider-measured context occupancy for an active DeepChat session', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      contextOccupancy: {
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 750,
+        contextWindowTokens: 1_000,
+        requestSeq: 2,
+        manifestEntryId: 10,
+        providerAttemptEntryId: 11,
+        measuredAt: 100
+      }
+    })
+
+    const occupancy = wrapper.get('[data-testid="context-occupancy"]')
+    expect(occupancy.text()).toContain('75%')
+    expect(occupancy.attributes('data-freshness')).toBe('current')
+    expect(occupancy.attributes('data-source')).toBe('provider')
+    expect(occupancy.attributes('title')).toContain('chat.contextOccupancy.provider')
+  })
+
+  it('does not present a stale estimate as current occupancy', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      contextOccupancy: {
+        freshness: 'stale',
+        source: 'estimated',
+        occupiedTokens: 1_250,
+        contextWindowTokens: 1_000,
+        requestSeq: 2,
+        manifestEntryId: 10,
+        providerAttemptEntryId: null,
+        measuredAt: 100
+      }
+    })
+
+    const occupancy = wrapper.get('[data-testid="context-occupancy"]')
+    expect(occupancy.text()).toContain('—')
+    expect(occupancy.text()).not.toContain('125%')
+    expect(occupancy.attributes('data-freshness')).toBe('stale')
+    expect(occupancy.attributes('data-source')).toBe('estimated')
+    expect(occupancy.attributes('title')).toContain('chat.contextOccupancy.stale')
+    expect(occupancy.get('span > span').attributes('style')).toContain('width: 0%')
+    expect(occupancy.find('[data-icon="lucide:clock-3"]').exists()).toBe(true)
+  })
+
+  it('visually distinguishes a current estimate from provider-measured occupancy', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      contextOccupancy: {
+        freshness: 'current',
+        source: 'estimated',
+        occupiedTokens: 750,
+        contextWindowTokens: 1_000,
+        requestSeq: 2,
+        manifestEntryId: 10,
+        providerAttemptEntryId: null,
+        measuredAt: 100
+      }
+    })
+
+    expect(wrapper.get('[data-testid="context-occupancy"]').text()).toContain('≈75%')
+  })
+
+  it('hides unavailable context occupancy', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      contextOccupancy: {
+        freshness: 'unavailable',
+        source: null,
+        occupiedTokens: null,
+        contextWindowTokens: null,
+        requestSeq: null,
+        manifestEntryId: null,
+        providerAttemptEntryId: null,
+        measuredAt: null
+      }
+    })
+
+    expect(wrapper.find('[data-testid="context-occupancy"]').exists()).toBe(false)
+  })
+
+  it('does not show DeepChat occupancy evidence for an ACP session', async () => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      agentType: 'acp',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      contextOccupancy: {
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 750,
+        contextWindowTokens: 1_000,
+        requestSeq: 2,
+        manifestEntryId: 10,
+        providerAttemptEntryId: 11,
+        measuredAt: 100
+      }
+    })
+
+    expect(wrapper.find('[data-testid="context-occupancy"]').exists()).toBe(false)
+  })
+
+  it('shows DeepChat occupancy when the agent uses an ACP provider', async () => {
+    const { wrapper } = await setup({
+      agentId: 'compatible-agent',
+      agentType: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      activeModelId: 'compatible-model',
+      contextOccupancy: {
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 750,
+        contextWindowTokens: 1_000,
+        requestSeq: 2,
+        manifestEntryId: 10,
+        providerAttemptEntryId: 11,
+        measuredAt: 100
+      }
+    })
+
+    expect(wrapper.get('[data-testid="context-occupancy"]').text()).toContain('75%')
+  })
+
   it('keeps reasoning effort visible while toggling proactive collaboration for a draft', async () => {
     const { wrapper, draftStore, orchestrationClient } = await setup({
       agentId: 'deepchat',
@@ -2239,6 +2372,24 @@ describe('ChatStatusBar model and session panels', () => {
       's1',
       expect.objectContaining({ temperature: 1.2 })
     )
+
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  it('refreshes occupancy after a context-window setting is persisted', async () => {
+    vi.useFakeTimers()
+
+    const { wrapper, sessionStore } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+    await commitNumericInput(wrapper, 'contextLength', '20000')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    expect(sessionStore.synchronizeContextOccupancy).toHaveBeenCalledWith('s1')
 
     vi.runOnlyPendingTimers()
     vi.useRealTimers()

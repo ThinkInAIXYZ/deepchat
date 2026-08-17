@@ -10,6 +10,7 @@ import { validateSchema6SkillContexts, validateSchema7SkillContexts } from './sk
 import { isBoundedSkillTapeIdentity } from './skillIdentity'
 
 const VIEW_POLICIES = new Set([
+  'cache_aware_context_v2',
   'cache_aware_context_v1',
   'legacy_context_v1',
   'legacy_context_shadow',
@@ -24,6 +25,7 @@ const VIEW_ENTRY_REASONS = new Set([
   'reconstruction_checkpoint',
   'memory_context',
   'directive_context',
+  'pinned_first_user',
   'selected_history',
   'new_user_input',
   'resume_target',
@@ -68,6 +70,22 @@ function isViewEntryRef(
     value.sourceEntryIds !== undefined ||
     value.contentHash !== undefined ||
     (reason !== null && SCHEMA_V3_ENTRY_REASONS.has(reason))
+  const hasValidPinnedFirstUserShape =
+    reason !== 'pinned_first_user' ||
+    (schemaVersion >= 4 &&
+      typeof value.entryId === 'number' &&
+      isPositiveInteger(value.entryId) &&
+      typeof value.messageId === 'string' &&
+      value.messageId.trim().length > 0 &&
+      typeof value.orderSeq === 'number' &&
+      isPositiveInteger(value.orderSeq) &&
+      value.role === 'user' &&
+      value.source === 'tape' &&
+      Array.isArray(value.sourceEntryIds) &&
+      value.sourceEntryIds.length === 1 &&
+      value.sourceEntryIds[0] === value.entryId &&
+      typeof value.contentHash === 'string' &&
+      SHA256_HEX_PATTERN.test(value.contentHash))
 
   return (
     isNullableNumber(value.entryId) &&
@@ -81,6 +99,7 @@ function isViewEntryRef(
     (value.source === 'tape' || value.source === 'synthetic') &&
     reason !== null &&
     VIEW_ENTRY_REASONS.has(reason) &&
+    hasValidPinnedFirstUserShape &&
     (schemaVersion >= 3 || !hasSchemaV3Fields) &&
     (reason !== 'directive_context' || schemaVersion >= 4) &&
     (value.sourceEntryIds === undefined ||
@@ -188,6 +207,22 @@ export function isTapeViewManifest(
       ? value.schemaVersion
       : null
   if (schemaVersion === null) return false
+  const included = Array.isArray(value.included) ? value.included : []
+  const pinnedFirstUserIndexes = included.flatMap((entry, index) =>
+    isRecordObject(entry) && entry.reason === 'pinned_first_user' ? [index] : []
+  )
+  const systemPromptIndexes = included.flatMap((entry, index) =>
+    isRecordObject(entry) && entry.reason === 'system_prompt' ? [index] : []
+  )
+  const hasPinnedFirstUser = pinnedFirstUserIndexes.length > 0
+  const hasValidPinnedFirstUserLayout =
+    !hasPinnedFirstUser ||
+    (pinnedFirstUserIndexes.length === 1 &&
+      (systemPromptIndexes.length === 0
+        ? pinnedFirstUserIndexes[0] === 0
+        : systemPromptIndexes.length === 1 &&
+          systemPromptIndexes[0] === 0 &&
+          pinnedFirstUserIndexes[0] === 1))
 
   return (
     typeof value.hashVersion === 'number' &&
@@ -198,10 +233,17 @@ export function isTapeViewManifest(
     (value.taskType === 'chat' || value.taskType === 'resume' || value.taskType === 'tool_loop') &&
     typeof value.policy === 'string' &&
     VIEW_POLICIES.has(value.policy) &&
-    (value.policy !== 'cache_aware_context_v1' || schemaVersion >= 3) &&
+    ((value.policy !== 'cache_aware_context_v1' && value.policy !== 'cache_aware_context_v2') ||
+      schemaVersion >= 3) &&
     (typeof value.policyVersion === 'number' || value.policyVersion === null) &&
     (value.contextBuilderVersion === 'legacy-v1' ||
-      (schemaVersion >= 3 && value.contextBuilderVersion === 'cache-aware-v1')) &&
+      (schemaVersion >= 3 &&
+        (value.contextBuilderVersion === 'cache-aware-v1' ||
+          value.contextBuilderVersion === 'cache-aware-v2'))) &&
+    (value.policy !== 'cache_aware_context_v2' ||
+      value.contextBuilderVersion === 'cache-aware-v2') &&
+    (!hasPinnedFirstUser || value.contextBuilderVersion === 'cache-aware-v2') &&
+    hasValidPinnedFirstUserLayout &&
     typeof value.latestEntryId === 'number' &&
     Array.isArray(value.anchorEntryIds) &&
     value.anchorEntryIds.every((entryId) => typeof entryId === 'number') &&

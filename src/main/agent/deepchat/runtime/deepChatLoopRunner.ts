@@ -21,6 +21,8 @@ import type {
 } from '@shared/types/provider'
 import type {
   DeepChatTapeSkillContext,
+  DeepChatTapeViewContextBuilderVersion,
+  DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
@@ -99,6 +101,7 @@ import {
   buildProviderMessagesHash,
   buildProviderVisibleToolDefinitionsHash
 } from '@/tape/domain/executionContract'
+import { hashJsonData } from '@/tape/domain/canonicalJson'
 import {
   ExecutionJournalCorruptionError,
   ExecutionJournalError,
@@ -355,7 +358,7 @@ export type PendingTapeViewContext = {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
@@ -407,8 +410,9 @@ export interface CommitTapeProviderViewInput {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
+  pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
   executionContract?: DeepChatExecutionContract
   runId?: string
   tapeIncarnationId?: string
@@ -636,6 +640,16 @@ export function buildTapeViewSelection(
     summaryCursor: metadata.summaryCursor,
     includesSystemPrompt: metadata.includesSystemPrompt,
     syntheticContributions: metadata.syntheticContributions,
+    ...(metadata.pinnedFirstUser
+      ? {
+          pinnedFirstUser: {
+            messageId: metadata.pinnedFirstUser.record.id,
+            orderSeq: metadata.pinnedFirstUser.record.orderSeq,
+            sourceContentHash: metadata.pinnedFirstUser.sourceContentHash,
+            contentHash: metadata.pinnedFirstUser.contentHash
+          }
+        }
+      : {}),
     newUserMessageId
   }
 }
@@ -1736,6 +1750,8 @@ export class DeepChatLoopRunner {
                   outputCapContextLength: budget.outputCapContextLength,
                   requestedMaxTokens,
                   contextContributions: activeContextContributions,
+                  pinnedFirstUserContentHash:
+                    viewContext?.selection.pinnedFirstUser?.contentHash,
                   promptTokenEstimate
                 })
               },
@@ -1745,7 +1761,9 @@ export class DeepChatLoopRunner {
                   contextLength: getEffectiveContextBudget(requestedMaxTokens).contextLength,
                   reserveTokens,
                   minimumProtectedTailCount: 0,
-                  contextContributions: activeContextContributions
+                  contextContributions: activeContextContributions,
+                  pinnedFirstUserContentHash:
+                    viewContext?.selection.pinnedFirstUser?.contentHash
                 }),
               getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
               getStrictRetryExtraReserve: () =>
@@ -1789,6 +1807,7 @@ export class DeepChatLoopRunner {
                   interleavedReasoning,
                   minimumProtectedTailCount: 0,
                   contextContributions: getOrCreateContextContributions(),
+                  pinnedFirstUser: viewContext?.selection.pinnedFirstUser,
                   providerReplayProjector,
                   requestedViewPolicyId: viewContext?.policy,
                   signal: abortController.signal,
@@ -1865,6 +1884,7 @@ export class DeepChatLoopRunner {
                   syntheticContributions: activeContextContributions
                     ? getContextSyntheticContributions(activeContextContributions)
                     : manifest.syntheticContributions,
+                  pinnedFirstUser: viewContext?.selection.pinnedFirstUser,
                   providerId: state.providerId,
                   modelId: requestModelId
                 }),
@@ -2490,7 +2510,7 @@ export class DeepChatLoopRunner {
       included: selection
         ? buildIncludedRefs(selection, sourceMaps)
         : [
-            ...buildRequestRefs(params.messages, sourceMaps),
+            ...buildRequestRefs(params.messages, sourceMaps, params.pinnedFirstUser),
             ...buildSyntheticContributionRefs(params.syntheticContributions ?? [])
           ],
       excluded: selection ? buildExcludedRefs(selection, sourceMaps) : [],
@@ -2642,6 +2662,7 @@ export class DeepChatLoopRunner {
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
     contextContributions: ContextRuntimeContributions
+    pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
     providerReplayProjector?: ChatMessageProviderReplayProjector
     requestedViewPolicyId?: string | null
     signal: AbortSignal
@@ -2684,8 +2705,10 @@ export class DeepChatLoopRunner {
                 params.interleavedReasoning.preserveEmptyReasoningContent === true,
               projectedMessages: this.removeLeadingContextContributions(
                 params.requestMessages,
-                params.contextContributions
+                params.contextContributions,
+                params.pinnedFirstUser?.contentHash
               ),
+              pinnedFirstUser: params.pinnedFirstUser ?? null,
               historyRecords,
               signal: params.signal
             }),
@@ -2728,25 +2751,35 @@ export class DeepChatLoopRunner {
           this.ports.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
         ),
       getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
-      fit: ({ messages, reserveTokens, minimumProtectedTailCount }) =>
+      fit: ({
+        messages,
+        reserveTokens,
+        minimumProtectedTailCount,
+        pinnedFirstUserContentHash
+      }) =>
         fitRequestMessagesToContextWindow({
           messages,
           contextLength: params.contextLength,
           reserveTokens,
           minimumProtectedTailCount,
-          contextContributions: params.contextContributions
+          contextContributions: params.contextContributions,
+          pinnedFirstUserContentHash
         }),
       rebuildAfterCompaction: ({ summary, requestMessages }) => {
+        const unchanged = () => ({
+          messages: requestMessages,
+          pinnedFirstUserContentHash: params.pinnedFirstUser?.contentHash
+        })
         if (
           !compactedHistoryRecords?.some((record) => record.id === params.messageId)
         ) {
-          return requestMessages
+          return unchanged()
         }
         const leadingMessage = requestMessages[0]
         let currentSystemMessage = ''
         if (leadingMessage?.role === 'system') {
           if (typeof leadingMessage.content !== 'string') {
-            return requestMessages
+            return unchanged()
           }
           currentSystemMessage = leadingMessage.content
         }
@@ -2754,7 +2787,7 @@ export class DeepChatLoopRunner {
         // below by the in-flight request. Keep those mutations provisional; the final fitter
         // updates the canonical contributions from the exact View that recovery accepts.
         const provisionalRebuildContext = { ...params.contextContributions }
-        const rebuiltMessages = buildTapeResumeView({
+        const rebuilt = buildTapeResumeView({
           sessionId: params.sessionId,
           assistantMessageId: params.messageId,
           systemPrompt: currentSystemMessage,
@@ -2767,6 +2800,7 @@ export class DeepChatLoopRunner {
           contextContributions: provisionalRebuildContext,
           options: {
             summaryCursorOrderSeq: summary.summaryCursorOrderSeq,
+            runPinnedFirstUser: params.pinnedFirstUser ?? null,
             fallbackProtectedTurnCount: 1,
             supportsAudioInput: params.supportsAudioInput,
             extraReserveTokens: toolReserveTokens,
@@ -2775,18 +2809,24 @@ export class DeepChatLoopRunner {
               params.interleavedReasoning.preserveEmptyReasoningContent === true,
             providerReplayProjector: params.providerReplayProjector
           }
-        }).messages
+        })
+        const rebuiltMessages = rebuilt.messages
         const activeTurnStart = requestMessages.findLastIndex((message) => message.role === 'user')
         const rebuiltActiveTurnStart = rebuiltMessages.findLastIndex(
           (message) => message.role === 'user'
         )
         if (activeTurnStart < 0 || rebuiltActiveTurnStart < 0) {
-          return requestMessages
+          return unchanged()
         }
-        return [
-          ...rebuiltMessages.slice(0, rebuiltActiveTurnStart),
-          ...requestMessages.slice(activeTurnStart)
-        ]
+        // The active owner can itself be the Run pin. In that case the rebuilt View intentionally
+        // has no separate pinned prefix, so fitting must use the rebuilt View's authority.
+        return {
+          messages: [
+            ...rebuiltMessages.slice(0, rebuiltActiveTurnStart),
+            ...requestMessages.slice(activeTurnStart)
+          ],
+          pinnedFirstUserContentHash: rebuilt.metadata.pinnedFirstUser?.contentHash
+        }
       },
       measure: estimateMessagesTokens,
       assertCurrent: () =>
@@ -2796,9 +2836,22 @@ export class DeepChatLoopRunner {
 
   private removeLeadingContextContributions(
     messages: ChatMessage[],
-    context: ContextRuntimeContributions
+    context: ContextRuntimeContributions,
+    pinnedFirstUserContentHash?: string
   ): ChatMessage[] {
     let offset = messages[0]?.role === 'system' ? 1 : 0
+    if (pinnedFirstUserContentHash) {
+      const pinnedMessage = messages[offset]
+      if (
+        pinnedMessage?.role !== 'user' ||
+        hashJsonData(pinnedMessage) !== pinnedFirstUserContentHash
+      ) {
+        throw new Error(
+          'Pinned initial user instruction no longer matches the protected View prefix.'
+        )
+      }
+      offset += 1
+    }
     if (
       context.checkpoint.message &&
       messages[offset]?.role === 'user' &&

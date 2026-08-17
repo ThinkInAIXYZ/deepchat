@@ -32,6 +32,21 @@ export interface DeepChatAssistantMessageIdentityRow {
   updated_at: number
 }
 
+const COMPACTION_RECOVERY_PREDICATE = `
+  role = 'assistant'
+  AND status = 'sent'
+  AND (CASE WHEN json_valid(metadata)
+    THEN json_extract(metadata, '$.messageType') END) = 'compaction'
+  AND (CASE WHEN json_valid(metadata)
+    THEN json_extract(metadata, '$.compactionStatus') END) = 'compacting'
+`
+
+const COMPACTION_RECOVERY_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_deepchat_messages_compaction_recovery
+    ON deepchat_messages(session_id, order_seq, id)
+    WHERE ${COMPACTION_RECOVERY_PREDICATE};
+`
+
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_messages')
@@ -52,7 +67,16 @@ export class DeepChatMessagesTable extends BaseTable {
         updated_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_deepchat_messages_session ON deepchat_messages(session_id, order_seq);
+      ${COMPACTION_RECOVERY_INDEX_SQL}
     `
+  }
+
+  override createTable(): void {
+    if (!this.tableExists()) {
+      this.db.exec(this.getCreateTableSQL())
+      return
+    }
+    this.db.exec(COMPACTION_RECOVERY_INDEX_SQL)
   }
 
   getMigrationSQL(_version: number): string | null {
@@ -166,6 +190,17 @@ export class DeepChatMessagesTable extends BaseTable {
          ORDER BY order_seq, id`
       )
       .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  getCompactionRecoveryCandidates(): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_messages
+         WHERE ${COMPACTION_RECOVERY_PREDICATE}
+         ORDER BY session_id, order_seq, id`
+      )
+      .all() as DeepChatMessageRow[]
   }
 
   hasBySession(sessionId: string): boolean {

@@ -317,6 +317,11 @@ describe('SessionTape recall', () => {
       modelId: 'claude-test',
       status: 'completed' as const,
       stopReason: 'complete' as const,
+      contextPressure: {
+        kind: 'successful_prompt_overflow' as const,
+        contextWindowTokens: 99,
+        thresholdTokens: 99
+      },
       usage: {
         inputTokens: 100,
         outputTokens: 10,
@@ -348,7 +353,7 @@ describe('SessionTape recall', () => {
     expect(JSON.parse(storedAttempt.payload_json)).toEqual({
       name: 'provider/attempt_completed',
       data: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         messageId: 'a1',
         logicalRound: 1,
         requestSeq: 1,
@@ -371,7 +376,12 @@ describe('SessionTape recall', () => {
           cacheReadTokens: 90,
           cacheWriteTokens: 5
         },
-        cacheHitRate: 0.9
+        cacheHitRate: 0.9,
+        contextPressure: {
+          kind: 'successful_prompt_overflow',
+          contextWindowTokens: 99,
+          thresholdTokens: 99
+        }
       }
     })
     expect(service.info('s1')).toMatchObject({

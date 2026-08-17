@@ -1,6 +1,8 @@
 import type { ProviderRoundStopReason } from '@shared/types/core/llm-events'
 import type {
   DeepChatProviderAttemptOrigin,
+  DeepChatProviderContextPressureKind,
+  DeepChatProviderContextPressureObservation,
   DeepChatProviderFailureClassification,
   DeepChatProviderRequestOrigin,
   DeepChatProviderRetryDecision
@@ -9,7 +11,9 @@ import type { DeepChatTapeEntryRow } from './entry'
 import { parseTapeJsonObject } from './effectiveSemantics'
 
 export const TAPE_PROVIDER_ATTEMPT_EVENT_NAME = 'provider/attempt_completed'
-export const TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION = 2
+export type TapeProviderAttemptEventName = typeof TAPE_PROVIDER_ATTEMPT_EVENT_NAME
+export const TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION = 3
+const TAPE_PROVIDER_ATTEMPT_PREVIOUS_SCHEMA_VERSION = 2
 const TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION = 1
 
 export type TapeProviderAttemptStatus = 'completed' | 'context_overflow' | 'aborted' | 'error'
@@ -39,6 +43,7 @@ export interface TapeProviderAttemptInput {
   httpStatus: number | null
   errorCode: string | null
   retryDelayMs: number | null
+  contextPressure?: DeepChatProviderContextPressureObservation | null
   usage: {
     inputTokens: number
     outputTokens: number
@@ -61,10 +66,10 @@ interface TapeProviderAttemptEventBase {
 
 export interface TapeProviderAttemptEventV1 extends TapeProviderAttemptEventBase {
   schemaVersion: typeof TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION
+  contextPressure: null
 }
 
-export interface TapeProviderAttemptEvent extends TapeProviderAttemptEventBase {
-  schemaVersion: typeof TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION
+interface TapeProviderAttemptDetailedEventBase extends TapeProviderAttemptEventBase {
   logicalRound: number
   physicalAttempt: number
   requestOrigin: DeepChatProviderRequestOrigin
@@ -76,7 +81,33 @@ export interface TapeProviderAttemptEvent extends TapeProviderAttemptEventBase {
   retryDelayMs: number | null
 }
 
-export type TapeProviderAttemptReadEvent = TapeProviderAttemptEventV1 | TapeProviderAttemptEvent
+export interface TapeProviderAttemptEventV2 extends TapeProviderAttemptDetailedEventBase {
+  schemaVersion: typeof TAPE_PROVIDER_ATTEMPT_PREVIOUS_SCHEMA_VERSION
+  contextPressure: null
+}
+
+export interface TapeProviderAttemptEvent extends TapeProviderAttemptDetailedEventBase {
+  schemaVersion: typeof TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION
+  contextPressure: DeepChatProviderContextPressureObservation | null
+}
+
+export type TapeProviderAttemptReadEvent =
+  | TapeProviderAttemptEventV1
+  | TapeProviderAttemptEventV2
+  | TapeProviderAttemptEvent
+
+export interface TapeProviderContextPressureRecord {
+  readonly entryId: number
+  readonly attempt: TapeProviderAttemptEvent & {
+    readonly contextPressure: DeepChatProviderContextPressureObservation
+  }
+}
+
+export interface TapeProviderAttemptRecord {
+  readonly entryId: number
+  readonly createdAt: number
+  readonly attempt: TapeProviderAttemptReadEvent
+}
 
 export interface TapeProviderAttemptCacheMetrics {
   lastTokenCacheHitRate: number | null
@@ -124,6 +155,10 @@ const PROVIDER_RETRY_DECISIONS = new Set<DeepChatProviderRetryDecision>([
   'output_committed',
   'retry_after_exceeds_limit'
 ])
+const PROVIDER_CONTEXT_PRESSURE_KINDS = new Set<DeepChatProviderContextPressureKind>([
+  'successful_prompt_overflow',
+  'zero_output_length_at_limit'
+])
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
@@ -164,10 +199,62 @@ function calculateCacheHitRate(usage: TapeProviderAttemptUsage | null): number |
   return usage.cacheReadTokens / usage.inputTokens
 }
 
+function normalizeContextPressure(
+  value: unknown,
+  outcome: {
+    status: TapeProviderAttemptStatus
+    stopReason: ProviderRoundStopReason | null
+    usage: TapeProviderAttemptUsage | null
+  }
+): DeepChatProviderContextPressureObservation | null | undefined {
+  if (value === null) return null
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+
+  const observation = value as Record<string, unknown>
+  if (
+    typeof observation.kind !== 'string' ||
+    !PROVIDER_CONTEXT_PRESSURE_KINDS.has(observation.kind as DeepChatProviderContextPressureKind) ||
+    !Number.isSafeInteger(observation.contextWindowTokens) ||
+    (observation.contextWindowTokens as number) <= 0 ||
+    !Number.isSafeInteger(observation.thresholdTokens) ||
+    (observation.thresholdTokens as number) <= 0 ||
+    outcome.status !== 'completed' ||
+    !outcome.usage
+  ) {
+    return undefined
+  }
+
+  const contextWindowTokens = observation.contextWindowTokens as number
+  const thresholdTokens = observation.thresholdTokens as number
+  const kind = observation.kind as DeepChatProviderContextPressureKind
+  if (
+    thresholdTokens > contextWindowTokens ||
+    (kind === 'successful_prompt_overflow' &&
+      (outcome.stopReason !== 'complete' ||
+        thresholdTokens !== contextWindowTokens ||
+        outcome.usage.inputTokens <= thresholdTokens)) ||
+    (kind === 'zero_output_length_at_limit' &&
+      (outcome.stopReason !== 'max_tokens' ||
+        outcome.usage.outputTokens !== 0 ||
+        outcome.usage.inputTokens < thresholdTokens))
+  ) {
+    return undefined
+  }
+
+  return { kind, contextWindowTokens, thresholdTokens }
+}
+
 export function buildTapeProviderAttemptEvent(
   input: TapeProviderAttemptInput
 ): TapeProviderAttemptEvent {
   const usage = normalizeUsage(input.usage)
+  const contextPressure =
+    normalizeContextPressure(input.contextPressure, {
+      status: input.status,
+      stopReason: input.stopReason,
+      usage
+    }) ?? null
   return {
     schemaVersion: TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION,
     messageId: input.messageId,
@@ -186,7 +273,8 @@ export function buildTapeProviderAttemptEvent(
     errorCode: input.errorCode,
     retryDelayMs: input.retryDelayMs,
     usage,
-    cacheHitRate: calculateCacheHitRate(usage)
+    cacheHitRate: calculateCacheHitRate(usage),
+    contextPressure
   }
 }
 
@@ -281,6 +369,7 @@ export function parseTapeProviderAttemptEvent(
   if (
     !data ||
     (data.schemaVersion !== TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION &&
+      data.schemaVersion !== TAPE_PROVIDER_ATTEMPT_PREVIOUS_SCHEMA_VERSION &&
       data.schemaVersion !== TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION)
   ) {
     return null
@@ -329,7 +418,8 @@ export function parseTapeProviderAttemptEvent(
   if (data.schemaVersion === TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION) {
     return {
       schemaVersion: TAPE_PROVIDER_ATTEMPT_LEGACY_SCHEMA_VERSION,
-      ...base
+      ...base,
+      contextPressure: null
     }
   }
 
@@ -381,8 +471,7 @@ export function parseTapeProviderAttemptEvent(
     return null
   }
 
-  return {
-    schemaVersion: TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION,
+  const detailed = {
     ...base,
     logicalRound: data.logicalRound as number,
     physicalAttempt: physicalAttempt as number,
@@ -393,6 +482,25 @@ export function parseTapeProviderAttemptEvent(
     httpStatus: httpStatus as number | null,
     errorCode: errorCode as string | null,
     retryDelayMs: retryDelayMs as number | null
+  }
+  if (data.schemaVersion === TAPE_PROVIDER_ATTEMPT_PREVIOUS_SCHEMA_VERSION) {
+    return {
+      schemaVersion: TAPE_PROVIDER_ATTEMPT_PREVIOUS_SCHEMA_VERSION,
+      ...detailed,
+      contextPressure: null
+    }
+  }
+
+  const contextPressure = normalizeContextPressure(data.contextPressure, {
+    status: base.status,
+    stopReason: base.stopReason,
+    usage: base.usage
+  })
+
+  return {
+    schemaVersion: TAPE_PROVIDER_ATTEMPT_SCHEMA_VERSION,
+    ...detailed,
+    contextPressure: contextPressure ?? null
   }
 }
 

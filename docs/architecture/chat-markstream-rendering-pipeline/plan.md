@@ -24,11 +24,11 @@ guard no-op，不新增 timer cleanup 或第二份派生状态。
 - `shouldVirtualizeNodes = virtualizeNodes && !isStreaming`：只决定 Markdown node DOM window；
 - `shouldUseViewportPriority = virtualizeNodes`：继续决定 heavy node 是否接近视口后才启动。
 
-保持 `codeRenderer="monaco"` 贯穿同一个 `NodeRenderer`，不要以 phase key 重建它。当前 Markstream 将
-该兼容名称映射到由 `stream-diffs` 支持的 `CodeBlockNode`：流式期间它保留自身的 `<pre>` fallback，代码块
-完成且可见后再把同一宿主原子升级为单一 File/FileDiff surface。`deferNodesUntilVisible` 与
-`viewportPriority` 继续使用第二个值，保留既有 Mermaid/KaTeX 等重节点的调度策略。搜索/截图传入
-`virtualizeNodes=false` 时，所有内容仍立即可用。
+保持同一个 `NodeRenderer`，不要以 phase key 重建它。Markstream 2.0 在安装 `stream-diffs` 后默认使用
+增强 `CodeBlockNode`：流式期间它保留自身的 `<pre>` fallback，代码块完成且可见后再把同一宿主原子
+升级为单一 File/FileDiff surface。不要设置只用于普通输出的 `renderCodeBlocksAsPre`。
+`deferNodesUntilVisible` 与 `viewportPriority` 继续使用第二个值，保留既有 Mermaid/KaTeX 等重节点的
+调度策略。搜索/截图传入 `virtualizeNodes=false` 时，所有内容仍立即可用。
 
 `MessageBlockContent` 只在搜索、截图等完整 DOM 消费者出现时传 `virtualizeNodes=false`。streaming 的
 node window 仍由 `MarkdownRenderer` 内部的 `virtualizeNodes && !isStreaming` 负责关闭。
@@ -38,10 +38,17 @@ eligibility，但不使用 precise 模式每次提交的 Range/getClientRects �
 
 ## 3. 使用 Markstream 内建 code renderer
 
-- 增加 `stream-diffs` direct dependency，使 Markstream 的动态 runtime import 可解析；
-- live chat 与 completed/static 均显式传 `codeRenderer="monaco"`；live 传 `codeBlockStream=true`，完成时传 false 并同步更新 `final=true`。不重建 NodeRenderer，也不直接调用 `stream-diffs`；
+- 精确锁定 `markstream-vue@2.0.0-beta.2` 并保留 `stream-diffs@0.0.2` direct dependency，使
+  Markstream 的动态 runtime import 可解析；DeepChat 独立编辑器继续保留 `stream-monaco`；
+- live chat 与 completed/static 均不传已删除的 `codeRenderer`；live 传 `codeBlockStream=true`，
+  完成时传 false 并同步更新 `final=true`。不重建 NodeRenderer，也不直接调用 `stream-diffs`；
 - 删除 generic `code_block` custom mapping，恢复 `CodeBlockNode` 的内建 `<pre>` fallback 与增强 surface handoff；
-- 通过 `codeBlockProps` 传 themes 和工具栏选项，通过 `codeBlockMonacoOptions` 传字体/换行，通过 `@handle-artifact-click` 接收预览；
+- 通过顶层 `themes` 加载主题，通过 `codeBlockOptions` 传字体与 `overflow='wrap'`，通过
+  `@handle-artifact-click` 接收 preview payload；
+- 脱离 NodeRenderer 直接挂载 `CodeBlockNode` 或 `MermaidBlockNode` 时，外层保留
+  `class="markstream-vue"`，使 2.0 的作用域样式与变量生效；
+- `ThinkContent` 的 scoped override 直接挂载 2.0 导出的 `PreCodeNode` 组件，不再读取已移除的
+  `PreCodeNode.vue` 动态属性；
 - 保留 Mermaid strict props、`break-words` prose root 和可收缩的 flex host，但不覆盖 `stream-diffs` gutter/content 内部几何。
 
 ## 4. 消息顺序与流式窗口
@@ -95,7 +102,7 @@ pending placeholder -> real stream message -> persisted final message
 - MarkdownRenderer component test：
   - 后续 streaming snapshot 同步转交，不只覆盖首 chunk；
   - final transition 同步带上最终 content，且旧 timer 不能回写；
-  - streaming 到 final 始终选择同一个 enhanced renderer，并把 `codeBlockStream` 从 true 切到 false；
+  - streaming 到 final 始终使用默认 enhanced renderer，并把 `codeBlockStream` 从 true 切到 false；
   - explicit `virtualizeNodes=false` 同时关闭三类延迟；
   - `stream-diffs` handoff、无 generic override、preview 和 Mermaid strict 保持。
 - useDisplayMessages：
@@ -128,7 +135,8 @@ pnpm run build
 | final 与 content 同 patch 时顺序不确定 | 同时 watch 两个 source，并用 previous streaming 状态同步提交 |
 | streaming heavy node 延迟后高度变化影响滚动 | 使用 Markstream 自带 lifecycle/ResizeObserver，外层继续按 PR #2000 批量测量 |
 | 搜索或截图拿不到离屏 DOM | `virtualizeNodes=false` 同时关闭 node window 与 viewport deferral |
-| stream-diffs optional peer 缺失 | direct dependency + Markstream 内建 pre fallback + production build 验证 |
+| stream-diffs optional peer 缺失 | 精确 direct dependency + Markstream 内建 pre fallback + production build 验证 |
+| 独立节点组件丢失 2.0 作用域样式 | direct component host 显式使用 `.markstream-vue` |
 | 旧静态 debounce 晚到覆盖 stream | 每次同步旁路递增同一个 revision，使旧 callback no-op |
 | 事件委托误拦截普通节点 | 只处理 closest anchor / `.reference-node`，其他 click/mouse event 原样忽略 |
 | 中间 stream 被错误追加到尾部 | 仅以排序后的 `messageIds` 最后一个 id 精确匹配，其他情况返回 null |

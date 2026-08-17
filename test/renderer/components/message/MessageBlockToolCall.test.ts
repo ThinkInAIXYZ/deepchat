@@ -90,10 +90,19 @@ vi.mock('markstream-vue', () => ({
       showHeader: {
         type: Boolean,
         default: true
+      },
+      loading: {
+        type: Boolean,
+        default: true
+      },
+      stream: {
+        type: Boolean,
+        default: true
       }
     },
     template: '<div class="code-block-stub"></div>'
-  })
+  }),
+  resolveLanguageId: (language?: string) => language?.trim().toLowerCase() || 'plaintext'
 }))
 
 const createBlock = (
@@ -336,7 +345,11 @@ describe('MessageBlockToolCall', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
-          tool_call: { name: 'edit_text', response }
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.ts"}',
+            response
+          }
         })
       }
     })
@@ -345,11 +358,40 @@ describe('MessageBlockToolCall', () => {
 
     const codeBlock = wrapper.findComponent({ name: 'CodeBlockNode' })
     expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.element.parentElement?.classList.contains('markstream-vue')).toBe(true)
     expect(codeBlock.props('node')).toMatchObject({
       diff: true,
       language: 'typescript',
       originalCode: 'alpha\nbeta',
       updatedCode: 'alpha\ngamma'
+    })
+    expect(codeBlock.props('loading')).toBe(false)
+    expect(codeBlock.props('stream')).toBe(false)
+  })
+
+  it('uses the file path instead of an unsupported response language for diffs', async () => {
+    const response = JSON.stringify({
+      success: true,
+      originalCode: 'key=before',
+      updatedCode: 'key=after',
+      language: 'unsupported-from-tool'
+    })
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.conf"}',
+            response
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CodeBlockNode' }).props('node')).toMatchObject({
+      language: 'ini'
     })
   })
 

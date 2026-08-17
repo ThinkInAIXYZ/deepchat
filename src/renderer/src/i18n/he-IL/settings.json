@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "מודל ברירת מחדל",
       "chatModel": "מודל צ'אט ברירת מחדל"
-    },
-    "autoCompaction": {
-      "title": "דחיסה אוטומטית",
-      "enabled": "הפעלת דחיסה אוטומטית",
-      "description": "כאשר שיחה מתקרבת למגבלת חלון ההקשר של המודל, DeepChat יכול לסכם אוטומטית היסטוריה ישנה יותר כדי שהשיחה תוכל להימשך. אם האפשרות כבויה, DeepChat לא ייצור סיכומים, אך עדיין יקצץ את תצוגת הבקשה בעת הצורך כדי להימנע ככל האפשר משגיאות context-window גולמיות של הספק.",
-      "thresholdLabel": "סף הפעלה",
-      "thresholdMin": "מוקדם ({value}%)",
-      "thresholdMax": "מאוחר ({value}%)",
-      "thresholdDescription": "להתחיל דחיסה כאשר השימוש בפרומפט מגיע לחלק הזה מתקציב ההיסטוריה האפקטיבי. ערכים נמוכים משאירים יותר מרווח; ערכים גבוהים שומרים יותר מההקשר הגולמי.",
-      "retainPairsLabel": "שמירת זוגות ההודעות האחרונות",
-      "retainPairsValue": "{count} זוגות",
-      "retainPairsDescription": "לשמור מחוץ לדחיסה את זוגות המשתמש והעוזר האחרונים שהושלמו. השאילתה הנוכחית לא נכללת."
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "במטמון",
       "cachedTokensUncachedLabel": "ללא מטמון",
       "cacheHitRate": "שיעור פגיעות מטמון",
-      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי כלל טוקני הקלט.",
+      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי טוקני הקלט ברשומות שימוש הכוללות מדדי מטמון.",
       "recordingStartedAt": "תחילת הרישום",
       "recordingStartedAtDescription": "רשומת השימוש המוקדמת ביותר השמורה כעת בלוח זה.",
       "withDeepChatDaysLabel": "ימים יחד",
@@ -545,6 +533,15 @@
       "providerDescription": "מדורג לפי סך האסימונים.",
       "modelTitle": "דירוג מודלים",
       "modelDescription": "10 המודלים המובילים לפי סך האסימונים.",
+      "categoryTitle": "שימוש לפי פעילות",
+      "categoryDescription": "הפרדת השימוש בשיחות מקריאות פנימיות למודל לצורך דחיסת ההקשר.",
+      "category": {
+        "chat": "שיחה",
+        "compaction": "דחיסת הקשר"
+      },
+      "chatEvents": "{count} הודעות",
+      "compactionEvents": "{count} קריאות למודל",
+      "unknownUsage": "{count} שימושים לא ידועים",
       "messages": "{count} הודעות",
       "empty": "עדיין אין נתוני פירוט להצגה."
     },

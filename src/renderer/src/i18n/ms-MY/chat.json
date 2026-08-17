@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "Memampatkan konteks...",
     "compacted": "Konteks dimampatkan",
+    "compactedWithoutSummary": "Konteks dimampatkan tanpa ringkasan",
+    "compactedWithoutLargerSummary": "Konteks dimampatkan tanpa menggunakan ringkasan yang lebih besar",
     "commandDescription": "Mampatkan konteks sesi",
     "noopTitle": "Tiada konteks boleh mampat",
     "noopDescription": "Pada masa ini tiada sejarah perbualan baharu untuk dimampatkan.",
     "failedTitle": "Mampatan gagal"
+  },
+  "contextOccupancy": {
+    "label": "Penggunaan konteks",
+    "details": "{used} daripada {capacity} token",
+    "provider": "Diukur oleh penyedia",
+    "estimated": "Dianggarkan daripada paparan permintaan",
+    "stale": "Lapuk selepas perubahan model, tetingkap atau mampatan"
   },
   "rateLimit": {
     "queueTooltip": "Terdapat permintaan {count} dalam baris gilir, dengan selang {interval} saat",

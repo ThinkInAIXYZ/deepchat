@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "Modèle par défaut",
       "chatModel": "Modèle de chat par défaut"
-    },
-    "autoCompaction": {
-      "title": "Compression automatique",
-      "enabled": "Activer la compression automatique",
-      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut résumer automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, DeepChat ne générera pas de résumés, mais rognera tout de même la vue de requête si nécessaire afin d’éviter les erreurs context-window brutes du fournisseur.",
-      "thresholdLabel": "Seuil de déclenchement",
-      "thresholdMin": "Tôt ({value}%)",
-      "thresholdMax": "Tard ({value}%)",
-      "thresholdDescription": "Lancer la compression quand l’utilisation du prompt atteint cette part du budget d’historique effectif. Des valeurs plus basses laissent plus de marge ; des valeurs plus élevées conservent davantage de contexte brut.",
-      "retainPairsLabel": "Conserver les paires de messages récentes",
-      "retainPairsValue": "{count} paire(s)",
-      "retainPairsDescription": "Conserver hors compression les dernières paires complètes utilisateur/assistant. La requête actuelle n’est pas incluse."
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "En cache",
       "cachedTokensUncachedLabel": "Sans cache",
       "cacheHitRate": "Taux de cache",
-      "cacheHitRateDescription": "Tokens de prompt en cache divisés par le total des tokens d'entrée.",
+      "cacheHitRateDescription": "Tokens de prompt en cache divisés par les tokens d'entrée des relevés disposant de mesures de cache.",
       "recordingStartedAt": "Début de l'enregistrement",
       "recordingStartedAtDescription": "Le plus ancien enregistrement d'utilisation actuellement stocké dans ce tableau de bord.",
       "withDeepChatDaysLabel": "Jours ensemble",
@@ -545,6 +533,15 @@
       "providerDescription": "Classés par nombre total de jetons.",
       "modelTitle": "Classement des modèles",
       "modelDescription": "Les 10 meilleurs modèles par nombre total de jetons.",
+      "categoryTitle": "Utilisation par activité",
+      "categoryDescription": "Distingue l’utilisation des conversations des appels internes au modèle pour la compaction du contexte.",
+      "category": {
+        "chat": "Conversation",
+        "compaction": "Compaction du contexte"
+      },
+      "chatEvents": "{count} messages",
+      "compactionEvents": "{count} appels au modèle",
+      "unknownUsage": "{count} utilisations inconnues",
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },

@@ -225,6 +225,7 @@ function expectedAttemptOutcome(overrides: Record<string, unknown> = {}) {
     errorCode: null,
     retryDelayMs: null,
     usage: null,
+    contextPressure: null,
     ...overrides
   }
 }
@@ -574,6 +575,7 @@ describe('DeepChatContextCoordinator', () => {
 
   it('does not rebuild or fit pressure context when there is no compaction intent', async () => {
     const assembleCheckpoint = vi.fn()
+    const rebuildAfterCompaction = vi.fn()
     const fit = vi.fn()
     const messages: ChatMessage[] = [{ role: 'user', content: 'unchanged' }]
 
@@ -592,6 +594,7 @@ describe('DeepChatContextCoordinator', () => {
       prepareCompaction: async () => ({ applied: false as const }),
       assembleCheckpoint,
       getSummaryCursorOrderSeq: () => 1,
+      rebuildAfterCompaction,
       fit,
       measure: (candidate) => JSON.stringify(candidate).length,
       assertCurrent: vi.fn()
@@ -599,6 +602,7 @@ describe('DeepChatContextCoordinator', () => {
 
     expect(recovered).toEqual({ messages })
     expect(assembleCheckpoint).not.toHaveBeenCalled()
+    expect(rebuildAfterCompaction).not.toHaveBeenCalled()
     expect(fit).not.toHaveBeenCalled()
   })
 
@@ -635,8 +639,18 @@ describe('DeepChatContextCoordinator', () => {
         }
       },
       getSummaryCursorOrderSeq: (summary) => summary.cursor,
-      fit: ({ messages, reserveTokens, minimumProtectedTailCount }) => {
-        order.push(`fit:${reserveTokens}:${minimumProtectedTailCount}`)
+      rebuildAfterCompaction: ({ requestMessages }) => ({
+        messages: [
+          requestMessages[0],
+          contextContributions.checkpoint.message!,
+          ...requestMessages.slice(2)
+        ],
+        pinnedFirstUserContentHash: 'rebuilt-pin-hash'
+      }),
+      fit: ({ messages, reserveTokens, minimumProtectedTailCount, pinnedFirstUserContentHash }) => {
+        order.push(
+          `fit:${reserveTokens}:${minimumProtectedTailCount}:${pinnedFirstUserContentHash}`
+        )
         return messages.filter(
           (message) => !(message.role === 'assistant' && message.content === 'old history')
         )
@@ -651,7 +665,7 @@ describe('DeepChatContextCoordinator', () => {
       'check',
       'checkpoint',
       'check',
-      'fit:120:1'
+      'fit:120:1:rebuilt-pin-hash'
     ])
     expect(recovered).toEqual({
       messages: [
@@ -690,6 +704,9 @@ describe('DeepChatContextCoordinator', () => {
         contributions: []
       }),
       getSummaryCursorOrderSeq: (summary) => summary.cursor,
+      rebuildAfterCompaction: ({ requestMessages }) => ({
+        messages: [contextContributions.checkpoint.message!, ...requestMessages.slice(1)]
+      }),
       fit: ({ messages: candidate }) => candidate,
       measure: (candidate) => JSON.stringify(candidate).length,
       assertCurrent: vi.fn()
@@ -2705,6 +2722,191 @@ describe('DeepChatContextCoordinator', () => {
         }
       })
     ])
+  })
+
+  it.each([
+    {
+      label: 'completed attempt above the context window',
+      contextLength: 1_000,
+      stopReason: 'complete',
+      inputTokens: 1_001,
+      outputTokens: 1,
+      expected: {
+        kind: 'successful_prompt_overflow',
+        contextWindowTokens: 1_000,
+        thresholdTokens: 1_000
+      }
+    },
+    {
+      label: 'completed attempt exactly at the context window',
+      contextLength: 1_000,
+      stopReason: 'complete',
+      inputTokens: 1_000,
+      outputTokens: 1,
+      expected: null
+    },
+    {
+      label: 'zero-output length stop at the pressure threshold',
+      contextLength: 1_000,
+      stopReason: 'max_tokens',
+      inputTokens: 990,
+      outputTokens: 0,
+      expected: {
+        kind: 'zero_output_length_at_limit',
+        contextWindowTokens: 1_000,
+        thresholdTokens: 990
+      }
+    },
+    {
+      label: 'fractional pressure threshold rounds up',
+      contextLength: 101,
+      stopReason: 'max_tokens',
+      inputTokens: 100,
+      outputTokens: 0,
+      expected: {
+        kind: 'zero_output_length_at_limit',
+        contextWindowTokens: 101,
+        thresholdTokens: 100
+      }
+    },
+    {
+      label: 'fractional pressure threshold rejects input below 99 percent',
+      contextLength: 101,
+      stopReason: 'max_tokens',
+      inputTokens: 99,
+      outputTokens: 0,
+      expected: null
+    },
+    {
+      label: 'length stop with semantic output',
+      contextLength: 1_000,
+      stopReason: 'max_tokens',
+      inputTokens: 990,
+      outputTokens: 1,
+      expected: null
+    },
+    {
+      label: 'zero-output length stop below the pressure threshold',
+      contextLength: 1_000,
+      stopReason: 'max_tokens',
+      inputTokens: 989,
+      outputTokens: 0,
+      expected: null
+    },
+    {
+      label: 'tiny context window uses a one-token threshold',
+      contextLength: 1,
+      stopReason: 'max_tokens',
+      inputTokens: 1,
+      outputTokens: 0,
+      expected: {
+        kind: 'zero_output_length_at_limit',
+        contextWindowTokens: 1,
+        thresholdTokens: 1
+      }
+    }
+  ])('records silent context pressure for $label', async (testCase) => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: testCase.inputTokens,
+              completion_tokens: testCase.outputTokens,
+              total_tokens: testCase.inputTokens + testCase.outputTokens
+            }
+          },
+          { type: 'stop', stop_reason: testCase.stopReason }
+        ]
+      ]
+    })
+    fixture.input.modelConfig.contextLength = testCase.contextLength
+    fixture.input.fallbackContextLength = testCase.contextLength
+    fixture.input.budget.preflight = ({ messages, requestedMaxTokens }) => ({
+      ...createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: requestedMaxTokens
+      }),
+      contextLength: testCase.contextLength
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.outcomes).toHaveLength(1)
+    expect(fixture.outcomes[0].contextPressure).toEqual(testCase.expected)
+  })
+
+  it('does not infer silent pressure without a budgeted attempt usage snapshot', async () => {
+    const withoutUsage = createAttemptInput({
+      providerEvents: [[{ type: 'stop', stop_reason: 'complete' }]]
+    })
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(withoutUsage.input))
+    expect(withoutUsage.outcomes[0].contextPressure).toBeNull()
+
+    const bypassed = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: { prompt_tokens: 1_001, completion_tokens: 1, total_tokens: 1_002 }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    bypassed.input.bypassContextBudget = true
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(bypassed.input))
+    expect(bypassed.outcomes[0].contextPressure).toBeNull()
+  })
+
+  it('does not double-count cache reads or aggregate usage across physical attempts', async () => {
+    const cached = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 800,
+              completion_tokens: 1,
+              total_tokens: 801,
+              cached_tokens: 300
+            }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(cached.input))
+    expect(cached.outcomes[0].contextPressure).toBeNull()
+
+    const retried = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: { prompt_tokens: 1_001, completion_tokens: 0, total_tokens: 1_001 }
+          },
+          {
+            type: 'error',
+            error_message: 'temporarily unavailable',
+            failure: {
+              statusCode: 503,
+              retryHeaders: { 'retry-after-ms': '0' }
+            }
+          }
+        ],
+        [
+          {
+            type: 'usage',
+            usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(retried.input))
+    expect(retried.outcomes.map((outcome) => outcome.contextPressure)).toEqual([null, null])
   })
 
   it('retries a transient throw against the same manifested request', async () => {

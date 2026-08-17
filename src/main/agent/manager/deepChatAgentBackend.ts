@@ -10,7 +10,9 @@ import type {
   QueuePendingInputOptions,
   SendMessageInput,
   SessionAgentContextUpdate,
+  SessionCompactionSnapshot,
   SessionCompactionState,
+  SessionContextOccupancySnapshot,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
@@ -98,7 +100,8 @@ export interface DeepChatAgentBackendPort {
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
   setSessionModel(sessionId: AppSessionId, providerId: string, modelId: string): Promise<void>
-  getSessionCompactionState(sessionId: AppSessionId): Promise<SessionCompactionState>
+  getSessionCompactionSnapshot(sessionId: AppSessionId): Promise<SessionCompactionSnapshot>
+  getSessionContextOccupancy(sessionId: AppSessionId): Promise<SessionContextOccupancySnapshot>
   compactSession(
     sessionId: AppSessionId
   ): Promise<{ compacted: boolean; state: SessionCompactionState }>
@@ -202,7 +205,8 @@ export function createDeepChatAgentBackend(
       deepchat: {
         setSessionAgentContext: (config) => port.setSessionAgentContext(sessionId, config),
         setModel: (providerId, modelId) => port.setSessionModel(sessionId, providerId, modelId),
-        getCompactionState: () => port.getSessionCompactionState(sessionId),
+        getCompactionSnapshot: () => port.getSessionCompactionSnapshot(sessionId),
+        getContextOccupancy: () => port.getSessionContextOccupancy(sessionId),
         compact: () => port.compactSession(sessionId),
         isPendingQueueResumeAvailable: () => port.isPendingQueueResumeAvailable(sessionId),
         resumePendingQueue: () => port.resumePendingQueue(sessionId),

@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "Modelo padrão",
       "chatModel": "Modelo de chat padrão"
-    },
-    "autoCompaction": {
-      "title": "Compactação automática",
-      "enabled": "Ativar compactação automática",
-      "description": "Quando uma conversa se aproxima do limite da janela de contexto do modelo, o DeepChat pode resumir automaticamente o histórico mais antigo para manter a sessão em andamento. Se desativado, o DeepChat não gerará resumos, mas ainda aparará a visão da solicitação quando necessário para evitar erros context-window brutos do provedor.",
-      "thresholdLabel": "Limiar de disparo",
-      "thresholdMin": "Mais cedo ({value}%)",
-      "thresholdMax": "Mais tarde ({value}%)",
-      "thresholdDescription": "Inicie a compactação quando o uso do prompt atingir esta parcela do orçamento efetivo de histórico. Valores menores criam mais folga; valores maiores preservam mais contexto bruto.",
-      "retainPairsLabel": "Manter pares de mensagens recentes",
-      "retainPairsValue": "{count} par(es)",
-      "retainPairsDescription": "Mantém fora da compactação os pares mais recentes de usuário e assistente já concluídos. A consulta atual não é incluída."
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "Em cache",
       "cachedTokensUncachedLabel": "Sem cache",
       "cacheHitRate": "Taxa de acerto do cache",
-      "cacheHitRateDescription": "Tokens de prompt em cache divididos pelo total de tokens de entrada.",
+      "cacheHitRateDescription": "Tokens de prompt em cache divididos pelos tokens de entrada dos registros com métricas de cache.",
       "recordingStartedAt": "Início do registro",
       "recordingStartedAtDescription": "O registro de uso mais antigo atualmente armazenado neste painel.",
       "withDeepChatDaysLabel": "Dias juntos",
@@ -545,6 +533,15 @@
       "providerDescription": "Classificados pelo total de tokens.",
       "modelTitle": "Ranking por modelo",
       "modelDescription": "Os 10 melhores modelos pelo total de tokens.",
+      "categoryTitle": "Uso por atividade",
+      "categoryDescription": "Separa o uso em conversas das chamadas internas ao modelo para compactação de contexto.",
+      "category": {
+        "chat": "Conversa",
+        "compaction": "Compactação de contexto"
+      },
+      "chatEvents": "{count} mensagens",
+      "compactionEvents": "{count} chamadas ao modelo",
+      "unknownUsage": "{count} usos desconhecidos",
       "messages": "{count} mensagens",
       "empty": "Ainda não há dados detalhados para exibir."
     },

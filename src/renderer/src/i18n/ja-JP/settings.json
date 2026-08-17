@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "デフォルトモデル",
       "chatModel": "デフォルトチャットモデル"
-    },
-    "autoCompaction": {
-      "title": "自動圧縮",
-      "enabled": "自動圧縮を有効化",
-      "description": "会話がモデルのコンテキストウィンドウ上限に近づくと、DeepChat は古い履歴を自動で要約してセッションを継続できるようにします。無効にすると DeepChat は要約を生成しませんが、必要に応じてリクエストビューをトリミングし、プロバイダー由来の生の context-window エラーをできるだけ避けます。",
-      "thresholdLabel": "発動しきい値",
-      "thresholdMin": "早め ({value}%)",
-      "thresholdMax": "遅め ({value}%)",
-      "thresholdDescription": "プロンプト使用量が有効な履歴予算のこの割合に達したら圧縮を開始します。低い値ほど余裕が増え、高い値ほど生のコンテキストを多く保持します。",
-      "retainPairsLabel": "直近のメッセージペアを保持",
-      "retainPairsValue": "{count} 組",
-      "retainPairsDescription": "直近で完了したユーザーとアシスタントのペアを圧縮対象から除外して保持します。現在の問い合わせは含みません。"
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "キャッシュ",
       "cachedTokensUncachedLabel": "未キャッシュ",
       "cacheHitRate": "キャッシュヒット率",
-      "cacheHitRateDescription": "キャッシュされた prompt token を総入力 token で割った割合です。",
+      "cacheHitRateDescription": "キャッシュ情報が報告された使用記録の入力 token に対する、キャッシュ済み prompt token の割合です。",
       "recordingStartedAt": "記録開始時点",
       "recordingStartedAtDescription": "このダッシュボードに現在保存されている最も古い使用記録です。",
       "withDeepChatDaysLabel": "一緒に過ごした日数",
@@ -545,6 +533,15 @@
       "providerDescription": "合計トークン数で並べ替えています。",
       "modelTitle": "モデル別ランキング",
       "modelDescription": "合計トークン数による上位10モデル。",
+      "categoryTitle": "アクティビティ別の使用量",
+      "categoryDescription": "会話の使用量と、コンテキスト圧縮のための内部モデル呼び出しを分けて表示します。",
+      "category": {
+        "chat": "会話",
+        "compaction": "コンテキスト圧縮"
+      },
+      "chatEvents": "{count}件のメッセージ",
+      "compactionEvents": "{count}回のモデル呼び出し",
+      "unknownUsage": "使用量不明：{count}件",
       "messages": "{count}件のメッセージ",
       "empty": "表示できる内訳データはまだありません。"
     },

@@ -987,6 +987,36 @@ describe('SessionTape view and replay', () => {
     ])
   })
 
+  it('grounds message source maps to the latest effective Tape fact', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const original = createRecord({ id: 'u1', orderSeq: 1, content: 'original task' })
+    service.ensureSessionTapeReady('s1', {
+      getMessages: vi.fn().mockReturnValue([original])
+    } as any)
+
+    const initialSources = service.getViewManifestSourceMaps('s1')
+    const initialEntryId = initialSources.entryIdByMessageId.get('u1')
+    expect(initialEntryId).toBeGreaterThan(0)
+    expect(initialSources.messageContentHashByMessageId.get('u1')).toBe(
+      hashJsonData(original.content)
+    )
+
+    const edited = { ...original, content: 'edited task', updatedAt: original.updatedAt + 1 }
+    service.appendMessageReplacement(edited, { reason: 'test_edit', revisionKind: 'record' })
+    const editedSources = service.getViewManifestSourceMaps('s1')
+    expect(editedSources.entryIdByMessageId.get('u1')).toBeGreaterThan(initialEntryId!)
+    expect(editedSources.messageContentHashByMessageId.get('u1')).toBe(hashJsonData(edited.content))
+
+    service.appendMessageRetraction(edited, 'test_delete')
+    const retractedSources = service.getViewManifestSourceMaps('s1')
+    expect(retractedSources.entryIdByMessageId.has('u1')).toBe(false)
+    expect(retractedSources.messageContentHashByMessageId.has('u1')).toBe(false)
+  })
+
   it('fails recovery-specific manifest reads on malformed physical duplicates', () => {
     const { table } = createTapeTableMock()
     const service = new SessionTape({ deepchatTapeEntriesTable: table } as any)

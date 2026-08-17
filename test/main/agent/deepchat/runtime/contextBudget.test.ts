@@ -4,6 +4,7 @@ import {
   buildRequestContextLedger,
   buildRequestContextBudgetDiagnostics,
   buildRequestContextOverflowErrorMessage,
+  fitRequestMessagesToContextWindow,
   getUsableContextLength,
   preflightRequestContext,
   resolveEffectiveContextBudget
@@ -19,6 +20,17 @@ vi.mock('tokenx', () => ({
 }))
 
 describe('agent request context budget', () => {
+  it('rejects pinned fitting without cache-aware context contributions', () => {
+    expect(() =>
+      fitRequestMessagesToContextWindow({
+        messages: [{ role: 'user', content: 'original task' }],
+        contextLength: 1_000,
+        reserveTokens: 100,
+        pinnedFirstUserContentHash: 'a'.repeat(64)
+      })
+    ).toThrow('Pinned first-user fitting requires cache-aware context contributions.')
+  })
+
   it('reserves a 256 token safety margin for normal model windows', () => {
     expect(getUsableContextLength(8192)).toBe(7936)
   })

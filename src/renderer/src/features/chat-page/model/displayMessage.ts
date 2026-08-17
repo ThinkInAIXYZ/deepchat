@@ -1,4 +1,8 @@
-import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import type {
+  MessageFile,
+  SessionCompactionBoundaryReason,
+  UserMessageInlineItem
+} from '@shared/types/agent-interface'
 import {
   UPDATE_PLAN_TOOL_NAME,
   type AgentPlanDisplayItem,
@@ -213,6 +217,7 @@ type DisplayMessageBase = {
   orderSeq: number
   messageType?: 'normal' | 'compaction'
   compactionStatus?: 'compacting' | 'compacted'
+  compactionBoundaryReason?: SessionCompactionBoundaryReason | null
   summaryUpdatedAt?: number | null
 }
 

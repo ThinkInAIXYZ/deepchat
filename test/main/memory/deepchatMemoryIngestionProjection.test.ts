@@ -406,7 +406,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
         status: 'sent',
         content: 'remember this'
       })
-      tape.appendEvent({
+      tape.appendProviderAttemptEvent({
         sessionId: 's1',
         name: 'provider/attempt_completed',
         source: { type: 'runtime_event', id: 'a1', seq: 1 },

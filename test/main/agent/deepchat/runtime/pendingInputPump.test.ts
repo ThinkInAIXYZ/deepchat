@@ -292,6 +292,21 @@ describe('PendingInputPump', () => {
     expect(test.pendingInputs.store.claimQueuedInput).toHaveBeenCalledWith(SESSION_ID, queue.id)
   })
 
+  it('replaces obsolete restart holds after the database is reopened', async () => {
+    const obsolete = createInput('obsolete', 'queue', 1)
+    const restored = createInput('restored', 'queue', 2)
+    const test = createHarness([obsolete, restored])
+    test.pump.holdRestartedQueueInputs([obsolete.id])
+
+    test.pump.replaceRestartedQueueInputs([restored.id])
+
+    await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(true)
+    await vi.waitFor(() => expect(test.scope.instance.isPendingQueueDraining()).toBe(false))
+    expect(test.pendingInputs.records.has(obsolete.id)).toBe(false)
+    expect(test.pendingInputs.records.get(restored.id)?.state).toBe('pending')
+    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+  })
+
   it('keeps a restart-held tail behind a retry-required Queue head', async () => {
     const released = {
       ...createInput('released', 'queue', 1),

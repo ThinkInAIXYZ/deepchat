@@ -161,6 +161,17 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         cachedInputTokens: 200
       }
     ],
+    categoryBreakdown: [
+      {
+        id: 'chat',
+        eventCount: 2,
+        knownUsageCount: 2,
+        unknownUsageCount: 0,
+        inputTokens: 800,
+        outputTokens: 400,
+        totalTokens: 1200
+      }
+    ],
     rtk: {
       scope: 'deepchat',
       enabled: true,
@@ -227,6 +238,19 @@ async function setup(
         if (key === 'settings.dashboard.unavailable') return 'N/A'
         if (key === 'settings.dashboard.breakdown.messages') {
           return `${params?.count ?? 0} messages`
+        }
+        if (key === 'settings.dashboard.breakdown.chatEvents') {
+          return `${params?.count ?? 0} messages`
+        }
+        if (key === 'settings.dashboard.breakdown.compactionEvents') {
+          return `${params?.count ?? 0} model calls`
+        }
+        if (key === 'settings.dashboard.breakdown.unknownUsage') {
+          return `${params?.count ?? 0} usage unknown`
+        }
+        if (key === 'settings.dashboard.breakdown.category.chat') return 'Conversation'
+        if (key === 'settings.dashboard.breakdown.category.compaction') {
+          return 'Context compaction'
         }
         if (key === 'settings.dashboard.rtk.title') return 'RTK Savings'
         if (key === 'settings.dashboard.rtk.description') {
@@ -380,7 +404,8 @@ describe('DashboardSettings', () => {
           }
         },
         providerBreakdown: [],
-        modelBreakdown: []
+        modelBreakdown: [],
+        categoryBreakdown: []
       })
     )
 
@@ -556,6 +581,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="provider-breakdown-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-chart"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="category-breakdown-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="provider-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
@@ -578,6 +604,84 @@ describe('DashboardSettings', () => {
 
     await vi.advanceTimersByTimeAsync(4000)
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('2 messages')
+  })
+
+  it('shows unknown compaction calls even when no chat usage has been recorded', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 0,
+          sessionCount: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cachedInputTokens: 0,
+          cacheHitRate: 0,
+          mostActiveDay: { date: null, messageCount: 0 }
+        },
+        providerBreakdown: [],
+        modelBreakdown: [],
+        categoryBreakdown: [
+          {
+            id: 'compaction',
+            eventCount: 1,
+            knownUsageCount: 0,
+            unknownUsageCount: 1,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
+          }
+        ]
+      })
+    )
+
+    expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain(
+      'Context compaction'
+    )
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain(
+      '1 usage unknown'
+    )
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain('N/A')
+  })
+
+  it('keeps compaction input with unknown cache detail out of the displayed cache rate', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 1,
+          sessionCount: 1,
+          inputTokens: 300,
+          outputTokens: 30,
+          totalTokens: 330,
+          cachedInputTokens: 50,
+          cacheHitRate: 0.5,
+          mostActiveDay: { date: '2026-03-03', messageCount: 1 }
+        },
+        categoryBreakdown: [
+          {
+            id: 'chat',
+            eventCount: 1,
+            knownUsageCount: 1,
+            unknownUsageCount: 0,
+            inputTokens: 100,
+            outputTokens: 20,
+            totalTokens: 120
+          },
+          {
+            id: 'compaction',
+            eventCount: 1,
+            knownUsageCount: 1,
+            unknownUsageCount: 0,
+            inputTokens: 200,
+            outputTokens: 10,
+            totalTokens: 210
+          }
+        ]
+      })
+    )
+
+    expect(wrapper.get('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('50%')
   })
 
   it('renders RTK savings summary when RTK is healthy', async () => {

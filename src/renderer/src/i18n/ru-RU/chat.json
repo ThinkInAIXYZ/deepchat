@@ -327,10 +327,19 @@
   "compaction": {
     "compacting": "Сжатие контекста...",
     "compacted": "Контекст сжат",
+    "compactedWithoutSummary": "Контекст сжат без сводки",
+    "compactedWithoutLargerSummary": "Контекст сжат без использования более объёмной сводки",
     "commandDescription": "Сжать контекст беседы",
     "noopTitle": "Нет контекста для сжатия",
     "noopDescription": "Пока нет новой истории разговора для сжатия.",
     "failedTitle": "Не удалось сжать контекст"
+  },
+  "contextOccupancy": {
+    "label": "Использование контекста",
+    "details": "{used} из {capacity} токенов",
+    "provider": "Измерено провайдером",
+    "estimated": "Оценка по представлению запроса",
+    "stale": "Устарело после смены модели, окна или сжатия"
   },
   "newThread": {
     "title": "Создавайте и исследуйте"

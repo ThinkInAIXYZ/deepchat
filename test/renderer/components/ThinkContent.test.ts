@@ -2,8 +2,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { ensureMarkdownWorkersMock } = vi.hoisted(() => ({
-  ensureMarkdownWorkersMock: vi.fn().mockResolvedValue(undefined)
+const { ensureMarkdownWorkersMock, setCustomComponentsMock } = vi.hoisted(() => ({
+  ensureMarkdownWorkersMock: vi.fn().mockResolvedValue(undefined),
+  setCustomComponentsMock: vi.fn()
 }))
 
 vi.mock('@/lib/markdownWorkerLifecycle', () => ({
@@ -38,6 +39,22 @@ vi.mock('markstream-vue', () => {
       content: {
         type: String,
         default: ''
+      },
+      final: {
+        type: Boolean,
+        default: false
+      },
+      smoothStreaming: {
+        type: Boolean,
+        default: true
+      },
+      codeBlockStream: {
+        type: Boolean,
+        default: true
+      },
+      codeBlockProps: {
+        type: Object,
+        default: undefined
       }
     },
     setup(props) {
@@ -45,31 +62,29 @@ vi.mock('markstream-vue', () => {
     }
   })
 
-  const PassthroughNode = defineComponent({
-    name: 'PassthroughNode',
+  const PreCodeNode = defineComponent({
+    name: 'PreCodeNode',
     render() {
-      return h('div')
+      return h('pre')
     }
   })
 
   return {
     default: NodeRenderer,
     NodeRenderer,
-    CodeBlockNode: PassthroughNode,
-    PreCodeNode: {
-      vue: PassthroughNode
-    },
-    setCustomComponents: vi.fn()
+    PreCodeNode,
+    setCustomComponents: setCustomComponentsMock
   }
 })
 
-const mountThinkContent = async () => {
+const mountThinkContent = async (thinking = false) => {
+  vi.resetModules()
   const ThinkContent = (await import('@/components/think-content/ThinkContent.vue')).default
   const wrapper = mount(ThinkContent, {
     props: {
       label: 'Thinking',
       expanded: true,
-      thinking: false,
+      thinking,
       content: 'reasoning content'
     }
   })
@@ -83,11 +98,50 @@ describe('ThinkContent', () => {
   beforeEach(() => {
     ensureMarkdownWorkersMock.mockReset()
     ensureMarkdownWorkersMock.mockResolvedValue(undefined)
+    setCustomComponentsMock.mockReset()
   })
 
   it('initializes markdown workers lazily when mounted', async () => {
     await mountThinkContent()
 
     expect(ensureMarkdownWorkersMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses Markstream lifecycle props for live and completed thinking', async () => {
+    const wrapper = await mountThinkContent()
+    const renderer = wrapper.getComponent({ name: 'NodeRenderer' })
+
+    expect(renderer.props()).toMatchObject({
+      final: true,
+      smoothStreaming: false,
+      codeBlockStream: false,
+      codeBlockProps: {
+        isShowPreview: false,
+        showCopyButton: false,
+        showExpandButton: false,
+        showPreviewButton: false,
+        showFontSizeButtons: false
+      }
+    })
+
+    await wrapper.setProps({ thinking: true })
+
+    expect(renderer.props()).toMatchObject({
+      final: false,
+      smoothStreaming: false,
+      codeBlockStream: true
+    })
+  })
+
+  it('keeps Mermaid source-only without overriding ordinary code blocks', async () => {
+    await mountThinkContent()
+
+    expect(setCustomComponentsMock).toHaveBeenCalledTimes(1)
+    const [customId, components] = setCustomComponentsMock.mock.calls[0]
+    const mermaid = components.mermaid({ node: { language: 'mermaid' } })
+
+    expect(customId).toBe('thinking-content')
+    expect(components.code_block).toBeUndefined()
+    expect(mermaid.type.name).toBe('PreCodeNode')
   })
 })

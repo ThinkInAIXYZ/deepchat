@@ -192,6 +192,20 @@ function createTapeTableMock() {
         payload: { name: input.name, data: input.data }
       })
     ),
+    appendProviderAttemptEvent: vi.fn((input: any) =>
+      table.append({
+        ...input,
+        kind: 'event',
+        payload: { name: input.name, data: input.data }
+      })
+    ),
+    appendCompactionModelCallEvent: vi.fn((input: any) =>
+      table.append({
+        ...input,
+        kind: 'event',
+        payload: { name: input.name, data: input.data }
+      })
+    ),
     appendSkillMaterialization: vi.fn((input: any) =>
       table.append({
         sessionId: input.sessionId,
@@ -395,6 +409,20 @@ function createTapeTableMock() {
             entry.source_id === sourceId &&
             entry.source_seq === sourceSeq
         )
+    ),
+    getLatestEventBySource: vi.fn(
+      (sessionId: string, name: string, sourceType: string, sourceId: string, sourceSeq: number) =>
+        entries
+          .filter(
+            (entry) =>
+              entry.session_id === sessionId &&
+              entry.kind === 'event' &&
+              entry.name === name &&
+              entry.source_type === sourceType &&
+              entry.source_id === sourceId &&
+              entry.source_seq === sourceSeq
+          )
+          .at(-1)
     ),
     getEventsBySourceId: vi.fn(
       (sessionId: string, name: string, sourceType: string, sourceId: string) =>

@@ -9,6 +9,7 @@
       v-if="isCompactionMessageItem(item)"
       data-compaction-indicator="true"
       :data-compaction-status="item.compactionStatus ?? 'compacted'"
+      :data-compaction-boundary-reason="item.compactionBoundaryReason ?? undefined"
       class="compaction-divider"
     >
       <div class="compaction-divider__line" />
@@ -18,7 +19,7 @@
           'compaction-divider__label--compacting': item.compactionStatus === 'compacting'
         }"
       >
-        {{ getCompactionCopy(item.compactionStatus) }}
+        {{ getCompactionCopy(item.compactionStatus, item.compactionBoundaryReason) }}
       </span>
       <div class="compaction-divider__line" />
     </div>
@@ -61,6 +62,7 @@ import {
   type DisplayUserMessage,
   type MessageListItem
 } from '@/features/chat-page/model/displayMessage'
+import type { SessionCompactionBoundaryReason } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
@@ -166,8 +168,19 @@ onBeforeUnmount(() => {
   }
 })
 
-const getCompactionCopy = (status?: 'compacting' | 'compacted'): string =>
-  status === 'compacting' ? t('chat.compaction.compacting') : t('chat.compaction.compacted')
+const getCompactionCopy = (
+  status?: 'compacting' | 'compacted',
+  boundaryReason?: SessionCompactionBoundaryReason | null
+): string => {
+  if (status === 'compacting') return t('chat.compaction.compacting')
+  if (boundaryReason === 'summary_unavailable') {
+    return t('chat.compaction.compactedWithoutSummary')
+  }
+  if (boundaryReason === 'summary_rejected_larger') {
+    return t('chat.compaction.compactedWithoutLargerSummary')
+  }
+  return t('chat.compaction.compacted')
+}
 
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)

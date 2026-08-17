@@ -222,6 +222,15 @@ export class SessionSettingsStore {
     return reconstructionAnchorPromptStateFromRow(this.tape.getLatestReconstructionAnchor(id))
   }
 
+  getReconstructionAnchorPromptStateByCompactionAttemptId(
+    id: string,
+    compactionAttemptId: string
+  ): ReconstructionAnchorPromptState | null {
+    return reconstructionAnchorPromptStateFromRow(
+      this.tape.getReconstructionAnchorByCompactionAttemptId(id, compactionAttemptId)
+    )
+  }
+
   updateSummaryState(id: string, state: SessionSummaryState): void {
     this.database.deepchatSessionsTable.updateSummaryState(id, state)
   }

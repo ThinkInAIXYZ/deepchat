@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm 注册表自动探测",
     "privacyModeManualActions": "手动检查与手动刷新继续可用。",
     "privacyModeIntegrations": "自行配置的 MCP / Remote 等第三方集成不受影响",
-    "autoCompaction": {
-      "title": "自动压缩",
-      "enabled": "启用自动压缩",
-      "description": "当对话接近模型上下文窗口限制时，DeepChat 会自动总结较早历史，帮助会话继续进行。关闭后，DeepChat 不会生成摘要，但仍会在必要时裁剪请求视图，尽量避免服务商原始 context-window 报错。",
-      "thresholdLabel": "触发阈值",
-      "thresholdMin": "提前（{value}%）",
-      "thresholdMax": "延后（{value}%）",
-      "thresholdDescription": "当 prompt 占用达到有效历史预算的这个比例时开始压缩。值越低缓冲越大，值越高保留的原始上下文越多。",
-      "retainPairsLabel": "保留最近消息对",
-      "retainPairsValue": "{count} 对",
-      "retainPairsDescription": "始终保留最近完成的 user 和 assistant 消息对，不参与压缩。当前最后一次 query 不计入其中。"
-    },
     "searchAssistantModel": "助手模型",
     "selectModel": "选择模型",
     "proxyMode": "代理模式",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "缓存命中",
       "cachedTokensUncachedLabel": "未命中",
       "cacheHitRate": "缓存命中率",
-      "cacheHitRateDescription": "缓存 prompt token 占总输入 token 的比例。",
+      "cacheHitRateDescription": "缓存 prompt token 占报告了缓存指标的 usage 记录中输入 token 的比例。",
       "recordingStartedAt": "统计开始时间",
       "recordingStartedAtDescription": "当前看板中最早一条 usage 记录的时间。",
       "withDeepChatDaysLabel": "陪伴天数",
@@ -909,6 +897,15 @@
       "providerDescription": "按总 token 排序。",
       "modelTitle": "模型排行",
       "modelDescription": "按总 token 排序的前 10 个模型。",
+      "categoryTitle": "按活动查看用量",
+      "categoryDescription": "将对话用量与用于上下文压缩的内部模型调用分开统计。",
+      "category": {
+        "chat": "对话",
+        "compaction": "上下文压缩"
+      },
+      "chatEvents": "{count} 条消息",
+      "compactionEvents": "{count} 次模型调用",
+      "unknownUsage": "{count} 条用量未知",
       "messages": "{count} 条消息",
       "empty": "暂时还没有可展示的明细数据。"
     },

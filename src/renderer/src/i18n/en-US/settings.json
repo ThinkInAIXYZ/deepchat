@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm registry auto-detect",
     "privacyModeManualActions": "Manual checks and manual refresh actions stay available.",
     "privacyModeIntegrations": "Configured third-party integrations stay available.",
-    "autoCompaction": {
-      "title": "Auto Compaction",
-      "enabled": "Enable auto compaction",
-      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, DeepChat will not generate summaries, but it will still trim the request view when needed to avoid raw provider context-window errors.",
-      "thresholdLabel": "Trigger threshold",
-      "thresholdMin": "Early ({value}%)",
-      "thresholdMax": "Late ({value}%)",
-      "thresholdDescription": "Start compaction when prompt usage reaches this share of the effective history budget. Lower values create more headroom; higher values preserve more raw context.",
-      "retainPairsLabel": "Retain recent message pairs",
-      "retainPairsValue": "{count} pair(s)",
-      "retainPairsDescription": "Keep the most recent completed user and assistant pairs outside compaction. The current query is not included."
-    },
     "searchAssistantModel": "Assistant Model",
     "selectModel": "Select Model",
     "proxyMode": "Proxy Mode",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "Cached",
       "cachedTokensUncachedLabel": "Uncached",
       "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
+      "cacheHitRateDescription": "Cached prompt tokens divided by input tokens from usage records that report cache metrics.",
       "recordingStartedAt": "Recording started",
       "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
       "withDeepChatDaysLabel": "Days together",
@@ -909,6 +897,15 @@
       "providerDescription": "Ranked by total tokens.",
       "modelTitle": "Top models",
       "modelDescription": "Top 10 models by total tokens.",
+      "categoryTitle": "Usage by activity",
+      "categoryDescription": "Separate conversation usage from internal context-compaction model calls.",
+      "category": {
+        "chat": "Conversation",
+        "compaction": "Context compaction"
+      },
+      "chatEvents": "{count} messages",
+      "compactionEvents": "{count} model calls",
+      "unknownUsage": "{count} usage unknown",
       "messages": "{count} messages",
       "empty": "No breakdown data yet."
     },

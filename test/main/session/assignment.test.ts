@@ -55,7 +55,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
   const deepchat = {
     setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
     setModel: vi.fn().mockResolvedValue(undefined),
-    getCompactionState: vi.fn(),
+    getCompactionSnapshot: vi.fn(),
     compact: vi.fn()
   }
   const acpFacet = {

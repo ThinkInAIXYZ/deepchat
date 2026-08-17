@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "Kontext wird komprimiert...",
     "compacted": "Kontext wurde komprimiert",
+    "compactedWithoutSummary": "Der Kontext wurde ohne Zusammenfassung komprimiert",
+    "compactedWithoutLargerSummary": "Der Kontext wurde komprimiert, ohne eine größere Zusammenfassung zu verwenden",
     "commandDescription": "Chat-Kontext komprimieren",
     "noopTitle": "Kein Kontext zum Komprimieren",
     "noopDescription": "Es gibt noch keinen neuen Chatverlauf, der komprimiert werden muss.",
     "failedTitle": "Komprimierung fehlgeschlagen"
+  },
+  "contextOccupancy": {
+    "label": "Kontextnutzung",
+    "details": "{used} von {capacity} Tokens",
+    "provider": "Vom Anbieter gemessen",
+    "estimated": "Aus der Anfrageansicht geschätzt",
+    "stale": "Veraltet nach Modell-, Fenster- oder Komprimierungsänderung"
   },
   "rateLimit": {
     "queueTooltip": "{count} Anfragen in der Warteschlange, Intervall {interval} Sekunden",

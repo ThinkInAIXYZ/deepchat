@@ -24,3 +24,13 @@ export type DeepChatProviderRetryDecision =
   | 'retry_budget_exhausted'
   | 'output_committed'
   | 'retry_after_exceeds_limit'
+
+export type DeepChatProviderContextPressureKind =
+  | 'successful_prompt_overflow'
+  | 'zero_output_length_at_limit'
+
+export interface DeepChatProviderContextPressureObservation {
+  readonly kind: DeepChatProviderContextPressureKind
+  readonly contextWindowTokens: number
+  readonly thresholdTokens: number
+}

@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "Compressione contesto...",
     "compacted": "Contesto compresso",
+    "compactedWithoutSummary": "Il contesto è stato compresso senza un riepilogo",
+    "compactedWithoutLargerSummary": "Il contesto è stato compresso senza usare un riepilogo più grande",
     "commandDescription": "Comprimi il contesto della sessione",
     "noopTitle": "Nessun contesto da comprimere",
     "noopDescription": "Non c'è ancora nuova cronologia della conversazione da comprimere.",
     "failedTitle": "Compressione non riuscita"
+  },
+  "contextOccupancy": {
+    "label": "Utilizzo del contesto",
+    "details": "{used} di {capacity} token",
+    "provider": "Misurato dal provider",
+    "estimated": "Stimato dalla vista della richiesta",
+    "stale": "Obsoleto dopo una modifica a modello, finestra o compressione"
   },
   "rateLimit": {
     "queueTooltip": "{count} richieste in coda, intervallo di {interval} secondi",

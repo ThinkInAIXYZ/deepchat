@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "Bağlam sıkıştırılıyor...",
     "compacted": "Bağlam sıkıştırıldı",
+    "compactedWithoutSummary": "Bağlam özet olmadan sıkıştırıldı",
+    "compactedWithoutLargerSummary": "Bağlam daha büyük bir özet kullanılmadan sıkıştırıldı",
     "commandDescription": "Kompakt konuşma bağlamı",
     "noopTitle": "Sıkıştırılacak bağlam yok",
     "noopDescription": "Henüz sıkıştırılacak yeni bir konuşma geçmişi yok.",
     "failedTitle": "Sıkıştırma başarısız oldu"
+  },
+  "contextOccupancy": {
+    "label": "Bağlam kullanımı",
+    "details": "{capacity} tokenın {used} kadarı",
+    "provider": "Sağlayıcı tarafından ölçüldü",
+    "estimated": "İstek görünümünden tahmin edildi",
+    "stale": "Model, pencere veya sıkıştırma değişikliğinden sonra güncelliğini yitirdi"
   },
   "rateLimit": {
     "queueTooltip": "Kuyruktaki {count} istekleri, {interval}s aralığı",

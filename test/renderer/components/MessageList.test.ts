@@ -11,6 +11,10 @@ vi.mock('vue-i18n', () => ({
     t: (key: string) => {
       if (key === 'chat.compaction.compacting') return '正在压缩上下文...'
       if (key === 'chat.compaction.compacted') return '上下文已压缩'
+      if (key === 'chat.compaction.compactedWithoutSummary') return '上下文已压缩，但未生成摘要'
+      if (key === 'chat.compaction.compactedWithoutLargerSummary') {
+        return '上下文已压缩，未采用更大的摘要'
+      }
       return key
     }
   })
@@ -141,12 +145,14 @@ function createMessage(id: string, role: 'user' | 'assistant', orderSeq: number)
 function createCompactionMessage(
   id: string,
   orderSeq: number,
-  status: 'compacting' | 'compacted'
+  status: 'compacting' | 'compacted',
+  boundaryReason?: 'summary_unavailable' | 'summary_rejected_larger'
 ): DisplayMessage {
   return {
     ...createMessage(id, 'assistant', orderSeq),
     messageType: 'compaction',
-    compactionStatus: status
+    compactionStatus: status,
+    compactionBoundaryReason: boundaryReason
   }
 }
 
@@ -215,6 +221,22 @@ describe('MessageList', () => {
       'data-compaction-status': 'compacted'
     })
     expect(compactedWrapper.find('.compaction-divider__label--compacting').exists()).toBe(false)
+  })
+
+  it.each([
+    ['summary_unavailable', '上下文已压缩，但未生成摘要'],
+    ['summary_rejected_larger', '上下文已压缩，未采用更大的摘要']
+  ] as const)('renders the persisted boundary-only reason %s', (reason, expectedCopy) => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createCompactionMessage('c1', 1, 'compacted', reason)]
+      }
+    })
+
+    expect(wrapper.text()).toContain(expectedCopy)
+    expect(wrapper.get('[data-compaction-indicator="true"]').attributes()).toMatchObject({
+      'data-compaction-boundary-reason': reason
+    })
   })
 
   it('provides entrance feedback for an optimistic user message in a batched send', async () => {

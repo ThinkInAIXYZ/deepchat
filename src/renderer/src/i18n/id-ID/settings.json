@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm Deteksi otomatis registri",
     "privacyModeManualActions": "Pemeriksaan manual dan penyegaran manual terus tersedia.",
     "privacyModeIntegrations": "Integrasi pihak ketiga seperti MCP/Remote yang dikonfigurasi sendiri tidak terpengaruh",
-    "autoCompaction": {
-      "title": "kompresi otomatis",
-      "enabled": "Aktifkan kompresi otomatis",
-      "description": "Saat percakapan mendekati batas jendela konteks model, DeepChat dapat merangkum riwayat lama secara otomatis agar sesi tetap berlanjut. Jika dinonaktifkan, DeepChat tidak akan membuat ringkasan, tetapi tetap memangkas tampilan permintaan saat diperlukan untuk menghindari error context-window mentah dari penyedia.",
-      "thresholdLabel": "ambang batas pemicu",
-      "thresholdMin": "Muka ({value}%)",
-      "thresholdMax": "Ditunda ({value}%)",
-      "thresholdDescription": "Kompresi dimulai ketika tingkat hunian prompt mencapai proporsi anggaran historis efektif ini. Nilai yang lebih rendah menghasilkan buffer yang lebih besar, dan nilai yang lebih tinggi mempertahankan lebih banyak konteks aslinya.",
-      "retainPairsLabel": "Simpan pesan terbaru",
-      "retainPairsValue": "{count} Ya",
-      "retainPairsDescription": "Pasangan pesan pengguna dan asisten yang paling baru diselesaikan selalu disimpan dan tidak berpartisipasi dalam kompresi. Kueri terakhir saat ini tidak dihitung."
-    },
     "searchAssistantModel": "model pembantu",
     "selectModel": "Pilih modelnya",
     "proxyMode": "mode proksi",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "cache terkena",
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Tingkat keberhasilan cache",
-      "cacheHitRateDescription": "Cache prompt token sebagai proporsi total input token.",
+      "cacheHitRateDescription": "Token prompt dalam cache dibagi token input dari catatan penggunaan yang memiliki metrik cache.",
       "recordingStartedAt": "Statistik waktu mulai",
       "recordingStartedAtDescription": "Waktu catatan penggunaan paling awal di dasbor saat ini.",
       "withDeepChatDaysLabel": "Jumlah hari persahabatan",
@@ -909,6 +897,15 @@
       "providerDescription": "Diurutkan berdasarkan total token.",
       "modelTitle": "Peringkat model",
       "modelDescription": "10 model teratas berdasarkan total token.",
+      "categoryTitle": "Penggunaan berdasarkan aktivitas",
+      "categoryDescription": "Pisahkan penggunaan percakapan dari panggilan model internal untuk kompresi konteks.",
+      "category": {
+        "chat": "Percakapan",
+        "compaction": "Kompresi konteks"
+      },
+      "chatEvents": "{count} pesan",
+      "compactionEvents": "{count} panggilan model",
+      "unknownUsage": "{count} penggunaan tidak diketahui",
       "messages": "{count} pesan",
       "empty": "Belum ada data detail untuk ditampilkan."
     },

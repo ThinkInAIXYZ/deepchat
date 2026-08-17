@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
+  buildCacheAwareContextWithMetadata,
+  buildCacheAwareResumeContextWithMetadata,
   buildContextWithMetadata,
   buildResumeContextWithMetadata
 } from '@/agent/deepchat/runtime/contextBuilder'
@@ -13,11 +15,13 @@ import {
 } from '@/agent/deepchat/runtime/tapeViewAssembler'
 import {
   CACHE_AWARE_TAPE_VIEW_POLICY_ID,
+  CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
   CACHE_AWARE_TAPE_VIEW_POLICY_VERSION,
   LEGACY_TAPE_VIEW_POLICY_ID,
   LEGACY_TAPE_VIEW_POLICY_VERSION,
   type TapeViewPolicy
 } from '@/agent/deepchat/runtime/tapeViewPolicy'
+import { createEmptyContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => Math.ceil(text.length / 4))
@@ -82,7 +86,7 @@ describe('TapeViewAssembler', () => {
       supportsAudioInput: false
     }
 
-    const legacy = buildContextWithMetadata(
+    const expected = buildCacheAwareContextWithMetadata(
       's1',
       { text: 'next user', files: [] },
       'System',
@@ -92,7 +96,9 @@ describe('TapeViewAssembler', () => {
       false,
       {
         ...options,
-        historyRecords
+        historyRecords,
+        pinFirstUser: true,
+        contextContributions: createEmptyContextRuntimeContributions()
       }
     )
     const assembled = buildTapeChatView({
@@ -107,10 +113,18 @@ describe('TapeViewAssembler', () => {
       options
     })
 
-    expect(assembled.messages).toEqual(legacy.messages)
-    expect(assembled.metadata).toEqual({
-      ...legacy.metadata,
-      syntheticContributions: []
+    expect(assembled.messages).toEqual(expected.messages)
+    expect(assembled.metadata).toEqual(expected.metadata)
+    expect(assembled.messages.map((message) => message.content)).toEqual([
+      'System',
+      'old user',
+      'old assistant',
+      'recent user',
+      'next user'
+    ])
+    expect(assembled.metadata.includedRecords[0]).toMatchObject({
+      record: { id: 'user-1' },
+      reason: 'pinned_first_user'
     })
     expect(assembled.historyRecords).toEqual(historyRecords)
     expect(assembled.assemblerVersion).toBe(TAPE_VIEW_ASSEMBLER_VERSION)
@@ -135,7 +149,7 @@ describe('TapeViewAssembler', () => {
       supportsAudioInput: false
     }
 
-    const legacy = buildResumeContextWithMetadata(
+    const expected = buildCacheAwareResumeContextWithMetadata(
       's1',
       'resume-target',
       'System',
@@ -145,7 +159,9 @@ describe('TapeViewAssembler', () => {
       false,
       {
         ...options,
-        historyRecords: records
+        historyRecords: records,
+        pinFirstUser: true,
+        contextContributions: createEmptyContextRuntimeContributions()
       }
     )
     const assembled = buildTapeResumeView({
@@ -160,11 +176,8 @@ describe('TapeViewAssembler', () => {
       options
     })
 
-    expect(assembled.messages).toEqual(legacy.messages)
-    expect(assembled.metadata).toEqual({
-      ...legacy.metadata,
-      syntheticContributions: []
-    })
+    expect(assembled.messages).toEqual(expected.messages)
+    expect(assembled.metadata).toEqual(expected.metadata)
     expect(assembled.historyRecords).toEqual(records)
     expect(assembled.assemblerVersion).toBe(TAPE_VIEW_ASSEMBLER_VERSION)
     expect(assembled.historySource).toBe(TAPE_VIEW_HISTORY_SOURCE)
@@ -204,6 +217,28 @@ describe('TapeViewAssembler', () => {
     expect(requested.policySelectionReason).toBe('requested')
     expect(fallback.policySelectionReason).toBe('fallback_default')
     expect(fallback.policyId).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_ID)
+  })
+
+  it('retains the v1 projection when explicitly requested', () => {
+    const records = [makeUserRecord(1, 'original task'), makeAssistantRecord(2, 'answer')]
+    const store = createMockMessageStore(records)
+    const assembled = buildTapeChatView({
+      sessionId: 's1',
+      newUserContent: { text: 'next user', files: [] },
+      systemPrompt: 'System',
+      contextLength: 1000,
+      reserveTokens: 100,
+      messageStore: store,
+      supportsVision: false,
+      historyRecords: records,
+      requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
+      options: { summaryCursorOrderSeq: 2 }
+    })
+
+    expect(assembled.policyId).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID)
+    expect(assembled.assemblerVersion).toBe('cache-aware-v1')
+    expect(assembled.messages.some((message) => message.content === 'original task')).toBe(false)
+    expect(assembled.metadata.pinnedFirstUser).toBeUndefined()
   })
 
   it('delegates assembly to an injected policy', () => {

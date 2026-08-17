@@ -6,10 +6,12 @@ import {
 } from '@/agent/deepchat/runtime/contextBuilder'
 import {
   CACHE_AWARE_TAPE_VIEW_POLICY_ID,
+  CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
   CACHE_AWARE_TAPE_VIEW_POLICY_VERSION,
   LEGACY_TAPE_VIEW_POLICY_ID,
   LEGACY_TAPE_VIEW_POLICY_VERSION,
   cacheAwareTapeViewPolicy,
+  cacheAwareTapeViewPolicyV1,
   getTapeViewPolicy,
   legacyTapeViewPolicy,
   listTapeViewPolicies,
@@ -154,8 +156,15 @@ describe('legacyTapeViewPolicy', () => {
 
 describe('TapeViewPolicy registry', () => {
   it('lists and resolves the built-in cache-aware and legacy policies', () => {
-    expect(listTapeViewPolicies()).toEqual([cacheAwareTapeViewPolicy, legacyTapeViewPolicy])
+    expect(listTapeViewPolicies()).toEqual([
+      cacheAwareTapeViewPolicy,
+      cacheAwareTapeViewPolicyV1,
+      legacyTapeViewPolicy
+    ])
     expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_ID)).toBe(cacheAwareTapeViewPolicy)
+    expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID)).toBe(
+      cacheAwareTapeViewPolicyV1
+    )
     expect(getTapeViewPolicy(LEGACY_TAPE_VIEW_POLICY_ID)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy(` ${LEGACY_TAPE_VIEW_POLICY_ID} `)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy('missing-policy')).toBeNull()
@@ -175,11 +184,21 @@ describe('TapeViewPolicy registry', () => {
       reason: 'requested'
     })
 
+    expect(resolveTapeViewPolicy({ requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID })).toEqual(
+      {
+        policy: cacheAwareTapeViewPolicyV1,
+        requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
+        reason: 'requested'
+      }
+    )
+
     expect(resolveTapeViewPolicy({ requestedPolicyId: 'missing-policy' })).toEqual({
       policy: cacheAwareTapeViewPolicy,
       requestedPolicyId: 'missing-policy',
       reason: 'fallback_default'
     })
     expect(cacheAwareTapeViewPolicy.version).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_VERSION)
+    expect(cacheAwareTapeViewPolicy.contextBuilderVersion).toBe('cache-aware-v2')
+    expect(cacheAwareTapeViewPolicyV1.contextBuilderVersion).toBe('cache-aware-v1')
   })
 })

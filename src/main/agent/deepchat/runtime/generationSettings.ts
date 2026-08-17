@@ -243,7 +243,9 @@ async function buildDefaultGenerationSettings(
       })
     : true
   const defaultSystemPrompt = await promptSettings.getDefaultSystemPrompt()
-  const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
+  const configuredContextLength = toValidNonNegativeInteger(modelConfig.contextLength)
+  const contextLengthDefault =
+    configuredContextLength && configuredContextLength > 0 ? configuredContextLength : 32000
   const rawProviderMaxTokensDefault = toValidNonNegativeInteger(modelConfig.maxTokens)
   const providerMaxTokensDefault =
     rawProviderMaxTokensDefault && rawProviderMaxTokensDefault > 0

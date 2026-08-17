@@ -84,16 +84,31 @@ function createHarness(
     permissionMode: 'full_access'
   })
   const compaction = {
-    getState: vi.fn().mockResolvedValue({
-      status: 'idle',
-      cursorOrderSeq: 3,
-      summaryUpdatedAt: null
+    getSnapshot: vi.fn().mockResolvedValue({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_unavailable'
+      },
+      emitSeq: 4,
+      latestAnchorEntryId: 12
     }),
     compact: vi.fn().mockResolvedValue({
       compacted: true,
       state: { status: 'idle', cursorOrderSeq: 4, summaryUpdatedAt: 200 }
     })
   }
+  const getContextOccupancy = vi.fn().mockResolvedValue({
+    freshness: 'current',
+    source: 'provider',
+    occupiedTokens: 750,
+    contextWindowTokens: 1_000,
+    requestSeq: 2,
+    manifestEntryId: 10,
+    providerAttemptEntryId: 11,
+    measuredAt: 100
+  })
   const isPendingQueueResumeAvailable = vi.fn().mockResolvedValue(true)
   const resumePendingQueue = vi.fn().mockResolvedValue(true)
   const retryPendingQueueInput = vi.fn().mockResolvedValue({ accepted: true, started: false })
@@ -108,6 +123,7 @@ function createHarness(
           cancel,
           snapshot,
           compaction,
+          getContextOccupancy,
           isPendingQueueResumeAvailable,
           resumePendingQueue,
           retryPendingQueueInput
@@ -164,6 +180,7 @@ function createHarness(
     cancel,
     snapshot,
     compaction,
+    getContextOccupancy,
     isPendingQueueResumeAvailable,
     resumePendingQueue,
     retryPendingQueueInput,
@@ -475,7 +492,7 @@ describe('SessionTurn', () => {
       () => harness.coordinator.retryMessage('missing', 'message-1'),
       () => harness.coordinator.deleteMessage('missing', 'message-1'),
       () => harness.coordinator.editUserMessage('missing', 'message-1', 'Edited'),
-      () => harness.coordinator.getSessionCompactionState('missing'),
+      () => harness.coordinator.getSessionCompactionSnapshot('missing'),
       () => harness.coordinator.compactSession('missing'),
       () => harness.coordinator.clearSessionMessages('missing'),
       () =>
@@ -590,10 +607,25 @@ describe('SessionTurn', () => {
       harness.coordinator.respondToolInteraction('s1', 'message-1', 'tool-1', response)
     ).resolves.toEqual({ resumed: true })
     expect(harness.toolInteractions.respond).toHaveBeenCalledWith('message-1', 'tool-1', response)
-    await expect(harness.coordinator.getSessionCompactionState('s1')).resolves.toEqual({
-      status: 'idle',
-      cursorOrderSeq: 1,
-      summaryUpdatedAt: null
+    await expect(harness.coordinator.getSessionCompactionSnapshot('s1')).resolves.toEqual({
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null,
+        boundaryReason: null
+      },
+      emitSeq: 0,
+      latestAnchorEntryId: null
+    })
+    await expect(harness.coordinator.getSessionContextOccupancy('s1')).resolves.toEqual({
+      freshness: 'unavailable',
+      source: null,
+      occupiedTokens: null,
+      contextWindowTokens: null,
+      requestSeq: null,
+      manifestEntryId: null,
+      providerAttemptEntryId: null,
+      measuredAt: null
     })
     await expect(harness.coordinator.compactSession('s1')).rejects.toThrow(
       'Agent acp-coder does not support manual compaction.'
@@ -609,12 +641,19 @@ describe('SessionTurn', () => {
     expect(harness.compaction.compact).not.toHaveBeenCalled()
   })
 
-  it('delegates DeepChat compaction state and mutation', async () => {
+  it('delegates DeepChat compaction snapshots and mutation', async () => {
     const harness = createHarness()
 
-    await expect(harness.coordinator.getSessionCompactionState('s1')).resolves.toMatchObject({
-      cursorOrderSeq: 3
+    await expect(harness.coordinator.getSessionCompactionSnapshot('s1')).resolves.toMatchObject({
+      state: { cursorOrderSeq: 3 },
+      emitSeq: 4,
+      latestAnchorEntryId: 12
     })
+    await expect(harness.coordinator.getSessionContextOccupancy('s1')).resolves.toMatchObject({
+      freshness: 'current',
+      occupiedTokens: 750
+    })
+    expect(harness.getContextOccupancy).toHaveBeenCalledOnce()
     await expect(harness.coordinator.compactSession('s1')).resolves.toMatchObject({
       compacted: true
     })

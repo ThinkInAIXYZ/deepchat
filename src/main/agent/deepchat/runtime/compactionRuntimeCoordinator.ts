@@ -1,5 +1,8 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { SessionCompactionState } from '@shared/types/agent-interface'
+import type {
+  SessionCompactionSnapshot,
+  SessionCompactionState
+} from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import {
   hasCompactionBoundaryAdvanced,
@@ -30,6 +33,10 @@ import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import {
+  isSummaryGapReason,
+  type SummaryGapReason
+} from './contextContributions'
 
 type ManualCompactionLifecycle = Pick<
   RunLifecycleCoordinator,
@@ -58,7 +65,11 @@ type CompactionServicePort = Pick<
 
 type CompactionSessionStore = Pick<
   SessionSettingsStore,
-  'get' | 'getSummaryState' | 'resetSummaryState'
+  | 'get'
+  | 'getReconstructionAnchorPromptState'
+  | 'getReconstructionAnchorPromptStateByCompactionAttemptId'
+  | 'getSummaryState'
+  | 'resetSummaryState'
 >
 
 type CompactionTranscript = TapeTranscriptReader &
@@ -68,6 +79,7 @@ type CompactionTranscript = TapeTranscriptReader &
     | 'createCompactionMessageAtOrderSeq'
     | 'deleteMessage'
     | 'getNextOrderSeq'
+    | 'recordCompactionModelCall'
     | 'updateCompactionMessage'
   >
 
@@ -97,6 +109,8 @@ interface ApplyCompactionOptions {
 }
 
 export class CompactionRuntimeCoordinator {
+  private readonly emitSeqBySession = new Map<string, number>()
+
   constructor(private readonly deps: CompactionRuntimeCoordinatorDependencies) {}
 
   private instance(sessionId: string): DeepChatAgentInstance {
@@ -107,10 +121,22 @@ export class CompactionRuntimeCoordinator {
     this.deps.registry.scopeFor(toAppSessionId(sessionId), instance).assertCurrent()
   }
 
-  async getState(
+  async getSnapshot(
     sessionId: string,
     expectedInstance?: DeepChatAgentInstance
-  ): Promise<SessionCompactionState> {
+  ): Promise<SessionCompactionSnapshot> {
+    const projection = this.resolveProjection(sessionId, expectedInstance)
+    return {
+      state: projection.state,
+      emitSeq: this.currentEmitSeq(sessionId),
+      latestAnchorEntryId: projection.latestAnchorEntryId
+    }
+  }
+
+  private resolveProjection(
+    sessionId: string,
+    expectedInstance?: DeepChatAgentInstance
+  ): { state: SessionCompactionState; latestAnchorEntryId: number | null } {
     const hydratedInstance = expectedInstance ?? this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
     const runtimeState = hydratedInstance?.getRuntimeState()
     const session = this.deps.sessionStore.get(sessionId)
@@ -120,18 +146,27 @@ export class CompactionRuntimeCoordinator {
     const instance = hydratedInstance ?? this.instance(sessionId)
     this.assertCurrent(sessionId, instance)
 
-    const persistedState = this.fromSummary(this.deps.sessionStore.getSummaryState(sessionId))
+    const reconstructionAnchor = this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
+    const latestAnchorEntryId = reconstructionAnchor?.entryId ?? null
+    const persistedState = this.fromSummary(
+      this.deps.sessionStore.getSummaryState(sessionId),
+      undefined,
+      reconstructionAnchor?.state.reason
+    )
     const currentCompactionState = instance.getCompactionState()
     if (currentCompactionState?.status === 'compacting') {
-      return currentCompactionState
+      return {
+        state: { ...currentCompactionState, boundaryReason: null },
+        latestAnchorEntryId
+      }
     }
 
     if (currentCompactionState && this.isSame(currentCompactionState, persistedState)) {
-      return currentCompactionState
+      return { state: currentCompactionState, latestAnchorEntryId }
     }
 
     instance.setCompactionState(persistedState)
-    return { ...persistedState }
+    return { state: { ...persistedState }, latestAnchorEntryId }
   }
 
   async compact(
@@ -265,7 +300,7 @@ export class CompactionRuntimeCoordinator {
       if (!intent) {
         return {
           compacted: false,
-          state: await this.getState(sessionId, instance)
+          state: this.resolveProjection(sessionId, instance).state
         }
       }
 
@@ -280,7 +315,7 @@ export class CompactionRuntimeCoordinator {
       const compacted = hasCompactionBoundaryAdvanced(intent.previousState, summaryState)
       return {
         compacted,
-        state: await this.getState(sessionId, instance)
+        state: this.resolveProjection(sessionId, instance).state
       }
     } finally {
       const stillOwnsLifecycle = this.deps.runLifecycle.canSettleOperation(
@@ -300,7 +335,8 @@ export class CompactionRuntimeCoordinator {
     options?: ApplyCompactionOptions,
     expectedInstance = this.instance(sessionId)
   ): Promise<SessionSummaryState> {
-    this.assertCurrent(sessionId, expectedInstance)
+    const scope = this.deps.registry.scopeFor(toAppSessionId(sessionId), expectedInstance)
+    scope.assertCurrent()
     if (!intent) {
       return this.deps.sessionStore.getSummaryState(sessionId)
     }
@@ -313,13 +349,17 @@ export class CompactionRuntimeCoordinator {
             Math.max(1, Math.floor(options.compactionMessageOrderSeq)),
             'compacting',
             intent.previousState.summaryUpdatedAt,
-            { shiftExistingMessages: options.shiftMessagesFromCompactionOrderSeq === true }
+            {
+              compactionAttemptId: intent.compactionAttemptId,
+              shiftExistingMessages: options.shiftMessagesFromCompactionOrderSeq === true
+            }
           )
         : this.deps.messageStore.createCompactionMessage(
             sessionId,
             this.deps.messageStore.getNextOrderSeq(sessionId),
             'compacting',
-            intent.previousState.summaryUpdatedAt
+            intent.previousState.summaryUpdatedAt,
+            { compactionAttemptId: intent.compactionAttemptId }
           ))
 
     if (!options?.startedExternally) {
@@ -329,7 +369,8 @@ export class CompactionRuntimeCoordinator {
         {
           status: 'compacting',
           cursorOrderSeq: intent.targetCursorOrderSeq,
-          summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+          summaryUpdatedAt: intent.previousState.summaryUpdatedAt,
+          boundaryReason: null
         },
         expectedInstance
       )
@@ -337,46 +378,78 @@ export class CompactionRuntimeCoordinator {
 
     let result: Awaited<ReturnType<CompactionService['applyCompaction']>>
     try {
-      result = await this.deps.compactionService.applyCompaction(intent, options?.signal)
+      result = await this.deps.compactionService.applyCompaction(
+        intent,
+        options?.signal,
+        (observation) =>
+          this.deps.messageStore.recordCompactionModelCall({
+            ...observation,
+            sessionId,
+            compactionMessageId,
+            compactionAttemptId: intent.compactionAttemptId
+          })
+      )
     } catch (error) {
-      this.assertCurrent(sessionId, expectedInstance)
       this.deps.messageStore.deleteMessage(compactionMessageId)
       this.deps.messageProjection.refresh(sessionId, compactionMessageId)
-      this.emit(sessionId, this.fromSummary(intent.previousState), expectedInstance)
+      if (scope.isCurrent()) {
+        this.emit(
+          sessionId,
+          this.projectSummaryState(sessionId, intent.previousState),
+          expectedInstance
+        )
+      }
       if (isAbortError(error) || options?.signal?.aborted) {
         throwIfAbortRequested(options?.signal)
       }
       throw error
     }
 
-    this.assertCurrent(sessionId, expectedInstance)
-    if (result.outcome !== 'unchanged') {
+    const projectedState =
+      result.outcome !== 'unchanged'
+        ? this.projectSummaryState(sessionId, result.summaryState, 'compacted')
+        : this.projectSummaryState(sessionId, result.summaryState)
+    if (result.anchorCommitted && result.outcome !== 'unchanged') {
       this.deps.messageStore.updateCompactionMessage(
         compactionMessageId,
         'compacted',
-        result.summaryState.summaryUpdatedAt
+        result.summaryState.summaryUpdatedAt,
+        {
+          compactionAttemptId: intent.compactionAttemptId,
+          boundaryReason:
+            result.outcome === 'boundary_only'
+              ? this.resolveBoundaryReason(
+                  this.deps.sessionStore.getReconstructionAnchorPromptStateByCompactionAttemptId(
+                    sessionId,
+                    intent.compactionAttemptId
+                  )?.state.reason
+                )
+              : null
+        }
       )
     } else {
       this.deps.messageStore.deleteMessage(compactionMessageId)
     }
     this.deps.messageProjection.refresh(sessionId, compactionMessageId)
-    this.emit(
-      sessionId,
-      result.outcome !== 'unchanged'
-        ? this.fromSummary(result.summaryState, 'compacted')
-        : this.fromSummary(result.summaryState),
-      expectedInstance
-    )
+    if (scope.isCurrent()) {
+      this.emit(sessionId, projectedState, expectedInstance)
+    }
     return result.summaryState
   }
 
   idleState(): SessionCompactionState {
-    return { status: 'idle', cursorOrderSeq: 1, summaryUpdatedAt: null }
+    return {
+      status: 'idle',
+      cursorOrderSeq: 1,
+      summaryUpdatedAt: null,
+      boundaryReason: null
+    }
   }
 
   fromSummary(
     summaryState: SessionSummaryState,
-    preferredStatus?: 'compacted'
+    preferredStatus?: 'compacted',
+    persistedReason?: unknown
   ): SessionCompactionState {
     const hasPersistedSummary =
       Boolean(summaryState.summaryText?.trim()) && summaryState.summaryUpdatedAt !== null
@@ -385,17 +458,42 @@ export class CompactionRuntimeCoordinator {
       ? {
           status: 'compacted',
           cursorOrderSeq: Math.max(1, summaryState.summaryCursorOrderSeq),
-          summaryUpdatedAt: summaryState.summaryUpdatedAt
+          summaryUpdatedAt: summaryState.summaryUpdatedAt,
+          boundaryReason: this.resolveBoundaryReason(persistedReason)
         }
       : this.idleState()
+  }
+
+  private projectSummaryState(
+    sessionId: string,
+    summaryState: SessionSummaryState,
+    preferredStatus?: 'compacted'
+  ): SessionCompactionState {
+    const anchor = this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
+    return this.fromSummary(summaryState, preferredStatus, anchor?.state.reason)
+  }
+
+  private resolveBoundaryReason(reason: unknown): SummaryGapReason | null {
+    return isSummaryGapReason(reason) ? reason : null
   }
 
   isSame(left: SessionCompactionState, right: SessionCompactionState): boolean {
     return (
       left.status === right.status &&
       left.cursorOrderSeq === right.cursorOrderSeq &&
-      left.summaryUpdatedAt === right.summaryUpdatedAt
+      left.summaryUpdatedAt === right.summaryUpdatedAt &&
+      left.boundaryReason === right.boundaryReason
     )
+  }
+
+  private currentEmitSeq(sessionId: string): number {
+    return this.emitSeqBySession.get(sessionId) ?? 0
+  }
+
+  private nextEmitSeq(sessionId: string): number {
+    const next = this.currentEmitSeq(sessionId) + 1
+    this.emitSeqBySession.set(sessionId, next)
+    return next
   }
 
   emit(
@@ -404,14 +502,28 @@ export class CompactionRuntimeCoordinator {
     expectedInstance = this.instance(sessionId)
   ): void {
     this.assertCurrent(sessionId, expectedInstance)
-    expectedInstance.setCompactionState(state)
+    const reconstructionAnchor = this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
+    const projectedState = {
+      ...state,
+      boundaryReason:
+        state.status === 'compacted'
+          ? this.resolveBoundaryReason(reconstructionAnchor?.state.reason)
+          : null
+    }
+    expectedInstance.setCompactionState(projectedState)
     this.deps.publishEvent('sessions.compaction.changed', {
       sessionId,
-      status: state.status,
-      cursorOrderSeq: state.cursorOrderSeq,
-      summaryUpdatedAt: state.summaryUpdatedAt,
-      version: Date.now()
+      status: projectedState.status,
+      cursorOrderSeq: projectedState.cursorOrderSeq,
+      summaryUpdatedAt: projectedState.summaryUpdatedAt,
+      boundaryReason: projectedState.boundaryReason,
+      emitSeq: this.nextEmitSeq(sessionId),
+      latestAnchorEntryId: reconstructionAnchor?.entryId ?? null
     })
+  }
+
+  releaseSession(sessionId: string): void {
+    this.emitSeqBySession.delete(sessionId)
   }
 
   reset(sessionId: string, expectedInstance = this.instance(sessionId)): void {

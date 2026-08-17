@@ -228,10 +228,19 @@
   "compaction": {
     "compacting": "Compacting context...",
     "compacted": "Context was compacted",
+    "compactedWithoutSummary": "Context was compacted without a summary",
+    "compactedWithoutLargerSummary": "Context was compacted without using a larger summary",
     "commandDescription": "Compact conversation context",
     "noopTitle": "No context to compact",
     "noopDescription": "There is no new conversation history to compact yet.",
     "failedTitle": "Compaction failed"
+  },
+  "contextOccupancy": {
+    "label": "Context usage",
+    "details": "{used} of {capacity} tokens",
+    "provider": "Provider measured",
+    "estimated": "Estimated from the request view",
+    "stale": "Stale after a model, window, or compaction change"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",

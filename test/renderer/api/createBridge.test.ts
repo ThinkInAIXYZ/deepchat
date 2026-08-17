@@ -177,6 +177,44 @@ describe('createBridge', () => {
     )
   })
 
+  it('drops invalid event payloads without throwing from the shared dispatcher', () => {
+    let registeredListener: ((event: unknown, payload: unknown) => void) | undefined
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ipcRenderer = {
+      invoke: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
+        registeredListener = listener
+      }),
+      removeListener: vi.fn()
+    }
+    const bridge = createBridge(ipcRenderer)
+    const listener = vi.fn()
+    bridge.on('sessions.compaction.changed', listener)
+
+    expect(() =>
+      registeredListener?.(
+        {},
+        {
+          name: 'sessions.compaction.changed',
+          payload: {
+            sessionId: 'session-1',
+            status: 'compacted',
+            cursorOrderSeq: 2,
+            summaryUpdatedAt: null,
+            boundaryReason: null,
+            emitSeq: 0,
+            latestAnchorEntryId: null
+          }
+        }
+      )
+    ).not.toThrow()
+    expect(listener).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[DeepchatBridge] Invalid event payload for sessions.compaction.changed:',
+      expect.any(Error)
+    )
+  })
+
   it('rejects invalid route responses', async () => {
     const ipcRenderer = {
       invoke: vi.fn().mockResolvedValue({

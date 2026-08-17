@@ -313,6 +313,16 @@ export const UsageDashboardBreakdownItemSchema = z.object({
   cachedInputTokens: z.number().nonnegative()
 })
 
+export const UsageDashboardCategoryItemSchema = z.object({
+  id: z.enum(['chat', 'compaction']),
+  eventCount: z.number().int().nonnegative(),
+  knownUsageCount: z.number().int().nonnegative(),
+  unknownUsageCount: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  totalTokens: z.number().nonnegative()
+})
+
 export const UsageDashboardRtkSummarySchema = z.object({
   totalCommands: z.number().int().nonnegative(),
   totalInputTokens: z.number().nonnegative(),
@@ -355,6 +365,7 @@ export const UsageDashboardDataSchema = z.object({
   calendar: z.array(UsageDashboardCalendarDaySchema),
   providerBreakdown: z.array(UsageDashboardBreakdownItemSchema),
   modelBreakdown: z.array(UsageDashboardBreakdownItemSchema),
+  categoryBreakdown: z.array(UsageDashboardCategoryItemSchema).default([]),
   rtk: UsageDashboardRtkDataSchema
 })
 

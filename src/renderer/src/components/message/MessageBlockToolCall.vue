@@ -196,7 +196,7 @@
                 />
               </div>
               <template v-if="diffData">
-                <div class="dc-overscroll-contain min-h-0 overflow-auto">
+                <div class="markstream-vue dc-overscroll-contain min-h-0 overflow-auto">
                   <CodeBlockNode
                     :node="{
                       type: 'code_block',
@@ -208,6 +208,8 @@
                       updatedCode: diffData.updatedCode
                     }"
                     :is-dark="themeStore.isDark"
+                    :loading="false"
+                    :stream="false"
                     :show-header="false"
                     class="rounded-md border bg-background text-xs p-2 h-full min-h-0"
                   />
@@ -259,7 +261,7 @@ import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
-import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
+import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
@@ -572,7 +574,6 @@ const diffData = computed(() => {
       success?: boolean
       originalCode?: unknown
       updatedCode?: unknown
-      language?: unknown
       replacements?: unknown
     }
     if (
@@ -583,7 +584,6 @@ const diffData = computed(() => {
       return {
         originalCode: parsed.originalCode,
         updatedCode: parsed.updatedCode,
-        language: typeof parsed.language === 'string' ? parsed.language : undefined,
         replacements: typeof parsed.replacements === 'number' ? parsed.replacements : undefined
       }
     }
@@ -607,10 +607,7 @@ const paramsPath = computed(() => {
   return ''
 })
 
-const diffLanguage = computed(() => {
-  if (diffData.value?.language) return diffData.value.language
-  return getLanguageFromFilename(paramsPath.value)
-})
+const diffLanguage = computed(() => getMarkstreamLanguageFromFilename(paramsPath.value))
 
 const hasDiff = computed(() => Boolean(diffData.value))
 

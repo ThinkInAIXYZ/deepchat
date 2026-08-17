@@ -22,6 +22,7 @@ import { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
 import { SessionIdentityService } from '@/agent/deepchat/runtime/sessionIdentityService'
 import { SessionLifecycleCoordinator } from '@/agent/deepchat/runtime/sessionLifecycleCoordinator'
 import { SessionSettingsCoordinator } from '@/agent/deepchat/runtime/sessionSettingsCoordinator'
+import { ContextOccupancyCoordinator } from '@/agent/deepchat/runtime/contextOccupancyCoordinator'
 import { SessionStateResolver } from '@/agent/deepchat/runtime/sessionStateResolver'
 import { SessionStatusPublisher } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import { SkillContextMaterializer } from '@/agent/deepchat/runtime/skillContextMaterializer'
@@ -187,8 +188,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const tapeService = sessionData.tapeStore
   const pendingInputCoordinator = sessionData.pendingInputs
 
-  const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
-
   const runtime = new DeepChatAgentRuntime()
   const identity = new SessionIdentityService({ registry: runtime, database })
   const messageProjection = new MessageProjectionService({
@@ -270,6 +269,12 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     runLifecycle,
     identity,
     sessionSettings
+  })
+  const contextOccupancy = new ContextOccupancyCoordinator({
+    runtime,
+    sessionState,
+    sessionSettings,
+    tape: tapeService
   })
   const providerPermissionCoordinator = new ProviderPermissionCoordinator({
     publishEvent,
@@ -557,18 +562,33 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       input
     )
 
-  const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
-  pendingInputPump.holdRestartedQueueInputs(pendingInputRecovery.heldQueueInputIds)
-  if (pendingInputRecovery.affectedSessionIds.size > 0) {
-    logger.info(
-      `DeepChatAgent: reconciled ${pendingInputRecovery.affectedSessionIds.size} sessions with pending inputs`
-    )
-  }
+  const reconcilePersistedRuntimeState = (): void => {
+    const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
+    const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
+    pendingInputPump.replaceRestartedQueueInputs(pendingInputRecovery.heldQueueInputIds)
+    if (pendingInputRecovery.affectedSessionIds.size > 0) {
+      logger.info(
+        `DeepChatAgent: reconciled ${pendingInputRecovery.affectedSessionIds.size} sessions with pending inputs`
+      )
+    }
 
-  const recovered = messageStore.recoverPendingMessages({ forceRecoverMessagesBySession })
-  if (recovered > 0) {
-    logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+    const compactionRecovery = messageStore.reconcileCompactionMessages()
+    if (
+      compactionRecovery.compacted > 0 ||
+      compactionRecovery.retracted > 0 ||
+      compactionRecovery.failed > 0
+    ) {
+      logger.info(
+        `DeepChatAgent: reconciled ${compactionRecovery.compacted} committed, ${compactionRecovery.retracted} stale, and ${compactionRecovery.failed} failed compaction markers`
+      )
+    }
+
+    const recovered = messageStore.recoverPendingMessages({ forceRecoverMessagesBySession })
+    if (recovered > 0) {
+      logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+    }
   }
+  reconcilePersistedRuntimeState()
 
   return {
     runtime,
@@ -580,11 +600,13 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     interactionCoordinator,
     pendingInputAdmission,
     compaction,
+    contextOccupancy,
     transcriptMutation,
     memoryIngestionObserver: memory,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
-    acpCompatibility
+    acpCompatibility,
+    reconcileAfterDatabaseReopen: reconcilePersistedRuntimeState
   }
 }
 

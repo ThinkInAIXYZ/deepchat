@@ -28,6 +28,7 @@ import {
   bindProviderProjectionIdentity,
   getProviderProjectionIdentities
 } from '@/agent/deepchat/loop/providerProjectionIdentity'
+import { hashJsonData } from '@/tape/domain/canonicalJson'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -2193,6 +2194,339 @@ function createCacheAwareContributions(input?: {
 }
 
 describe('cache-aware context assembly', () => {
+  it('pins the first effective user before the checkpoint without duplicating the tail', () => {
+    const records = [
+      makeUserRecord(1, 'original task'),
+      makeAssistantRecord(2, 'old answer'),
+      makeUserRecord(3, 'recent request'),
+      makeAssistantRecord(4, 'recent answer')
+    ]
+    const contextContributions = createCacheAwareContributions({ summary: 'Earlier progress' })
+
+    const result = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'active request', files: [] },
+      'System',
+      10_000,
+      100,
+      createMockMessageStore(records),
+      false,
+      {
+        historyRecords: records,
+        summaryCursorOrderSeq: 3,
+        pinFirstUser: true,
+        contextContributions
+      }
+    )
+
+    expect(result.messages.map((message) => message.content)).toEqual([
+      'System',
+      'original task',
+      contextContributions.checkpoint.message?.content,
+      'recent request',
+      'recent answer',
+      'active request'
+    ])
+    expect(result.messages.filter((message) => message.content === 'original task')).toHaveLength(1)
+    expect(result.metadata.includedRecords[0]).toMatchObject({
+      record: { id: 'user-1', orderSeq: 1 },
+      reason: 'pinned_first_user',
+      contentHash: result.metadata.pinnedFirstUser?.contentHash
+    })
+    expect(result.metadata.pinnedFirstUser?.message).toEqual({
+      role: 'user',
+      content: 'original task'
+    })
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 3,
+      preCursorOrderSeqMin: 2,
+      preCursorOrderSeqMax: 2,
+      preCursorCount: 1
+    })
+  })
+
+  it('uses the effective first-user input and advances to the next surviving record', () => {
+    const editedFirst = {
+      ...makeUserRecord(1, 'edited task'),
+      id: 'original-user',
+      updatedAt: Date.now() + 100
+    }
+    const nextUser = makeUserRecord(3, 'next surviving task')
+    const contextContributions = createCacheAwareContributions({ summary: 'Earlier progress' })
+
+    const edited = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'active', files: [] },
+      '',
+      10_000,
+      100,
+      createMockMessageStore([editedFirst, makeAssistantRecord(2, 'answer')]),
+      false,
+      {
+        historyRecords: [editedFirst, makeAssistantRecord(2, 'answer')],
+        summaryCursorOrderSeq: 3,
+        pinFirstUser: true,
+        contextContributions
+      }
+    )
+    const afterRetraction = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'active', files: [] },
+      '',
+      10_000,
+      100,
+      createMockMessageStore([nextUser]),
+      false,
+      {
+        historyRecords: [nextUser],
+        summaryCursorOrderSeq: 4,
+        pinFirstUser: true,
+        contextContributions: createCacheAwareContributions({ summary: 'Earlier progress' })
+      }
+    )
+
+    expect(edited.metadata.pinnedFirstUser?.record.id).toBe('original-user')
+    expect(edited.metadata.pinnedFirstUser?.message.content).toBe('edited task')
+    expect(afterRetraction.metadata.pinnedFirstUser?.record.id).toBe('user-3')
+    expect(afterRetraction.metadata.pinnedFirstUser?.message.content).toBe('next surviving task')
+  })
+
+  it('keeps a Run-local pinned identity stable during View reconstruction', () => {
+    const expectedRecord = makeUserRecord(3, 'stable original task')
+    const expectedMessage = { role: 'user' as const, content: 'stable original task' }
+    const records = [
+      makeUserRecord(1, 'concurrently appeared history'),
+      makeAssistantRecord(2, 'older answer'),
+      expectedRecord,
+      makeAssistantRecord(4, 'answer')
+    ]
+    const runPinnedFirstUser = {
+      messageId: expectedRecord.id,
+      orderSeq: expectedRecord.orderSeq,
+      sourceContentHash: hashJsonData(expectedRecord.content),
+      contentHash: hashJsonData(expectedMessage)
+    }
+
+    const stable = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'active', files: [] },
+      '',
+      10_000,
+      100,
+      createMockMessageStore(records),
+      false,
+      {
+        historyRecords: records,
+        pinFirstUser: true,
+        runPinnedFirstUser,
+        contextContributions: createCacheAwareContributions()
+      }
+    )
+    const absent = buildCacheAwareContextWithMetadata(
+      's1',
+      { text: 'active', files: [] },
+      '',
+      10_000,
+      100,
+      createMockMessageStore(records),
+      false,
+      {
+        historyRecords: records,
+        pinFirstUser: true,
+        runPinnedFirstUser: null,
+        contextContributions: createCacheAwareContributions()
+      }
+    )
+
+    expect(stable.metadata.pinnedFirstUser?.record.id).toBe(expectedRecord.id)
+    expect(absent.metadata.pinnedFirstUser).toBeUndefined()
+    expect(() =>
+      buildCacheAwareContextWithMetadata(
+        's1',
+        { text: 'active', files: [] },
+        '',
+        10_000,
+        100,
+        createMockMessageStore(records),
+        false,
+        {
+          historyRecords: records,
+          pinFirstUser: true,
+          runPinnedFirstUser: { ...runPinnedFirstUser, contentHash: '0'.repeat(64) },
+          contextContributions: createCacheAwareContributions()
+        }
+      )
+    ).toThrow(/changed during the active Run/)
+    expect(() =>
+      buildCacheAwareContextWithMetadata(
+        's1',
+        { text: 'active', files: [] },
+        '',
+        10_000,
+        100,
+        createMockMessageStore(records),
+        false,
+        {
+          historyRecords: records,
+          pinFirstUser: true,
+          runPinnedFirstUser: { ...runPinnedFirstUser, sourceContentHash: '0'.repeat(64) },
+          contextContributions: createCacheAwareContributions()
+        }
+      )
+    ).toThrow(/changed during the active Run/)
+  })
+
+  it('pins a prior first user for resume but does not duplicate the active owner', () => {
+    const resumedRecords = [
+      makeUserRecord(1, 'original task'),
+      makeAssistantRecord(2, 'old answer'),
+      makeUserRecord(3, 'resume owner'),
+      { ...makeAssistantRecord(4, 'partial answer', 'pending'), id: 'resume-target' }
+    ]
+    const resumeContributions = createCacheAwareContributions({ summary: 'Earlier progress' })
+    const resumed = buildCacheAwareResumeContextWithMetadata(
+      's1',
+      'resume-target',
+      'System',
+      10_000,
+      100,
+      createMockMessageStore(resumedRecords),
+      false,
+      {
+        historyRecords: resumedRecords,
+        summaryCursorOrderSeq: 3,
+        pinFirstUser: true,
+        contextContributions: resumeContributions
+      }
+    )
+    const firstTurnRecords = [
+      makeUserRecord(1, 'first owner'),
+      { ...makeAssistantRecord(2, 'partial answer', 'pending'), id: 'first-target' }
+    ]
+    const firstOwner = firstTurnRecords[0]
+    const firstTurn = buildCacheAwareResumeContextWithMetadata(
+      's1',
+      'first-target',
+      'System',
+      10_000,
+      100,
+      createMockMessageStore(firstTurnRecords),
+      false,
+      {
+        historyRecords: firstTurnRecords,
+        summaryCursorOrderSeq: 3,
+        pinFirstUser: true,
+        runPinnedFirstUser: {
+          messageId: firstOwner.id,
+          orderSeq: firstOwner.orderSeq,
+          sourceContentHash: hashJsonData(firstOwner.content),
+          contentHash: hashJsonData({ role: 'user', content: 'first owner' })
+        },
+        contextContributions: createCacheAwareContributions({ summary: 'Earlier progress' })
+      }
+    )
+
+    expect(resumed.messages.map((message) => message.content)).toEqual([
+      'System',
+      'original task',
+      resumeContributions.checkpoint.message?.content,
+      'resume owner',
+      'partial answer'
+    ])
+    expect(firstTurn.messages.filter((message) => message.content === 'first owner')).toHaveLength(1)
+    expect(firstTurn.metadata.pinnedFirstUser).toBeUndefined()
+    expect(
+      fitCacheAwareMessagesToContextWindow(
+        firstTurn.messages,
+        10_000,
+        100,
+        createCacheAwareContributions({ summary: 'Earlier progress' }),
+        0,
+        firstTurn.metadata.pinnedFirstUser?.contentHash
+      )
+    ).toEqual(firstTurn.messages)
+    expect(() =>
+      buildCacheAwareResumeContextWithMetadata(
+        's1',
+        'first-target',
+        'System',
+        10_000,
+        100,
+        createMockMessageStore(firstTurnRecords),
+        false,
+        {
+          historyRecords: firstTurnRecords,
+          summaryCursorOrderSeq: 3,
+          pinFirstUser: true,
+          runPinnedFirstUser: {
+            messageId: firstOwner.id,
+            orderSeq: firstOwner.orderSeq,
+            sourceContentHash: hashJsonData(firstOwner.content),
+            contentHash: '0'.repeat(64)
+          },
+          contextContributions: createCacheAwareContributions({ summary: 'Earlier progress' })
+        }
+      )
+    ).toThrow(/changed during the active Run/)
+  })
+
+  it('protects the pinned user during provider-loop fitting and fails if fixed input cannot fit', () => {
+    const contextContributions = createCacheAwareContributions({ summary: 'Earlier progress' })
+    const pinned = { role: 'user' as const, content: 'original task' }
+    const active = { role: 'user' as const, content: 'active request' }
+    const fixed = [
+      { role: 'system' as const, content: 'System' },
+      pinned,
+      contextContributions.checkpoint.message!,
+      active
+    ]
+    const fitted = fitCacheAwareMessagesToContextWindow(
+      [
+        fixed[0],
+        pinned,
+        contextContributions.checkpoint.message!,
+        { role: 'user', content: `old request ${'x'.repeat(400)}` },
+        { role: 'assistant', content: `old answer ${'y'.repeat(400)}` },
+        active
+      ],
+      estimateMessagesTokens(fixed) + 1,
+      0,
+      contextContributions,
+      0,
+      hashJsonData(pinned)
+    )
+
+    expect(fitted).toEqual(fixed)
+    expect(() =>
+      fitCacheAwareMessagesToContextWindow(
+        fixed,
+        Math.max(1, estimateMessagesTokens(fixed) - 1),
+        0,
+        contextContributions,
+        0,
+        hashJsonData(pinned)
+      )
+    ).toThrow(/cannot fit within the model context window/)
+  })
+
+  it('fails closed when pinned-user identity drifts before provider-loop fitting', () => {
+    const pinned = { role: 'user' as const, content: 'original task' }
+    expect(() =>
+      fitCacheAwareMessagesToContextWindow(
+        [
+          { role: 'system', content: 'System' },
+          { role: 'user', content: 'changed task' },
+          { role: 'user', content: 'active request' }
+        ],
+        10_000,
+        100,
+        createCacheAwareContributions(),
+        0,
+        hashJsonData(pinned)
+      )
+    ).toThrow(/Pinned initial user instruction/)
+  })
+
   it('projects historical root Skill views as markers while preserving active resume bodies', () => {
     const record = makeAssistantWithRootSkillViewRecord(2, 'database-migration')
     const originalContent = record.content

@@ -112,6 +112,14 @@ const setup = async (props: Record<string, unknown> = {}) => {
           type: Boolean,
           default: false
         },
+        codeBlockOptions: {
+          type: Object,
+          default: undefined
+        },
+        themes: {
+          type: Array,
+          default: undefined
+        },
         mermaidProps: {
           type: Object,
           default: undefined
@@ -138,6 +146,9 @@ const setup = async (props: Record<string, unknown> = {}) => {
               'data-testid': 'node-renderer',
               'data-final': String(props.final),
               'data-code-block-stream': String(props.codeBlockStream),
+              'data-code-block-overflow': props.codeBlockOptions?.overflow,
+              'data-code-block-font-family': props.codeBlockOptions?.fontFamily,
+              'data-code-block-themes': props.themes?.join(','),
               'data-mermaid-strict': String(props.mermaidProps?.isStrict),
               'data-custom-id': props.customId,
               'data-content': props.content
@@ -191,6 +202,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
       default: NodeRenderer,
       NodeRenderer,
       removeCustomComponents: removeCustomComponentsMock,
+      resolveLanguageId: (language?: string) => language?.trim().toLowerCase() || 'plaintext',
       setCustomComponents: setCustomComponentsMock
     }
   })
@@ -305,10 +317,19 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('leaves generic code blocks on Markstream’s built-in Monaco path', async () => {
+  it('leaves generic code blocks on Markstream’s built-in enhanced path', async () => {
     const { getCustomComponents } = await setup({ mode: 'chat' })
 
     expect(getCustomComponents().code_block).toBeUndefined()
+  })
+
+  it('passes renderer-neutral code block options and themes', async () => {
+    const { wrapper } = await setup()
+    const renderer = wrapper.get('[data-testid="node-renderer"]')
+
+    expect(renderer.attributes('data-code-block-overflow')).toBe('wrap')
+    expect(renderer.attributes('data-code-block-font-family')).toBe('monospace')
+    expect(renderer.attributes('data-code-block-themes')).toBe('vitesse-dark,vitesse-light')
   })
 
   it('uses the built-in strict Mermaid renderer without a global custom registry', async () => {

@@ -30,12 +30,45 @@ export type {
 export type SessionStatus = 'idle' | 'generating' | 'error'
 export type PermissionMode = 'default' | 'auto_approve' | 'full_access'
 export type SessionCompactionStatus = 'idle' | 'compacting' | 'compacted'
+export type SessionCompactionBoundaryReason = 'summary_unavailable' | 'summary_rejected_larger'
 
 export interface SessionCompactionState {
   status: SessionCompactionStatus
   cursorOrderSeq: number
   summaryUpdatedAt: number | null
+  boundaryReason: SessionCompactionBoundaryReason | null
 }
+
+export interface SessionCompactionSnapshot {
+  state: SessionCompactionState
+  emitSeq: number
+  latestAnchorEntryId: number | null
+}
+
+export type SessionContextOccupancyFreshness = 'current' | 'stale' | 'unavailable'
+export type SessionContextOccupancySource = 'provider' | 'estimated'
+
+export type SessionContextOccupancySnapshot =
+  | {
+      freshness: 'current' | 'stale'
+      source: SessionContextOccupancySource
+      occupiedTokens: number
+      contextWindowTokens: number
+      requestSeq: number
+      manifestEntryId: number
+      providerAttemptEntryId: number | null
+      measuredAt: number
+    }
+  | {
+      freshness: 'unavailable'
+      source: null
+      occupiedTokens: null
+      contextWindowTokens: null
+      requestSeq: null
+      manifestEntryId: null
+      providerAttemptEntryId: null
+      measuredAt: null
+    }
 
 export interface SessionGenerationSettings {
   systemPrompt: string
@@ -402,6 +435,8 @@ export interface MessageMetadata {
   provider?: string
   messageType?: 'compaction' | 'workflow_result'
   compactionStatus?: 'compacting' | 'compacted'
+  compactionAttemptId?: string
+  compactionBoundaryReason?: SessionCompactionBoundaryReason | null
   summaryUpdatedAt?: number | null
   workflowRunId?: string
   workflowResultDeliveryId?: string
@@ -488,6 +523,16 @@ export interface UsageDashboardBreakdownItem {
   cachedInputTokens: number
 }
 
+export interface UsageDashboardCategoryItem {
+  id: 'chat' | 'compaction'
+  eventCount: number
+  knownUsageCount: number
+  unknownUsageCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
 export type RtkHealthStatus = 'checking' | 'healthy' | 'unhealthy'
 export type RtkRuntimeSource = 'bundled' | 'system' | 'none'
 export type RtkFailureStage = 'resolve' | 'version' | 'rewrite' | 'smoke' | 'gain' | 'runtime'
@@ -534,6 +579,7 @@ export interface UsageDashboardData {
   calendar: UsageDashboardCalendarDay[]
   providerBreakdown: UsageDashboardBreakdownItem[]
   modelBreakdown: UsageDashboardBreakdownItem[]
+  categoryBreakdown: UsageDashboardCategoryItem[]
   rtk: UsageDashboardRtkData
 }
 

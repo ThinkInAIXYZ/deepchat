@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "Pengesanan automatik pendaftaran MCP npm",
     "privacyModeManualActions": "Pemeriksaan manual dan muat semula manual terus tersedia.",
     "privacyModeIntegrations": "Penyepaduan pihak ketiga seperti MCP / Remote yang dikonfigurasikan sendiri tidak terjejas",
-    "autoCompaction": {
-      "title": "pemampatan automatik",
-      "enabled": "Dayakan pemampatan automatik",
-      "description": "Apabila perbualan menghampiri had tetingkap konteks model, DeepChat boleh meringkaskan sejarah lama secara automatik supaya sesi terus berjalan. Jika dinyahaktifkan, DeepChat tidak akan menjana ringkasan, tetapi masih akan memangkas paparan permintaan apabila perlu untuk mengelakkan ralat context-window mentah daripada penyedia.",
-      "thresholdLabel": "ambang pencetus",
-      "thresholdMin": "Pendahuluan ({value}%)",
-      "thresholdMax": "Ditunda ({value}%)",
-      "thresholdDescription": "Pemampatan bermula apabila penghunian prompt mencapai bahagian ini daripada belanjawan sejarah yang berkesan. Nilai yang lebih rendah menghasilkan penimbal yang lebih besar, dan nilai yang lebih tinggi mengekalkan lebih banyak konteks asal.",
-      "retainPairsLabel": "Simpan mesej terbaharu",
-      "retainPairsValue": "pasangan {count}",
-      "retainPairsDescription": "Pasangan mesej user dan assistant yang terbaharu siap sentiasa dikekalkan dan tidak mengambil bahagian dalam pemampatan. query terakhir semasa tidak dikira."
-    },
     "searchAssistantModel": "model pembantu",
     "selectModel": "Pilih model",
     "proxyMode": "mod proksi",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "tekan cache",
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Kadar hit cache",
-      "cacheHitRateDescription": "Nisbah prompt token cache kepada jumlah input token.",
+      "cacheHitRateDescription": "Token prompt cache dibahagikan dengan token input daripada rekod penggunaan yang melaporkan metrik cache.",
       "recordingStartedAt": "Masa mula statistik",
       "recordingStartedAtDescription": "Masa rekod usage terawal dalam papan kanban semasa.",
       "withDeepChatDaysLabel": "Bilangan hari persahabatan",
@@ -909,6 +897,15 @@
       "providerDescription": "Disusun mengikut jumlah token.",
       "modelTitle": "Kedudukan model",
       "modelDescription": "10 model teratas mengikut jumlah token.",
+      "categoryTitle": "Penggunaan mengikut aktiviti",
+      "categoryDescription": "Asingkan penggunaan perbualan daripada panggilan model dalaman untuk pemadatan konteks.",
+      "category": {
+        "chat": "Perbualan",
+        "compaction": "Pemadatan konteks"
+      },
+      "chatEvents": "{count} mesej",
+      "compactionEvents": "{count} panggilan model",
+      "unknownUsage": "{count} penggunaan tidak diketahui",
       "messages": "Mesej {count}",
       "empty": "Tiada data terperinci untuk dipaparkan lagi."
     },

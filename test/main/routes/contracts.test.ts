@@ -9,6 +9,7 @@ import {
   contextMenuTranslateRequestedEvent,
   mcpSamplingRequestEvent,
   settingsChangedEvent,
+  sessionsCompactionChangedEvent,
   sessionsUpdatedEvent,
   projectEnvironmentsChangedEvent,
   configLanguageChangedEvent
@@ -43,6 +44,8 @@ import {
   sessionsCreateRoute,
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
+  sessionsGetCompactionSnapshotRoute,
+  sessionsGetContextOccupancyRoute,
   sessionsListRoute,
   sessionsQueuePendingInputRoute,
   sessionsRestoreRoute,
@@ -271,6 +274,8 @@ describe('main kernel contracts', () => {
         'sessions.getAcpSessionCommands',
         'sessions.getAcpSessionConfigOptions',
         'sessions.getAgents',
+        'sessions.getCompactionSnapshot',
+        'sessions.getContextOccupancy',
         'sessions.getDisabledAgentTools',
         'sessions.getGenerationSettings',
         'sessions.getPermissionMode',
@@ -1074,6 +1079,13 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('rejects a zero session context window at the route boundary', () => {
+    expect(() => SessionGenerationSettingsPatchSchema.parse({ contextLength: 0 })).toThrow()
+    expect(SessionGenerationSettingsPatchSchema.parse({ contextLength: 1 })).toEqual({
+      contextLength: 1
+    })
+  })
+
   it('accepts auto approve in session permission mode contracts', () => {
     expect(
       sessionsSetPermissionModeRoute.input.parse({
@@ -1157,7 +1169,37 @@ describe('main kernel contracts', () => {
       DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
         dashboard
       })
-    ).toEqual({ dashboard })
+    ).toEqual({ dashboard: { ...dashboard, categoryBreakdown: [] } })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
+        dashboard: {
+          ...dashboard,
+          categoryBreakdown: [
+            {
+              id: 'compaction',
+              eventCount: 2,
+              knownUsageCount: 1,
+              unknownUsageCount: 1,
+              inputTokens: 100,
+              outputTokens: 20,
+              totalTokens: 120
+            }
+          ]
+        }
+      })
+    ).toMatchObject({
+      dashboard: {
+        categoryBreakdown: [
+          {
+            id: 'compaction',
+            eventCount: 2,
+            knownUsageCount: 1,
+            unknownUsageCount: 1
+          }
+        ]
+      }
+    })
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
@@ -1347,8 +1389,84 @@ describe('main kernel contracts', () => {
       state: {
         status: 'compacted',
         cursorOrderSeq: 3,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       }
+    })
+
+    expect(
+      sessionsGetCompactionSnapshotRoute.output.parse({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 5,
+          summaryUpdatedAt: null,
+          boundaryReason: 'summary_unavailable'
+        },
+        emitSeq: 7,
+        latestAnchorEntryId: 19
+      })
+    ).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_unavailable'
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    })
+
+    expect(
+      sessionsGetContextOccupancyRoute.output.parse({
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 24_000,
+        contextWindowTokens: 32_000,
+        requestSeq: 3,
+        manifestEntryId: 20,
+        providerAttemptEntryId: 21,
+        measuredAt: 123
+      })
+    ).toEqual({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
+    })
+    expect(() =>
+      sessionsGetContextOccupancyRoute.output.parse({
+        freshness: 'unavailable',
+        source: 'estimated',
+        occupiedTokens: null,
+        contextWindowTokens: null,
+        requestSeq: null,
+        manifestEntryId: null,
+        providerAttemptEntryId: null,
+        measuredAt: null
+      })
+    ).toThrow()
+
+    expect(
+      sessionsCompactionChangedEvent.payload.parse({
+        sessionId: 'session-1',
+        status: 'compacting',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: null,
+        emitSeq: 8,
+        latestAnchorEntryId: 19
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: null,
+      boundaryReason: null,
+      emitSeq: 8,
+      latestAnchorEntryId: 19
     })
   })
 

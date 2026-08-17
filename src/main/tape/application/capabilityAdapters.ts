@@ -90,6 +90,9 @@ export function createDeepChatLoopTapePort(
     getMaxProviderAttemptRequestSeq: (
       ...args: Parameters<DeepChatLoopTapePort['getMaxProviderAttemptRequestSeq']>
     ) => source.getMaxProviderAttemptRequestSeq(...args),
+    getPendingProviderContextPressure: (
+      ...args: Parameters<DeepChatLoopTapePort['getPendingProviderContextPressure']>
+    ) => source.getPendingProviderContextPressure(...args),
     commitRunStarted: (input: Parameters<DeepChatLoopTapePort['commitRunStarted']>[0]) =>
       source.commitRunStarted(input),
     commitDispatch: (input: Parameters<DeepChatLoopTapePort['commitDispatch']>[0]) =>

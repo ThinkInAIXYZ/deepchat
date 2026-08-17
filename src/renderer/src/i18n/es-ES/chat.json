@@ -143,10 +143,19 @@
   "compaction": {
     "compacting": "Compactando el contexto...",
     "compacted": "El contexto se ha compactado",
+    "compactedWithoutSummary": "El contexto se ha compactado sin un resumen",
+    "compactedWithoutLargerSummary": "El contexto se ha compactado sin usar un resumen más grande",
     "commandDescription": "Compactar el contexto de la conversación",
     "noopTitle": "Sin contexto para compactar",
     "noopDescription": "Aún no hay historial de conversación nuevo que compactar.",
     "failedTitle": "La compactación ha fallado"
+  },
+  "contextOccupancy": {
+    "label": "Uso del contexto",
+    "details": "{used} de {capacity} tokens",
+    "provider": "Medido por el proveedor",
+    "estimated": "Estimado desde la vista de solicitud",
+    "stale": "Obsoleto tras cambiar el modelo, la ventana o la compactación"
   },
   "rateLimit": {
     "queueTooltip": "{count} peticiones en cola, intervalo de {interval}s",

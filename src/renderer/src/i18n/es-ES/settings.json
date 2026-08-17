@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "Detección automática del registro npm de MCP",
     "privacyModeManualActions": "Las comprobaciones manuales y las acciones de actualización manual permanecen disponibles.",
     "privacyModeIntegrations": "Las integraciones de terceros configuradas permanecen disponibles.",
-    "autoCompaction": {
-      "title": "Compactación automática",
-      "enabled": "Habilitar compactación automática",
-      "description": "Cuando una conversación se acerca al límite de la ventana de contexto del modelo, DeepChat puede resumir automáticamente el historial antiguo para que la sesión continúe. Si está desactivado, DeepChat no generará resúmenes, pero seguirá recortando la vista de la solicitud cuando sea necesario para evitar errores sin procesar de context-window del proveedor.",
-      "thresholdLabel": "Umbral de activación",
-      "thresholdMin": "Temprano ({value}%)",
-      "thresholdMax": "Tarde ({value}%)",
-      "thresholdDescription": "Inicia la compactación cuando el uso del prompt alcanza esta proporción del presupuesto efectivo de historial. Los valores más bajos dejan más margen; los más altos conservan más contexto original.",
-      "retainPairsLabel": "Conservar pares de mensajes recientes",
-      "retainPairsValue": "{count} pares",
-      "retainPairsDescription": "Mantiene fuera de la compactación los pares recientes ya completados de usuario y asistente. La consulta actual no se incluye."
-    },
     "searchAssistantModel": "Modelo asistente",
     "selectModel": "Seleccionar modelo",
     "proxyMode": "Modo proxy",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "En caché",
       "cachedTokensUncachedLabel": "sin caché",
       "cacheHitRate": "Tasa de aciertos de caché",
-      "cacheHitRateDescription": "token de prompt en caché divididos por el total de token de entrada.",
+      "cacheHitRateDescription": "Tokens de prompt en caché divididos por los tokens de entrada de registros de uso con métricas de caché.",
       "recordingStartedAt": "Grabación iniciada",
       "recordingStartedAtDescription": "El registro de uso más antiguo almacenado actualmente en este panel.",
       "withDeepChatDaysLabel": "dias juntos",
@@ -909,6 +897,15 @@
       "providerDescription": "Ordenados por el total de tokens.",
       "modelTitle": "Mejores modelos",
       "modelDescription": "Los 10 mejores modelos por el total de tokens.",
+      "categoryTitle": "Uso por actividad",
+      "categoryDescription": "Separa el uso de las conversaciones de las llamadas internas al modelo para compactar el contexto.",
+      "category": {
+        "chat": "Conversación",
+        "compaction": "Compactación del contexto"
+      },
+      "chatEvents": "{count} mensajes",
+      "compactionEvents": "{count} llamadas al modelo",
+      "unknownUsage": "{count} usos desconocidos",
       "messages": "{count} mensajes",
       "empty": "Aún no hay datos desglosados."
     },

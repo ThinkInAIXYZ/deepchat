@@ -225,11 +225,22 @@ synthetic contribution、anchor、token budget provenance；contract-bearing Dee
 记录自己的 view；不得依赖无法复现的隐式 context builder 状态。summary、reconstruction 和 Memory
 生成的 synthetic user contribution 只记录 source entry ID 与 content hash，不在 manifest 中复制原文。
 
-Contract-bearing DeepChat child 使用 `cache_aware_context_v1` / `cache-aware-v1`、schema version 5 和
-manifest hash version 3。普通 interactive chat 与 ACP compatibility 继续写 schema version 4，不构造或
-执行 ExecutionContract；schema version 1-4 与其历史 hash 语义继续兼容读取且不得原地重写。
-`legacy_context_v1` 与 `legacy-v1` builder 同样保留兼容路径。tool loop 和 context pressure 必须继承
-初始 projection 的 synthetic provenance，不能退化为仅按 message role 猜测来源。
+新的 cache-aware View 使用 `cache_aware_context_v2` / `cache-aware-v2`。它从同一次 effective Tape
+projection 选择当前 incarnation 第一条有效 user fact，按 system、pinned first user、checkpoint、retained
+tail、active turn 的顺序构造请求；pin 不复制或改写 Tape，也不改变连续 reconstruction cursor。该
+authoritative ref 必须携带最新 effective source entry、message/order identity 与精确 provider-message
+hash；写入前还必须用 Run-local raw source-content hash 校验 effective source。只有该消息仍位于受保护
+前缀时才能跨 tool loop 或 context pressure 继承。缺失 Tape source、前缀漂移、raw source-content hash
+变化或 protected budget 无法容纳时失败关闭，不得伪装成 synthetic provenance 或把其他同文消息归因
+给首条 user fact。初始 View 固定该 Run 的 pin identity；后续 recovery 只能验证并继承，不能从变化后
+的 history 重新选择另一个 pin，初始无 pin 时也不能在同一 Run 中临时引入。
+
+Contract-bearing DeepChat child 使用对应请求的 cache-aware builder、schema version 5 和 manifest hash
+version 3。普通 interactive chat 与 ACP compatibility 继续写 schema version 4，不构造或执行
+ExecutionContract；schema version 1-4 与其历史 hash 语义继续兼容读取且不得原地重写。
+`cache_aware_context_v1` / `cache-aware-v1` 与 `legacy_context_v1` / `legacy-v1` builder 均保留显式兼容
+路径。tool loop 和 context pressure 必须继承初始 projection 的 synthetic 与 pinned provenance，不能
+退化为仅按 message role 或内容相等猜测来源。
 
 每个 schema-v5 manifest 内嵌一个与 provider payload 同时构造的 immutable `ExecutionContract`，包含：
 
@@ -293,16 +304,24 @@ provider candidate
   -> compact 较旧的已闭合超大 tool result，保留最新闭合 unit 的完整证据
   -> 仍有压力：允许 compact 最新闭合 unit
   -> 仍有压力：尝试 semantic summary
-  -> summary 不可用：原子写 boundary-only reconstruction anchor
+  -> canonical checkpoint 严格小于它替换的当前 checkpoint + 新隐藏 View 时才提交
+  -> summary 不可用或不收缩：原子写 boundary-only reconstruction anchor
   -> 从 Tape 与当前内存 active turn 重建 View
   -> semantic recovery 仅在新 View 严格更小时生效
   -> 必要时缩小 output reserve 做一次 strict retry
   -> 每个通过 fit/change 或显式 output-reduction guard 的新 payload 创建新的 requestSeq / ViewManifest
 ```
 
-boundary-only anchor 使用稳定的 `summary_unavailable` reason 和有界 `summaryGap` coverage；不保存
-provider error、stack、时间戳或 secret。连续 gap 合并为最新边界上的一个区间；旧有效 summary 只以
-`priorSummary` 作为部分上下文，不能伪装成该边界新生成的 summary。取消 summary 时不提交边界。
+boundary-only anchor 使用 allowlisted 的 `summary_unavailable` 或
+`summary_rejected_larger` reason 和有界 `summaryGap` coverage；不保存 provider error、stack、时间戳或
+secret。连续 gap 合并为最新边界上的一个区间；旧有效 summary 只以 `priorSummary` 作为部分上下文，
+不能伪装成该边界新生成的 summary。两类 gap 都保留 Tape recall 指引并在后续成功 summary 时回填；
+取消 summary 时不提交边界。
+
+成功 summary 的 checkpoint 仅在 owning reconstruction anchor 带合法 `range` 时渲染稳定的
+orderSeq coverage 和 `tape_search` / `tape_context` recall 指引；legacy、仅有 `priorSummary` 或无
+range anchor 不推测来源。provenance 与 summary 一起进入 synthetic contribution hash 和收缩比较，
+不能成为未计预算的隐式 prompt。
 
 active turn 不能通过重放原 user prompt 恢复，因为 tool 可能已经产生外部副作用。运行时只能压缩
 assistant tool-call 与其全部结果均已闭合的 unit，保留 call/result 配对，并保护 runtime Skill、provider

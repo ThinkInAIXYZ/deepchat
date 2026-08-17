@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "Standardmodel",
       "chatModel": "Standard chatmodel"
-    },
-    "autoCompaction": {
-      "title": "Automatisk komprimering",
-      "enabled": "Aktiver automatisk komprimering",
-      "description": "Når en samtale nærmer sig modellens grænse for kontekstvinduet, kan DeepChat automatisk opsummere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, genererer DeepChat ikke opsummeringer, men trimmer stadig forespørgselsvisningen efter behov for at undgå rå context-window-fejl fra udbyderen.",
-      "thresholdLabel": "Udløsningstærskel",
-      "thresholdMin": "Tidligt ({value}%)",
-      "thresholdMax": "Sent ({value}%)",
-      "thresholdDescription": "Start komprimering, når promptforbruget når denne andel af det effektive historikbudget. Lavere værdier giver mere luft; højere værdier bevarer mere rå kontekst.",
-      "retainPairsLabel": "Behold seneste beskedpar",
-      "retainPairsValue": "{count} par",
-      "retainPairsDescription": "Behold de senest fuldførte bruger-/assistent-par uden for komprimeringen. Den aktuelle forespørgsel er ikke inkluderet."
     }
   },
   "data": {
@@ -445,7 +433,7 @@
       "cachedTokensCachedLabel": "Cachelagret",
       "cachedTokensUncachedLabel": "Ikke cachelagret",
       "cacheHitRate": "Cachetræfrate",
-      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
+      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med inputtokens fra brugsregistreringer med cachemålinger.",
       "recordingStartedAt": "Første registrering",
       "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
       "withDeepChatDaysLabel": "Dage sammen",
@@ -478,6 +466,15 @@
       "providerDescription": "Rangeret efter samlet antal tokens.",
       "modelTitle": "Modelrangliste",
       "modelDescription": "Top 10 modeller efter samlet antal tokens.",
+      "categoryTitle": "Forbrug efter aktivitet",
+      "categoryDescription": "Adskil samtaleforbrug fra interne modelkald til kontekstkomprimering.",
+      "category": {
+        "chat": "Samtale",
+        "compaction": "Kontekstkomprimering"
+      },
+      "chatEvents": "{count} beskeder",
+      "compactionEvents": "{count} modelkald",
+      "unknownUsage": "{count} med ukendt forbrug",
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },

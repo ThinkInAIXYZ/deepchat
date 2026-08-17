@@ -12,8 +12,8 @@
       :smooth-streaming="resolvedSmoothStreaming"
       :typewriter="resolvedTypewriter"
       :code-block-stream="isStreaming"
-      :code-renderer="codeRenderer"
-      :codeBlockProps="codeBlockProps"
+      :themes="codeBlockThemes"
+      :code-block-options="codeBlockOptions"
       :mermaid-props="mermaidProps"
       :fade="false"
       :batch-rendering="true"
@@ -30,9 +30,6 @@
       :node-virtual="resolvedNodeVirtual"
       :max-live-nodes="maxLiveNodes"
       :live-node-buffer="liveNodeBuffer"
-      :codeBlockDarkTheme="codeBlockDarkTheme"
-      :codeBlockLightTheme="codeBlockLightTheme"
-      :codeBlockMonacoOptions="codeBlockMonacoOption"
       @copy="$emit('copy', $event)"
       @handle-artifact-click="handleArtifactClick"
       @click="handleRendererClick"
@@ -59,6 +56,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
 import type { MarkdownLinkContext } from './linkTypes'
 import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
+import { normalizeMarkstreamCodeFenceLanguages } from '@/lib/markstreamLanguage'
 
 const props = withDefaults(
   defineProps<{
@@ -85,22 +83,11 @@ const props = withDefaults(
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
 const artifactStore = useArtifactStore()
-const UNSUPPORTED_CODE_FENCE_LANGUAGES = new Set(['desktop-local-file'])
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
 const sessionClient = createSessionClient()
-const normalizeCodeFenceLanguages = (content: string): string =>
-  content.replace(/(^|\n)(`{3,}|~{3,})([^\r\n]*)/g, (fence, lineStart, delimiter, info) => {
-    const [language, ...meta] = info.trim().split(/\s+/)
-    if (!UNSUPPORTED_CODE_FENCE_LANGUAGES.has(language?.toLowerCase())) {
-      return fence
-    }
-
-    return `${lineStart}${delimiter}plaintext${meta.length ? ` ${meta.join(' ')}` : ''}`
-  })
-
-const renderContent = ref(normalizeCodeFenceLanguages(props.content))
+const renderContent = ref(normalizeMarkstreamCodeFenceLanguages(props.content))
 let searchResultsPromise: ReturnType<typeof sessionClient.getSearchResults> | null = null
 let activeReferenceElement: HTMLElement | null = null
 let rendererContextRevision = 0
@@ -129,14 +116,9 @@ const customRendererId = computed(() =>
   ].join('::')
 )
 const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
-const codeBlockDarkTheme = codeBlockThemes[0]
-const codeBlockLightTheme = codeBlockThemes[1]
-const codeBlockMonacoOption = computed(() => ({
+const codeBlockOptions = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  wordWrap: 'on' as const
-}))
-const codeBlockProps = computed(() => ({
-  themes: [...codeBlockThemes]
+  overflow: 'wrap' as const
 }))
 const mermaidProps = { isStrict: true } as const
 const NESTED_NODE_ARRAY_KEYS = ['children', 'items', 'rows', 'cells', 'term', 'definition'] as const
@@ -222,9 +204,6 @@ const resolvedSmoothStreaming = computed(() => {
   return 'auto' as const
 })
 const resolvedTypewriter = computed(() => (isStreaming.value ? ('simple' as const) : false))
-// In current Markstream, `monaco` is the compatibility name for the enhanced stream-diffs
-// CodeBlockNode. Keep it stable: Markstream owns the streaming <pre> -> final surface handoff.
-const codeRenderer = 'monaco' as const
 const STREAM_INITIAL_RENDER_BATCH_SIZE = 10
 const STREAM_RENDER_BATCH_SIZE = 14
 const STREAM_RENDER_BATCH_DELAY_MS = 8
@@ -400,7 +379,7 @@ const updateContentSlow = useDebounceFn(
 
 const updateContent = (value: string, commitImmediately: boolean) => {
   const revision = ++contentRevision
-  const normalizedValue = normalizeCodeFenceLanguages(value)
+  const normalizedValue = normalizeMarkstreamCodeFenceLanguages(value)
 
   // Main already coalesces renderer snapshots and Markstream owns visible pacing.
   // Stream updates, including the final handoff, must not pass through a third timer.

@@ -122,10 +122,15 @@ function createMockDeepChatAgent() {
     linkSubagentTape: linkTape,
     getActiveGeneration: vi.fn().mockReturnValue(null),
     cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
-    getSessionCompactionState: vi.fn().mockResolvedValue({
-      status: 'idle',
-      cursorOrderSeq: 1,
-      summaryUpdatedAt: null
+    getSessionCompactionSnapshot: vi.fn().mockResolvedValue({
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null,
+        boundaryReason: null
+      },
+      emitSeq: 0,
+      latestAnchorEntryId: null
     }),
     compactSession: vi.fn().mockResolvedValue({
       compacted: false,
@@ -3272,7 +3277,7 @@ describe('Session application coordinators', () => {
     })
   })
 
-  describe('getSessionCompactionState', () => {
+  describe('getSessionCompactionSnapshot', () => {
     it('delegates to the DeepChat backend', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -3283,19 +3288,29 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 2000
       })
-      deepChatAgent.getSessionCompactionState.mockResolvedValueOnce({
-        status: 'compacted',
-        cursorOrderSeq: 9,
-        summaryUpdatedAt: 123
+      deepChatAgent.getSessionCompactionSnapshot.mockResolvedValueOnce({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 9,
+          summaryUpdatedAt: 123,
+          boundaryReason: null
+        },
+        emitSeq: 4,
+        latestAnchorEntryId: 17
       })
 
-      const state = await turn.getSessionCompactionState('s1')
+      const snapshot = await turn.getSessionCompactionSnapshot('s1')
 
-      expect(deepChatAgent.getSessionCompactionState).toHaveBeenCalledWith('s1')
-      expect(state).toEqual({
-        status: 'compacted',
-        cursorOrderSeq: 9,
-        summaryUpdatedAt: 123
+      expect(deepChatAgent.getSessionCompactionSnapshot).toHaveBeenCalledWith('s1')
+      expect(snapshot).toEqual({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 9,
+          summaryUpdatedAt: 123,
+          boundaryReason: null
+        },
+        emitSeq: 4,
+        latestAnchorEntryId: 17
       })
     })
 
@@ -3310,13 +3325,18 @@ describe('Session application coordinators', () => {
         updated_at: 2000
       })
 
-      await expect(turn.getSessionCompactionState('s-acp')).resolves.toEqual({
-        status: 'idle',
-        cursorOrderSeq: 1,
-        summaryUpdatedAt: null
+      await expect(turn.getSessionCompactionSnapshot('s-acp')).resolves.toEqual({
+        state: {
+          status: 'idle',
+          cursorOrderSeq: 1,
+          summaryUpdatedAt: null,
+          boundaryReason: null
+        },
+        emitSeq: 0,
+        latestAnchorEntryId: null
       })
 
-      expect(deepChatAgent.getSessionCompactionState).not.toHaveBeenCalled()
+      expect(deepChatAgent.getSessionCompactionSnapshot).not.toHaveBeenCalled()
     })
 
     it('rejects direct ACP and compatibility ACP manual compaction', async () => {

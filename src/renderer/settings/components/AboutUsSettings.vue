@@ -86,6 +86,7 @@
             :isDark="themeStore.isDark"
             :content="upgrade.updateInfo.releaseNotes"
             :typewriter="false"
+            :final="true"
             :codeBlockStream="false"
           ></NodeRenderer>
         </div>
@@ -195,6 +196,7 @@
             :isDark="themeStore.isDark"
             :content="t('searchDisclaimer')"
             :typewriter="false"
+            :final="true"
             :codeBlockStream="false"
           ></NodeRenderer>
         </DialogDescription>

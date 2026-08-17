@@ -26,12 +26,14 @@ import { isDeepStrictEqual } from 'node:util'
 import type {
   DeepChatProviderAttemptIdentity,
   DeepChatProviderAttemptOrigin,
+  DeepChatProviderContextPressureObservation,
   DeepChatProviderFailureClassification,
   DeepChatProviderRequestOrigin,
   DeepChatProviderRetryDecision
 } from '@shared/types/provider-attempt'
 import type {
   DeepChatTapeSkillContext,
+  DeepChatTapeViewContextBuilderVersion,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
@@ -98,11 +100,12 @@ export interface ContextPressureRecovery<TSummary> {
     messages: ChatMessage[]
     reserveTokens: number
     minimumProtectedTailCount: number
+    pinnedFirstUserContentHash?: string
   }): ChatMessage[]
-  rebuildAfterCompaction?(input: {
-    summary: TSummary
-    requestMessages: ChatMessage[]
-  }): ChatMessage[]
+  rebuildAfterCompaction(input: { summary: TSummary; requestMessages: ChatMessage[] }): {
+    messages: ChatMessage[]
+    pinnedFirstUserContentHash?: string
+  }
   measure(messages: ChatMessage[]): number
   assertCurrent(): void
 }
@@ -183,7 +186,7 @@ export interface ProviderAttemptManifestContext<TSelection> {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
@@ -200,7 +203,7 @@ export interface ProviderAttemptManifestInput<TSelection> {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
   syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
   executionContract?: DeepChatExecutionContract
   runId?: string
@@ -242,7 +245,7 @@ export interface ProviderAttemptExecutionContractBuildInput {
   temperature: number
   maxTokens: number
   tools: MCPToolDefinition[]
-  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
 }
 
 export interface ProviderAttemptExecutionContractPort {
@@ -334,6 +337,7 @@ export interface ProviderAttemptOutcomeInput {
   errorCode: string | null
   retryDelayMs: number | null
   usage: ProviderAttemptUsage | null
+  contextPressure: DeepChatProviderContextPressureObservation | null
 }
 
 export interface ProviderAttemptOutcomePort {
@@ -370,6 +374,47 @@ function providerAttemptUsageFromEvent(event: UsageStreamEvent): ProviderAttempt
         }
       : {})
   }
+}
+
+function detectProviderContextPressure(input: {
+  bypassContextBudget: boolean
+  contextWindowTokens: number
+  status: ProviderAttemptOutcomeInput['status']
+  stopReason: ProviderRoundStopReason | null
+  usage: ProviderAttemptUsage | null
+}): DeepChatProviderContextPressureObservation | null {
+  if (
+    input.bypassContextBudget ||
+    input.status !== 'completed' ||
+    !input.usage ||
+    !Number.isSafeInteger(input.contextWindowTokens) ||
+    input.contextWindowTokens <= 0
+  ) {
+    return null
+  }
+
+  if (input.stopReason === 'complete' && input.usage.inputTokens > input.contextWindowTokens) {
+    return {
+      kind: 'successful_prompt_overflow',
+      contextWindowTokens: input.contextWindowTokens,
+      thresholdTokens: input.contextWindowTokens
+    }
+  }
+
+  const thresholdTokens = Math.max(1, Math.ceil(input.contextWindowTokens * 0.99))
+  if (
+    input.stopReason === 'max_tokens' &&
+    input.usage.outputTokens === 0 &&
+    input.usage.inputTokens >= thresholdTokens
+  ) {
+    return {
+      kind: 'zero_output_length_at_limit',
+      contextWindowTokens: input.contextWindowTokens,
+      thresholdTokens
+    }
+  }
+
+  return null
 }
 
 function aggregateProviderAttemptUsage(
@@ -773,20 +818,15 @@ export class DeepChatContextCoordinator {
     input.contextContributions.checkpoint = checkpoint
     let fittedMessages: ChatMessage[]
     try {
-      const messages = input.rebuildAfterCompaction
-        ? input.rebuildAfterCompaction({
-            summary: compaction.summary,
-            requestMessages: input.requestMessages
-          })
-        : this.replaceCheckpointMessage(
-            input.requestMessages,
-            previousCheckpoint.message,
-            checkpoint.message
-          )
+      const rebuilt = input.rebuildAfterCompaction({
+        summary: compaction.summary,
+        requestMessages: input.requestMessages
+      })
       fittedMessages = input.fit({
-        messages,
+        messages: rebuilt.messages,
         reserveTokens: input.requestedMaxTokens + input.toolReserveTokens,
-        minimumProtectedTailCount: input.minimumProtectedTailCount
+        minimumProtectedTailCount: input.minimumProtectedTailCount,
+        pinnedFirstUserContentHash: rebuilt.pinnedFirstUserContentHash
       })
     } catch (error) {
       input.contextContributions.checkpoint = previousCheckpoint
@@ -850,6 +890,7 @@ export class DeepChatContextCoordinator {
     }): Promise<{
       providerMessages: ChatMessage[]
       providerMaxTokens: number
+      contextWindowTokens: number
       requestSeq: number
       executionContract: DeepChatExecutionContract | null
       skillAuthority: ProviderAttemptSkillAuthority | null
@@ -1210,6 +1251,7 @@ export class DeepChatContextCoordinator {
       return {
         providerMessages,
         providerMaxTokens,
+        contextWindowTokens: manifestContextLength,
         requestSeq,
         executionContract,
         skillAuthority,
@@ -1322,6 +1364,7 @@ export class DeepChatContextCoordinator {
         const {
           providerMessages,
           providerMaxTokens,
+          contextWindowTokens,
           requestSeq,
           executionContract,
           skillAuthority,
@@ -1497,7 +1540,14 @@ export class DeepChatContextCoordinator {
               httpStatus: failureAssessment?.metadata?.statusCode ?? null,
               errorCode: failureAssessment?.metadata?.code ?? null,
               retryDelayMs: retryPlan?.delayMs ?? null,
-              usage: observation.usage
+              usage: observation.usage,
+              contextPressure: detectProviderContextPressure({
+                bypassContextBudget: input.bypassContextBudget,
+                contextWindowTokens,
+                status,
+                stopReason: assessment.stopReason,
+                usage: observation.usage
+              })
             })
             outcomeAppended = true
             if (startedRetryNumber !== null) {
@@ -1654,7 +1704,14 @@ export class DeepChatContextCoordinator {
                 httpStatus: assessment.failureAssessment?.metadata?.statusCode ?? null,
                 errorCode: assessment.failureAssessment?.metadata?.code ?? null,
                 retryDelayMs: null,
-                usage: observation.usage
+                usage: observation.usage,
+                contextPressure: detectProviderContextPressure({
+                  bypassContextBudget: input.bypassContextBudget,
+                  contextWindowTokens,
+                  status: assessment.status,
+                  stopReason: assessment.stopReason,
+                  usage: observation.usage
+                })
               })
               if (startedRetryNumber !== null) {
                 emitProviderRetryLifecycleEvent(input.retryObserver, {
@@ -1699,27 +1756,5 @@ export class DeepChatContextCoordinator {
   private getLeadingSystemPrompt(messages: ChatMessage[]): string | null {
     const first = messages[0]
     return first?.role === 'system' && typeof first.content === 'string' ? first.content : null
-  }
-
-  private replaceCheckpointMessage(
-    messages: ChatMessage[],
-    previous: ChatMessage | null,
-    next: ChatMessage | null
-  ): ChatMessage[] {
-    const result = [...messages]
-    const searchOffset = result[0]?.role === 'system' ? 1 : 0
-    const hasPrevious =
-      Boolean(previous) &&
-      result[searchOffset]?.role === 'user' &&
-      result[searchOffset]?.content === previous?.content
-
-    if (hasPrevious && next) {
-      result[searchOffset] = next
-    } else if (hasPrevious) {
-      result.splice(searchOffset, 1)
-    } else if (next) {
-      result.splice(searchOffset, 0, next)
-    }
-    return result
   }
 }

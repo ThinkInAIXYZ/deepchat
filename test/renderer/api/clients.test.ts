@@ -1483,6 +1483,28 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(9, 'chat.plan.updated', expect.any(Function))
   })
 
+  it('reads the race-free compaction snapshot through the session route', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+
+    await sessionClient.getCompactionSnapshot('session-1')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('sessions.getCompactionSnapshot', {
+      sessionId: 'session-1'
+    })
+  })
+
+  it('reads context occupancy through the session route', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+
+    await sessionClient.getContextOccupancy('session-1')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('sessions.getContextOccupancy', {
+      sessionId: 'session-1'
+    })
+  })
+
   it('routes memory client calls through the shared registry names', async () => {
     const bridge = createBridge()
     const memoryClient = createMemoryClient(bridge)

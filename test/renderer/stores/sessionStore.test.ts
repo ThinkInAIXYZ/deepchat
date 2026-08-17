@@ -67,6 +67,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
   const sessionListeners: Array<(payload: any) => void> = []
   const sessionStatusListeners: Array<(payload: any) => void> = []
+  const sessionCompactionListeners: Array<(payload: any) => void> = []
 
   const sessionClient = {
     list: vi.fn().mockResolvedValue({ sessions: [] }),
@@ -97,12 +98,36 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       ),
     activate: vi.fn().mockResolvedValue({ activated: true }),
     deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
+    getCompactionSnapshot: vi.fn().mockResolvedValue({
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null,
+        boundaryReason: null
+      },
+      emitSeq: 0,
+      latestAnchorEntryId: null
+    }),
+    getContextOccupancy: vi.fn().mockResolvedValue({
+      freshness: 'unavailable',
+      source: null,
+      occupiedTokens: null,
+      contextWindowTokens: null,
+      requestSeq: null,
+      manifestEntryId: null,
+      providerAttemptEntryId: null,
+      measuredAt: null
+    }),
     onUpdated: vi.fn((listener: (payload: any) => void) => {
       sessionListeners.push(listener)
       return () => undefined
     }),
     onStatusChanged: vi.fn((listener: (payload: any) => void) => {
       sessionStatusListeners.push(listener)
+      return () => undefined
+    }),
+    onCompactionChanged: vi.fn((listener: (payload: any) => void) => {
+      sessionCompactionListeners.push(listener)
       return () => undefined
     })
   }
@@ -354,6 +379,11 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       handler(payload)
     }
   }
+  const emitSessionCompactionChange = (payload: unknown) => {
+    for (const handler of sessionCompactionListeners) {
+      handler(payload)
+    }
+  }
   return {
     store,
     settings,
@@ -369,7 +399,8 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     pageRouter,
     attachmentPreparationStore,
     emitSessionUpdate,
-    emitSessionStatusChange
+    emitSessionStatusChange,
+    emitSessionCompactionChange
   }
 }
 
@@ -1868,6 +1899,369 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(store.activeSession.value?.status).toBe('working')
     expect(invalidateRecentSessionView).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes context occupancy on activation and generation settlement', async () => {
+    const { store, sessionClient, emitSessionStatusChange } = await setupStore()
+    sessionClient.getContextOccupancy.mockResolvedValue({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 750,
+      contextWindowTokens: 1_000,
+      requestSeq: 2,
+      manifestEntryId: 10,
+      providerAttemptEntryId: 11,
+      measuredAt: 100
+    })
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await vi.waitFor(() => {
+      expect(store.activeContextOccupancy.value?.occupiedTokens).toBe(750)
+    })
+
+    sessionClient.getContextOccupancy.mockClear()
+    emitSessionStatusChange({ sessionId: 'session-a', status: 'generating', version: 1 })
+    expect(sessionClient.getContextOccupancy).not.toHaveBeenCalled()
+
+    emitSessionStatusChange({ sessionId: 'session-a', status: 'idle', version: 2 })
+    expect(sessionClient.getContextOccupancy).toHaveBeenCalledWith('session-a')
+  })
+
+  it('does not refresh context occupancy for a stale settled-status event', async () => {
+    const { store, sessionClient, emitSessionStatusChange } = await setupStore()
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    sessionClient.getContextOccupancy.mockClear()
+
+    emitSessionStatusChange({ sessionId: 'session-a', status: 'generating', version: 2 })
+    emitSessionStatusChange({ sessionId: 'session-a', status: 'idle', version: 1 })
+
+    expect(sessionClient.getContextOccupancy).not.toHaveBeenCalled()
+  })
+
+  it('refreshes context occupancy after a buffered compaction replacement', async () => {
+    const snapshot = createDeferred<any>()
+    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    sessionClient.getCompactionSnapshot.mockReturnValueOnce(snapshot.promise)
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    sessionClient.getContextOccupancy.mockClear()
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacted',
+      cursorOrderSeq: 7,
+      summaryUpdatedAt: null,
+      boundaryReason: 'summary_unavailable',
+      emitSeq: 2,
+      latestAnchorEntryId: 20
+    })
+    expect(sessionClient.getContextOccupancy).not.toHaveBeenCalled()
+
+    snapshot.resolve({
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null,
+        boundaryReason: null
+      },
+      emitSeq: 1,
+      latestAnchorEntryId: null
+    })
+    await vi.waitFor(() => {
+      expect(sessionClient.getContextOccupancy).toHaveBeenCalledWith('session-a')
+    })
+  })
+
+  it('refreshes context occupancy after a successful model update', async () => {
+    const { store, sessionClient } = await setupStore()
+    await store.applyBootstrapShell({ activeSessionId: 'session-1' })
+    sessionClient.getContextOccupancy.mockClear()
+
+    await store.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
+
+    expect(sessionClient.getContextOccupancy).toHaveBeenCalledWith('session-1')
+  })
+
+  it('rejects late context occupancy responses across session switches', async () => {
+    const first = createDeferred<any>()
+    const second = createDeferred<any>()
+    const { store, sessionClient } = await setupStore()
+    sessionClient.getContextOccupancy.mockReset()
+    sessionClient.getContextOccupancy
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+    first.resolve({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 900,
+      contextWindowTokens: 1_000,
+      requestSeq: 1,
+      manifestEntryId: 10,
+      providerAttemptEntryId: 11,
+      measuredAt: 100
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.activeContextOccupancy.value).toBeNull()
+
+    second.resolve({
+      freshness: 'stale',
+      source: 'estimated',
+      occupiedTokens: 300,
+      contextWindowTokens: 2_000,
+      requestSeq: 2,
+      manifestEntryId: 20,
+      providerAttemptEntryId: null,
+      measuredAt: 200
+    })
+    await vi.waitFor(() => {
+      expect(store.activeContextOccupancy.value).toMatchObject({
+        freshness: 'stale',
+        occupiedTokens: 300
+      })
+    })
+  })
+
+  it('retries a failed context occupancy snapshot once', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.getContextOccupancy.mockReset()
+    sessionClient.getContextOccupancy
+      .mockRejectedValueOnce(new Error('temporary IPC failure'))
+      .mockResolvedValueOnce({
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 600,
+        contextWindowTokens: 1_000,
+        requestSeq: 3,
+        manifestEntryId: 30,
+        providerAttemptEntryId: 31,
+        measuredAt: 300
+      })
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await vi.waitFor(() => {
+      expect(sessionClient.getContextOccupancy).toHaveBeenCalledTimes(2)
+      expect(store.activeContextOccupancy.value).toMatchObject({ occupiedTokens: 600 })
+    })
+  })
+
+  it('cancels a pending occupancy retry after switching sessions', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.getContextOccupancy.mockReset()
+    sessionClient.getContextOccupancy.mockRejectedValueOnce(new Error('temporary IPC failure'))
+    vi.useFakeTimers()
+
+    try {
+      await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+      await Promise.resolve()
+      await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+      await vi.runAllTimersAsync()
+
+      expect(sessionClient.getContextOccupancy).toHaveBeenCalledTimes(2)
+      expect(sessionClient.getContextOccupancy).toHaveBeenNthCalledWith(1, 'session-a')
+      expect(sessionClient.getContextOccupancy).toHaveBeenNthCalledWith(2, 'session-b')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('buffers compaction events until the active-session snapshot is applied', async () => {
+    const snapshot = createDeferred<any>()
+    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    sessionClient.getCompactionSnapshot.mockReturnValueOnce(snapshot.promise)
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacted',
+      cursorOrderSeq: 7,
+      summaryUpdatedAt: null,
+      boundaryReason: 'summary_rejected_larger',
+      emitSeq: 3,
+      latestAnchorEntryId: 30
+    })
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: null,
+      boundaryReason: null,
+      emitSeq: 2,
+      latestAnchorEntryId: 20
+    })
+    snapshot.resolve({
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null,
+        boundaryReason: null
+      },
+      emitSeq: 1,
+      latestAnchorEntryId: null
+    })
+    await Promise.resolve()
+
+    expect(sessionClient.onCompactionChanged.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionClient.getCompactionSnapshot.mock.invocationCallOrder[0]
+    )
+    expect(store.activeCompactionSnapshot.value).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 7,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_rejected_larger'
+      },
+      emitSeq: 3,
+      latestAnchorEntryId: 30
+    })
+
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: null,
+      boundaryReason: null,
+      emitSeq: 2,
+      latestAnchorEntryId: 20
+    })
+    expect(store.activeCompactionSnapshot.value?.emitSeq).toBe(3)
+  })
+
+  it('ignores a late compaction snapshot and event after switching sessions', async () => {
+    const firstSnapshot = createDeferred<any>()
+    const secondSnapshot = createDeferred<any>()
+    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    sessionClient.getCompactionSnapshot.mockReset()
+    sessionClient.getCompactionSnapshot
+      .mockReturnValueOnce(firstSnapshot.promise)
+      .mockReturnValueOnce(secondSnapshot.promise)
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacted',
+      cursorOrderSeq: 99,
+      summaryUpdatedAt: 999,
+      boundaryReason: null,
+      emitSeq: 99,
+      latestAnchorEntryId: 99
+    })
+    secondSnapshot.resolve({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 4,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_unavailable'
+      },
+      emitSeq: 4,
+      latestAnchorEntryId: 40
+    })
+    await Promise.resolve()
+    firstSnapshot.resolve({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 10,
+        summaryUpdatedAt: 100,
+        boundaryReason: null
+      },
+      emitSeq: 10,
+      latestAnchorEntryId: 100
+    })
+    await Promise.resolve()
+
+    expect(store.activeCompactionSnapshot.value).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 4,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_unavailable'
+      },
+      emitSeq: 4,
+      latestAnchorEntryId: 40
+    })
+  })
+
+  it('keeps buffered replacement state when the compaction snapshot fails', async () => {
+    const snapshot = createDeferred<any>()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    sessionClient.getCompactionSnapshot
+      .mockReturnValueOnce(snapshot.promise)
+      .mockRejectedValueOnce(new Error('snapshot retry failed'))
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacted',
+      cursorOrderSeq: 7,
+      summaryUpdatedAt: null,
+      boundaryReason: 'summary_unavailable',
+      emitSeq: 3,
+      latestAnchorEntryId: 30
+    })
+    snapshot.reject(new Error('snapshot failed'))
+
+    await vi.waitFor(() => {
+      expect(sessionClient.getCompactionSnapshot).toHaveBeenCalledTimes(2)
+      expect(store.activeCompactionSnapshot.value).toEqual({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 7,
+          summaryUpdatedAt: null,
+          boundaryReason: 'summary_unavailable'
+        },
+        emitSeq: 3,
+        latestAnchorEntryId: 30
+      })
+    })
+
+    emitSessionCompactionChange({
+      sessionId: 'session-a',
+      status: 'compacted',
+      cursorOrderSeq: 9,
+      summaryUpdatedAt: 400,
+      boundaryReason: null,
+      emitSeq: 4,
+      latestAnchorEntryId: 40
+    })
+    expect(store.activeCompactionSnapshot.value?.emitSeq).toBe(4)
+    expect(
+      warnSpy.mock.calls.filter(
+        ([message]) => message === '[sessionStore] Failed to synchronize compaction state:'
+      )
+    ).toHaveLength(1)
+    warnSpy.mockRestore()
+  })
+
+  it('recovers a compaction snapshot after one transient failure', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.getCompactionSnapshot.mockReset()
+    sessionClient.getCompactionSnapshot
+      .mockRejectedValueOnce(new Error('temporary IPC failure'))
+      .mockResolvedValueOnce({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 7,
+          summaryUpdatedAt: 100,
+          boundaryReason: null
+        },
+        emitSeq: 3,
+        latestAnchorEntryId: 30
+      })
+
+    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+
+    await vi.waitFor(() => {
+      expect(sessionClient.getCompactionSnapshot).toHaveBeenCalledTimes(2)
+      expect(store.activeCompactionSnapshot.value).toMatchObject({
+        state: { cursorOrderSeq: 7 },
+        emitSeq: 3
+      })
+    })
   })
 
   it('purges message tracking when a session is permanently removed', async () => {

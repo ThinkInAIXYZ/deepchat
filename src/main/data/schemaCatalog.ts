@@ -253,9 +253,15 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatUsageStatsTable(db),
     repairableColumns: {
       cache_write_input_tokens:
-        'ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;'
+        'ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER;',
+      usage_category:
+        "ALTER TABLE deepchat_usage_stats ADD COLUMN usage_category TEXT NOT NULL DEFAULT 'chat';",
+      compaction_attempt_id:
+        'ALTER TABLE deepchat_usage_stats ADD COLUMN compaction_attempt_id TEXT;',
+      provider_call_id: 'ALTER TABLE deepchat_usage_stats ADD COLUMN provider_call_id TEXT;',
+      provider_call_seq: 'ALTER TABLE deepchat_usage_stats ADD COLUMN provider_call_seq INTEGER;'
     },
-    typeCheckedColumns: ['cache_write_input_tokens']
+    typeCheckedColumns: ['usage_category', 'provider_call_seq', 'cache_write_input_tokens']
   },
   {
     name: 'deepchat_tape_entries',

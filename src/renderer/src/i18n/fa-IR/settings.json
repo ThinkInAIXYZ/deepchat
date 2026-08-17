@@ -99,18 +99,6 @@
     "defaultModel": {
       "title": "مدل پیش‌فرض",
       "chatModel": "مدل گفتگوی پیش‌فرض"
-    },
-    "autoCompaction": {
-      "title": "فشرده‌سازی خودکار",
-      "enabled": "فعال‌سازی فشرده‌سازی خودکار",
-      "description": "وقتی یک گفتگو به حد پنجرهٔ زمینهٔ مدل نزدیک می‌شود، DeepChat می‌تواند تاریخچهٔ قدیمی‌تر را به‌صورت خودکار خلاصه کند تا جلسه ادامه پیدا کند. اگر غیرفعال باشد، DeepChat خلاصه‌ای ایجاد نمی‌کند، اما در صورت نیاز همچنان نمای درخواست را کوتاه می‌کند تا تا حد امکان از خطاهای خام context-window ارائه‌دهنده جلوگیری شود.",
-      "thresholdLabel": "آستانهٔ فعال‌سازی",
-      "thresholdMin": "زودتر ({value}%)",
-      "thresholdMax": "دیرتر ({value}%)",
-      "thresholdDescription": "وقتی مصرف پرامپت به این نسبت از بودجهٔ مؤثر تاریخچه برسد، فشرده‌سازی شروع می‌شود. مقادیر کمتر فضای تنفس بیشتری می‌دهند؛ مقادیر بالاتر زمینهٔ خام بیشتری را حفظ می‌کنند.",
-      "retainPairsLabel": "نگه‌داری جفت‌های پیام اخیر",
-      "retainPairsValue": "{count} جفت",
-      "retainPairsDescription": "جدیدترین جفت‌های کاملِ کاربر و دستیار را خارج از فشرده‌سازی نگه می‌دارد. پرس‌وجوی فعلی شامل نمی‌شود."
     }
   },
   "notificationsHooks": {
@@ -512,7 +500,7 @@
       "cachedTokensCachedLabel": "کش‌شده",
       "cachedTokensUncachedLabel": "بدون کش",
       "cacheHitRate": "نرخ اصابت کش",
-      "cacheHitRateDescription": "نسبت توکن‌های کش‌شدهٔ پرامپت به کل توکن‌های ورودی.",
+      "cacheHitRateDescription": "نسبت توکن‌های کش‌شدهٔ پرامپت به توکن‌های ورودیِ رکوردهای دارای سنجهٔ کش.",
       "recordingStartedAt": "شروع ثبت",
       "recordingStartedAtDescription": "قدیمی‌ترین رکورد مصرفی که اکنون در این داشبورد نگه‌داری می‌شود.",
       "withDeepChatDaysLabel": "روزهای همراهی",
@@ -545,6 +533,15 @@
       "providerDescription": "بر اساس مجموع توکن‌ها رتبه‌بندی شده است.",
       "modelTitle": "رتبه‌بندی مدل‌ها",
       "modelDescription": "۱۰ مدل برتر بر اساس مجموع توکن‌ها.",
+      "categoryTitle": "مصرف بر اساس فعالیت",
+      "categoryDescription": "مصرف مکالمه را از فراخوانی‌های داخلی مدل برای فشرده‌سازی زمینه جدا می‌کند.",
+      "category": {
+        "chat": "مکالمه",
+        "compaction": "فشرده‌سازی زمینه"
+      },
+      "chatEvents": "{count} پیام",
+      "compactionEvents": "{count} فراخوانی مدل",
+      "unknownUsage": "{count} مورد با مصرف نامشخص",
       "messages": "{count} پیام",
       "empty": "هنوز داده‌ای برای نمایش جزئیات وجود ندارد."
     },

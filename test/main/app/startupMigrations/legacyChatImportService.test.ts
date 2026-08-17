@@ -128,7 +128,8 @@ describe('LegacyChatImportService', () => {
       {
         appendMessageRecord: vi.fn(() => 0),
         appendMessageReplacement: vi.fn(() => 0),
-        appendMessageRetraction: vi.fn(() => 0)
+        appendMessageRetraction: vi.fn(() => 0),
+        appendCompactionModelCall: vi.fn()
       },
       '/mock/legacy.db',
       notifyEnvironmentProjectionChanged

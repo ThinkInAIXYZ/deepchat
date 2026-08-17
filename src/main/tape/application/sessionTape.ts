@@ -21,7 +21,14 @@ import type {
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeMessageReplacementOptions, TapeToolFactInput } from '../domain/facts'
-import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
+import type {
+  TapeProviderAttemptInput,
+  TapeProviderContextPressureRecord
+} from '../domain/providerAttempt'
+import type {
+  TapeCompactionModelCallInput,
+  TapeCompactionModelCallReceipt
+} from '../domain/compactionUsage'
 import type {
   TapeSkillMaterializationInput,
   TapeSkillMaterializationRef,
@@ -53,6 +60,8 @@ import type {
   TapeMessageFactWriter,
   TapeProviderAttemptReader,
   TapeProviderAttemptWriter,
+  TapeCompactionModelCallReader,
+  TapeCompactionModelCallWriter,
   TapeToolSurfaceViewReader,
   TapeToolSurfaceViewWriter,
   ExecutionJournalAuditReader,
@@ -84,6 +93,7 @@ import {
 import type {
   TapeAnchorResult,
   TapeBackfillResult,
+  TapeContextOccupancyEvidence,
   TapeForkHandle,
   TapeInfo,
   TapeMigrationState,
@@ -100,6 +110,7 @@ import {
   type AgentTapeViewErrorCode
 } from './lineageService'
 import { TapeProviderAttemptService } from './providerAttemptService'
+import { TapeCompactionUsageService } from './compactionUsageService'
 import { TapeRecallService } from './recallService'
 import { TapeReconcilerService } from './reconcilerService'
 import { TapeViewReplayService } from './viewReplayService'
@@ -125,6 +136,8 @@ export class SessionTape
     TapeMessageFactWriter,
     TapeProviderAttemptReader,
     TapeProviderAttemptWriter,
+    TapeCompactionModelCallReader,
+    TapeCompactionModelCallWriter,
     TapeNonContextEntryReader,
     TapeReconciliationPort,
     TapeViewManifestReader,
@@ -154,6 +167,7 @@ export class SessionTape
   private readonly recall: TapeRecallService
   private readonly lineage: TapeLineageService
   private readonly providerAttempts: TapeProviderAttemptService
+  private readonly compactionUsage: TapeCompactionUsageService
   private readonly executionJournal: ExecutionJournalService
   private readonly viewReplay: TapeViewReplayService
   private readonly toolSurfaceProvenance: ToolSurfaceProvenanceService
@@ -165,6 +179,7 @@ export class SessionTape
     this.facts = new TapeFactService(this.providers)
     this.lineage = new TapeLineageService(this.providers)
     this.providerAttempts = new TapeProviderAttemptService(this.providers)
+    this.compactionUsage = new TapeCompactionUsageService(this.providers)
     this.executionJournal = new ExecutionJournalService(
       () => database.deepchatExecutionJournalStore
     )
@@ -230,8 +245,44 @@ export class SessionTape
     this.providerAttempts.appendProviderAttempt(input)
   }
 
+  appendCompactionModelCall(input: TapeCompactionModelCallInput): TapeCompactionModelCallReceipt {
+    return this.compactionUsage.appendCompactionModelCall(input)
+  }
+
+  listCompactionModelCallsPage(
+    cursor: { sessionId: string; entryId: number } | null,
+    limit: number
+  ) {
+    return this.compactionUsage.listCompactionModelCallsPage(cursor, limit)
+  }
+
   getMaxProviderAttemptRequestSeq(sessionId: string, messageId: string): number {
     return this.providerAttempts.getMaxProviderAttemptRequestSeq(sessionId, messageId)
+  }
+
+  getPendingProviderContextPressure(
+    sessionId: string,
+    providerId: string,
+    modelId: string
+  ): TapeProviderContextPressureRecord | null {
+    return this.providerAttempts.getPendingProviderContextPressure(sessionId, providerId, modelId)
+  }
+
+  getContextOccupancyEvidence(sessionId: string): TapeContextOccupancyEvidence {
+    const manifest = this.viewReplay.getLatestViewManifestForSession(sessionId)
+    return {
+      manifest,
+      providerAttempt:
+        manifest?.integrity === 'valid'
+          ? this.providerAttempts.getLatestProviderAttemptForRequest(
+              sessionId,
+              manifest.messageId,
+              manifest.requestSeq
+            )
+          : null,
+      latestReconstructionAnchorEntryId:
+        this.providers.getEntryStore().getLatestReconstructionAnchor(sessionId)?.entry_id ?? null
+    }
   }
 
   commitRunStarted(input: CommitExecutionRunStartedInput): ExecutionJournalCommitReceipt {
@@ -455,6 +506,15 @@ export class SessionTape
 
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
     return this.providers.getEntryStore().getLatestReconstructionAnchor(sessionId)
+  }
+
+  getReconstructionAnchorByCompactionAttemptId(
+    sessionId: string,
+    compactionAttemptId: string
+  ): DeepChatTapeEntryRow | undefined {
+    return this.providers
+      .getEntryStore()
+      .getReconstructionAnchorByCompactionAttemptId(sessionId, compactionAttemptId)
   }
 
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {

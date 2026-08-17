@@ -1,4 +1,6 @@
 import type { AgentTapeAnchorResult } from '@shared/types/agent-interface'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+import type { TapeProviderAttemptRecord } from '../domain/providerAttempt'
 import type { TapeMigrationState } from '../ports/capabilities'
 
 export type {
@@ -39,4 +41,10 @@ export type TapeForkHandle = {
   forkId: string
   forkSessionId: string
   parentHeadEntryId: number
+}
+
+export type TapeContextOccupancyEvidence = {
+  manifest: DeepChatTapeViewManifestRecord | null
+  providerAttempt: TapeProviderAttemptRecord | null
+  latestReconstructionAnchorEntryId: number | null
 }

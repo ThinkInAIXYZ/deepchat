@@ -206,7 +206,11 @@ export function fitRequestMessagesToContextWindow(params: {
   reserveTokens: number
   minimumProtectedTailCount?: number
   contextContributions?: ContextRuntimeContributions
+  pinnedFirstUserContentHash?: string
 }): ChatMessage[] {
+  if (params.pinnedFirstUserContentHash && !params.contextContributions) {
+    throw new TypeError('Pinned first-user fitting requires cache-aware context contributions.')
+  }
   if (!Number.isFinite(params.contextLength) || params.contextLength <= 0) {
     return params.messages
   }
@@ -218,7 +222,8 @@ export function fitRequestMessagesToContextWindow(params: {
       usableContextLength,
       params.reserveTokens,
       params.contextContributions,
-      params.minimumProtectedTailCount ?? 0
+      params.minimumProtectedTailCount ?? 0,
+      params.pinnedFirstUserContentHash
     )
   }
 
@@ -264,6 +269,7 @@ export function preflightRequestContext(params: {
   requestedMaxTokens: number
   minimumProtectedTailCount?: number
   contextContributions?: ContextRuntimeContributions
+  pinnedFirstUserContentHash?: string
   promptTokenEstimate?: number
 }): RequestContextPreflightResult {
   const requestedMaxTokens = capAgentRequestMaxTokens(
@@ -305,7 +311,8 @@ export function preflightRequestContext(params: {
           contextLength: params.contextLength,
           reserveTokens: requestedMaxTokens + toolReserveTokens,
           minimumProtectedTailCount: params.minimumProtectedTailCount,
-          contextContributions: params.contextContributions
+          contextContributions: params.contextContributions,
+          pinnedFirstUserContentHash: params.pinnedFirstUserContentHash
         })
       )
   const fittedMatchesCandidate =

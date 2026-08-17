@@ -324,6 +324,7 @@ export class TapeViewReplayService {
     const table = this.table
     const rows = table.getBySessionExcludingContext(sessionId)
     const entryIdByMessageId = new Map<string, number>()
+    const messageContentHashByMessageId = new Map<string, string>()
     const toolCallEntryIdByToolId = new Map<string, number>()
     const toolResultEntryIdByToolId = new Map<string, number>()
     const latestEntryId = table.getMaxEntryId(sessionId)
@@ -343,10 +344,6 @@ export class TapeViewReplayService {
         }
         continue
       }
-      if (row.kind === 'message' && row.source_type === 'message' && row.source_id) {
-        entryIdByMessageId.set(row.source_id, row.entry_id)
-        continue
-      }
       if (row.kind === 'tool_call' || row.kind === 'tool_result') {
         if (messageId && readToolFactMessageId(row) !== messageId) {
           continue
@@ -358,6 +355,18 @@ export class TapeViewReplayService {
         const target =
           row.kind === 'tool_call' ? toolCallEntryIdByToolId : toolResultEntryIdByToolId
         target.set(toolCallId, row.entry_id)
+      }
+    }
+
+    const messageSourceRows = rows.filter(
+      (row) => row.kind === 'message' || (row.kind === 'event' && row.name === 'message/retracted')
+    )
+    for (const { entryId, record } of buildEffectiveTapeView(messageSourceRows, {
+      includePending: true
+    }).messageEntries) {
+      entryIdByMessageId.set(record.id, entryId)
+      if (record.role === 'user') {
+        messageContentHashByMessageId.set(record.id, hashJsonData(record.content))
       }
     }
 
@@ -374,6 +383,7 @@ export class TapeViewReplayService {
       reconstructionAnchorEntryIds,
       reconstructionAnchorEntryId,
       entryIdByMessageId,
+      messageContentHashByMessageId,
       toolCallEntryIdByToolId,
       toolResultEntryIdByToolId
     }
@@ -861,6 +871,11 @@ export class TapeViewReplayService {
       .map((row) => this.toViewManifestRecord(row))
       .filter((record): record is DeepChatTapeViewManifestRecord => Boolean(record))
       .sort((left, right) => right.requestSeq - left.requestSeq || right.entryId - left.entryId)
+  }
+
+  getLatestViewManifestForSession(sessionId: string): DeepChatTapeViewManifestRecord | null {
+    const row = this.table.getLatestViewManifestEvent(sessionId)
+    return row ? this.toViewManifestRecord(row) : null
   }
 
   listViewManifestsByMessageRequest(

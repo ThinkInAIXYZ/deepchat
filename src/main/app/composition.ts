@@ -929,7 +929,8 @@ export async function createMainProcessControl(dependencies: {
   usageStatsService = new UsageStatsService(
     sessionData.database,
     providerSettings,
-    dependencies.settingsStore
+    dependencies.settingsStore,
+    sessionData.tapeStore
   )
   const desktopSettings = new DesktopSettings(
     dependencies.settingsStore,
@@ -1977,9 +1978,10 @@ export async function createMainProcessControl(dependencies: {
               ...turn,
               kind: handle.kind,
               compaction: {
-                getState: () => handle.deepchat.getCompactionState(),
+                getSnapshot: () => handle.deepchat.getCompactionSnapshot(),
                 compact: () => handle.deepchat.compact()
               },
+              getContextOccupancy: () => handle.deepchat.getContextOccupancy(),
               isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
               resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
               retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
@@ -3265,6 +3267,7 @@ export async function createMainProcessControl(dependencies: {
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
+      deepChatAgentHarness.reconcileAfterDatabaseReopen()
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()

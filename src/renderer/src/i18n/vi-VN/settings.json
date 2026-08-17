@@ -46,18 +46,6 @@
     "privacyModeNpmRegistry": "Tự động phát hiện đăng ký MCP npm",
     "privacyModeManualActions": "Kiểm tra thủ công và hành động làm mới thủ công vẫn có sẵn.",
     "privacyModeIntegrations": "Tích hợp bên thứ ba được định cấu hình vẫn có sẵn.",
-    "autoCompaction": {
-      "title": "Tự động nén",
-      "enabled": "Bật tự động nén",
-      "description": "Khi một cuộc trò chuyện tiến gần giới hạn cửa sổ ngữ cảnh của mô hình, DeepChat có thể tự động tóm tắt lịch sử cũ hơn để phiên tiếp tục diễn ra. Nếu tắt, DeepChat sẽ không tạo bản tóm tắt, nhưng vẫn cắt bớt chế độ xem yêu cầu khi cần để tránh lỗi context-window thô từ nhà cung cấp.",
-      "thresholdLabel": "Ngưỡng kích hoạt",
-      "thresholdMin": "Sớm ({value}%)",
-      "thresholdMax": "Muộn ({value}%)",
-      "thresholdDescription": "Bắt đầu nén khi mức sử dụng prompt đạt đến mức chia sẻ này trong ngân sách lịch sử hiệu quả. Giá trị thấp hơn tạo ra nhiều khoảng trống hơn; giá trị cao hơn bảo tồn bối cảnh thô hơn.",
-      "retainPairsLabel": "Giữ lại các cặp tin nhắn gần đây",
-      "retainPairsValue": "(Các) cặp {count}",
-      "retainPairsDescription": "Giữ các cặp người dùng và trợ lý đã hoàn thành gần đây nhất bên ngoài quá trình nén. Truy vấn hiện tại không được bao gồm."
-    },
     "searchAssistantModel": "Trợ lý người mẫu",
     "selectModel": "Chọn mẫu",
     "proxyMode": "Chế độ ủy nhiệm",
@@ -876,7 +864,7 @@
       "cachedTokensCachedLabel": "Đã lưu vào bộ nhớ đệm",
       "cachedTokensUncachedLabel": "Không được lưu vào bộ nhớ đệm",
       "cacheHitRate": "Tỷ lệ truy cập bộ đệm",
-      "cacheHitRateDescription": "prompt tokens được lưu vào bộ nhớ đệm chia cho tổng đầu vào tokens.",
+      "cacheHitRateDescription": "Token lời nhắc được lưu trong bộ đệm chia cho token đầu vào của các bản ghi có số liệu bộ đệm.",
       "recordingStartedAt": "Đã bắt đầu ghi",
       "recordingStartedAtDescription": "Bản ghi sử dụng sớm nhất hiện được lưu trữ trong bảng thông tin này.",
       "withDeepChatDaysLabel": "Ngày bên nhau",
@@ -909,6 +897,15 @@
       "providerDescription": "Xếp hạng theo tổng số token.",
       "modelTitle": "Người mẫu hàng đầu",
       "modelDescription": "10 mẫu hàng đầu theo tổng số token.",
+      "categoryTitle": "Mức sử dụng theo hoạt động",
+      "categoryDescription": "Tách mức sử dụng hội thoại khỏi các lệnh gọi mô hình nội bộ để nén ngữ cảnh.",
+      "category": {
+        "chat": "Hội thoại",
+        "compaction": "Nén ngữ cảnh"
+      },
+      "chatEvents": "{count} tin nhắn",
+      "compactionEvents": "{count} lượt gọi mô hình",
+      "unknownUsage": "{count} lượt không rõ mức sử dụng",
       "messages": "Tin nhắn {count}",
       "empty": "Chưa có dữ liệu phân tích."
     },

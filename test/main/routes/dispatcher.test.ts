@@ -496,13 +496,33 @@ function createRuntime() {
     retryMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     editUserMessage: vi.fn().mockResolvedValue({}),
-    getSessionCompactionState: vi.fn().mockResolvedValue({ status: 'idle' }),
+    getSessionCompactionSnapshot: vi.fn().mockResolvedValue({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123,
+        boundaryReason: null
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    }),
+    getSessionContextOccupancy: vi.fn().mockResolvedValue({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
+    }),
     compactSession: vi.fn().mockResolvedValue({
       compacted: true,
       state: {
         status: 'compacted',
         cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       }
     }),
     clearSessionMessages: vi.fn().mockResolvedValue(undefined),
@@ -4495,8 +4515,47 @@ describe('dispatchDeepchatRoute', () => {
       state: {
         status: 'compacted',
         cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       }
+    })
+
+    const compactionSnapshot = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getCompactionSnapshot',
+      { sessionId: 'session-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.getSessionCompactionSnapshot).toHaveBeenCalledWith('session-1')
+    expect(compactionSnapshot).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123,
+        boundaryReason: null
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    })
+
+    const contextOccupancy = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getContextOccupancy',
+      { sessionId: 'session-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.getSessionContextOccupancy).toHaveBeenCalledWith('session-1')
+    expect(contextOccupancy).toEqual({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
     })
 
     const retryResult = await dispatchDeepchatRoute(

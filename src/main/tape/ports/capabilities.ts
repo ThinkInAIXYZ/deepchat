@@ -12,7 +12,15 @@ import type {
   TapeMessageReplacementOptions,
   TapeToolFactInput
 } from '../domain/facts'
-import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
+import type {
+  TapeProviderAttemptInput,
+  TapeProviderContextPressureRecord
+} from '../domain/providerAttempt'
+import type {
+  TapeCompactionModelCallEvent,
+  TapeCompactionModelCallInput,
+  TapeCompactionModelCallReceipt
+} from '../domain/compactionUsage'
 import type {
   TapeSkillMaterializationInput,
   TapeSkillMaterializationRef,
@@ -68,6 +76,7 @@ export type TapeViewManifestAssemblySources = {
   reconstructionAnchorEntryIds: number[]
   reconstructionAnchorEntryId: number | null
   entryIdByMessageId: Map<string, number>
+  messageContentHashByMessageId: Map<string, string>
   toolCallEntryIdByToolId: Map<string, number>
   toolResultEntryIdByToolId: Map<string, number>
 }
@@ -220,6 +229,28 @@ export interface TapeProviderAttemptWriter {
 
 export interface TapeProviderAttemptReader {
   getMaxProviderAttemptRequestSeq(sessionId: string, messageId: string): number
+  getPendingProviderContextPressure(
+    sessionId: string,
+    providerId: string,
+    modelId: string
+  ): TapeProviderContextPressureRecord | null
+}
+
+export interface TapeCompactionModelCallWriter {
+  appendCompactionModelCall(input: TapeCompactionModelCallInput): TapeCompactionModelCallReceipt
+}
+
+export interface TapeCompactionModelCallCandidate {
+  sessionId: string
+  entryId: number
+  event: TapeCompactionModelCallEvent | null
+}
+
+export interface TapeCompactionModelCallReader {
+  listCompactionModelCallsPage(
+    cursor: { sessionId: string; entryId: number } | null,
+    limit: number
+  ): TapeCompactionModelCallCandidate[]
 }
 
 export interface ExecutionJournalWriter {
@@ -297,6 +328,10 @@ export interface TapeNonContextEntryReader {
 
 export interface TapeAnchorReader {
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
+  getReconstructionAnchorByCompactionAttemptId(
+    sessionId: string,
+    compactionAttemptId: string
+  ): DeepChatTapeEntryRow | undefined
 }
 
 export interface TapeAnchorWriter {

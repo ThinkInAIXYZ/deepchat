@@ -327,10 +327,19 @@
   "compaction": {
     "compacting": "در حال فشرده سازی زمینه...",
     "compacted": "زمینه فشرده شد",
+    "compactedWithoutSummary": "زمینه بدون خلاصه فشرده شد",
+    "compactedWithoutLargerSummary": "زمینه بدون استفاده از خلاصه بزرگ تر فشرده شد",
     "commandDescription": "فشرده سازی زمینه گفتگو",
     "noopTitle": "زمینه ای برای فشرده سازی نیست",
     "noopDescription": "هنوز تاریخچه گفت وگوی جدیدی برای فشرده سازی وجود ندارد.",
     "failedTitle": "فشرده سازی ناموفق بود"
+  },
+  "contextOccupancy": {
+    "label": "میزان استفاده از زمینه",
+    "details": "{used} از {capacity} توکن",
+    "provider": "اندازه گیری شده توسط ارائه دهنده",
+    "estimated": "برآورد شده از نمای درخواست",
+    "stale": "پس از تغییر مدل، پنجره یا فشرده سازی قدیمی شده است"
   },
   "newThread": {
     "title": "بسازید و کاوش کنید"
