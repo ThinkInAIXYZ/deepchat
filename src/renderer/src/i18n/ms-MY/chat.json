@@ -401,6 +401,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "Tambah ruang kerja",
+    "manageWorkspaces": "Urus ruang kerja",
     "emptyWorkspace": "Kosong",
     "addWorkspaceFailed": "Gagal menambah ruang kerja",
     "searchLoadedRangeDescription": "Memaparkan padanan daripada perbualan yang dimuatkan. Tatal untuk memuatkan lebih banyak sejarah."

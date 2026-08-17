@@ -401,6 +401,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "Dodaj obszar roboczy",
+    "manageWorkspaces": "Zarządzaj obszarami roboczymi",
     "emptyWorkspace": "Pusty",
     "addWorkspaceFailed": "Nie udało się dodać obszaru roboczego",
     "searchLoadedRangeDescription": "Wyświetlanie wyników z załadowanych rozmów. Przewiń, aby załadować więcej historii."

@@ -385,6 +385,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "הוספת סביבת עבודה",
+    "manageWorkspaces": "ניהול סביבות עבודה",
     "emptyWorkspace": "ריק",
     "addWorkspaceFailed": "הוספת סביבת העבודה נכשלה",
     "searchLoadedRangeDescription": "מוצגות התאמות משיחות שנטענו. גלול כדי לטעון היסטוריה נוספת."

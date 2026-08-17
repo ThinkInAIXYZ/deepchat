@@ -401,6 +401,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "Aggiungi area di lavoro",
+    "manageWorkspaces": "Gestisci aree di lavoro",
     "emptyWorkspace": "Vuoto",
     "addWorkspaceFailed": "Impossibile aggiungere l’area di lavoro",
     "searchLoadedRangeDescription": "Visualizzazione delle corrispondenze dalle conversazioni caricate. Scorri per caricare altra cronologia."

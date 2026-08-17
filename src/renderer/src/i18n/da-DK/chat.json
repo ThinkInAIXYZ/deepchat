@@ -385,6 +385,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "Tilføj arbejdsområde",
+    "manageWorkspaces": "Administrer arbejdsområder",
     "emptyWorkspace": "Tom",
     "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
     "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."

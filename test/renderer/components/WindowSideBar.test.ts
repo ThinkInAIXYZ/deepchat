@@ -54,6 +54,7 @@ type SetupOptions = {
   openFolderPickerError?: Error
   setGroupModeError?: Error
   defaultChatWorkspacePath?: string | null
+  defaultProjectPath?: string | null
   projectSnapshotReady?: boolean
   currentRouteName?: string
 }
@@ -294,10 +295,13 @@ const setup = async (options: SetupOptions = {}) => {
     ),
     error: null as string | null,
     defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
+    defaultProjectPath: options.defaultProjectPath ?? null,
     snapshotReady: options.projectSnapshotReady ?? true,
     fetchEnvironments: vi.fn().mockResolvedValue(undefined),
     reorderEnvironments: vi.fn().mockResolvedValue(undefined),
     archiveEnvironment: vi.fn().mockResolvedValue(undefined),
+    openDirectory: vi.fn().mockResolvedValue(undefined),
+    setDefaultProject: vi.fn().mockResolvedValue(undefined),
     openFolderPicker: vi.fn(async () => {
       if (options.openFolderPickerError) {
         throw options.openFolderPickerError
@@ -2015,6 +2019,87 @@ describe('WindowSideBar agent switch', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it(
+    'exposes workspace shortcuts through the design-system action menu',
+    async () => {
+      const { wrapper, projectStore, settingsClient, sessionStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/active', name: 'active', sessionCount: 1 }],
+        groups: [
+          {
+            id: '/work/active',
+            label: 'active',
+            sessions: [
+              {
+                id: 'active-session',
+                title: 'Active session',
+                status: 'completed',
+                projectDir: '/work/active'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper
+        .get('[data-testid="window-sidebar-new-chat-workspace-menu-item"]')
+        .trigger('click')
+      await wrapper.get('[data-testid="window-sidebar-open-workspace-menu-item"]').trigger('click')
+      await flushPromises()
+      await wrapper
+        .get('[data-testid="window-sidebar-set-default-workspace-menu-item"]')
+        .trigger('click')
+      await flushPromises()
+      await wrapper
+        .get('[data-testid="window-sidebar-manage-workspaces-menu-item"]')
+        .trigger('click')
+      await flushPromises()
+
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({
+        refresh: true,
+        projectDir: '/work/active'
+      })
+      expect(projectStore.openDirectory).toHaveBeenCalledWith('/work/active')
+      expect(projectStore.setDefaultProject).toHaveBeenCalledWith('/work/active')
+      expect(settingsClient.openSettings).toHaveBeenCalledWith({
+        routeName: 'settings-environments'
+      })
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('disables ineligible workspace shortcuts for missing and default directories', async () => {
+    const { wrapper, projectStore } = await setup({
+      groupMode: 'project',
+      defaultProjectPath: '/work/default',
+      projectEnvironments: [
+        { path: '/work/default', name: 'default' },
+        { path: '/work/missing', name: 'missing', exists: false }
+      ]
+    })
+
+    const openActions = wrapper.findAll('[data-testid="window-sidebar-open-workspace-menu-item"]')
+    const defaultActions = wrapper.findAll(
+      '[data-testid="window-sidebar-set-default-workspace-menu-item"]'
+    )
+    const newChatActions = wrapper.findAll(
+      '[data-testid="window-sidebar-new-chat-workspace-menu-item"]'
+    )
+
+    expect(openActions).toHaveLength(2)
+    expect(openActions[0].attributes('disabled')).toBeUndefined()
+    expect(openActions[1].attributes('disabled')).toBeDefined()
+    expect(defaultActions[0].attributes('disabled')).toBeDefined()
+    expect(defaultActions[1].attributes('disabled')).toBeDefined()
+    expect(newChatActions[0].attributes('disabled')).toBeUndefined()
+    expect(newChatActions[1].attributes('disabled')).toBeDefined()
+
+    await openActions[1].trigger('click')
+    await defaultActions[0].trigger('click')
+    expect(projectStore.openDirectory).not.toHaveBeenCalled()
+    expect(projectStore.setDefaultProject).not.toHaveBeenCalled()
+  })
 
   it(
     'archives the only active workspace after confirmation while move actions stay disabled',

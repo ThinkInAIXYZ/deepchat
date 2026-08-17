@@ -117,6 +117,21 @@ describe('projectStore snapshot ownership', () => {
     expect(store.removedEnvironments.value.map((item) => item.path)).toEqual(['/work/removed'])
   })
 
+  it('refreshes the project snapshot after setting the default workspace', async () => {
+    const { store, projectClient, configClient } = await setupStore()
+    await store.refreshProjectSnapshot()
+    projectClient.getSnapshot.mockResolvedValue({
+      ...snapshot(2, ['/work/default']),
+      defaultProjectPath: '/work/default'
+    })
+
+    await store.setDefaultProject('/work/default')
+
+    expect(configClient.setDefaultProjectPath).toHaveBeenCalledWith('/work/default')
+    expect(projectClient.getSnapshot).toHaveBeenCalledTimes(2)
+    expect(store.defaultProjectPath.value).toBe('/work/default')
+  })
+
   it('coalesces concurrent refresh requests into one snapshot read', async () => {
     const { store, projectClient } = await setupStore()
     const pending = deferred<ReturnType<typeof snapshot>>()

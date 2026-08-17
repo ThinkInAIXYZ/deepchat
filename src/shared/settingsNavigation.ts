@@ -121,7 +121,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-environments',
     icon: 'lucide:folders',
     position: 3.25,
-    groupKey: 'models',
+    groupKey: 'setup',
     keywords: ['environment', 'workspace', 'folder', 'project', '环境', '工作区', '目录']
   },
   {

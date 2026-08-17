@@ -17,6 +17,7 @@ interface UseSidebarWorkspaceActionsOptions {
   sessionListRef: Ref<HTMLElement | null>
   searchQuery: Ref<string>
   defaultChatWorkspacePath: MaybeRefOrGetter<string>
+  defaultProjectPath: MaybeRefOrGetter<string | null>
   getWorkspaceEnvironment: (group: SessionGroup) => EnvironmentSummary | undefined
   t: (key: string, values?: Record<string, unknown>) => string
 }
@@ -30,6 +31,7 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
   const { sessionStore, projectStore, sessionListRef, t } = options
 
   const isAddingWorkspace = ref(false)
+  const workspaceOperationPending = ref(false)
   const revealedWorkspaceGroupId = ref<string | null>(null)
   const archiveTargetWorkspace = ref<WorkspaceArchiveTarget | null>(null)
   const isArchivingWorkspace = ref(false)
@@ -117,6 +119,63 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
     }
   }
 
+  const canOpenWorkspace = (group: SessionGroup) => {
+    const environment = options.getWorkspaceEnvironment(group)
+    return environment?.status === 'active' && environment.exists
+  }
+
+  const canSetDefaultWorkspace = (group: SessionGroup) => {
+    const environment = options.getWorkspaceEnvironment(group)
+    return (
+      environment?.status === 'active' &&
+      environment.exists &&
+      normalizeWorkspacePath(environment.path) !==
+        normalizeWorkspacePath(toValue(options.defaultProjectPath) ?? '')
+    )
+  }
+
+  const handleOpenWorkspace = async (group: SessionGroup) => {
+    const environment = options.getWorkspaceEnvironment(group)
+    if (!canOpenWorkspace(group) || !environment || workspaceOperationPending.value) {
+      return
+    }
+
+    workspaceOperationPending.value = true
+    try {
+      await projectStore.openDirectory(environment.path)
+    } catch (error) {
+      console.warn('[WindowSideBar] Failed to open workspace:', error)
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.workspace.open.failed',
+        title: t('settings.environments.errors.openTitle')
+      })
+    } finally {
+      workspaceOperationPending.value = false
+    }
+  }
+
+  const handleSetDefaultWorkspace = async (group: SessionGroup) => {
+    const environment = options.getWorkspaceEnvironment(group)
+    if (!canSetDefaultWorkspace(group) || !environment || workspaceOperationPending.value) {
+      return
+    }
+
+    workspaceOperationPending.value = true
+    try {
+      await projectStore.setDefaultProject(environment.path)
+    } catch (error) {
+      console.warn('[WindowSideBar] Failed to set default workspace:', error)
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.workspace.default.failed',
+        title: t('common.error.operationFailed')
+      })
+    } finally {
+      workspaceOperationPending.value = false
+    }
+  }
+
   const handleArchiveWorkspaceConfirm = async () => {
     const target = archiveTargetWorkspace.value
     if (!target || isArchivingWorkspace.value) {
@@ -146,10 +205,15 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
   return {
     isAddingWorkspace,
     revealedWorkspaceGroupId,
+    workspaceOperationPending,
     archiveTargetWorkspace,
     isArchivingWorkspace,
     archiveWorkspaceDialogOpen,
+    canOpenWorkspace,
+    canSetDefaultWorkspace,
     handleAddWorkspace,
+    handleOpenWorkspace,
+    handleSetDefaultWorkspace,
     requestWorkspaceArchive,
     handleArchiveWorkspaceConfirm
   }

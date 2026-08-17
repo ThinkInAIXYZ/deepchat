@@ -385,6 +385,7 @@
     "chatSection": "Chat",
     "workspace": "Workspace",
     "addWorkspace": "افزودن فضای کاری",
+    "manageWorkspaces": "مدیریت فضاهای کاری",
     "emptyWorkspace": "خالی",
     "addWorkspaceFailed": "افزودن فضای کاری ناموفق بود",
     "searchLoadedRangeDescription": "نتایج گفت‌وگوهای بارگذاری‌شده نمایش داده می‌شوند. برای بارگذاری تاریخچه بیشتر پیمایش کنید."

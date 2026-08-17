@@ -462,6 +462,7 @@
     "chatSection": "Chat",
     "workspace": "工作区",
     "addWorkspace": "添加工作区",
+    "manageWorkspaces": "管理工作区",
     "emptyWorkspace": "空",
     "addWorkspaceFailed": "添加工作区失败",
     "remoteControlDisabled": "未启用",
