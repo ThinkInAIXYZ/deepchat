@@ -1168,4 +1168,16 @@
   html.dark *::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.7);
   }
+
+  /*
+   * Layers teleported to <body> (reka-ui portals: dialog overlays/contents,
+   * popper wrappers of dropdowns, selects, tooltips) can stack above areas
+   * declaring `-webkit-app-region: drag` (AppBar, sidebar, welcome pages).
+   * Electron resolves drag regions from plain element geometry, ignoring
+   * z-index, so such a layer would swallow every mouse click as a window
+   * drag while only keyboard events get through.
+   */
+  body > :not(#app) {
+    -webkit-app-region: no-drag;
+  }
 }
