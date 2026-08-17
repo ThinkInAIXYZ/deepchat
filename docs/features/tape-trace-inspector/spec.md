@@ -58,7 +58,8 @@ rows, or treat its grouping and status projections as durable state.
 - A writable debugger, history editor, retry control, or permission authority.
 - Adding provider request start facts or inventing durations that are not currently recorded.
 - Adding a second event log or a materialized Inspector table.
-- Exposing context/Skill bodies, raw tool results, reusable credentials, or unknown-schema payloads.
+- Exposing context/Skill bodies, unbounded raw tool results, reusable credentials, or
+  unknown-schema payloads.
 - Deleting the existing message-level Trace dialog during the migration period.
 - A standalone Electron window in the first release.
 
@@ -172,6 +173,11 @@ interface TapeInspectorFactRecord {
     retryDecision?: string
     errorCode?: string
     isError?: boolean
+    contentPreview?: string
+    selectedCount?: number
+    droppedCount?: number
+    tokenBudget?: number
+    estimatedTokens?: number
     usage?: {
       inputTokens: number
       outputTokens: number
@@ -658,11 +664,30 @@ The overview and ledger are synchronized:
 - filters affect both surfaces, while collapse only changes ledger row visibility;
 - an earlier-history boundary states when the overview covers only the loaded window.
 
+The selected overview mode also controls the ledger's presentation order. **Time** mode flattens
+the currently loaded Tape Entries and ordinary model-request evidence into one stable
+`(createdAt, domain, domainKey)` display order. This is an orientation aid only: timestamps never
+bind evidence, assign an Entry identity, or advance either cursor. **Sequence** mode restores the
+canonical `entryId` ledger with its identity grouping overlay. Non-canonical server column sorts
+remain flat server-owned result modes and switch the overview to sequence coordinates; choosing
+Time first restores canonical loading before applying the renderer-only chronological merge.
+
 The ledger keeps fixed-height virtual rows and renderer-local prose assembled from the DTO's
 bounded `facts` field. Raw event names and physical kinds remain available as secondary metadata
-and in detail; tool name, provider/model, target, explicit outcome, retry decision, error code, and
-bounded usage may be promoted into the primary one-line summary. Context/Skill bodies, request
-payloads, tool arguments/results, and unknown-schema payloads never enter these summaries.
+and in detail; tool name, provider/model, target, explicit outcome, retry decision, error code,
+bounded usage, Memory-manifest counts, and a credential-redacted tool argument/result preview may
+be promoted into the primary one-line summary. Tool previews are emitted only for recognized
+physical `tool_call` and `tool_result` schemas and are bounded independently from detail. Context
+and Skill bodies, provider request payloads, Memory content, and unknown-schema payloads never enter
+these summaries.
+
+`memory/view_assembled` and `memory/directive_view_assembled` are recognized Anchor schemas. Their
+list projection exposes only bounded selection/drop counts and token allocation metadata. Their
+detail projection exposes the historical manifest's selected IDs, kinds, scores/sources when
+present, drop reasons, degradation codes, and budget accounting. It never resolves a selected ID
+against mutable current Memory storage and never claims that current Memory content is the content
+used historically. The independently persisted model-request evidence remains the authority for
+the actual assembled prompt supplied to the model.
 
 User and assistant message Entries may add a one-line preview from the active session's existing
 Transcript cache. A model request row prefers the latest final Transcript block carrying the exact
@@ -715,9 +740,12 @@ viewport:
 Wide-mode columns remain resizable. Hidden compact-mode columns do not reserve grid tracks or
 produce a horizontal scrollbar. Numeric time, duration, and count values use tabular alignment.
 Empty status and duration cells use a quiet not-applicable mark rather than repeating `unknown`.
-Only incomplete run or tool spans show an unresolved pairing label. Numeric Start and Duration
-columns are right-aligned. The diagnostics lane is collapsed by default; expanding it is an
-explicit request to inspect the individual evidence rows.
+Incomplete status-bearing groups classify the visible cause as earlier history, active filtering,
+waiting for a Live page already being fetched, no recorded endpoint, or inconsistent endpoints.
+The Status column carries that explanation once; Duration stays a quiet dash with the same reason
+available as its tooltip, so the ledger does not repeat the same warning in two columns. Numeric
+Start and Duration columns are right-aligned. The diagnostics lane is collapsed by default;
+expanding it is an explicit request to inspect the individual evidence rows.
 
 All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Inspector entry points.
 
@@ -789,7 +817,9 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
 
 ## Resolved Decisions
 
-1. Tape is the sole chronological sequence; traces are evidence rows, not Tape Entries.
+1. Tape is the sole canonical chronological sequence; traces are evidence rows, not Tape Entries.
+   Actual-time mode may merge loaded rows for display without creating identity, authority, or a
+   shared cursor.
 2. Request traces appear as exact evidence children when their Tape group is loaded. Attempt-scoped
    evidence uses a bounded indexed identity lookup to distinguish earlier, filtered/newer, and
    currently unrecorded parent Entries. Request-scoped evidence remains standalone, and diagnostic
@@ -848,6 +878,14 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
     attempt provenance in one batch and never scans or returns payload content.
 42. Loading an earlier evidence parent advances contiguous Tape pagination under a six-page user
     action budget; sparse hydration and automatic unbounded backfill are forbidden.
+43. Time mode is a renderer-only stable merge of loaded Tape and evidence timestamps; Sequence mode
+    is the canonical grouped Tape ledger.
+44. Recognized Memory Anchor details expose historical selection manifests, never mutable current
+    Memory content as a historical snapshot.
+45. Recognized physical tool facts may expose credential-redacted, bounded argument/result previews
+    and structured detail; unknown tool schemas remain metadata-only.
+46. Incomplete groups explain one classified endpoint condition in Status while Duration remains
+    visually quiet.
 
 ## Acceptance Criteria
 
@@ -859,12 +897,17 @@ All copy uses vue-i18n. The existing `traceDebugEnabled` setting gates both Insp
   appear in one correlated view when available.
 - Model requests without a loaded Tape parent remain ordered by actual time and are not presented as
   unknown or pending association.
+- Time mode merges loaded model requests and Tape Entries by stable actual-time display order;
+  Sequence mode remains strict `entryId` order and neither mode changes binding or cursor semantics.
 - Attempt-scoped requests distinguish an exact parent in earlier history from a parent hidden by
   the current view and from a completed parent not yet recorded. An earlier parent can be loaded
   through bounded contiguous pagination without changing evidence order or cursor state.
 - Loaded user and assistant messages can be understood from bounded inline previews without opening
   detail. Newly generated model requests show their latest exact final output block; older records
   label temporal fallback as later activity rather than bound output.
+- Recognized tool facts show a bounded argument/result preview and structured on-demand detail;
+  recognized Memory Anchors identify the selected historical Memory manifest without fabricating a
+  content snapshot.
 - Request detail separates bounded final accumulated output, legacy later activity, latest-first
   context, and the recorded request. Newly recorded AI SDK request evidence includes normalized
   instructions, messages, tools, and provider options when present; credential fields remain masked

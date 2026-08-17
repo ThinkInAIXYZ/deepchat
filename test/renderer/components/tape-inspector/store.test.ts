@@ -144,10 +144,8 @@ describe('Tape Inspector store', () => {
     )
     expect(store.tapeIncarnationId).toBe('incarnation-1')
     expect(store.hasOlder).toBe(true)
-    expect(store.selectedRow?.recordType).toBe('group')
-    expect(store.selectedRow?.recordType === 'group' && store.selectedRow.group.kind).toBe(
-      'request'
-    )
+    expect(store.selectedRow?.recordType).toBe('fact')
+    expect(store.selectedRow?.recordType === 'fact' && store.selectedRow.record.requestSeq).toBe(4)
   })
 
   it('defaults diagnostics to collapsed while keeping model requests discoverable', async () => {
@@ -241,6 +239,7 @@ describe('Tape Inspector store', () => {
 
     expect(store.hasEarlierEvidenceEntries).toBe(true)
     expect(store.canLoadEvidenceParents).toBe(true)
+    await store.setTimelineMode('sequence')
     expect(store.rows.some((row) => row.key === EARLIER_EVIDENCE_LANE_KEY)).toBe(true)
 
     await expect(store.loadEarlierEvidenceEntries()).resolves.toBe(true)
@@ -304,6 +303,7 @@ describe('Tape Inspector store', () => {
     client.listTapeInspectorEvidence.mockResolvedValueOnce(evidencePage())
     const store = useTapeInspectorStore()
     await store.initialize('session-1')
+    await store.setTimelineMode('sequence')
     const run = store.overviewRows.find(
       (row) => row.recordType === 'group' && row.group.kind === 'run'
     )
@@ -499,7 +499,9 @@ describe('Tape Inspector store', () => {
           fact(10, { name: 'beta', runId: 'run-1' })
         ])
       )
+      .mockResolvedValueOnce(page([fact(20), fact(10)]))
     client.listTapeInspectorEvidence
+      .mockResolvedValueOnce(evidencePage())
       .mockResolvedValueOnce(evidencePage())
       .mockResolvedValueOnce(evidencePage())
     const store = useTapeInspectorStore()
@@ -513,6 +515,7 @@ describe('Tape Inspector store', () => {
     expect(store.records.map((record) => record.entryId)).toEqual([20, 10])
     expect(store.rows.map((row) => row.recordType)).toEqual(['fact', 'fact'])
     expect(store.canonicalSort).toBe(false)
+    expect(store.timelineMode).toBe('sequence')
 
     await store.handleLiveHeadPulse({
       sessionId: 'session-1',
@@ -520,6 +523,13 @@ describe('Tape Inspector store', () => {
       maxEntryId: 21
     })
     expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(2)
+
+    await expect(store.setTimelineMode('actual')).resolves.toBe(true)
+    expect(client.listTapeInspectorPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: { column: 'entryId', direction: 'asc' } })
+    )
+    expect(store.canonicalSort).toBe(true)
+    expect(store.timelineMode).toBe('actual')
   })
 
   it('fills bounded fact and evidence pages until the loaded search finds a match', async () => {

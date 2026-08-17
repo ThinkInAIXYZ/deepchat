@@ -6,6 +6,12 @@ import type {
   TapeInspectorFacts,
   TapeInspectorRecordDetail
 } from '@shared/types/tape-inspector'
+import {
+  AGENT_MEMORY_DIRECTIVE_KINDS,
+  AGENT_MEMORY_DIRECTIVE_SOURCES,
+  AGENT_MEMORY_HEALTH_KIND_KEYS,
+  MEMORY_RETRIEVAL_DEGRADATION_CAUSES
+} from '@shared/types/agent-memory'
 import { redactBody } from '@/lib/redact'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
 import {
@@ -40,10 +46,14 @@ const MAX_DETAIL_STRING_BYTES = 16 * 1_024
 const MAX_DETAIL_ARRAY_ITEMS = 256
 const MAX_DETAIL_OBJECT_KEYS = 256
 const MAX_DETAIL_DEPTH = 16
+const MEMORY_VIEW_ANCHOR_NAME = 'memory/view_assembled'
+const DIRECTIVE_VIEW_ANCHOR_NAME = 'memory/directive_view_assembled'
 const RECOGNIZED_ANCHOR_NAMES = new Set<string>([
   'session/start',
   'fork/start',
   'summary/reset',
+  MEMORY_VIEW_ANCHOR_NAME,
+  DIRECTIVE_VIEW_ANCHOR_NAME,
   ...SUMMARY_ANCHOR_NAMES
 ])
 const CURRENT_COMPACTION_STATE_KEYS = [
@@ -90,6 +100,44 @@ function boundedIdentity(value: unknown): string | undefined {
 function boundedNullableString(value: string | null): string | null {
   if (value === null || Buffer.byteLength(value, 'utf8') <= MAX_LIST_TEXT_BYTES) return value
   return boundedString(value) ?? ''
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  const allowedKeys = new Set(allowed)
+  return Object.keys(value).every((key) => allowedKeys.has(key))
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function redactSerializedApiKeyFields(text: string): string {
+  return /["'](?:api_key|apiKey)["']\s*[:=]/u.test(text) ? '***MASKED***' : text
+}
+
+function redactEmbeddedApiKey(text: string): string {
+  try {
+    return JSON.stringify(redactBody(JSON.parse(text)))
+  } catch {
+    return redactSerializedApiKeyFields(text)
+  }
+}
+
+function boundedToolContent(value: unknown, maxBytes = MAX_LIST_TEXT_BYTES): string | undefined {
+  if (typeof value !== 'string') return undefined
+  if (Buffer.byteLength(value, 'utf8') <= maxBytes) {
+    return boundedString(redactEmbeddedApiKey(value), maxBytes)
+  }
+  const prefix = boundedString(value, maxBytes)
+  return prefix === undefined ? undefined : redactSerializedApiKeyFields(prefix)
 }
 
 function eventData(row: DeepChatTapeEntryRow): Record<string, unknown> | null {
@@ -318,26 +366,334 @@ function messageProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFact
 
 function toolProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRecord> | null {
   if (row.kind !== 'tool_call' && row.kind !== 'tool_result') return null
-  const payload = parseJsonObject(row.payload_json)
-  const messageId = boundedIdentity(payload.messageId)
-  const toolCall =
-    payload.toolCall && typeof payload.toolCall === 'object' && !Array.isArray(payload.toolCall)
-      ? (payload.toolCall as Record<string, unknown>)
-      : null
-  const providerToolCallId = boundedIdentity(
-    row.kind === 'tool_call' ? toolCall?.id : payload.toolCallId
-  )
+  const detail = projectToolDetailData(row)
+  const messageId = detail ? boundedIdentity(detail.messageId) : undefined
+  const providerToolCallId = detail
+    ? boundedIdentity(detail.kind === 'tool_call' ? detail.toolCall.id : detail.toolCallId)
+    : undefined
   const meta = parseJsonObject(row.meta_json)
   const status = boundedString(meta.status)
+  const contentPreview = detail
+    ? boundedToolContent(detail.kind === 'tool_call' ? detail.toolCall.params : detail.response)
+    : undefined
   return {
     family: 'tool',
     ...(messageId ? { messageId } : {}),
     ...(providerToolCallId ? { providerToolCallId } : {}),
     facts: {
       ...(boundedString(row.name) ? { toolName: boundedString(row.name) } : {}),
-      ...(status ? { status } : {})
+      ...(status ? { status } : {}),
+      ...(contentPreview ? { contentPreview } : {})
     }
   }
+}
+
+function projectMemorySelection(value: unknown): JsonValue | undefined {
+  if (
+    !isPlainObject(value) ||
+    !hasOnlyKeys(value, ['id', 'kind', 'score', 'sources', 'similarity', 'breakdown'])
+  ) {
+    return undefined
+  }
+  const id = boundedIdentity(value.id)
+  const kind = boundedString(value.kind)
+  if (!id || !kind || !AGENT_MEMORY_HEALTH_KIND_KEYS.includes(kind as never)) return undefined
+  const score = finiteNumber(value.score)
+  const similarity = finiteNumber(value.similarity)
+  if (value.score !== undefined && score === undefined) return undefined
+  if (value.similarity !== undefined && similarity === undefined) return undefined
+  if (
+    value.sources !== undefined &&
+    (!isPlainObject(value.sources) ||
+      !hasOnlyKeys(value.sources, ['vec', 'fts']) ||
+      (value.sources.vec !== undefined && typeof value.sources.vec !== 'boolean') ||
+      (value.sources.fts !== undefined && typeof value.sources.fts !== 'boolean'))
+  ) {
+    return undefined
+  }
+  const sources = isPlainObject(value.sources)
+    ? {
+        ...(typeof value.sources.vec === 'boolean' ? { vec: value.sources.vec } : {}),
+        ...(typeof value.sources.fts === 'boolean' ? { fts: value.sources.fts } : {})
+      }
+    : undefined
+  return {
+    id,
+    kind,
+    ...(score === undefined ? {} : { score }),
+    ...(similarity === undefined ? {} : { similarity }),
+    ...(sources && Object.keys(sources).length > 0 ? { sources } : {})
+  }
+}
+
+function projectMemoryDrop(value: unknown): JsonValue | undefined {
+  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
+  const id = boundedIdentity(value.id)
+  const kind = boundedString(value.kind)
+  if (
+    !id ||
+    !kind ||
+    !AGENT_MEMORY_HEALTH_KIND_KEYS.includes(kind as never) ||
+    value.reason !== 'budget'
+  ) {
+    return undefined
+  }
+  return { id, kind, reason: value.reason }
+}
+
+function projectDirectiveSelection(value: unknown): JsonValue | undefined {
+  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'source'])) return undefined
+  const id = boundedIdentity(value.id)
+  const kind = boundedString(value.kind)
+  const source = boundedString(value.source)
+  return id &&
+    kind &&
+    source &&
+    AGENT_MEMORY_DIRECTIVE_KINDS.includes(kind as never) &&
+    AGENT_MEMORY_DIRECTIVE_SOURCES.includes(source as never)
+    ? { id, kind, source }
+    : undefined
+}
+
+function projectDirectiveDrop(value: unknown): JsonValue | undefined {
+  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
+  const id = boundedIdentity(value.id)
+  const kind = boundedString(value.kind)
+  const reason = boundedString(value.reason)
+  return id &&
+    kind &&
+    AGENT_MEMORY_DIRECTIVE_KINDS.includes(kind as never) &&
+    (reason === 'item_budget' || reason === 'total_budget')
+    ? { id, kind, reason }
+    : undefined
+}
+
+function projectMemoryTokenMap(value: unknown): JsonValue | undefined {
+  if (
+    !isPlainObject(value) ||
+    !hasExactKeys(value, ['directive', 'persona', 'working', 'queryRecall'])
+  ) {
+    return undefined
+  }
+  const directive = nonNegativeNumber(value.directive)
+  const persona = nonNegativeNumber(value.persona)
+  const working = nonNegativeNumber(value.working)
+  const queryRecall = nonNegativeNumber(value.queryRecall)
+  return directive === undefined ||
+    persona === undefined ||
+    working === undefined ||
+    queryRecall === undefined
+    ? undefined
+    : { directive, persona, working, queryRecall }
+}
+
+function projectMemoryAllocation(value: unknown): JsonValue | undefined {
+  if (
+    !isPlainObject(value) ||
+    !hasExactKeys(value, [
+      'policyVersion',
+      'totalTokenBudget',
+      'overheadTokens',
+      'demand',
+      'allocated',
+      'used',
+      'borrowed',
+      'unallocatedTokens',
+      'estimatedTotalTokens',
+      'unusedTokens',
+      'constrained'
+    ])
+  ) {
+    return undefined
+  }
+  const policyVersion = nonNegativeNumber(value.policyVersion)
+  const totalTokenBudget = nonNegativeNumber(value.totalTokenBudget)
+  const overheadTokens = nonNegativeNumber(value.overheadTokens)
+  const demand = projectMemoryTokenMap(value.demand)
+  const allocated = projectMemoryTokenMap(value.allocated)
+  const used = projectMemoryTokenMap(value.used)
+  const borrowed = projectMemoryTokenMap(value.borrowed)
+  const unallocatedTokens = nonNegativeNumber(value.unallocatedTokens)
+  const estimatedTotalTokens = nonNegativeNumber(value.estimatedTotalTokens)
+  const unusedTokens = nonNegativeNumber(value.unusedTokens)
+  if (
+    policyVersion === undefined ||
+    totalTokenBudget === undefined ||
+    overheadTokens === undefined ||
+    demand === undefined ||
+    allocated === undefined ||
+    used === undefined ||
+    borrowed === undefined ||
+    unallocatedTokens === undefined ||
+    estimatedTotalTokens === undefined ||
+    unusedTokens === undefined ||
+    typeof value.constrained !== 'boolean'
+  ) {
+    return undefined
+  }
+  return {
+    policyVersion,
+    totalTokenBudget,
+    overheadTokens,
+    demand,
+    allocated,
+    used,
+    borrowed,
+    unallocatedTokens,
+    estimatedTotalTokens,
+    unusedTokens,
+    constrained: value.constrained
+  }
+}
+
+interface ProjectedMemoryAnchor {
+  data: JsonValue
+  facts: TapeInspectorFacts
+  messageId?: string
+}
+
+function projectMemoryAnchor(row: DeepChatTapeEntryRow): ProjectedMemoryAnchor | null {
+  if (row.kind !== 'anchor') return null
+  const state = anchorState(row)
+  if (!state) return null
+  const meta = parseJsonObject(row.meta_json)
+  const messageId = boundedIdentity(meta.messageId)
+
+  if (row.name === MEMORY_VIEW_ANCHOR_NAME) {
+    if (
+      !hasOnlyKeys(state, [
+        'policyVersion',
+        'selected',
+        'dropped',
+        'tokenBudget',
+        'estimatedTokens',
+        'allocation',
+        'queryHash',
+        'degradations'
+      ]) ||
+      state.policyVersion !== 1 ||
+      !Array.isArray(state.selected) ||
+      !Array.isArray(state.dropped) ||
+      state.selected.length > MAX_DETAIL_ARRAY_ITEMS ||
+      state.dropped.length > MAX_DETAIL_ARRAY_ITEMS
+    ) {
+      return null
+    }
+    const selected = state.selected.map(projectMemorySelection)
+    const dropped = state.dropped.map(projectMemoryDrop)
+    const tokenBudget = nonNegativeNumber(state.tokenBudget)
+    const estimatedTokens = nonNegativeNumber(state.estimatedTokens)
+    if (
+      selected.some((value) => value === undefined) ||
+      dropped.some((value) => value === undefined) ||
+      tokenBudget === undefined ||
+      estimatedTokens === undefined
+    ) {
+      return null
+    }
+    const degradations = Array.isArray(state.degradations) ? state.degradations : []
+    if (
+      degradations.some(
+        (value) =>
+          typeof value !== 'string' || !MEMORY_RETRIEVAL_DEGRADATION_CAUSES.includes(value as never)
+      )
+    ) {
+      return null
+    }
+    const allocation =
+      state.allocation === undefined ? undefined : projectMemoryAllocation(state.allocation)
+    if (state.allocation !== undefined && allocation === undefined) return null
+    return {
+      ...(messageId ? { messageId } : {}),
+      facts: {
+        selectedCount: selected.length,
+        droppedCount: dropped.length,
+        tokenBudget,
+        estimatedTokens
+      },
+      data: {
+        name: row.name,
+        manifest: {
+          policyVersion: state.policyVersion,
+          selected: selected as JsonValue[],
+          dropped: dropped as JsonValue[],
+          tokenBudget,
+          estimatedTokens,
+          ...(degradations.length > 0 ? { degradations: degradations as string[] } : {}),
+          ...(allocation === undefined ? {} : { allocation })
+        }
+      }
+    }
+  }
+
+  if (row.name !== DIRECTIVE_VIEW_ANCHOR_NAME) return null
+  if (
+    !hasOnlyKeys(state, [
+      'policyVersion',
+      'selected',
+      'dropped',
+      'tokenBudget',
+      'totalTokenBudget',
+      'itemTokenBudget',
+      'estimatedTokens'
+    ]) ||
+    state.policyVersion !== 1 ||
+    !Array.isArray(state.selected) ||
+    !Array.isArray(state.dropped) ||
+    state.selected.length > MAX_DETAIL_ARRAY_ITEMS ||
+    state.dropped.length > MAX_DETAIL_ARRAY_ITEMS
+  ) {
+    return null
+  }
+  const selected = state.selected.map(projectDirectiveSelection)
+  const dropped = state.dropped.map(projectDirectiveDrop)
+  const tokenBudget = nonNegativeNumber(state.tokenBudget)
+  const estimatedTokens = nonNegativeNumber(state.estimatedTokens)
+  const itemTokenBudget = nonNegativeNumber(state.itemTokenBudget)
+  const totalTokenBudget =
+    state.totalTokenBudget === undefined ? undefined : nonNegativeNumber(state.totalTokenBudget)
+  if (
+    selected.some((value) => value === undefined) ||
+    dropped.some((value) => value === undefined) ||
+    tokenBudget === undefined ||
+    estimatedTokens === undefined ||
+    itemTokenBudget === undefined ||
+    (state.totalTokenBudget !== undefined && totalTokenBudget === undefined)
+  ) {
+    return null
+  }
+  return {
+    ...(messageId ? { messageId } : {}),
+    facts: {
+      selectedCount: selected.length,
+      droppedCount: dropped.length,
+      tokenBudget,
+      estimatedTokens
+    },
+    data: {
+      name: row.name,
+      manifest: {
+        policyVersion: state.policyVersion,
+        selected: selected as JsonValue[],
+        dropped: dropped as JsonValue[],
+        tokenBudget,
+        estimatedTokens,
+        ...(totalTokenBudget === undefined ? {} : { totalTokenBudget }),
+        itemTokenBudget
+      }
+    }
+  }
+}
+
+function memoryProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRecord> | null {
+  const projected = projectMemoryAnchor(row)
+  return projected
+    ? {
+        family: 'anchor',
+        facts: projected.facts,
+        ...(projected.messageId ? { messageId: projected.messageId } : {})
+      }
+    : null
 }
 
 function semanticProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRecord> {
@@ -350,6 +706,7 @@ function semanticProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFac
     lineageProjection(row) ??
     messageProjection(row) ??
     toolProjection(row) ??
+    memoryProjection(row) ??
     (row.kind === 'anchor' && RECOGNIZED_ANCHOR_NAMES.has(row.name ?? '')
       ? { family: 'anchor' as const }
       : { family: 'other' as const })
@@ -431,6 +788,112 @@ function hasExactKeys(value: Record<string, unknown>, expected: readonly string[
     actual.length === sortedExpected.length &&
     actual.every((key, index) => key === sortedExpected[index])
   )
+}
+
+function projectToolDetailData(row: DeepChatTapeEntryRow):
+  | {
+      kind: 'tool_call'
+      messageId: string
+      orderSeq: number
+      toolCall: { id: string; name: string; params?: string; serverName?: string }
+    }
+  | {
+      kind: 'tool_result'
+      messageId: string
+      orderSeq: number
+      toolCallId: string
+      response: string
+      rtkApplied?: boolean
+      rtkMode?: string
+      rtkFallbackReason?: string
+      imagePreviewCount?: number
+    }
+  | null {
+  const payload = parseJsonObject(row.payload_json)
+  const messageId = boundedIdentity(payload.messageId)
+  if (!messageId || !isNonNegativeInteger(payload.orderSeq)) return null
+
+  if (row.kind === 'tool_call') {
+    if (
+      !hasExactKeys(payload, ['messageId', 'orderSeq', 'toolCall']) ||
+      !isPlainObject(payload.toolCall)
+    ) {
+      return null
+    }
+    const toolCall = payload.toolCall
+    if (
+      !hasOnlyKeys(toolCall, [
+        'id',
+        'name',
+        'params',
+        'serverName',
+        'serverIcons',
+        'serverDescription'
+      ]) ||
+      !boundedIdentity(toolCall.id) ||
+      typeof toolCall.name !== 'string' ||
+      (toolCall.params !== undefined && typeof toolCall.params !== 'string') ||
+      (toolCall.serverName !== undefined && typeof toolCall.serverName !== 'string')
+    ) {
+      return null
+    }
+    return {
+      kind: 'tool_call',
+      messageId,
+      orderSeq: payload.orderSeq,
+      toolCall: {
+        id: toolCall.id as string,
+        name: boundedString(toolCall.name) ?? '',
+        ...(toolCall.params === undefined
+          ? {}
+          : { params: boundedToolContent(toolCall.params, MAX_DETAIL_STRING_BYTES) ?? '' }),
+        ...(toolCall.serverName === undefined
+          ? {}
+          : { serverName: boundedString(toolCall.serverName, MAX_DETAIL_STRING_BYTES) ?? '' })
+      }
+    }
+  }
+
+  if (
+    row.kind !== 'tool_result' ||
+    !hasOnlyKeys(payload, [
+      'messageId',
+      'orderSeq',
+      'toolCallId',
+      'response',
+      'rtkApplied',
+      'rtkMode',
+      'rtkFallbackReason',
+      'imagePreviews'
+    ]) ||
+    !boundedIdentity(payload.toolCallId) ||
+    typeof payload.response !== 'string' ||
+    (payload.rtkApplied !== undefined && typeof payload.rtkApplied !== 'boolean') ||
+    (payload.rtkMode !== undefined && typeof payload.rtkMode !== 'string') ||
+    (payload.rtkFallbackReason !== undefined && typeof payload.rtkFallbackReason !== 'string') ||
+    (payload.imagePreviews !== undefined && !Array.isArray(payload.imagePreviews))
+  ) {
+    return null
+  }
+  return {
+    kind: 'tool_result',
+    messageId,
+    orderSeq: payload.orderSeq,
+    toolCallId: payload.toolCallId as string,
+    response: boundedToolContent(payload.response, MAX_DETAIL_STRING_BYTES) ?? '',
+    ...(payload.rtkApplied === undefined ? {} : { rtkApplied: payload.rtkApplied }),
+    ...(payload.rtkMode === undefined
+      ? {}
+      : { rtkMode: boundedString(payload.rtkMode, MAX_DETAIL_STRING_BYTES) ?? '' }),
+    ...(payload.rtkFallbackReason === undefined
+      ? {}
+      : {
+          rtkFallbackReason: boundedString(payload.rtkFallbackReason, MAX_DETAIL_STRING_BYTES) ?? ''
+        }),
+    ...(Array.isArray(payload.imagePreviews)
+      ? { imagePreviewCount: payload.imagePreviews.length }
+      : {})
+  }
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -602,8 +1065,14 @@ function allowedDetailData(row: DeepChatTapeEntryRow): JsonValue | undefined {
     return attempt ? boundedJson(redactBody(attempt)) : undefined
   }
   if (row.kind === 'anchor' && RECOGNIZED_ANCHOR_NAMES.has(row.name ?? '')) {
+    const memoryAnchor = projectMemoryAnchor(row)
+    if (memoryAnchor) return boundedJson(redactBody(memoryAnchor.data))
     const projected = projectAnchorDetailData(row)
     return projected === undefined ? undefined : boundedJson(redactBody(projected))
+  }
+  if (row.kind === 'tool_call' || row.kind === 'tool_result') {
+    const projected = projectToolDetailData(row)
+    return projected === null ? undefined : boundedJson(redactBody(projected))
   }
   return undefined
 }

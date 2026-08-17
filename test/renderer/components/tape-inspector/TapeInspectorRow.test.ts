@@ -128,6 +128,54 @@ describe('TapeInspectorRow', () => {
     expect(wrapper.classes()).toContain('h-12')
   })
 
+  it('names Memory and tool activity and shows their bounded summaries inline', () => {
+    const memory = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({
+          record: {
+            recordType: 'fact',
+            key: 'entry:10',
+            entryId: 10,
+            family: 'anchor',
+            kind: 'anchor',
+            name: 'memory/view_assembled',
+            createdAt: 1_000,
+            facts: {
+              selectedCount: 2,
+              droppedCount: 1,
+              estimatedTokens: 90,
+              tokenBudget: 256
+            }
+          }
+        }),
+        selected: false
+      }
+    })
+    expect(memory.text()).toContain('tapeInspector.activity.memoryView')
+    expect(memory.text()).toContain('tapeInspector.activity.memorySelection')
+    expect(memory.text()).toContain('tapeInspector.activity.tokenUse')
+
+    const tool = mount(TapeInspectorRow, {
+      props: {
+        row: factRow({
+          record: {
+            recordType: 'fact',
+            key: 'entry:11',
+            entryId: 11,
+            family: 'tool',
+            kind: 'tool_result',
+            name: 'read_file',
+            createdAt: 1_100,
+            facts: { toolName: 'read_file', contentPreview: 'final recorded output' }
+          }
+        }),
+        selected: false
+      }
+    })
+    expect(tool.text()).toContain('tapeInspector.activity.toolResult · read_file')
+    expect(tool.text()).toContain('final recorded output')
+  })
+
   it('shows bounded transcript context inline without changing the virtual row height', () => {
     const wrapper = mount(TapeInspectorRow, {
       props: {

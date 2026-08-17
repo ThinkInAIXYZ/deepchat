@@ -357,6 +357,31 @@ Completion condition: independent bounded windows no longer look like failed cor
 older parents are discoverable and loadable without sparse hydration, and interrupted or
 request-scoped evidence remains truthful without being presented as an error.
 
+## 20. Chronological Ledger and Runtime Context
+
+- [x] Make Time mode render one stable actual-time merge of loaded Tape Entries and ordinary model
+  requests while preserving Sequence mode's canonical grouped `entryId` order.
+- [x] Keep timestamps display-only and preserve exact evidence binding, independent cursors,
+  incarnation reset, selection, and bounded pagination.
+- [x] Recognize the persisted Memory View and directive View Anchor manifests, surface bounded
+  selection/budget summaries, and expose historical manifest detail without resolving mutable
+  current Memory content.
+- [x] Expose credential-redacted, bounded previews and structured detail for known physical
+  `tool_call` and `tool_result` schemas; keep unknown schemas metadata-only.
+- [x] Replace generic unresolved endpoint copy with classified earlier/filter/Live/not-recorded/
+  inconsistent explanations and avoid repeating the same warning in Status and Duration.
+- [x] Add the smallest durable projection and renderer coverage for the changed disclosure,
+  ordering, stable tie-break, and incomplete-state contracts.
+- [x] Review the complete staged diff for hidden side effects, compatibility, edge cases,
+  performance, security, naming, test sufficiency, and maintenance cost.
+- [x] Run format, i18n, lint, typecheck, focused Tape/route/renderer suites, and the production build.
+- [ ] Manually verify Time/Sequence switching, tool/Memory detail, and incomplete groups at wide and
+  compact widths.
+
+Completion condition: the loaded activity reads in the order a developer experienced it, exact
+runtime context is visible where it was durably recorded, and unavailable history is described
+precisely without weakening authority or credential boundaries.
+
 ## Delivery Notes
 
 - Evidence remains request-scoped when `physicalAttempt` is null; null is never treated as zero and

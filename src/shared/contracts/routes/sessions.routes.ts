@@ -139,6 +139,7 @@ const TapeInspectorFactsSchema = z.object({
   toolName: TapeInspectorListTextSchema.optional(),
   toolSource: z.enum(['agent', 'mcp']).optional(),
   targetServer: TapeInspectorListTextSchema.optional(),
+  contentPreview: TapeInspectorListTextSchema.optional(),
   providerId: TapeInspectorListTextSchema.optional(),
   modelId: TapeInspectorListTextSchema.optional(),
   status: TapeInspectorListTextSchema.optional(),
@@ -147,6 +148,10 @@ const TapeInspectorFactsSchema = z.object({
   retryDecision: TapeInspectorListTextSchema.optional(),
   errorCode: TapeInspectorListTextSchema.optional(),
   isError: z.boolean().optional(),
+  selectedCount: z.number().int().nonnegative().optional(),
+  droppedCount: z.number().int().nonnegative().optional(),
+  tokenBudget: z.number().finite().nonnegative().optional(),
+  estimatedTokens: z.number().finite().nonnegative().optional(),
   usage: z
     .object({
       inputTokens: z.number().finite().nonnegative(),

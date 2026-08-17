@@ -209,6 +209,86 @@ describe('Tape Inspector renderer projection', () => {
     ])
   })
 
+  it('merges Tape facts and model requests by display time with stable domain keys', () => {
+    const input = {
+      tapeIncarnationId: 'incarnation-1',
+      records: [
+        fact(4, { name: 'execution/run_terminal', runId: 'run-1', createdAt: 300 }),
+        fact(2, { name: 'execution/run_started', runId: 'run-1', createdAt: 100 }),
+        fact(3, { createdAt: 200 })
+      ],
+      evidence: [
+        evidence('later-key', { createdAt: 200 }),
+        evidence('earlier-key', { createdAt: 200 }),
+        evidence('first-request', { createdAt: 150 })
+      ],
+      collapsedKeys: new Set<string>(),
+      chronological: true
+    }
+
+    const rows = buildTapeInspectorRows(input)
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'fact:incarnation-1:entry:2',
+      'trace:first-request',
+      'fact:incarnation-1:entry:3',
+      'trace:earlier-key',
+      'trace:later-key',
+      'fact:incarnation-1:entry:4'
+    ])
+    expect(
+      rows
+        .filter((row) => row.recordType === 'evidence')
+        .every((row) => row.sequenceEntryId === null)
+    ).toBe(true)
+
+    const sequenceRows = buildTapeInspectorRows({ ...input, chronological: false })
+    expect(
+      sequenceRows.filter((row) => row.recordType === 'fact').map((row) => row.record.entryId)
+    ).toEqual([2, 3, 4])
+    expect(sequenceRows.some((row) => row.recordType === 'group')).toBe(true)
+  })
+
+  it('states why authoritative group boundaries are incomplete without guessing', () => {
+    const reasonFor = (
+      records: TapeInspectorFactRecord[],
+      options: { hasOlder?: boolean; filtersActive?: boolean; loadingNewer?: boolean } = {}
+    ) => {
+      const group = buildTapeInspectorRows({
+        tapeIncarnationId: 'incarnation-1',
+        records,
+        evidence: [],
+        collapsedKeys: new Set(),
+        ...options
+      }).find((row) => row.recordType === 'group' && row.group.kind === 'run')
+      return group?.incompleteReason
+    }
+    const started = fact(1, {
+      name: 'execution/run_started',
+      runId: 'run-1',
+      createdAt: 100
+    })
+    const terminal = fact(2, {
+      name: 'execution/run_terminal',
+      runId: 'run-1',
+      createdAt: 200
+    })
+
+    expect(reasonFor([terminal], { hasOlder: true })).toBe('earlier_history')
+    expect(reasonFor([started], { filtersActive: true })).toBe('filtered')
+    expect(reasonFor([started], { loadingNewer: true })).toBe('awaiting_live')
+    expect(reasonFor([started])).toBe('not_recorded')
+    expect(reasonFor([started, fact(3, { ...started, entryId: 3, key: 'entry:3' })])).toBe(
+      'inconsistent'
+    )
+    expect(
+      reasonFor([started, fact(3, { ...started, entryId: 3, key: 'entry:3' })], {
+        filtersActive: true,
+        loadingNewer: true
+      })
+    ).toBe('inconsistent')
+  })
+
   it('distinguishes exact parent locations without guessing across sorting domains', () => {
     const earlier = evidence('earlier', { physicalAttempt: 0 })
     const filtered = evidence('filtered', { physicalAttempt: 1 })

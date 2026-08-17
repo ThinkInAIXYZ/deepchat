@@ -176,6 +176,18 @@ const emit = defineEmits<{
 
 const { t, d } = useI18n()
 
+const INCOMPLETE_STATE_KEYS = {
+  earlier_history: 'tapeInspector.states.timingEarlierHistory',
+  filtered: 'tapeInspector.states.timingFiltered',
+  awaiting_live: 'tapeInspector.states.timingAwaitingLive',
+  not_recorded: 'tapeInspector.states.timingNotRecorded',
+  inconsistent: 'tapeInspector.states.timingInconsistent'
+} as const
+
+function incompleteStateLabel(reason: keyof typeof INCOMPLETE_STATE_KEYS): string {
+  return t(INCOMPLETE_STATE_KEYS[reason])
+}
+
 const rowDomId = computed(() => getTapeInspectorRowDomId(props.row.key))
 const rowGridStyle = computed<CSSProperties>(() => ({
   gridTemplateColumns: props.gridTemplateColumns,
@@ -203,6 +215,18 @@ const nameLabel = computed(() => {
   if (row.recordType === 'fact') {
     if (row.record.name === 'message/user') return t('tapeInspector.activity.userMessage')
     if (row.record.name === 'message/assistant') return t('tapeInspector.activity.assistantMessage')
+    if (row.record.name === 'memory/view_assembled') {
+      return t('tapeInspector.activity.memoryView')
+    }
+    if (row.record.name === 'memory/directive_view_assembled') {
+      return t('tapeInspector.activity.directiveView')
+    }
+    if (row.record.kind === 'tool_call') {
+      return `${t('tapeInspector.activity.toolCall')} · ${row.record.name ?? row.record.kind}`
+    }
+    if (row.record.kind === 'tool_result') {
+      return `${t('tapeInspector.activity.toolResult')} · ${row.record.name ?? row.record.kind}`
+    }
     return row.record.name ?? row.record.kind
   }
   if (row.recordType === 'evidence') {
@@ -245,6 +269,23 @@ function appendFactSummary(parts: string[], facts: TapeInspectorFactRow['record'
   if (facts.stopReason && facts.stopReason !== facts.outcome) parts.push(facts.stopReason)
   if (facts.retryDecision) parts.push(facts.retryDecision)
   if (facts.errorCode) parts.push(facts.errorCode)
+  if (facts.contentPreview) parts.push(facts.contentPreview)
+  if (facts.selectedCount !== undefined || facts.droppedCount !== undefined) {
+    parts.push(
+      t('tapeInspector.activity.memorySelection', {
+        selected: facts.selectedCount ?? 0,
+        dropped: facts.droppedCount ?? 0
+      })
+    )
+  }
+  if (facts.estimatedTokens !== undefined || facts.tokenBudget !== undefined) {
+    parts.push(
+      t('tapeInspector.activity.tokenUse', {
+        used: facts.estimatedTokens ?? 0,
+        budget: facts.tokenBudget ?? 0
+      })
+    )
+  }
 }
 
 function activityLabel(kind: TapeInspectorRequestActivityKind): string {
@@ -313,7 +354,11 @@ const kindLabel = computed(() => {
 
 const showStatus = computed(() => props.row.statusState !== 'not_applicable')
 const statusLabel = computed(() => {
-  if (props.row.statusState === 'unresolved') return t('tapeInspector.states.statusPending')
+  if (props.row.statusState === 'unresolved') {
+    return props.row.incompleteReason
+      ? incompleteStateLabel(props.row.incompleteReason)
+      : t('tapeInspector.states.statusPending')
+  }
   return props.row.status ?? '—'
 })
 const statusTitle = computed(() =>
@@ -341,7 +386,9 @@ const startLabel = computed(() => {
   })
 })
 const durationLabel = computed(() => {
-  if (props.row.timingState === 'unresolved') return t('tapeInspector.states.timingPending')
+  if (props.row.timingState === 'unresolved') {
+    return props.row.incompleteReason ? '—' : t('tapeInspector.states.timingPending')
+  }
   const duration = props.row.durationMs
   if (duration === null) return '—'
   if (duration < 1_000) return `${duration} ms`
@@ -350,6 +397,10 @@ const durationLabel = computed(() => {
 const durationTitle = computed(() => {
   if (props.row.timingState === 'point') return t('tapeInspector.waterfall.point')
   if (props.row.timingState === 'not_applicable') return t('tapeInspector.states.notApplicable')
+  if (props.row.timingState === 'unresolved' && props.row.incompleteReason) {
+    return incompleteStateLabel(props.row.incompleteReason)
+  }
+  if (props.row.timingState === 'unresolved') return t('tapeInspector.states.timingPending')
   return durationLabel.value
 })
 const displaySummaryLabel = computed(() => {

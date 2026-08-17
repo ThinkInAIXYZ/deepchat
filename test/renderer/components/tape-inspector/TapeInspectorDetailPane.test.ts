@@ -351,6 +351,59 @@ describe('TapeInspectorDetailPane', () => {
     expect(wrapper.text().match(/tapeInspector\.evidence\.standaloneHint/g)).toHaveLength(1)
   })
 
+  it('distinguishes a recorded Memory manifest from the exact historical prompt', () => {
+    const record = {
+      ...firstDetail.detail.record,
+      kind: 'anchor' as const,
+      family: 'anchor' as const,
+      name: 'memory/view_assembled'
+    }
+    const wrapper = mount(TapeInspectorDetailPane, {
+      props: {
+        row: {
+          recordType: 'fact',
+          key: 'fact:incarnation-1:entry:1',
+          record,
+          depth: 0,
+          status: null,
+          statusState: 'not_applicable',
+          durationMs: null,
+          timingState: 'point',
+          sequenceEntryId: 1,
+          sequenceStart: 0,
+          actualStartAt: 100,
+          actualEndAt: null,
+          actualStart: 0,
+          actualWidth: 0
+        },
+        detail: {
+          source: 'tape',
+          detail: {
+            ...firstDetail.detail,
+            record,
+            data: {
+              name: 'memory/view_assembled',
+              manifest: {
+                selected: [{ id: 'memory-1', kind: 'semantic' }],
+                dropped: [],
+                tokenBudget: 256,
+                estimatedTokens: 90
+              }
+            }
+          }
+        },
+        capabilities,
+        loading: false,
+        errorCode: null
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tape-inspector-memory-manifest-hint"]').text()).toBe(
+      'tapeInspector.detail.memoryManifestHint'
+    )
+    expect(wrapper.text()).toContain('"id": "memory-1"')
+  })
+
   it('focuses an overlay detail and closes it with Escape', async () => {
     const wrapper = mount(TapeInspectorDetailPane, {
       attachTo: document.body,

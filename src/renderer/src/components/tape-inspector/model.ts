@@ -32,6 +32,12 @@ export interface TapeInspectorGroupSummary {
 
 export type TapeInspectorStatusState = 'explicit' | 'not_applicable' | 'unresolved'
 export type TapeInspectorTimingState = 'span' | 'point' | 'not_applicable' | 'unresolved'
+export type TapeInspectorIncompleteReason =
+  | 'earlier_history'
+  | 'filtered'
+  | 'awaiting_live'
+  | 'not_recorded'
+  | 'inconsistent'
 export type TapeInspectorEvidenceAssociation =
   | 'attempt'
   | 'request'
@@ -56,6 +62,7 @@ interface TapeInspectorRowBase {
   actualEndAt: number | null
   actualStart: number
   actualWidth: number
+  incompleteReason?: TapeInspectorIncompleteReason
 }
 
 export interface TapeInspectorGroupRow extends TapeInspectorRowBase {
@@ -372,6 +379,32 @@ function groupTiming(
   }
 }
 
+function groupIncompleteReason(input: {
+  group: TapeInspectorGroupDescriptor
+  matching: readonly TapeInspectorFactRecord[]
+  hasOlder: boolean
+  filtersActive: boolean
+  loadingNewer: boolean
+}): TapeInspectorIncompleteReason {
+  if (input.group.kind !== 'run' && input.group.kind !== 'tool') return 'not_recorded'
+  const startName =
+    input.group.kind === 'run' ? 'execution/run_started' : 'execution/dispatch_committed'
+  const endName = input.group.kind === 'run' ? 'execution/run_terminal' : 'execution/tool_outcome'
+  const starts = input.matching.filter((record) => record.name === startName)
+  const ends = input.matching.filter((record) => record.name === endName)
+  if (
+    starts.length > 1 ||
+    ends.length > 1 ||
+    (starts.length === 1 && ends.length === 1 && ends[0].createdAt < starts[0].createdAt)
+  ) {
+    return 'inconsistent'
+  }
+  if (input.filtersActive) return 'filtered'
+  if (starts.length === 0 && ends.length === 1 && input.hasOlder) return 'earlier_history'
+  if (input.loadingNewer) return 'awaiting_live'
+  return 'not_recorded'
+}
+
 function matchesLoadedSearch(record: TapeInspectorFactRecord, search: string): boolean {
   if (!search) return true
   const haystack = [
@@ -531,6 +564,10 @@ export function buildTapeInspectorRows(input: {
   collapsedKeys: ReadonlySet<string>
   search?: string
   flat?: boolean
+  chronological?: boolean
+  hasOlder?: boolean
+  filtersActive?: boolean
+  loadingNewer?: boolean
 }): TapeInspectorDisplayRow[] {
   const records = input.flat
     ? [...input.records]
@@ -718,6 +755,84 @@ export function buildTapeInspectorRows(input: {
     return flatRows
   }
 
+  if (input.chronological) {
+    const chronologicalRows: TapeInspectorDisplayRow[] = visibleFacts.map((record) => {
+      const status = factStatus(record)
+      return {
+        recordType: 'fact',
+        key: `fact:${input.tapeIncarnationId ?? 'unknown'}:${record.key}`,
+        record,
+        depth: 0,
+        status,
+        statusState: status === null ? 'not_applicable' : 'explicit',
+        durationMs: null,
+        timingState: 'point',
+        sequenceEntryId: record.entryId,
+        sequenceStart: normalizePosition(record.entryId, minEntryId, maxEntryId),
+        actualStartAt: record.createdAt,
+        actualEndAt: null,
+        actualStart: normalizePosition(record.createdAt, minCreatedAt, maxCreatedAt),
+        actualWidth: 0
+      }
+    })
+    for (const record of input.evidence) {
+      if (record.requestSeq === 0 || !matchesEvidenceSearch(record, normalizedSearch)) continue
+      const parentKey = getEvidenceParentGroupKey(
+        record,
+        groupKeys,
+        input.tapeIncarnationId ?? 'unknown'
+      )
+      const parent = parentKey ? descriptors.get(parentKey) : undefined
+      const association = parent
+        ? parent.kind === 'request'
+          ? 'request'
+          : 'attempt'
+        : typeof resolutionFor(record) === 'number' &&
+            minLoadedEntryId !== null &&
+            (resolutionFor(record) as number) < minLoadedEntryId
+          ? 'earlier'
+          : standaloneAssociationFor(record)
+      chronologicalRows.push(
+        evidenceRow({
+          evidence: record,
+          association,
+          parentGroupKey: parentKey,
+          depth: 0,
+          sequenceStart:
+            parentKey === null
+              ? 1
+              : normalizePosition(
+                  recordsByGroup.get(parentKey)?.at(-1)?.entryId ?? maxEntryId,
+                  minEntryId,
+                  maxEntryId
+                ),
+          minCreatedAt,
+          maxCreatedAt
+        })
+      )
+    }
+    chronologicalRows.sort((left, right) => {
+      const time = (left.actualStartAt ?? 0) - (right.actualStartAt ?? 0)
+      if (time !== 0) return time
+      const domain = (left.recordType === 'fact' ? 0 : 1) - (right.recordType === 'fact' ? 0 : 1)
+      if (domain !== 0) return domain
+      if (left.recordType === 'fact' && right.recordType === 'fact') {
+        return left.record.entryId - right.record.entryId
+      }
+      return left.key.localeCompare(right.key)
+    })
+    appendEvidenceLane(
+      chronologicalRows,
+      'diagnostic',
+      diagnosticEvidence,
+      input.collapsedKeys,
+      minCreatedAt,
+      maxCreatedAt,
+      () => 'diagnostic'
+    )
+    return chronologicalRows
+  }
+
   const result: TapeInspectorDisplayRow[] = []
   const emittedGroups = new Set<string>()
   for (const record of visibleFacts) {
@@ -733,6 +848,16 @@ export function buildTapeInspectorRows(input: {
         const timing = timings.get(group.key) ?? null
         const knownStartAt = timing?.startAt ?? groupStartAt(group, matching)
         const status = groupStatus(group, matching)
+        const incompleteReason =
+          status === null || ((group.kind === 'run' || group.kind === 'tool') && timing === null)
+            ? groupIncompleteReason({
+                group,
+                matching,
+                hasOlder: input.hasOlder === true,
+                filtersActive: input.filtersActive === true,
+                loadingNewer: input.loadingNewer === true
+              })
+            : undefined
         result.push({
           recordType: 'group',
           key: group.key,
@@ -760,7 +885,8 @@ export function buildTapeInspectorRows(input: {
           actualWidth: timing
             ? normalizePosition(timing.endAt, minCreatedAt, maxCreatedAt) -
               normalizePosition(timing.startAt, minCreatedAt, maxCreatedAt)
-            : 0
+            : 0,
+          ...(incompleteReason ? { incompleteReason } : {})
         })
         emittedGroups.add(group.key)
       }
@@ -857,10 +983,16 @@ export function getTapeInspectorDetailCapabilities(
     }
   }
   if (row.recordType === 'fact') {
+    const payload =
+      row.record.family === 'journal' ||
+      row.record.family === 'attempt' ||
+      row.record.family === 'anchor' ||
+      row.record.kind === 'tool_call' ||
+      row.record.kind === 'tool_result'
     return {
       source: 'tape',
       summary: true,
-      payload: false,
+      payload,
       timing: true,
       provenance: true,
       integrity: row.record.integrity !== undefined,

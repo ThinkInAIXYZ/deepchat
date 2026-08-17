@@ -44,6 +44,7 @@ export interface TapeInspectorFacts {
   toolName?: string
   toolSource?: 'agent' | 'mcp'
   targetServer?: string
+  contentPreview?: string
   providerId?: string
   modelId?: string
   status?: string
@@ -52,6 +53,10 @@ export interface TapeInspectorFacts {
   retryDecision?: string
   errorCode?: string
   isError?: boolean
+  selectedCount?: number
+  droppedCount?: number
+  tokenBudget?: number
+  estimatedTokens?: number
   usage?: TapeInspectorUsageFacts
 }
 

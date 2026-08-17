@@ -274,6 +274,211 @@ describe('Tape Trace Inspector projection', () => {
       'must-not-cross-ipc'
     )
   })
+
+  it('projects recorded Memory manifests without inventing historical content', () => {
+    const memoryView = row(10, {
+      kind: 'anchor',
+      name: 'memory/view_assembled',
+      payload_json: JSON.stringify({
+        name: 'memory/view_assembled',
+        state: {
+          policyVersion: 1,
+          selected: [
+            {
+              id: 'memory-1',
+              kind: 'semantic',
+              score: 0.9,
+              similarity: 0.8,
+              sources: { vec: true, fts: false }
+            }
+          ],
+          dropped: [{ id: 'memory-2', kind: 'reflection', reason: 'budget' }],
+          tokenBudget: 800,
+          estimatedTokens: 120,
+          queryHash: 'query-hash',
+          degradations: []
+        }
+      }),
+      meta_json: JSON.stringify({ messageId: 'message-1' })
+    })
+    const directiveView = row(11, {
+      kind: 'anchor',
+      name: 'memory/directive_view_assembled',
+      payload_json: JSON.stringify({
+        name: 'memory/directive_view_assembled',
+        state: {
+          policyVersion: 1,
+          selected: [{ id: 'directive-1', kind: 'instruction', source: 'explicit_user' }],
+          dropped: [{ id: 'directive-2', kind: 'suppress_topic', reason: 'total_budget' }],
+          tokenBudget: 256,
+          totalTokenBudget: 800,
+          itemTokenBudget: 128,
+          estimatedTokens: 90
+        }
+      }),
+      meta_json: JSON.stringify({ messageId: 'message-1' })
+    })
+
+    expect(projectTapeInspectorFact(memoryView)).toMatchObject({
+      family: 'anchor',
+      messageId: 'message-1',
+      facts: {
+        selectedCount: 1,
+        droppedCount: 1,
+        tokenBudget: 800,
+        estimatedTokens: 120
+      }
+    })
+    expect(projectTapeInspectorDetail(memoryView)).toMatchObject({
+      disclosure: 'structured',
+      data: {
+        name: 'memory/view_assembled',
+        manifest: {
+          selected: [{ id: 'memory-1', kind: 'semantic' }],
+          dropped: [{ id: 'memory-2', kind: 'reflection', reason: 'budget' }]
+        }
+      }
+    })
+    expect(projectTapeInspectorFact(directiveView)).toMatchObject({
+      family: 'anchor',
+      facts: { selectedCount: 1, droppedCount: 1, tokenBudget: 256 }
+    })
+    expect(projectTapeInspectorDetail(directiveView)).toMatchObject({
+      disclosure: 'structured',
+      data: {
+        manifest: {
+          selected: [{ id: 'directive-1', kind: 'instruction', source: 'explicit_user' }]
+        }
+      }
+    })
+    expect(JSON.stringify(projectTapeInspectorDetail(memoryView))).not.toContain(
+      'historical memory body'
+    )
+
+    const futureSchema = row(12, {
+      kind: 'anchor',
+      name: 'memory/view_assembled',
+      payload_json: JSON.stringify({
+        name: 'memory/view_assembled',
+        state: {
+          policyVersion: 1,
+          selected: [],
+          dropped: [],
+          tokenBudget: 800,
+          estimatedTokens: 0,
+          futureContent: 'must-not-cross-ipc'
+        }
+      })
+    })
+    expect(projectTapeInspectorDetail(futureSchema)).toMatchObject({
+      disclosure: 'metadata_only'
+    })
+    expect(JSON.stringify(projectTapeInspectorDetail(futureSchema))).not.toContain(
+      'must-not-cross-ipc'
+    )
+
+    const oversizedManifest = row(13, {
+      kind: 'anchor',
+      name: 'memory/view_assembled',
+      payload_json: JSON.stringify({
+        name: 'memory/view_assembled',
+        state: {
+          policyVersion: 1,
+          selected: Array.from({ length: 257 }, (_, index) => ({
+            id: `memory-${index}`,
+            kind: 'semantic'
+          })),
+          dropped: [],
+          tokenBudget: 800,
+          estimatedTokens: 120
+        }
+      })
+    })
+    expect(projectTapeInspectorDetail(oversizedManifest)).toMatchObject({
+      disclosure: 'metadata_only'
+    })
+  })
+
+  it('shows bounded known tool payloads while masking stored API-key fields', () => {
+    const toolCall = row(12, {
+      kind: 'tool_call',
+      name: 'search',
+      payload_json: JSON.stringify({
+        messageId: 'message-1',
+        orderSeq: 7,
+        toolCall: {
+          id: 'tool-call-1',
+          name: 'search',
+          params: JSON.stringify({ query: 'Tape semantics', apiKey: 'secret-value' }),
+          serverName: 'local-tools'
+        }
+      }),
+      meta_json: JSON.stringify({ status: 'success' })
+    })
+    const toolResult = row(13, {
+      kind: 'tool_result',
+      name: 'search',
+      payload_json: JSON.stringify({
+        messageId: 'message-1',
+        orderSeq: 8,
+        toolCallId: 'tool-call-1',
+        response: JSON.stringify({ result: 'recorded output', api_key: 'another-secret' })
+      }),
+      meta_json: JSON.stringify({ status: 'success' })
+    })
+
+    expect(projectTapeInspectorFact(toolCall)).toMatchObject({
+      family: 'tool',
+      messageId: 'message-1',
+      providerToolCallId: 'tool-call-1',
+      facts: { toolName: 'search', status: 'success' }
+    })
+    expect(projectTapeInspectorFact(toolResult)).toMatchObject({
+      family: 'tool',
+      facts: { contentPreview: expect.stringContaining('recorded output') }
+    })
+    const details = JSON.stringify([
+      projectTapeInspectorDetail(toolCall),
+      projectTapeInspectorDetail(toolResult)
+    ])
+    expect(details).toContain('Tape semantics')
+    expect(details).toContain('recorded output')
+    expect(details).not.toContain('secret-value')
+    expect(details).not.toContain('another-secret')
+
+    const unknownToolSchema = row(14, {
+      kind: 'tool_result',
+      name: 'search',
+      payload_json: JSON.stringify({
+        messageId: 'message-1',
+        orderSeq: 9,
+        toolCallId: 'tool-call-1',
+        response: 'safe output',
+        futureSecret: 'must-not-cross-ipc'
+      })
+    })
+    expect(projectTapeInspectorDetail(unknownToolSchema)).toMatchObject({
+      disclosure: 'metadata_only'
+    })
+    expect(JSON.stringify(projectTapeInspectorDetail(unknownToolSchema))).not.toContain(
+      'must-not-cross-ipc'
+    )
+
+    const oversizedToolResult = row(15, {
+      kind: 'tool_result',
+      name: 'search',
+      payload_json: JSON.stringify({
+        messageId: 'message-1',
+        orderSeq: 10,
+        toolCallId: 'tool-call-1',
+        response: `{"apiKey":"${'secret-value'.repeat(2_000)}"}`
+      })
+    })
+    const oversizedDetail = projectTapeInspectorDetail(oversizedToolResult)
+    expect(oversizedDetail).toMatchObject({ disclosure: 'structured' })
+    expect(JSON.stringify(oversizedDetail)).toContain('***MASKED***')
+    expect(JSON.stringify(oversizedDetail)).not.toContain('secret-value')
+  })
 })
 
 const itIfSqlite = Database ? it : it.skip

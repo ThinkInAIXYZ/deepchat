@@ -88,6 +88,14 @@
         }}
       </p>
 
+      <p
+        v-if="isMemoryManifestDetail"
+        data-testid="tape-inspector-memory-manifest-hint"
+        class="mt-4 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground"
+      >
+        {{ t('tapeInspector.detail.memoryManifestHint') }}
+      </p>
+
       <section
         v-if="detail.source === 'request' && observedActivities.length > 0"
         data-testid="tape-inspector-request-result"
@@ -295,6 +303,12 @@ const observedActivities = computed<readonly TapeInspectorRequestActivity[]>(
 )
 const requestContextActivities = computed<readonly TapeInspectorRequestActivity[]>(
   () => props.requestObservation?.before ?? []
+)
+const isMemoryManifestDetail = computed(
+  () =>
+    props.detail?.source === 'tape' &&
+    (props.detail.detail.record.name === 'memory/view_assembled' ||
+      props.detail.detail.record.name === 'memory/directive_view_assembled')
 )
 const observedActivityHeading = computed(() =>
   props.requestObservation?.afterBasis === 'identity'

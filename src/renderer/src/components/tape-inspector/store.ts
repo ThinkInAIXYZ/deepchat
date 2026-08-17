@@ -23,6 +23,7 @@ import {
   type TapeInspectorDetailState,
   type TapeInspectorDisplayRow
 } from './model'
+import type { TapeInspectorTimelineMode } from './timeline'
 
 const PAGE_LIMIT = 100
 const EVIDENCE_PAGE_LIMIT = 100
@@ -100,6 +101,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
   const evidenceEntryResolutions = shallowRef(new Map<string, number | null>())
   const serverFilters = shallowRef<TapeInspectorFactFilters>({})
   const serverSort = shallowRef<TapeInspectorSort>(CANONICAL_SORT)
+  const timelineMode = ref<TapeInspectorTimelineMode>('actual')
   const loadedSearch = ref('')
   const loadingSearchFill = ref(false)
   const livePaused = ref(false)
@@ -155,7 +157,11 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       evidenceEntryResolutions: evidenceEntryResolutions.value,
       collapsedKeys: new Set(),
       search: loadedSearch.value,
-      flat: !canonicalSort.value
+      flat: !canonicalSort.value,
+      chronological: canonicalSort.value && timelineMode.value === 'actual',
+      hasOlder: olderCursor.value !== null,
+      filtersActive: entryFiltersCanHideEvidenceParents.value,
+      loadingNewer: loadingNewer.value
     })
   )
   const rows = computed(() => applyCollapsedVisibility(overviewRows.value, collapsedKeys.value))
@@ -934,6 +940,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     if (sameSort(serverSort.value, sort)) return true
     const currentSessionId = sessionId.value
     serverSort.value = sort
+    if (sort.column !== 'entryId') timelineMode.value = 'sequence'
     cancelLoadedSearchFill()
     if (!currentSessionId) return false
     const previousIncarnation = tapeIncarnationId.value
@@ -952,6 +959,16 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
       collapsedKeys.value = previousCollapsedKeys
     }
     return loaded
+  }
+
+  async function setTimelineMode(mode: TapeInspectorTimelineMode): Promise<boolean> {
+    if (timelineMode.value === mode && (mode !== 'actual' || canonicalSort.value)) return true
+    if (mode === 'actual' && !canonicalSort.value) {
+      const restored = await applyServerSort(CANONICAL_SORT)
+      if (!restored) return false
+    }
+    timelineMode.value = mode
+    return true
   }
 
   function setLoadedSearch(search: string): void {
@@ -1115,6 +1132,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     prependScrollAnchor.value = null
     serverFilters.value = {}
     serverSort.value = CANONICAL_SORT
+    timelineMode.value = 'actual'
     loadedSearch.value = ''
     livePaused.value = false
     clearProjection()
@@ -1128,6 +1146,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     evidence,
     serverFilters,
     serverSort,
+    timelineMode,
     canonicalSort,
     loadedSearch,
     loadingSearchFill,
@@ -1165,6 +1184,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     loadMoreEvidence,
     applyServerFilters,
     applyServerSort,
+    setTimelineMode,
     setLoadedSearch,
     toggleCollapsed,
     setPrependScrollAnchor,

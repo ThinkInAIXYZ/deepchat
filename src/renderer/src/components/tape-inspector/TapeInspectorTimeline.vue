@@ -34,8 +34,8 @@
         <button
           type="button"
           class="h-5 rounded px-1.5 text-[10px]"
-          :class="mode === 'actual' ? 'bg-muted text-foreground' : 'text-muted-foreground'"
-          :aria-pressed="mode === 'actual'"
+          :class="props.mode === 'actual' ? 'bg-muted text-foreground' : 'text-muted-foreground'"
+          :aria-pressed="props.mode === 'actual'"
           @click="setMode('actual')"
         >
           {{ t('tapeInspector.timeline.actual') }}
@@ -43,8 +43,8 @@
         <button
           type="button"
           class="h-5 rounded px-1.5 text-[10px]"
-          :class="mode === 'sequence' ? 'bg-muted text-foreground' : 'text-muted-foreground'"
-          :aria-pressed="mode === 'sequence'"
+          :class="props.mode === 'sequence' ? 'bg-muted text-foreground' : 'text-muted-foreground'"
+          :aria-pressed="props.mode === 'sequence'"
           @click="setMode('sequence')"
         >
           {{ t('tapeInspector.timeline.sequence') }}
@@ -158,21 +158,25 @@ interface AbsoluteRange {
   max: number
 }
 
-const props = defineProps<{
-  rows: readonly TapeInspectorDisplayRow[]
-  selectedKey: string | null
-  hasUnloadedHistory: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    rows: readonly TapeInspectorDisplayRow[]
+    selectedKey: string | null
+    hasUnloadedHistory: boolean
+    mode?: TapeInspectorTimelineMode
+  }>(),
+  { mode: 'actual' }
+)
 
 const emit = defineEmits<{
   select: [key: string]
+  'update:mode': [mode: TapeInspectorTimelineMode]
 }>()
 
 const { t, d } = useI18n()
 const rootRef = ref<HTMLElement | null>(null)
 const { width: rootWidth } = useElementSize(rootRef)
 const lanes: TapeInspectorTimelineLane[] = ['session', 'model', 'tool']
-const mode = ref<TapeInspectorTimelineMode>('actual')
 const viewport = ref({ start: 0, end: 1 })
 const brush = ref<BrushState | null>(null)
 
@@ -183,7 +187,7 @@ const EDGE_EPSILON = 1e-6
 const items = computed(() =>
   buildTapeInspectorTimelineItems({
     rows: props.rows,
-    mode: mode.value,
+    mode: props.mode,
     viewportStart: viewport.value.start,
     viewportEnd: viewport.value.end,
     selectedKey: props.selectedKey,
@@ -202,7 +206,7 @@ const absoluteRange = computed<AbsoluteRange | null>(() => {
   let max = Number.NEGATIVE_INFINITY
   for (const row of props.rows) {
     if (row.recordType === 'evidence' && row.association === 'diagnostic') continue
-    if (mode.value === 'sequence') {
+    if (props.mode === 'sequence') {
       if (row.sequenceEntryId === null) continue
       min = Math.min(min, row.sequenceEntryId)
       max = Math.max(max, row.sequenceEntryId)
@@ -261,7 +265,7 @@ function itemTitle(item: TapeInspectorTimelineItem): string {
   if (item.row.actualStartAt !== null) {
     lines.push(d(new Date(item.row.actualStartAt), { dateStyle: 'medium', timeStyle: 'medium' }))
   }
-  if (mode.value === 'sequence') {
+  if (props.mode === 'sequence') {
     lines.push(t('tapeInspector.waterfall.sequence'))
   } else if (item.row.timingState === 'span' && item.row.durationMs !== null) {
     lines.push(`${t('tapeInspector.columns.duration')}: ${durationLabel(item.row.durationMs)}`)
@@ -319,9 +323,9 @@ function resetViewport(): void {
 }
 
 function setMode(nextMode: TapeInspectorTimelineMode): void {
-  if (mode.value === nextMode) return
+  if (props.mode === nextMode) return
   cancelBrush()
-  mode.value = nextMode
+  emit('update:mode', nextMode)
   resetViewport()
 }
 

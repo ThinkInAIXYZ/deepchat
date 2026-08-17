@@ -194,7 +194,9 @@
         :rows="store.overviewRows"
         :selected-key="store.selectedKey"
         :has-unloaded-history="store.hasOlder || store.hasMoreEvidence"
+        :mode="store.timelineMode"
         @select="selectOverviewRow"
+        @update:mode="store.setTimelineMode"
       />
       <div class="relative flex min-h-0 flex-1 overflow-hidden">
         <div
