@@ -2087,9 +2087,7 @@ describe('WindowSideBar agent switch', () => {
       '[data-testid="window-sidebar-new-chat-workspace-menu-item"]'
     )
 
-    const defaultBadges = wrapper.findAll(
-      '[data-testid="window-sidebar-default-workspace-badge"]'
-    )
+    const defaultBadges = wrapper.findAll('[data-testid="window-sidebar-default-workspace-badge"]')
     expect(defaultBadges).toHaveLength(1)
     expect(wrapper.get('[data-group-id="/work/default"]').text()).toContain(
       'settings.environments.badges.default'

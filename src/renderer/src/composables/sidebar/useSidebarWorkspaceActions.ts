@@ -135,9 +135,7 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
 
   const canSetDefaultWorkspace = (group: SessionGroup) => {
     const environment = options.getWorkspaceEnvironment(group)
-    return (
-      environment?.status === 'active' && environment.exists && !isDefaultWorkspaceGroup(group)
-    )
+    return environment?.status === 'active' && environment.exists && !isDefaultWorkspaceGroup(group)
   }
 
   const handleOpenWorkspace = async (group: SessionGroup) => {
