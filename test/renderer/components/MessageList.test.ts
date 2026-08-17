@@ -60,10 +60,14 @@ vi.mock('@/components/message/MessageItemAssistant.vue', () => ({
       disableMarkdownVirtualization: {
         type: Boolean,
         default: false
+      },
+      allowGuardStopContinue: {
+        type: Boolean,
+        default: true
       }
     },
     template:
-      '<div class="assistant-item" :data-read-only="String(isReadOnly)" :data-generating="String(isInGeneratingThread)" :data-streaming="String(isStreamingMessage)" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)">{{ message.id }}</div>'
+      '<div class="assistant-item" :data-read-only="String(isReadOnly)" :data-generating="String(isInGeneratingThread)" :data-streaming="String(isStreamingMessage)" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)" :data-allow-guard-stop-continue="String(allowGuardStopContinue)">{{ message.id }}</div>'
   })
 }))
 
@@ -393,6 +397,20 @@ describe('MessageList', () => {
 
     expect(wrapper.find('.assistant-item').attributes('data-disable-markdown-virtualization')).toBe(
       'true'
+    )
+  })
+
+  it('does not enable Continue on a visible older assistant when the newest is outside the window', () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('u1', 'user', 1), createMessage('assistant-old', 'assistant', 2)],
+        latestAssistantMessageId: 'assistant-new'
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').text()).toBe('assistant-old')
+    expect(wrapper.find('.assistant-item').attributes('data-allow-guard-stop-continue')).toBe(
+      'false'
     )
   })
 })

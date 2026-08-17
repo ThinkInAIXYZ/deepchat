@@ -56,6 +56,7 @@ import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
   type DisplayAssistantMessageBlock,
   type DisplayMessage,
+  findLatestAssistantMessageId,
   type MessageListItem
 } from '@/features/chat-page/model/displayMessage'
 import MessageListRow from './MessageListRow.vue'
@@ -74,6 +75,7 @@ const props = withDefaults(
     beforeSpacerHeight?: number
     afterSpacerHeight?: number
     disableMarkdownVirtualization?: boolean
+    latestAssistantMessageId?: string | null
   }>(),
   {
     conversationId: '',
@@ -85,7 +87,8 @@ const props = withDefaults(
     isReadOnly: false,
     beforeSpacerHeight: 0,
     afterSpacerHeight: 0,
-    disableMarkdownVirtualization: false
+    disableMarkdownVirtualization: false,
+    latestAssistantMessageId: undefined
   }
 )
 
@@ -107,13 +110,9 @@ const shouldDisableMarkdownVirtualization = computed(
   () => props.disableMarkdownVirtualization || isCapturingValue.value
 )
 const allRenderedMessages = computed(() => props.messages)
-const latestAssistantMessageId = computed(() => {
-  for (let index = props.messages.length - 1; index >= 0; index -= 1) {
-    const message = props.messages[index]
-    if (message.role === 'assistant') return message.id
-  }
-  return null
-})
+const latestAssistantMessageId = computed(
+  () => props.latestAssistantMessageId ?? findLatestAssistantMessageId(props.messages)
+)
 const seenMessageIds = new Set<string>()
 const animatingMessageIds = ref(new Set<string>())
 

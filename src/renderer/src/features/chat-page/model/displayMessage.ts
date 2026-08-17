@@ -311,3 +311,12 @@ export function hasRenderableAssistantBlocks(blocks: DisplayAssistantMessageBloc
 export function isCompactionMessageItem(item: MessageListItem): boolean {
   return item.messageType === 'compaction'
 }
+
+export function findLatestAssistantMessageId(
+  messages: readonly Pick<DisplayMessage, 'id' | 'role'>[]
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'assistant') return messages[index].id
+  }
+  return null
+}

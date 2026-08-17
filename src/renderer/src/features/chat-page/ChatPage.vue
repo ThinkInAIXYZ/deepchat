@@ -96,6 +96,7 @@
               :streaming-message-id="streamingMessageId"
               :trace-message-ids="traceMessageIds"
               :is-read-only="isReadOnlySession"
+              :latest-assistant-message-id="latestAssistantMessageId"
               :disable-markdown-virtualization="isChatSearchOpen"
               @retry="onMessageRetry"
               @delete="onMessageDelete"
@@ -354,6 +355,7 @@ import { useMessageActions } from './composables/useMessageActions'
 import { usePendingInputActions } from './composables/usePendingInputActions'
 import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
 import type { UserMessageInlineItem } from '@shared/types/agent-interface'
+import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
 
 const props = defineProps<{
   sessionId: string
@@ -839,6 +841,7 @@ const {
   isSessionViewCommitted,
   isCurrentSessionStreaming
 })
+const latestAssistantMessageId = computed(() => findLatestAssistantMessageId(displayMessages.value))
 
 const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {
   const messages = displayMessages.value
