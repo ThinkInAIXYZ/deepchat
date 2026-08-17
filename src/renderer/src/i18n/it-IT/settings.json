@@ -3225,7 +3225,7 @@
       "loading": "Anteprima del caricamento",
       "systemUnlock": "Anteprima dello sblocco del sistema",
       "unlock": "Anteprima dello sblocco manuale",
-      "recovery": "Preview database recovery",
+      "recovery": "Anteprima del ripristino del database",
       "failed": "Impossibile mostrare lo scenario della finestra di avvio.",
       "previewHint": "Anteprima di sviluppo — l'invio della password è disabilitato."
     },

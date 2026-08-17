@@ -3225,7 +3225,7 @@
       "loading": "Forhåndsvis indlæsning",
       "systemUnlock": "Forhåndsvis systemoplåsning",
       "unlock": "Forhåndsvis manuel oplåsning",
-      "recovery": "Preview database recovery",
+      "recovery": "Forhåndsvis databasegendannelse",
       "failed": "Kan ikke vise opstartsscenariet.",
       "previewHint": "Udviklingsforhåndsvisning — adgangskodeafsendelse er deaktiveret."
     },

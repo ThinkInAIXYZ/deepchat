@@ -3225,7 +3225,7 @@
       "loading": "Laden in Vorschau anzeigen",
       "systemUnlock": "Systementsperrung in Vorschau anzeigen",
       "unlock": "Manuelle Entsperrung in Vorschau anzeigen",
-      "recovery": "Preview database recovery",
+      "recovery": "Datenbankwiederherstellung in Vorschau anzeigen",
       "failed": "Das Startfenster-Szenario kann nicht angezeigt werden.",
       "previewHint": "Entwicklungsvorschau — die Passwortübermittlung ist deaktiviert."
     },
