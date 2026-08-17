@@ -40,6 +40,7 @@
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
+      :allow-guard-stop-continue="allowGuardStopContinue"
       :disable-markdown-virtualization="disableMarkdownVirtualization"
       @retry="onRetry"
       @delete="onDelete"
@@ -74,6 +75,7 @@ const props = withDefaults(
     isCapturing?: boolean
     isReadOnly?: boolean
     disableMarkdownVirtualization?: boolean
+    allowGuardStopContinue?: boolean
   }>(),
   {
     isGenerating: false,
@@ -81,7 +83,8 @@ const props = withDefaults(
     showTrace: false,
     isCapturing: false,
     isReadOnly: false,
-    disableMarkdownVirtualization: false
+    disableMarkdownVirtualization: false,
+    allowGuardStopContinue: true
   }
 )
 

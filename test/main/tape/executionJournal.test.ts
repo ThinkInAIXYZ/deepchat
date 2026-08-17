@@ -902,6 +902,48 @@ describe('Execution Journal domain and strict persistence', () => {
     )
   })
 
+  it('keeps a historical max_tool_calls terminal when a later run commits', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    commitStarted(service, RUN_IDS.completed, 'assistant-1')
+    expect(
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'completed',
+        stopReason: 'max_tool_calls'
+      })
+    ).toMatchObject({ created: true })
+
+    commitStarted(service, RUN_IDS.notDispatched, 'assistant-2')
+    expect(
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.notDispatched,
+        messageId: 'assistant-2',
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    ).toMatchObject({ created: true })
+
+    const terminals = entries.filter((entry) => entry.name === 'execution/run_terminal')
+    expect(terminals).toHaveLength(2)
+    expect(JSON.parse(terminals[0].payload_json).data).toMatchObject({
+      outcome: 'completed',
+      stopReason: 'max_tool_calls'
+    })
+    expect(() =>
+      service.commitRunTerminal({
+        sessionId: 'session-1',
+        runId: RUN_IDS.completed,
+        messageId: 'assistant-1',
+        outcome: 'error',
+        stopReason: 'max_tool_calls'
+      })
+    ).toThrow(ExecutionJournalCorruptionError)
+  })
+
   it('keeps journal facts out of default Context Tape views and search', () => {
     const { table, entries } = createTapeTableMock()
     const service = createTapeService(table)

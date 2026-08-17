@@ -65,6 +65,12 @@ Protective thresholds and journal outcomes stay unchanged.
 - `0` when the stream ends without a guard stop reason
 - `6` (`domain`) when the terminal `stopReason` is `max_tool_calls`, `no_progress`, or `max_turns`
 
+JSONL mode still prints `ok: true` for a successful RPC. Exit `6` is a domain result, not a
+transport failure. Machine consumers must read `stopReason` and the process exit code together.
+
+If the Session is deleted after the stream ends, subscribe still returns `runId` and `lastCursor`
+instead of turning a completed watch into `not_found`.
+
 ## Compatibility And Safety Invariants
 
 1. Guard thresholds stay at 128 tool calls, two identical batches for correction, and four for
@@ -82,3 +88,5 @@ Protective thresholds and journal outcomes stay unchanged.
 - [x] Add optional CLI `stopReason` to snapshot and subscribe output.
 - [x] Make `run watch` print the reason and return non-zero for guard stops.
 - [x] Cover projection, Continue, pagination-independent snapshot, and watch exit.
+- [x] Prevent Continue double-submit and hide Continue on historical guard banners.
+- [x] Cover claimed-queue consume for completed tool-limit stops and immutable prior terminals.

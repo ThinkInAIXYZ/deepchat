@@ -14,6 +14,7 @@ import { PUBLIC_MCP_CONFIG_MAX_BYTES } from '@shared/contracts/routes/mcp.routes
 import { PROVIDER_CREDENTIAL_MAX_BYTES } from '@shared/contracts/routes/providers.routes'
 import {
   RUN_PROMPT_MAX_CHARACTERS,
+  eventsSubscribeRoute,
   sessionsRunDetachedRoute
 } from '@shared/contracts/routes/runs.routes'
 import { parseCliArguments, formatCliHelp, inferCliOutputMode, type CliOutputMode } from './args'
@@ -98,6 +99,13 @@ function sanitizeTerminalText(value: string): string {
 
 function writeHumanText(output: WritableOutput, value: string): void {
   writeText(output, sanitizeTerminalText(value))
+}
+
+function exitCodeForWatchResult(result: unknown): CliExitCode {
+  const parsed = eventsSubscribeRoute.output.safeParse(result)
+  return parsed.success && isGuardRunStopReason(parsed.data.stopReason)
+    ? CLI_EXIT_CODES.domain
+    : CLI_EXIT_CODES.success
 }
 
 function runEventPayloadMatchesTarget(
@@ -492,11 +500,8 @@ export async function runCli(
     } else {
       writeText(stdout, serializeMachineResponse(response))
     }
-    if (
-      parsed.contract.name === 'events.subscribe' &&
-      isGuardRunStopReason((result.data as { stopReason?: unknown }).stopReason)
-    ) {
-      return CLI_EXIT_CODES.domain
+    if (parsed.contract.name === 'events.subscribe') {
+      return exitCodeForWatchResult(result.data)
     }
     return CLI_EXIT_CODES.success
   } catch (error) {

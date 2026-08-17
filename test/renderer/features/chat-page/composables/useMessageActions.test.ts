@@ -326,4 +326,24 @@ describe('useMessageActions', () => {
     expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
+
+  it('does not send a second continue while the first send is in flight', async () => {
+    const harness = createHarness()
+    let resolveSend!: (value: { accepted: boolean }) => void
+    harness.chatClient.sendMessage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSend = resolve
+      })
+    )
+
+    const first = harness.actions.onMessageContinue('s1', 'message-3')
+    const second = harness.actions.onMessageContinue('s1', 'message-3')
+    await Promise.resolve()
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledTimes(1)
+
+    resolveSend({ accepted: true })
+    await Promise.all([first, second])
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledTimes(1)
+    harness.stop()
+  })
 })

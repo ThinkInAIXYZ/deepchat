@@ -1099,6 +1099,26 @@ describe('CliRunService', () => {
     )
   })
 
+  it('ends a watcher without failing when the session disappears after the stream', async () => {
+    const idleSession = { ...baseSession, status: 'idle' as const }
+    const { service, projection } = createHarness({ session: idleSession })
+    projection.getSession.mockResolvedValueOnce(idleSession).mockResolvedValueOnce(null)
+    const emit = vi.fn(async () => undefined)
+
+    await expect(
+      service.dispatchStream(
+        eventsSubscribeRoute.name,
+        { runId: 'run-1' },
+        humanCaller,
+        new AbortController().signal,
+        emit
+      )
+    ).resolves.toEqual({
+      runId: 'run-1',
+      lastCursor: 'test-epoch_1:0'
+    })
+  })
+
   it('rejects renderer callers before exposing run existence', async () => {
     const { service } = createHarness()
 

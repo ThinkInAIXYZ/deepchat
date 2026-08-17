@@ -135,6 +135,7 @@
               :stop-reason="guardStopReason"
               :is-read-only="isReadOnly"
               :disabled="resolvedIsInGeneratingThread"
+              :allow-continue="allowGuardStopContinue !== false"
               @continue="handleGuardStopContinue"
             />
           </div>
@@ -287,6 +288,7 @@ const props = defineProps<{
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean
+  allowGuardStopContinue?: boolean
 }>()
 
 const themeStore = useThemeStore()

@@ -242,10 +242,14 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   }
 
   async function onMessageContinue(_conversationId: string, messageId: string) {
+    // Signature stays for the emit chain. Legacy needContinue actions now send a
+    // follow-up turn instead of retrying and rewriting the historical run.
     if (options.isReadOnlySession.value || !messageId) return
     if (options.hasBlockingInteraction()) return
     const sessionId = options.sessionId()
+    if (activeRetrySessionIds.has(sessionId)) return
     try {
+      activeRetrySessionIds.add(sessionId)
       const result = await options.chatClient.sendMessage(
         sessionId,
         options.t('chat.guardStop.continueMessage')
@@ -254,6 +258,8 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       options.beginPlanTurn(sessionId)
     } catch (error) {
       console.error('[ChatPage] continue message failed:', error)
+    } finally {
+      activeRetrySessionIds.delete(sessionId)
     }
   }
 

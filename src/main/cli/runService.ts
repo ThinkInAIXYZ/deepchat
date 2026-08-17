@@ -14,6 +14,7 @@ import {
   runsGetRoute,
   sessionsRunDetachedRoute,
   type EventsSubscribeInput,
+  type EventsSubscribeOutput,
   type PublicRunMessage,
   type PublicRunSnapshot,
   type RunDetachedInput,
@@ -366,7 +367,7 @@ export class CliRunService {
     caller: CliRouteCaller,
     signal: AbortSignal,
     emit: CliStreamEmitter
-  ): Promise<unknown> {
+  ): Promise<EventsSubscribeOutput> {
     const session = this.requireOwnedRun(input.runId, caller)
     if (session.metadata?.source !== 'cli_run') {
       throw new CliRequestError('not_found', 'Run was not found', { httpStatus: 404 })
@@ -509,8 +510,14 @@ export class CliRunService {
     })
   }
 
-  private async buildSubscribeOutput(runId: string, lastCursor: string): Promise<unknown> {
-    const session = await this.requireRunSnapshot(runId)
+  private async buildSubscribeOutput(
+    runId: string,
+    lastCursor: string
+  ): Promise<EventsSubscribeOutput> {
+    const session = await this.options.projection.getSession(runId)
+    if (!session) {
+      return eventsSubscribeRoute.output.parse({ runId, lastCursor })
+    }
     const stopReason =
       session.status === 'generating' ? undefined : this.options.getLatestAssistantStopReason(runId)
     return eventsSubscribeRoute.output.parse({

@@ -5,7 +5,7 @@
   >
     <p class="text-muted-foreground">{{ reasonText }}</p>
     <DcButton
-      v-if="!isReadOnly"
+      v-if="showContinue"
       data-testid="guard-stop-continue"
       size="sm"
       :disabled="disabled"
@@ -26,6 +26,7 @@ const props = defineProps<{
   stopReason: GuardRunStopReason
   isReadOnly?: boolean
   disabled?: boolean
+  allowContinue?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -33,7 +34,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const isReadOnly = computed(() => props.isReadOnly === true)
+const showContinue = computed(() => props.allowContinue !== false && props.isReadOnly !== true)
 const reasonText = computed(() => {
   if (props.stopReason === 'max_tool_calls') return t('chat.guardStop.maxToolCalls')
   if (props.stopReason === 'no_progress') return t('chat.guardStop.noProgress')

@@ -758,7 +758,8 @@ describe('MessageItemAssistant', () => {
           ],
           { runStopReason: 'no_progress' }
         ),
-        isCapturingImage: false
+        isCapturingImage: false,
+        allowGuardStopContinue: true
       },
       global
     })
@@ -769,6 +770,31 @@ describe('MessageItemAssistant', () => {
 
     await wrapper.find('[data-testid="guard-stop-continue"]').trigger('click')
     expect(wrapper.emitted('continue')).toEqual([['s1', 'm1']])
+  })
+
+  it('keeps historical guard-stop copy without a continue button', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage(
+          'error',
+          [
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 1,
+              content: 'Agent stopped after four identical tool batches produced no progress.'
+            }
+          ],
+          { runStopReason: 'no_progress' }
+        ),
+        isCapturingImage: false,
+        allowGuardStopContinue: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="guard-stop-banner"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="guard-stop-continue"]').exists()).toBe(false)
   })
 
   describe('resolved permission projection', () => {

@@ -158,3 +158,4 @@ export type RunDetachedOutput = z.infer<typeof sessionsRunDetachedRoute.output>
 export type RunGetInput = z.infer<typeof runsGetRoute.input>
 export type RunCancelInput = z.infer<typeof runsCancelRoute.input>
 export type EventsSubscribeInput = z.infer<typeof eventsSubscribeRoute.input>
+export type EventsSubscribeOutput = z.infer<typeof eventsSubscribeRoute.output>
