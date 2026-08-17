@@ -31,7 +31,6 @@ import {
 import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
 import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 import { buildResolvedCapabilitySnapshot, resolveCapabilityIdentity } from '../capabilityIdentity'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
 const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 400
@@ -55,18 +54,23 @@ export class OllamaProvider extends BaseLLMProvider {
     this.init()
   }
 
-  private createOllamaClient(): Ollama {
+  private createOllamaClient(signal?: AbortSignal): Ollama {
     const host = normalizeOllamaSdkHost(this.provider.baseUrl)
+    const requestFetch: typeof fetch | undefined = signal
+      ? (input, init) => fetch(input, { ...init, signal })
+      : undefined
 
     if (this.provider.apiKey) {
       return new Ollama({
         host,
-        headers: { Authorization: `Bearer ${this.provider.apiKey}` }
+        headers: { Authorization: `Bearer ${this.provider.apiKey}` },
+        ...(requestFetch ? { fetch: requestFetch } : {})
       })
     }
 
     return new Ollama({
-      host
+      host,
+      ...(requestFetch ? { fetch: requestFetch } : {})
     })
   }
 
@@ -290,8 +294,8 @@ export class OllamaProvider extends BaseLLMProvider {
     return Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : undefined
   }
 
-  private async listRuntimeModels(): Promise<OllamaModel[]> {
-    const response = await this.ollama.ps()
+  private async listRuntimeModels(client: Ollama = this.ollama): Promise<OllamaModel[]> {
+    const response = await client.ps()
     return response.models.map((rawModel) => {
       const model = rawModel as unknown as OllamaModel & { context_length?: unknown }
       const runtimeContextLength = this.normalizeRuntimeContextLength(model.context_length)
@@ -709,23 +713,21 @@ export class OllamaProvider extends BaseLLMProvider {
     modelId: string,
     signal?: AbortSignal
   ): Promise<number | undefined> {
+    signal?.throwIfAborted()
+    const timeoutController = new AbortController()
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     try {
-      const runningModels = await awaitWithAbort(
-        Promise.race([
-          this.listRuntimeModels(),
-          new Promise<never>((_resolve, reject) => {
-            timeoutId = setTimeout(() => {
-              reject(
-                new Error(
-                  `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading Ollama runtime models`
-                )
-              )
-            }, OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
-          })
-        ]),
-        signal
-      )
+      timeoutId = setTimeout(() => {
+        timeoutController.abort(
+          new Error(
+            `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading Ollama runtime models`
+          )
+        )
+      }, OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
+      const requestSignal = signal
+        ? AbortSignal.any([signal, timeoutController.signal])
+        : timeoutController.signal
+      const runningModels = await this.listRuntimeModels(this.createOllamaClient(requestSignal))
       const matchingModels = runningModels.filter((model) =>
         this.matchesRequestedModelName(model.name, modelId)
       )
@@ -742,11 +744,12 @@ export class OllamaProvider extends BaseLLMProvider {
       return Math.min(...matchingLimits)
     } catch (error) {
       signal?.throwIfAborted()
+      const cause = timeoutController.signal.aborted ? timeoutController.signal.reason : error
       throw new Error(
         `Failed to read the Ollama runtime context for ${modelId}: ${
-          error instanceof Error ? error.message : String(error)
+          cause instanceof Error ? cause.message : String(cause)
         }`,
-        { cause: error }
+        { cause }
       )
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId)
