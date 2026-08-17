@@ -29,6 +29,7 @@ import {
   exitCodeForRemoteError,
   type CliExitCode
 } from './errors'
+import { isGuardRunStopReason } from '@shared/lib/runStopReason'
 import { formatHumanResult, serializeMachineResponse } from './format'
 import {
   invokeLocalControlRpc,
@@ -490,6 +491,12 @@ export async function runCli(
       )
     } else {
       writeText(stdout, serializeMachineResponse(response))
+    }
+    if (
+      parsed.contract.name === 'events.subscribe' &&
+      isGuardRunStopReason((result.data as { stopReason?: unknown }).stopReason)
+    ) {
+      return CLI_EXIT_CODES.domain
     }
     return CLI_EXIT_CODES.success
   } catch (error) {

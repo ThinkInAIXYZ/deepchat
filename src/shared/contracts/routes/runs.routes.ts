@@ -48,6 +48,8 @@ export const PublicRunMessageSchema = z
   })
   .strict()
 
+export const PublicRunStopReasonSchema = z.string().trim().min(1).max(128)
+
 export const PublicRunSnapshotSchema = z
   .object({
     runId: RunIdSchema,
@@ -62,7 +64,8 @@ export const PublicRunSnapshotSchema = z
     updatedAt: TimestampMsSchema,
     messages: z.array(PublicRunMessageSchema).max(RUN_MAX_MESSAGE_PAGE_SIZE),
     nextCursor: MessagePageCursorSchema.nullable(),
-    hasMore: z.boolean()
+    hasMore: z.boolean(),
+    stopReason: PublicRunStopReasonSchema.optional()
   })
   .strict()
 
@@ -140,7 +143,9 @@ export const eventsSubscribeRoute = defineRouteContract({
   output: z
     .object({
       runId: RunIdSchema,
-      lastCursor: RunEventCursorSchema
+      lastCursor: RunEventCursorSchema,
+      status: SessionStatusSchema.optional(),
+      stopReason: PublicRunStopReasonSchema.optional()
     })
     .strict()
 })

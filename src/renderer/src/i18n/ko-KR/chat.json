@@ -600,7 +600,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "하위 Agent 열기" },
+    "actions": {
+      "openChild": "하위 Agent 열기"
+    },
     "activityTitle": "Agent 활동",
     "proactive": {
       "title": "능동형 협업",
@@ -614,5 +616,11 @@
         "subagents_disabled": "능동형 협업을 사용하려면 이 Agent의 Subagent를 활성화하세요."
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "The tool-call limit was reached before the task finished.",
+    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
+    "maxTurns": "The provider-round limit was reached before the task finished.",
+    "continueMessage": "Continue from where you left off."
   }
 }

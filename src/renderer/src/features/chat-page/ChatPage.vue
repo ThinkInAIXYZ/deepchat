@@ -1243,6 +1243,7 @@ const {
   messageStore,
   sessionStore,
   sessionClient,
+  chatClient,
   beginPlanTurn,
   clearPlanSnapshotForDeletedMessage,
   loadMessagesForSession,

@@ -2077,6 +2077,8 @@ export async function createMainProcessControl(dependencies: {
     sessions: appSessionService,
     getPendingAssistantMessages: (runId) =>
       sessionData.transcript.getPendingAssistantMessages(runId),
+    getLatestAssistantStopReason: (runId) =>
+      sessionData.transcript.getLatestAssistantStopReason(runId),
     hasWaitingDescendantInteraction: (runId) =>
       liveDelegationRepository
         .listActiveTurns()

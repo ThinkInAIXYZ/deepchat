@@ -78,6 +78,7 @@ export type CliRunServiceOptions = Readonly<{
   projection: RunProjectionPort
   sessions: RunSessionStorePort
   getPendingAssistantMessages(runId: string): ChatMessageRecord[]
+  getLatestAssistantStopReason(runId: string): string | undefined
   hasWaitingDescendantInteraction(runId: string): boolean
   eventHub: TypedEventHub
   now?: () => number
@@ -401,14 +402,14 @@ export class CliRunService {
           cursor: subscription.initialCursor
         })
         if (terminalAtSubscribe) {
-          return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
+          return await this.buildSubscribeOutput(input.runId, lastCursor)
         }
       }
 
       let caughtUp =
         subscription.recoveryReason !== null || input.cursor === subscription.initialCursor
       if (terminalAtSubscribe && caughtUp) {
-        return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
+        return await this.buildSubscribeOutput(input.runId, lastCursor)
       }
       for await (const event of subscription.events) {
         await emit(event.event, event.data, {
@@ -436,7 +437,7 @@ export class CliRunService {
       subscription.close()
     }
 
-    return eventsSubscribeRoute.output.parse({ runId: input.runId, lastCursor })
+    return await this.buildSubscribeOutput(input.runId, lastCursor)
   }
 
   private isTerminalEvent(runId: string, event: string, data: unknown): boolean {
@@ -486,6 +487,8 @@ export class CliRunService {
         ? this.options.getPendingAssistantMessages(runId)
         : page.messages
     const projectedPage = projectMessagePage(page)
+    const stopReason =
+      session.status === 'generating' ? undefined : this.options.getLatestAssistantStopReason(runId)
     return runsGetRoute.output.parse({
       runId,
       sessionId: session.id,
@@ -501,7 +504,20 @@ export class CliRunService {
       modelId: session.modelId,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      ...projectedPage
+      ...projectedPage,
+      ...(stopReason ? { stopReason } : {})
+    })
+  }
+
+  private async buildSubscribeOutput(runId: string, lastCursor: string): Promise<unknown> {
+    const session = await this.requireRunSnapshot(runId)
+    const stopReason =
+      session.status === 'generating' ? undefined : this.options.getLatestAssistantStopReason(runId)
+    return eventsSubscribeRoute.output.parse({
+      runId,
+      lastCursor,
+      status: session.status,
+      ...(stopReason ? { stopReason } : {})
     })
   }
 }

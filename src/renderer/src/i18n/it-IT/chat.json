@@ -600,7 +600,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "Apri Agent secondario" },
+    "actions": {
+      "openChild": "Apri Agent secondario"
+    },
     "activityTitle": "Attività Agent",
     "proactive": {
       "title": "Collaborazione proattiva",
@@ -614,5 +616,11 @@
         "subagents_disabled": "Abilita i Subagents per questo Agent per usare la collaborazione proattiva."
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "The tool-call limit was reached before the task finished.",
+    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
+    "maxTurns": "The provider-round limit was reached before the task finished.",
+    "continueMessage": "Continue from where you left off."
   }
 }

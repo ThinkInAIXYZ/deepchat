@@ -233,6 +233,7 @@ export type DisplayUserMessage = DisplayMessageBase & {
 export type DisplayAssistantMessage = DisplayMessageBase & {
   role: 'assistant'
   content: DisplayAssistantMessageBlock[]
+  runStopReason?: string
 }
 
 export type DisplayMessage = DisplayUserMessage | DisplayAssistantMessage

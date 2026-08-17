@@ -600,7 +600,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "פתיחת Agent ילד" },
+    "actions": {
+      "openChild": "פתיחת Agent ילד"
+    },
     "activityTitle": "פעילות Agent",
     "proactive": {
       "title": "שיתוף פעולה יזום",
@@ -614,5 +616,11 @@
         "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש בשיתוף פעולה יזום."
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "The tool-call limit was reached before the task finished.",
+    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
+    "maxTurns": "The provider-round limit was reached before the task finished.",
+    "continueMessage": "Continue from where you left off."
   }
 }

@@ -27,6 +27,10 @@ type SessionClientLike = {
   forkSession: (sessionId: string, messageId: string) => Promise<{ id: string }>
 }
 
+type ChatClientLike = {
+  sendMessage: (sessionId: string, content: string) => Promise<{ accepted?: boolean } | undefined>
+}
+
 type UseMessageActionsOptions = {
   sessionId: () => string
   isReadOnlySession: ComputedRef<boolean>
@@ -34,6 +38,7 @@ type UseMessageActionsOptions = {
   messageStore: MessageStore
   sessionStore: SessionStore
   sessionClient: SessionClientLike
+  chatClient: ChatClientLike
   beginPlanTurn: (sessionId: string) => void
   clearPlanSnapshotForDeletedMessage: (sessionId: string, messageId: string) => void
   loadMessagesForSession: (sessionId: string) => Promise<unknown>
@@ -237,7 +242,19 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   }
 
   async function onMessageContinue(_conversationId: string, messageId: string) {
-    await retryMessage(messageId, '[ChatPage] continue message failed:', false)
+    if (options.isReadOnlySession.value || !messageId) return
+    if (options.hasBlockingInteraction()) return
+    const sessionId = options.sessionId()
+    try {
+      const result = await options.chatClient.sendMessage(
+        sessionId,
+        options.t('chat.guardStop.continueMessage')
+      )
+      if (result?.accepted === false) return
+      options.beginPlanTurn(sessionId)
+    } catch (error) {
+      console.error('[ChatPage] continue message failed:', error)
+    }
   }
 
   function clearForSessionChange(): void {

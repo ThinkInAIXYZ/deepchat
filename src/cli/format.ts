@@ -94,8 +94,9 @@ export function formatHumanResult(
     case 'runs.get': {
       const result = contract.output.parse(value)
       const interaction = result.phase === 'awaiting_interaction' ? ', awaiting interaction' : ''
+      const stopReason = result.stopReason ? `, ${result.stopReason}` : ''
       return [
-        `Run ${result.runId} (${result.status}${interaction})`,
+        `Run ${result.runId} (${result.status}${interaction}${stopReason})`,
         `Agent: ${result.agentId}`,
         `Model: ${result.providerId}/${result.modelId}`,
         ...result.messages.flatMap((message) => [
@@ -114,7 +115,10 @@ export function formatHumanResult(
     }
     case 'events.subscribe': {
       const result = contract.output.parse(value)
-      return `Run ${result.runId} stream ended at ${result.lastCursor}`
+      const details = [result.status, result.stopReason].filter(Boolean).join(', ')
+      return details
+        ? `Run ${result.runId} stream ended at ${result.lastCursor} (${details})`
+        : `Run ${result.runId} stream ended at ${result.lastCursor}`
     }
     case 'providers.listPublic': {
       const result = contract.output.parse(value)

@@ -614,5 +614,11 @@
         "subagents_disabled": "请先为此 Agent 启用 Subagent，再使用主动协作。"
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "工具调用次数已达上限，任务尚未完成。",
+    "noProgress": "连续相同的工具结果没有进展，已停止。",
+    "maxTurns": "已达到本轮对话上限，任务尚未完成。",
+    "continueMessage": "请从刚才停下的地方继续。"
   }
 }

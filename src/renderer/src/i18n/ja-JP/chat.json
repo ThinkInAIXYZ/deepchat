@@ -600,7 +600,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "子 Agent を開く" },
+    "actions": {
+      "openChild": "子 Agent を開く"
+    },
     "activityTitle": "Agent のアクティビティ",
     "proactive": {
       "title": "プロアクティブ連携",
@@ -614,5 +616,11 @@
         "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "The tool-call limit was reached before the task finished.",
+    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
+    "maxTurns": "The provider-round limit was reached before the task finished.",
+    "continueMessage": "Continue from where you left off."
   }
 }

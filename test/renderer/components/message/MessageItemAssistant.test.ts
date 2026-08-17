@@ -743,6 +743,34 @@ describe('MessageItemAssistant', () => {
     expect(memoryActivity.openTurnMemories).not.toHaveBeenCalled()
   })
 
+  it('projects a guard stop from metadata and continues without showing the raw error', async () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage(
+          'error',
+          [
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 1,
+              content: 'Agent stopped after four identical tool batches produced no progress.'
+            }
+          ],
+          { runStopReason: 'no_progress' }
+        ),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="guard-stop-banner"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('chat.guardStop.noProgress')
+    expect(wrapper.findComponent({ name: 'MessageBlockError' }).exists()).toBe(false)
+
+    await wrapper.find('[data-testid="guard-stop-continue"]').trigger('click')
+    expect(wrapper.emitted('continue')).toEqual([['s1', 'm1']])
+  })
+
   describe('resolved permission projection', () => {
     const createPermissionActionBlock = (
       status: DisplayAssistantMessageBlock['status'],

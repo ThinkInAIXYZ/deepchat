@@ -139,7 +139,12 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
             ...baseMessage,
             ...(streamingRenderKey ? { renderKey: streamingRenderKey } : {}),
             role: 'assistant',
-            content: filterRenderableAssistantBlocks(messageStore.getAssistantMessageBlocks(record))
+            content: filterRenderableAssistantBlocks(
+              messageStore.getAssistantMessageBlocks(record)
+            ),
+            ...(metadata.runStopReason?.trim()
+              ? { runStopReason: metadata.runStopReason.trim() }
+              : {})
           } as DisplayMessage)
         : ({
             ...baseMessage,

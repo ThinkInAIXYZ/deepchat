@@ -154,6 +154,7 @@ function createHarness(
   projection: CliRunServiceOptions['projection']
   sessions: CliRunServiceOptions['sessions']
   getPendingAssistantMessages: ReturnType<typeof vi.fn>
+  getLatestAssistantStopReason: ReturnType<typeof vi.fn>
   log: { warn: ReturnType<typeof vi.fn> }
 } {
   const session = overrides.session ?? baseSession
@@ -177,6 +178,7 @@ function createHarness(
       (message) => message.role === 'assistant' && message.status === 'pending'
     )
   )
+  const getLatestAssistantStopReason = vi.fn(() => undefined as string | undefined)
   const sessions = {
     get: vi.fn(() =>
       overrides.storedSession === undefined ? (session as SessionRecord) : overrides.storedSession
@@ -195,6 +197,7 @@ function createHarness(
       projection,
       sessions,
       getPendingAssistantMessages,
+      getLatestAssistantStopReason,
       hasWaitingDescendantInteraction: vi.fn(
         () => overrides.hasWaitingDescendantInteraction ?? false
       ),
@@ -208,6 +211,7 @@ function createHarness(
     projection,
     sessions,
     getPendingAssistantMessages,
+    getLatestAssistantStopReason,
     log
   }
 }
@@ -825,7 +829,7 @@ describe('CliRunService', () => {
       { kind: 'run', runId: 'run-1' }
     )
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
     expect(emitted.map((entry) => entry.event)).toEqual([
       'runs.snapshot',
       'chat.stream.completed',
@@ -861,7 +865,7 @@ describe('CliRunService', () => {
       { kind: 'run', runId: 'run-1' }
     )
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
     expect(emitted).toEqual(['runs.snapshot', 'chat.stream.failed', 'sessions.status.changed'])
   })
 
@@ -898,7 +902,7 @@ describe('CliRunService', () => {
       { kind: 'run', runId: 'run-1' }
     )
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
     expect(emitted).toEqual(['chat.stream.completed', 'sessions.status.changed'])
   })
 
@@ -932,7 +936,7 @@ describe('CliRunService', () => {
           emitted.push(event)
         }
       )
-    ).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    ).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
     expect(emitted).toEqual(['chat.stream.completed', 'sessions.status.changed'])
   })
 
@@ -951,7 +955,7 @@ describe('CliRunService', () => {
       { kind: 'run', runId: 'run-1' }
     )
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:1' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:1' })
     expect(emitted).toEqual(['runs.snapshot', 'runs.turn.failed'])
   })
 
@@ -973,7 +977,7 @@ describe('CliRunService', () => {
       { kind: 'run', runId: 'run-1' }
     )
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
     expect(emitted).toEqual(['runs.snapshot', 'sessions.status.changed', 'sessions.status.changed'])
   })
 
@@ -990,7 +994,7 @@ describe('CliRunService', () => {
         new AbortController().signal,
         emit
       )
-    ).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
+    ).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
     expect(emit).toHaveBeenCalledWith(
       'runs.snapshot',
       expect.objectContaining({
@@ -1020,8 +1024,79 @@ describe('CliRunService', () => {
     await snapshotReady
     controller.abort()
 
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
+    await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
     expect(turn.cancelGeneration).not.toHaveBeenCalled()
+  })
+
+  it('projects the latest assistant stop reason independently of the message page', async () => {
+    const idleSession = { ...baseSession, status: 'idle' as const }
+    const { service, projection, getLatestAssistantStopReason } = createHarness({
+      session: idleSession,
+      messages: [
+        createMessage({
+          id: 'old-user',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'older prompt', files: [] })
+        })
+      ]
+    })
+    projection.listMessagesPage.mockResolvedValue({
+      messages: [
+        createMessage({
+          id: 'old-user',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'older prompt', files: [] })
+        })
+      ],
+      nextCursor: { orderSeq: 1, id: 'old-user' },
+      hasMore: true
+    })
+    getLatestAssistantStopReason.mockReturnValue('max_tool_calls')
+
+    await expect(
+      invokeRoute(service, runsGetRoute.name, {
+        runId: 'run-1',
+        cursor: { orderSeq: 1, id: 'old-user' }
+      })
+    ).resolves.toMatchObject({
+      status: 'idle',
+      phase: 'terminal',
+      stopReason: 'max_tool_calls'
+    })
+    expect(getLatestAssistantStopReason).toHaveBeenCalledWith('run-1')
+  })
+
+  it('includes the latest guard stop reason when a watcher recovers a terminal run', async () => {
+    const idleSession = { ...baseSession, status: 'idle' as const }
+    const { service, getLatestAssistantStopReason } = createHarness({ session: idleSession })
+    getLatestAssistantStopReason.mockReturnValue('no_progress')
+    const emit = vi.fn(async () => undefined)
+
+    await expect(
+      service.dispatchStream(
+        eventsSubscribeRoute.name,
+        { runId: 'run-1' },
+        humanCaller,
+        new AbortController().signal,
+        emit
+      )
+    ).resolves.toMatchObject({
+      runId: 'run-1',
+      status: 'idle',
+      stopReason: 'no_progress'
+    })
+    expect(emit).toHaveBeenCalledWith(
+      'runs.snapshot',
+      expect.objectContaining({
+        run: expect.objectContaining({
+          phase: 'terminal',
+          stopReason: 'no_progress'
+        })
+      }),
+      { runId: 'run-1', cursor: 'test-epoch_1:0' }
+    )
   })
 
   it('rejects renderer callers before exposing run existence', async () => {

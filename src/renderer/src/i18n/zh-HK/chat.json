@@ -600,7 +600,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "開啟子對話" },
+    "actions": {
+      "openChild": "開啟子對話"
+    },
     "activityTitle": "Agent 活動",
     "proactive": {
       "title": "主動協作",
@@ -614,5 +616,11 @@
         "subagents_disabled": "請先為此 Agent 啟用 Subagent，再使用主動協作。"
       }
     }
+  },
+  "guardStop": {
+    "maxToolCalls": "工具呼叫次數已達上限，任務尚未完成。",
+    "noProgress": "連續相同的工具結果沒有進展，已停止。",
+    "maxTurns": "已達到本輪對話上限，任務尚未完成。",
+    "continueMessage": "請從剛才停下的地方繼續。"
   }
 }

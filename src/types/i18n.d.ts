@@ -1209,6 +1209,12 @@ declare module 'vue-i18n' {
         }
       }
     }
+    guardStop: {
+      maxToolCalls: string
+      noProgress: string
+      maxTurns: string
+      continueMessage: string
+    }
     notifications: {
       label: string
       actionFailed: string
