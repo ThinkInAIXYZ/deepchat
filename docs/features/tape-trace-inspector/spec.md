@@ -593,7 +593,8 @@ Provider evidence is a separate append-ordered domain, so a Tape head pulse cann
 evidence-only write. While the Inspector is active and unpaused, the renderer therefore polls one
 bounded `newer` evidence page per interval from its independent append cursor. Trace IDs dedupe
 repeated rows. Session/filter reset discards the cursor and late responses; panel teardown stops the
-timer. This refresh never changes or advances the Tape cursor and never returns request payloads.
+timer, and document visibility suspends it while the owning window is hidden. This refresh never
+changes or advances the Tape cursor and never returns request payloads.
 
 The interval naturally coalesces bursts and always reads the current committed head. An
 after-commit notifier remains a future optimization only if measured latency requires it.

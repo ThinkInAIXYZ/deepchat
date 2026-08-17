@@ -61,6 +61,7 @@ const inspectorStoreData = vi.hoisted(() => ({
   loadEarlierEvidenceEntries: vi.fn(async () => false),
   loadMoreEvidence: vi.fn(async () => false),
   startEvidenceRefresh: vi.fn(),
+  stopEvidenceRefresh: vi.fn(),
   applyServerFilters: vi.fn(async () => true),
   applyServerSort: vi.fn(async () => true),
   setLoadedSearch: vi.fn(),
@@ -557,6 +558,38 @@ describe('TapeInspectorPanel', () => {
     expect(inspectorStore.clear).toHaveBeenCalledTimes(1)
     expect(sessionClient.stopHeadListener).toHaveBeenCalledOnce()
     expect(sessionClient.unsubscribeTapeInspectorHead).toHaveBeenCalledWith(expect.any(String))
+  })
+
+  it('suspends evidence refresh while the owning window is hidden', async () => {
+    const originalVisibility = document.visibilityState
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    let wrapper: ReturnType<typeof mount> | null = null
+    try {
+      wrapper = mount(TapeInspectorPanel, {
+        props: {
+          sessionId: 'session-1',
+          openRequest: null
+        }
+      })
+      await flushPromises()
+      expect(inspectorStore.startEvidenceRefresh).toHaveBeenCalledOnce()
+
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+      expect(inspectorStore.stopEvidenceRefresh).toHaveBeenCalledOnce()
+
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+      expect(inspectorStore.startEvidenceRefresh).toHaveBeenCalledTimes(2)
+    } finally {
+      wrapper?.unmount()
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: originalVisibility
+      })
+    }
   })
 
   it('moves keyboard selection without reopening detail until Enter', async () => {

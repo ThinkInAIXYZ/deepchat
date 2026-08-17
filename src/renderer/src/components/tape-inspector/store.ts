@@ -1185,6 +1185,7 @@ export const useTapeInspectorStore = defineStore('tapeInspector', () => {
     handleLiveHeadPulse,
     setLivePaused,
     startEvidenceRefresh,
+    stopEvidenceRefresh,
     loadMoreEvidence,
     applyServerFilters,
     applyServerSort,

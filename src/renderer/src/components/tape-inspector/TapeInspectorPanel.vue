@@ -452,7 +452,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { useElementSize } from '@vueuse/core'
+import { useDocumentVisibility, useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
@@ -550,6 +550,7 @@ const { t } = useI18n()
 const store = useTapeInspectorStore()
 const messageStore = useMessageStore()
 const sessionClient = createSessionClient()
+const documentVisibility = useDocumentVisibility()
 const panelRef = ref<HTMLElement | null>(null)
 const ledgerRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
@@ -891,7 +892,7 @@ async function initialize(): Promise<void> {
   })
   if (!loaded) return
   detailOpen.value = Boolean(store.selectedKey)
-  store.startEvidenceRefresh()
+  if (documentVisibility.value === 'visible') store.startEvidenceRefresh()
   syncFilterDrafts()
   await nextTick()
   if (store.selectedKey) scrollToSelected()
@@ -1174,6 +1175,14 @@ watch(
     void followTail()
   }
 )
+
+watch(documentVisibility, (visibility) => {
+  if (visibility === 'visible') {
+    if (store.sessionId === props.sessionId) store.startEvidenceRefresh()
+    return
+  }
+  store.stopEvidenceRefresh()
+})
 
 watch(
   scrollerRef,

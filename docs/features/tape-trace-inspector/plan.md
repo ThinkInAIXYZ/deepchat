@@ -152,7 +152,8 @@ and pause changes only automatic fetching/follow.
 ## 9. P2 Lifecycle Verification
 
 - [x] Cover watcher sharing, cleanup, reset, pause/resume catch-up, and no-change polling.
-- [x] Cover evidence-only append, cursor deduplication, pause, and teardown cleanup.
+- [x] Cover evidence-only append, cursor deduplication, pause, window visibility, and teardown
+  cleanup.
 - [x] Cover terminal facts arriving at the end of a burst.
 - [x] Cover session deletion and renderer destruction while a watcher is active.
 - [x] Cover bounded read-failure backoff and automatic recovery.
