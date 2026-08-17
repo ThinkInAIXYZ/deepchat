@@ -357,15 +357,24 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('reports no runtime context when ps has no usable running-model fact', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    const ps = vi
-      .fn()
-      .mockResolvedValueOnce({ models: [] })
-      .mockRejectedValueOnce(new Error('ps unavailable'))
-    ;(ollamaProvider as any).ollama = { ps }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const ps = vi
+        .fn()
+        .mockResolvedValueOnce({ models: [] })
+        .mockRejectedValueOnce(new Error('ps unavailable'))
+      ;(ollamaProvider as any).ollama = { ps }
 
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
-    expect(ps).toHaveBeenCalledTimes(2)
+      await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
+      await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
+      expect(ps).toHaveBeenCalledTimes(2)
+      expect(warn).toHaveBeenCalledWith(
+        'Failed to read the Ollama runtime context for qwen3:8b:',
+        expect.any(Error)
+      )
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('matches the implicit latest tag in either model-name direction', async () => {
@@ -390,6 +399,7 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('bounds a stalled runtime context query without loading the model', async () => {
     vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const ollamaProvider = new OllamaProvider(provider, providerSettings)
       const ps = vi.fn(() => new Promise(() => {}))
@@ -400,7 +410,11 @@ describe('OllamaProvider.fetchModels', () => {
 
       await expect(limitPromise).resolves.toBeUndefined()
       expect(ps).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(
+        'Timed out after 1000ms while reading the Ollama runtime context for qwen3:8b'
+      )
     } finally {
+      warn.mockRestore()
       vi.useRealTimers()
     }
   })

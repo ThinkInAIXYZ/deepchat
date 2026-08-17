@@ -710,23 +710,33 @@ export class OllamaProvider extends BaseLLMProvider {
     signal?: AbortSignal
   ): Promise<number | undefined> {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let timedOut = false
     try {
       const runningModels = await awaitWithAbort(
         Promise.race([
           this.listRuntimeModels(),
           new Promise<OllamaModel[]>((resolve) => {
-            timeoutId = setTimeout(() => resolve([]), OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
+            timeoutId = setTimeout(() => {
+              timedOut = true
+              resolve([])
+            }, OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
           })
         ]),
         signal
       )
+      if (timedOut) {
+        console.warn(
+          `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading the Ollama runtime context for ${modelId}`
+        )
+      }
       const matchingLimits = runningModels
         .filter((model) => this.matchesRequestedModelName(model.name, modelId))
         .map((model) => model.runtimeContextLength)
         .filter((value): value is number => value !== undefined)
       return matchingLimits.length > 0 ? Math.min(...matchingLimits) : undefined
-    } catch {
+    } catch (error) {
       signal?.throwIfAborted()
+      console.warn(`Failed to read the Ollama runtime context for ${modelId}:`, error)
       return undefined
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId)

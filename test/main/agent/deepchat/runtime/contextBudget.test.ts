@@ -202,6 +202,14 @@ describe('agent request context budget', () => {
         providerContextLimitTokens: 4096
       })
     ).toEqual({ contextLength: 4096, outputCapContextLength: 4096 })
+    expect(
+      resolveEffectiveContextBudget({
+        configuredContextLength: 262_144,
+        requestedMaxTokens: 4096,
+        runtimeContextLimitTokens: 16_384,
+        providerContextLimitTokens: 8192
+      })
+    ).toEqual({ contextLength: 8192, outputCapContextLength: 8192 })
 
     const largeOutputBudget = resolveEffectiveContextBudget({
       configuredContextLength: 128_000,

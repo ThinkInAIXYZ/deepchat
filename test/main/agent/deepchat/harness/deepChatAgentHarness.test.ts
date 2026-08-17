@@ -12469,7 +12469,7 @@ describe('DeepChatAgentHarness', () => {
       ]
 
       await expect(collectProviderEvents(callArgs, requestMessages, [])).rejects.toThrow(
-        /context|protected/i
+        'Request was not sent because it cannot fit within the model context window'
       )
       expect(providerCoreStream).not.toHaveBeenCalled()
       expect(JSON.stringify(requestMessages)).toContain('Original task: inspect the repository')

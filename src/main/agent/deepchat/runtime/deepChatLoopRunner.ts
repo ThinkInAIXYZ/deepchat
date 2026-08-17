@@ -774,18 +774,11 @@ export class DeepChatLoopRunner {
         state.providerId,
         requestModelId
       )
-      const providerContextLimits = [
-        runtimeContextLimitTokens,
-        observation?.providerContextLimitTokens
-      ].filter(
-        (value): value is number =>
-          typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-      )
       return resolveEffectiveContextBudget({
         configuredContextLength: configuredContextBudgetLength,
         requestedMaxTokens,
-        providerContextLimitTokens:
-          providerContextLimits.length > 0 ? Math.min(...providerContextLimits) : undefined,
+        runtimeContextLimitTokens,
+        providerContextLimitTokens: observation?.providerContextLimitTokens,
         providerPromptLimitTokens: observation?.providerPromptLimitTokens
       })
     }
@@ -798,9 +791,8 @@ export class DeepChatLoopRunner {
     let currentRuntimeContextLimitTokens = initialRuntimeContextLimit
     let initialRuntimeContextObservationPending = initialRuntimeContextLimit !== undefined
     const refreshRuntimeContextLimit = async (requestModelId: string): Promise<void> => {
-      currentRuntimeContextLimitTokens = undefined
       try {
-        currentRuntimeContextLimitTokens = await awaitWithAbort(
+        const refreshedRuntimeContextLimit = await awaitWithAbort(
           this.ports.providerRuntime.getRuntimeContextLimitTokens(
             state.providerId,
             requestModelId,
@@ -808,8 +800,12 @@ export class DeepChatLoopRunner {
           ),
           abortSignal
         )
+        currentRuntimeContextLimitTokens = refreshedRuntimeContextLimit
       } catch (error) {
         abortSignal.throwIfAborted()
+        // A runner may have unloaded or reloaded with a different allocation. Do not present a
+        // stale allocation as the current runtime fact when the refresh cannot confirm it.
+        currentRuntimeContextLimitTokens = undefined
         logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
           providerId: state.providerId,
           modelId: requestModelId,

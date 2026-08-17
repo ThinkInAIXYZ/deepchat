@@ -273,19 +273,12 @@ export class TurnCoordinator {
       state.providerId,
       state.modelId
     )
-    const providerContextLimits = [
-      runtimeContextLimitTokens,
-      contextObservation?.providerContextLimitTokens
-    ].filter(
-      (value): value is number =>
-        typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-    )
     const effectiveContextBudget = useContextBudget
       ? resolveEffectiveContextBudget({
           configuredContextLength: configuredContextBudgetLength,
           requestedMaxTokens: generationSettings.maxTokens,
-          providerContextLimitTokens:
-            providerContextLimits.length > 0 ? Math.min(...providerContextLimits) : undefined,
+          runtimeContextLimitTokens,
+          providerContextLimitTokens: contextObservation?.providerContextLimitTokens,
           providerPromptLimitTokens: contextObservation?.providerPromptLimitTokens
         })
       : {
@@ -402,6 +395,7 @@ export class TurnCoordinator {
       runtimeContextLimitTokens,
       interleavedReasoning,
       contextBudgetLength,
+      outputCapContextLength: effectiveContextBudget.outputCapContextLength,
       maxTokens,
       activeSkillNames,
       messageActiveSkillNames: effectiveMessageActiveSkillNames,
@@ -1539,6 +1533,7 @@ export class TurnCoordinator {
         runtimeContextLimitTokens,
         interleavedReasoning,
         contextBudgetLength,
+        outputCapContextLength,
         maxTokens,
         activeSkillNames,
         messageActiveSkillNames,
@@ -1753,6 +1748,7 @@ export class TurnCoordinator {
             resumeContext,
             toolDefinitions: tools,
             contextLength: contextBudgetLength,
+            outputCapContextLength,
             maxTokens,
             budgetToolCall,
             signal: preStreamAbortSignal
@@ -2035,6 +2031,7 @@ export class TurnCoordinator {
     resumeContext: ChatMessage[]
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
+    outputCapContextLength?: number
     maxTokens: number
     budgetToolCall: ResumeBudgetToolCall
     signal?: AbortSignal
@@ -2045,6 +2042,7 @@ export class TurnCoordinator {
       conversationMessages: params.resumeContext,
       toolDefinitions: params.toolDefinitions,
       contextLength: params.contextLength,
+      outputCapContextLength: params.outputCapContextLength,
       maxTokens: params.maxTokens,
       toolCallId: budgetToolCall.id,
       toolName: budgetToolCall.name,

@@ -140,6 +140,7 @@ export function capAgentDefaultMaxTokens(maxTokens: number, contextLength: numbe
 export function resolveEffectiveContextBudget(input: {
   configuredContextLength: number
   requestedMaxTokens: number
+  runtimeContextLimitTokens?: number
   providerContextLimitTokens?: number
   providerPromptLimitTokens?: number
 }): { contextLength: number; outputCapContextLength: number } {
@@ -148,13 +149,17 @@ export function resolveEffectiveContextBudget(input: {
   if (Number.isFinite(configuredContextLength) && configuredContextLength > 0) {
     totalContextLimits.push(configuredContextLength)
   }
-  const providerContextLimitTokens = input.providerContextLimitTokens
-  if (
-    typeof providerContextLimitTokens === 'number' &&
-    Number.isSafeInteger(providerContextLimitTokens) &&
-    providerContextLimitTokens > 0
-  ) {
-    totalContextLimits.push(providerContextLimitTokens)
+  for (const contextLimit of [
+    input.runtimeContextLimitTokens,
+    input.providerContextLimitTokens
+  ]) {
+    if (
+      typeof contextLimit === 'number' &&
+      Number.isSafeInteger(contextLimit) &&
+      contextLimit > 0
+    ) {
+      totalContextLimits.push(contextLimit)
+    }
   }
   const outputCapContextLength =
     totalContextLimits.length > 0 ? Math.min(...totalContextLimits) : configuredContextLength

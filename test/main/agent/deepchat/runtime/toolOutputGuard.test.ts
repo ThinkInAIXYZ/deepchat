@@ -225,6 +225,7 @@ describe('ToolOutputGuard', () => {
 
   it('allows tool continuations when the next provider request can be refitted', async () => {
     const guard = new ToolOutputGuard()
+    const hasContextBudget = vi.spyOn(guard, 'hasContextBudget')
 
     const result = await guard.fitToolBatchOutputs({
       sessionId: 's1',
@@ -254,10 +255,14 @@ describe('ToolOutputGuard', () => {
       ],
       toolDefinitions: [],
       contextLength: 5000,
+      outputCapContextLength: 10_000,
       maxTokens: 1000
     })
 
     expect(result.kind).toBe('ok')
+    expect(hasContextBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ outputCapContextLength: 10_000 })
+    )
     expect(result.results[0]).toMatchObject({
       contextResponseText: 'ok',
       downgraded: false
