@@ -1,5 +1,8 @@
 import path from 'path'
-import { detectMimeType, isLikelyTextFile } from '@/file/mime'
+import { detectMimeType, isDocumentReadMime, isLikelyTextFile } from '@/file/mime'
+import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
+
+export { isDocumentReadMime }
 
 const TEXT_LIKE_MIMES = new Set([
   'application/json',
@@ -22,51 +25,9 @@ const ALWAYS_BINARY_MIMES = new Set([
 ])
 
 const NUL_SNIFF_BYTES = 8192
+const UTF16BE_DECODER = new TextDecoder('utf-16be')
 
-/**
- * Concrete document MIME keys whose adapters extract structured text for `read`.
- * Wildcard adapter keys are excluded because findAdapterForMimeType never selects them
- * as document extractors (`text/*` is a text adapter, not a document one).
- */
-export const DOCUMENT_READ_MIMES: ReadonlySet<string> = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-word.document.macroenabled.12',
-  'application/vnd.ms-word.document.macroEnabled.12',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
-  'application/vnd.ms-word.template.macroenabled.12',
-  'application/vnd.ms-word.template.macroEnabled.12',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel.sheet.macroenabled.12',
-  'application/vnd.ms-excel.sheet.macroEnabled.12',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
-  'application/vnd.ms-excel.template.macroenabled.12',
-  'application/vnd.ms-excel.template.macroEnabled.12',
-  'application/vnd.oasis.opendocument.spreadsheet',
-  'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
-  'application/vnd.ms-excel.sheet.binary.macroenabled.12',
-  'application/vnd.ms-excel.addin.macroenabled.12',
-  'application/vnd.ms-excel.addin.macroEnabled.12',
-  'application/vnd.apple.numbers',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-powerpoint.presentation.macroenabled.12',
-  'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
-  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
-  'application/vnd.ms-powerpoint.slideshow.macroenabled.12',
-  'application/vnd.ms-powerpoint.slideshow.macroEnabled.12',
-  'application/vnd.openxmlformats-officedocument.presentationml.template',
-  'application/vnd.ms-powerpoint.template.macroenabled.12',
-  'application/vnd.ms-powerpoint.template.macroEnabled.12',
-  'application/vnd.oasis.opendocument.text',
-  'application/vnd.oasis.opendocument.presentation',
-  'application/rtf',
-  'text/rtf',
-  'text/csv',
-  'text/tab-separated-values'
-])
+export const AGENT_RAW_READ_MAX_BYTES = 10 * 1024 * 1024
 
 export type AgentFileDecodeResult = { kind: 'text'; content: string } | { kind: 'binary' }
 
@@ -104,30 +65,72 @@ export function shouldRejectAgentBinaryRead(mimeType: string): boolean {
   )
 }
 
-export function isDocumentReadMime(mimeType: string): boolean {
-  return DOCUMENT_READ_MIMES.has(mimeType)
-}
-
-export function decodeAgentFileBytes(bytes: Uint8Array): AgentFileDecodeResult {
+export function decodeAgentFileBytes(bytes: Buffer): AgentFileDecodeResult {
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
-    return { kind: 'text', content: toBuffer(bytes.subarray(2)).toString('utf16le') }
+    // Node Buffer has utf16le but no utf16be.
+    return { kind: 'text', content: bytes.subarray(2).toString('utf16le') }
   }
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
-    return { kind: 'text', content: new TextDecoder('utf-16be').decode(bytes.subarray(2)) }
+    return { kind: 'text', content: UTF16BE_DECODER.decode(bytes.subarray(2)) }
   }
-  if (bytes.subarray(0, Math.min(bytes.length, NUL_SNIFF_BYTES)).includes(0)) {
+  if (bytes.subarray(0, NUL_SNIFF_BYTES).includes(0)) {
     return { kind: 'binary' }
   }
-  return {
-    kind: 'text',
-    content: toBuffer(bytes)
-      .toString('utf8')
-      .replace(/^\uFEFF/, '')
-  }
+  return { kind: 'text', content: bytes.toString('utf8').replace(/^\uFEFF/, '') }
 }
 
-function toBuffer(bytes: Uint8Array): Buffer {
-  return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
+export function paginateReadContent(
+  pathLabel: string,
+  fullContent: string,
+  offset?: number,
+  limit?: number,
+  autoTruncateChars = DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+): string {
+  const start = Math.max(0, offset ?? 0)
+  const totalLength = fullContent.length
+
+  let effectiveLimit = limit
+  let autoTruncated = false
+  if (effectiveLimit === undefined && totalLength - start > autoTruncateChars) {
+    effectiveLimit = autoTruncateChars
+    autoTruncated = true
+  }
+
+  const content =
+    effectiveLimit !== undefined
+      ? fullContent.slice(start, start + effectiveLimit)
+      : fullContent.slice(start)
+  const endOffset = start + content.length
+
+  if (start > 0 || limit !== undefined || autoTruncated) {
+    let header = `${pathLabel} [chars ${start}-${endOffset} of ${totalLength}]`
+    if (autoTruncated) {
+      header += ' (auto-truncated, use offset/limit to read more)'
+    }
+    return `${header}:\n${content}\n`
+  }
+
+  return `${pathLabel}:\n${content}\n`
+}
+
+export function buildOversizedReadGuidance(
+  filePath: string,
+  fileSize: number,
+  limitBytes: number
+): string {
+  return `File too large: "${path.basename(filePath)}" is ${fileSize} bytes (limit ${limitBytes}).`
+}
+
+export function buildEmptyDocumentReadGuidance(
+  filePath: string,
+  mimeType: string,
+  fileSize: number
+): string {
+  return [
+    `Cannot extract text from "${path.basename(filePath)}" (detected MIME: ${mimeType}).`,
+    'The file may exceed the 30MB document limit, be damaged, or contain no extractable text layer.',
+    `File size: ${fileSize} bytes.`
+  ].join(' ')
 }
 
 export function buildBinaryReadGuidance(
@@ -143,6 +146,13 @@ export function buildBinaryReadGuidance(
       shared,
       '`fs/read_text_file` only supports text files.',
       'Use OCR/image tooling for images, and convert or extract PDFs/binary formats before reading them as text.'
+    ].join(' ')
+  }
+
+  if (isTextLikeMime(mimeType)) {
+    return [
+      shared,
+      'The file contains NUL bytes and may be UTF-16 without a BOM. Convert it to UTF-8 and retry.'
     ].join(' ')
   }
 

@@ -139,3 +139,22 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
 
   return map
 }
+
+const DOCUMENT_READ_ADAPTERS: ReadonlySet<FileAdapterConstructor> = new Set([
+  PdfFileAdapter,
+  DocFileAdapter,
+  ExcelFileAdapter,
+  PptFileAdapter,
+  OpenDocumentFileAdapter,
+  RtfFileAdapter
+])
+
+export const DOCUMENT_READ_MIMES: ReadonlySet<string> = new Set(
+  [...getMimeTypeAdapterMap().entries()]
+    .filter(([key, adapter]) => DOCUMENT_READ_ADAPTERS.has(adapter) && !key.includes('*'))
+    .map(([key]) => key)
+)
+
+export function isDocumentReadMime(mimeType: string): boolean {
+  return DOCUMENT_READ_MIMES.has(mimeType)
+}

@@ -317,61 +317,84 @@ describe('AgentToolManager read routing', () => {
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
-  it('reads Cargo.toml reported as application/toml', async () => {
-    const filePath = path.join(workspaceDir, 'Cargo.toml')
-    await fs.writeFile(filePath, '[package]\nname = "server-status"\nversion = "0.1.0"\n', 'utf-8')
-    fileService.getMimeType.mockResolvedValue('application/toml')
+  it.each([
+    ['Cargo.toml', 'application/toml', '[package]\nname = "server-status"\n', '[package]'],
+    ['foo.rs', 'application/rls-services+xml', 'fn main() {}\n', 'fn main()'],
+    ['query.sql', 'application/sql', 'SELECT 1;\n', 'SELECT 1;']
+  ])('reads %s reported as %s as raw text', async (name, mimeType, source, snippet) => {
+    await fs.writeFile(path.join(workspaceDir, name), source, 'utf-8')
+    fileService.getMimeType.mockResolvedValue(mimeType)
 
-    const result = (await manager.callTool('read', { path: 'Cargo.toml' }, 'conv1')) as {
+    const result = (await manager.callTool('read', { path: name }, 'conv1')) as {
       content: string
     }
 
-    expect(result.content).toContain('[package]')
-    expect(result.content).toContain('server-status')
+    expect(result.content).toContain(snippet)
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
-  it('reads Rust sources reported as application/rls-services+xml', async () => {
-    const filePath = path.join(workspaceDir, 'foo.rs')
-    await fs.writeFile(filePath, 'fn main() {}\n', 'utf-8')
-    fileService.getMimeType.mockResolvedValue('application/rls-services+xml')
+  it.each([
+    [
+      'rows.csv',
+      'text/csv',
+      ['h1,h2', ...Array.from({ length: 12 }, (_, index) => `r${index + 1},v${index + 1}`)].join(
+        '\n'
+      ),
+      'r12,v12'
+    ],
+    [
+      'rows.tsv',
+      'text/tab-separated-values',
+      ['h1\th2', ...Array.from({ length: 12 }, (_, index) => `r${index + 1}\tv${index + 1}`)].join(
+        '\n'
+      ),
+      'r12\tv12'
+    ]
+  ])(
+    'reads the full %s body instead of a ten-row preview',
+    async (name, mimeType, source, last) => {
+      await fs.writeFile(path.join(workspaceDir, name), source, 'utf-8')
+      fileService.getMimeType.mockResolvedValue(mimeType)
 
-    const result = (await manager.callTool('read', { path: 'foo.rs' }, 'conv1')) as {
-      content: string
+      const result = (await manager.callTool('read', { path: name }, 'conv1')) as {
+        content: string
+      }
+
+      expect(result.content).toContain(last)
+      expect(result.content).not.toContain('Data Preview')
+      expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
     }
+  )
 
-    expect(result.content).toContain('fn main()')
-    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
-  })
-
-  it('reads application/sql as raw text', async () => {
-    const filePath = path.join(workspaceDir, 'query.sql')
-    await fs.writeFile(filePath, 'SELECT 1;\n', 'utf-8')
-    fileService.getMimeType.mockResolvedValue('application/sql')
-
-    const result = (await manager.callTool('read', { path: 'query.sql' }, 'conv1')) as {
-      content: string
-    }
-
-    expect(result.content).toContain('SELECT 1;')
-    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
-  })
-
-  it('rejects a NUL-prefixed file on the default read path', async () => {
-    const filePath = path.join(workspaceDir, 'payload.bin')
+  it('rejects a NUL-prefixed archive on the default read path', async () => {
+    const filePath = path.join(workspaceDir, 'payload.tar')
     await fs.writeFile(filePath, Buffer.from([0x7b, 0x00, 0x7d]))
-    fileService.getMimeType.mockResolvedValue('application/octet-stream')
+    fileService.getMimeType.mockResolvedValue('application/x-tar')
 
-    const result = (await manager.callTool('read', { path: 'payload.bin' }, 'conv1')) as {
+    const result = (await manager.callTool('read', { path: 'payload.tar' }, 'conv1')) as {
       content: string
     }
 
-    expect(result.content).toContain('Cannot read "payload.bin" as plain text')
-    expect(result.content).not.toMatch(/^payload\.bin:\s*$/m)
+    expect(result.content).toContain('Cannot read "payload.tar" as plain text')
+    expect(result.content).toContain('application/x-tar')
+    expect(result.content).toContain('conversion/extraction tool')
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
-  it('reports when a document adapter returns no extractable text', async () => {
+  it('guides NUL hits on text files toward an encoding conversion', async () => {
+    const filePath = path.join(workspaceDir, 'app.log')
+    await fs.writeFile(filePath, Buffer.from([0x61, 0x00, 0x62]))
+    fileService.getMimeType.mockResolvedValue('text/plain')
+
+    const result = (await manager.callTool('read', { path: 'app.log' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('UTF-16 without a BOM')
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('reports document extraction failures with the file size', async () => {
     const filePath = path.join(workspaceDir, 'blank.pdf')
     await fs.writeFile(filePath, 'pdf-binary', 'utf-8')
     fileService.getMimeType.mockResolvedValue('application/pdf')
@@ -381,23 +404,9 @@ describe('AgentToolManager read routing', () => {
       content: string
     }
 
-    expect(result.content).toContain('No extractable text')
-    expect(result.content).toContain('application/pdf')
-    expect(result.content).not.toMatch(/^blank\.pdf:\s*$/m)
-    expect(fileService.prepareFileCompletely).toHaveBeenCalled()
-  })
-
-  it('routes tab-separated values through the document adapter', async () => {
-    const filePath = path.join(workspaceDir, 'rows.tsv')
-    await fs.writeFile(filePath, 'a\tb\n', 'utf-8')
-    fileService.getMimeType.mockResolvedValue('text/tab-separated-values')
-    fileService.prepareFileCompletely.mockResolvedValue({ content: 'a | b' })
-
-    const result = (await manager.callTool('read', { path: 'rows.tsv' }, 'conv1')) as {
-      content: string
-    }
-
-    expect(result.content).toContain('a | b')
+    expect(result.content).toContain('Cannot extract text')
+    expect(result.content).toContain('30MB document limit')
+    expect(result.content).toContain(`File size: ${Buffer.byteLength('pdf-binary')} bytes`)
     expect(fileService.prepareFileCompletely).toHaveBeenCalled()
   })
 

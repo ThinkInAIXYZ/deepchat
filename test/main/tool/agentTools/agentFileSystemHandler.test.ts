@@ -295,11 +295,32 @@ describe('AgentFileSystemHandler read batch isolation', () => {
       await fs.writeFile(binaryPath, Buffer.from([0x00, 0x01, 0x02]))
 
       const content = await handler.readFile({ paths: [textPath, binaryPath] }, undefined, {
-        binaryMimeType: 'application/octet-stream'
+        mimeType: 'application/x-tar'
       })
 
       expect(content).toContain('keep me')
       expect(content).toContain('Cannot read "bad.bin" as plain text')
+      expect(content).toContain('application/x-tar')
+    } finally {
+      await fs.rm(testDir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses to buffer a file above the raw read size cap', async () => {
+    const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-cap-'))
+    try {
+      const handler = new AgentFileSystemHandler([testDir])
+      const filePath = path.join(testDir, 'huge.bin')
+      await fs.writeFile(filePath, Buffer.alloc(32, 0x41))
+
+      const content = await handler.readFile({ paths: [filePath] }, undefined, {
+        mimeType: 'application/x-iso9660-image',
+        maxReadBytes: 16
+      })
+
+      expect(content).toContain('File too large')
+      expect(content).toContain('32 bytes')
+      expect(content).toContain('limit 16')
     } finally {
       await fs.rm(testDir, { recursive: true, force: true })
     }

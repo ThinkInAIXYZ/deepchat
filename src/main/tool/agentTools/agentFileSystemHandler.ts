@@ -12,7 +12,13 @@ import { glob } from 'glob'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
-import { buildBinaryReadGuidance, decodeAgentFileBytes } from '@/lib/binaryReadGuard'
+import {
+  AGENT_RAW_READ_MAX_BYTES,
+  buildBinaryReadGuidance,
+  buildOversizedReadGuidance,
+  decodeAgentFileBytes,
+  paginateReadContent
+} from '@/lib/binaryReadGuard'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
@@ -125,7 +131,9 @@ interface FileMutationOptions {
 }
 
 interface FileReadOptions {
-  binaryMimeType?: string
+  mimeType: string
+  autoTruncateChars?: number
+  maxReadBytes?: number
 }
 
 interface GrepMatch {
@@ -845,8 +853,8 @@ export class AgentFileSystemHandler {
 
   async readFile(
     args: unknown,
-    baseDirectory?: string,
-    options: FileReadOptions = {}
+    baseDirectory: string | undefined,
+    options: FileReadOptions
   ): Promise<string> {
     const parsed = ReadFileArgsSchema.safeParse(args)
     if (!parsed.success) {
@@ -862,46 +870,23 @@ export class AgentFileSystemHandler {
             enforceAllowed: false,
             accessType: 'read'
           })
+          const stats = await fs.stat(validPath)
+          const maxReadBytes = options.maxReadBytes ?? AGENT_RAW_READ_MAX_BYTES
+          if (stats.size > maxReadBytes) {
+            return buildOversizedReadGuidance(filePath, stats.size, maxReadBytes)
+          }
           const bytes = await fs.readFile(validPath)
           const decoded = decodeAgentFileBytes(bytes)
           if (decoded.kind === 'binary') {
-            return buildBinaryReadGuidance(
-              filePath,
-              options.binaryMimeType ?? 'application/octet-stream',
-              'agent'
-            )
+            return buildBinaryReadGuidance(filePath, options.mimeType, 'agent')
           }
-          const fullContent = decoded.content
-          const totalLength = fullContent.length
-
-          // Determine effective limit
-          let effectiveLimit = limit
-          let autoTruncated = false
-
-          // Auto-truncate large files when no explicit limit specified
-          if (limit === undefined && totalLength - offset > this.readFileAutoTruncateChars) {
-            effectiveLimit = this.readFileAutoTruncateChars
-            autoTruncated = true
-          }
-
-          // Apply offset and limit
-          const content =
-            effectiveLimit !== undefined
-              ? fullContent.slice(offset, offset + effectiveLimit)
-              : fullContent.slice(offset)
-
-          const endOffset = offset + content.length
-
-          // Build result with metadata when pagination is active or auto-truncated
-          if (offset > 0 || limit !== undefined || autoTruncated) {
-            let header = `${filePath} [chars ${offset}-${endOffset} of ${totalLength}]`
-            if (autoTruncated) {
-              header += ` (auto-truncated, use offset/limit to read more)`
-            }
-            return `${header}:\n${content}\n`
-          }
-
-          return `${filePath}:\n${content}\n`
+          return paginateReadContent(
+            filePath,
+            decoded.content,
+            offset,
+            limit,
+            options.autoTruncateChars ?? this.readFileAutoTruncateChars
+          )
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
           return `${filePath}: Error - ${errorMessage}`

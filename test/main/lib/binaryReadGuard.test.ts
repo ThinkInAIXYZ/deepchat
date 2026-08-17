@@ -1,28 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildBinaryReadGuidance,
   decodeAgentFileBytes,
-  DOCUMENT_READ_MIMES,
   isDocumentReadMime,
   shouldRejectAgentBinaryRead
 } from '../../../src/main/lib/binaryReadGuard'
-import { CsvFileAdapter } from '../../../src/main/file/adapters/CsvFileAdapter'
-import { DocFileAdapter } from '../../../src/main/file/adapters/DocFileAdapter'
-import { ExcelFileAdapter } from '../../../src/main/file/adapters/ExcelFileAdapter'
-import { OpenDocumentFileAdapter } from '../../../src/main/file/adapters/OpenDocumentFileAdapter'
-import { PdfFileAdapter } from '../../../src/main/file/adapters/PdfFileAdapter'
-import { PptFileAdapter } from '../../../src/main/file/adapters/PptFileAdapter'
-import { RtfFileAdapter } from '../../../src/main/file/adapters/RtfFileAdapter'
-import { getMimeTypeAdapterMap } from '../../../src/main/file/mime'
-
-const DOCUMENT_ADAPTERS = new Set([
-  CsvFileAdapter,
-  DocFileAdapter,
-  ExcelFileAdapter,
-  OpenDocumentFileAdapter,
-  PdfFileAdapter,
-  PptFileAdapter,
-  RtfFileAdapter
-])
 
 describe('binaryReadGuard', () => {
   it('allows application/octet-stream without binary sniffing', () => {
@@ -40,18 +22,23 @@ describe('binaryReadGuard', () => {
     expect(shouldRejectAgentBinaryRead('image/png')).toBe(false)
   })
 
-  it('matches concrete document adapter MIME keys and ignores wildcards', () => {
-    const expected = [...getMimeTypeAdapterMap().entries()]
-      .filter(([key, adapter]) => DOCUMENT_ADAPTERS.has(adapter) && !key.includes('*'))
-      .map(([key]) => key)
-      .sort()
-
-    expect([...DOCUMENT_READ_MIMES].sort()).toEqual(expected)
-    expect(expected).toHaveLength(37)
-    expect(isDocumentReadMime('application/toml')).toBe(false)
-    expect(isDocumentReadMime('text/*')).toBe(false)
+  it('treats office documents as extracted reads and leaves csv on the text path', () => {
+    expect(isDocumentReadMime('application/pdf')).toBe(true)
     expect(isDocumentReadMime('application/vnd.oasis.opendocument.text')).toBe(true)
-    expect(isDocumentReadMime('text/tab-separated-values')).toBe(true)
+    expect(isDocumentReadMime('text/rtf')).toBe(true)
+    expect(isDocumentReadMime('application/toml')).toBe(false)
+    expect(isDocumentReadMime('text/csv')).toBe(false)
+    expect(isDocumentReadMime('text/tab-separated-values')).toBe(false)
+    expect(isDocumentReadMime('text/*')).toBe(false)
+  })
+
+  it('guides NUL hits on text MIME as an encoding problem', () => {
+    expect(buildBinaryReadGuidance('app.log', 'text/plain', 'agent')).toContain(
+      'UTF-16 without a BOM'
+    )
+    expect(buildBinaryReadGuidance('payload.tar', 'application/x-tar', 'agent')).toContain(
+      'conversion/extraction tool'
+    )
   })
 
   it.each([

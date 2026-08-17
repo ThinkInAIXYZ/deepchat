@@ -29,7 +29,9 @@ import {
 } from '@shared/types/skill'
 import {
   buildBinaryReadGuidance,
+  buildEmptyDocumentReadGuidance,
   isDocumentReadMime,
+  paginateReadContent,
   shouldRejectAgentBinaryRead
 } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler, type ProtectedDirectoryRule } from './agentFileSystemHandler'
@@ -1663,12 +1665,13 @@ export class AgentToolManager {
             )
             const extracted = prepared.content ?? ''
             if (extracted.trim().length === 0) {
+              const fileSize = (await fs.promises.stat(validPath)).size
               return {
-                content: `No extractable text in "${path.basename(validPath)}" (detected MIME: ${mimeType}).`
+                content: buildEmptyDocumentReadGuidance(validPath, mimeType, fileSize)
               }
             }
             return {
-              content: this.paginateReadContent(
+              content: paginateReadContent(
                 readArgs.path,
                 extracted,
                 readArgs.offset,
@@ -1678,23 +1681,18 @@ export class AgentToolManager {
             }
           }
 
-          const readFileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
-            conversationId,
-            allowExternalAccess: allowExternalFileAccess,
-            readFileAutoTruncateChars: readOutputLimits.readFileAutoTruncateChars,
-            protectedDirectoryRules,
-            commandShellPathStyle: options.commandShell.pathStyle
-          })
-
           return {
-            content: await readFileSystemHandler.readFile(
+            content: await fileSystemHandler.readFile(
               {
                 paths: [readArgs.path],
                 offset: readArgs.offset,
                 limit: readArgs.limit
               },
               baseDirectory,
-              { binaryMimeType: mimeType }
+              {
+                mimeType,
+                autoTruncateChars: readOutputLimits.readFileAutoTruncateChars
+              }
             )
           }
         }
@@ -2421,40 +2419,6 @@ export class AgentToolManager {
 
   private isImageMimeType(mimeType: string): boolean {
     return mimeType.startsWith('image/')
-  }
-
-  private paginateReadContent(
-    pathLabel: string,
-    fullContent: string,
-    offset?: number,
-    limit?: number,
-    autoTruncateChars = resolveAgentOutputLimits().readFileAutoTruncateChars
-  ): string {
-    const start = Math.max(0, offset ?? 0)
-    const totalLength = fullContent.length
-
-    let effectiveLimit = limit
-    let autoTruncated = false
-    if (effectiveLimit === undefined && totalLength - start > autoTruncateChars) {
-      effectiveLimit = autoTruncateChars
-      autoTruncated = true
-    }
-
-    const content =
-      effectiveLimit !== undefined
-        ? fullContent.slice(start, start + effectiveLimit)
-        : fullContent.slice(start)
-    const endOffset = start + content.length
-
-    if (start > 0 || limit !== undefined || autoTruncated) {
-      let header = `${pathLabel} [chars ${start}-${endOffset} of ${totalLength}]`
-      if (autoTruncated) {
-        header += ' (auto-truncated, use offset/limit to read more)'
-      }
-      return `${header}:\n${content}\n`
-    }
-
-    return `${pathLabel}:\n${content}\n`
   }
 
   private buildImageMetadataBlock(filePath: string, mimeType: string, fileSize: number): string {
