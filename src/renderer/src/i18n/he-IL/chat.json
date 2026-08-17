@@ -618,9 +618,9 @@
     }
   },
   "guardStop": {
-    "maxToolCalls": "The tool-call limit was reached before the task finished.",
-    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
-    "maxTurns": "The provider-round limit was reached before the task finished.",
-    "continueMessage": "Continue from where you left off."
+    "maxToolCalls": "הגעת למגבלת קריאות הכלים לפני שהמשימה הסתיימה.",
+    "noProgress": "תוצאות כלים זהות שחזרו על עצמן לא קידמו דבר, ולכן ה-Agent נעצר.",
+    "maxTurns": "הגעת למגבלת הסבבים של הספק לפני שהמשימה הסתיימה.",
+    "continueMessage": "המשך מהמקום שבו הפסקת."
   }
 }

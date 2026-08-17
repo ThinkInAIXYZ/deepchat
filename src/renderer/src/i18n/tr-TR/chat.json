@@ -618,9 +618,9 @@
     }
   },
   "guardStop": {
-    "maxToolCalls": "The tool-call limit was reached before the task finished.",
-    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
-    "maxTurns": "The provider-round limit was reached before the task finished.",
-    "continueMessage": "Continue from where you left off."
+    "maxToolCalls": "Görev bitmeden araç çağrısı sınırına ulaşıldı.",
+    "noProgress": "Tekrarlanan aynı araç sonuçları ilerleme sağlamadı, bu yüzden Agent durdu.",
+    "maxTurns": "Görev bitmeden sağlayıcı turu sınırına ulaşıldı.",
+    "continueMessage": "Kaldığın yerden devam et."
   }
 }

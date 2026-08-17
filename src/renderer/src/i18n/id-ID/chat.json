@@ -618,9 +618,9 @@
     }
   },
   "guardStop": {
-    "maxToolCalls": "The tool-call limit was reached before the task finished.",
-    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
-    "maxTurns": "The provider-round limit was reached before the task finished.",
-    "continueMessage": "Continue from where you left off."
+    "maxToolCalls": "Batas pemanggilan alat tercapai sebelum tugas selesai.",
+    "noProgress": "Hasil alat yang sama berulang kali tidak memberi kemajuan, jadi Agent berhenti.",
+    "maxTurns": "Batas putaran penyedia tercapai sebelum tugas selesai.",
+    "continueMessage": "Lanjutkan dari tempat terakhir berhenti."
   }
 }
