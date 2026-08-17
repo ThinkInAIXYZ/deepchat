@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   appQuit: vi.fn(),
   classify: vi.fn(),
+  allocate: vi.fn(),
   quarantine: vi.fn(),
   initialize: vi.fn(),
   migrate: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@/data/databaseStartupRecovery', async (importOriginal) => {
   return {
     ...actual,
     classifyDatabaseStartupFailure: mocks.classify,
+    allocateQuarantineDirectory: mocks.allocate,
     quarantineDatabaseFiles: mocks.quarantine
   }
 })
@@ -33,6 +35,7 @@ describe('initializeMainDatabaseWithRecovery', () => {
     vi.resetModules()
     mocks.appQuit.mockReset()
     mocks.classify.mockReset()
+    mocks.allocate.mockReset()
     mocks.quarantine.mockReset()
     mocks.initialize.mockReset()
     mocks.migrate.mockReset()
@@ -42,7 +45,11 @@ describe('initializeMainDatabaseWithRecovery', () => {
       migrate: mocks.migrate
     }))
     mocks.migrate.mockResolvedValue(undefined)
-    mocks.quarantine.mockReturnValue('/tmp/agent.db.corrupt.1')
+    mocks.quarantine.mockImplementation((_dbPath: string, directory: string) => directory)
+    let allocated = 0
+    mocks.allocate.mockImplementation(
+      (dbPath: string) => `${dbPath}.corrupt.${String(++allocated).padStart(3, '0')}`
+    )
   })
 
   function createPorts(overrides?: {
@@ -91,7 +98,12 @@ describe('initializeMainDatabaseWithRecovery', () => {
     })
 
     await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
-    expect(mocks.quarantine).toHaveBeenCalledTimes(1)
+    const shownPath = ports.splash.requestDatabaseRecovery.mock.calls[0]?.[0].preservedPath
+    expect(shownPath).toMatch(/agent\.db\.corrupt\./)
+    expect(mocks.quarantine).toHaveBeenCalledWith(
+      '/tmp/deepchat-test/app_db/agent.db',
+      shownPath
+    )
     expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
     expect(mocks.initialize).toHaveBeenCalledTimes(2)
   })
@@ -183,5 +195,32 @@ describe('initializeMainDatabaseWithRecovery', () => {
       invalidPassword: false
     })
     expect(ports.security.clearEncryptionMetadata).not.toHaveBeenCalled()
+  })
+
+  it('redisplays recovery when quarantining the original files fails', async () => {
+    const database = { id: 'fresh' }
+    mocks.initialize
+      .mockRejectedValueOnce(new Error('SQLITE_CORRUPT: malformed page'))
+      .mockResolvedValueOnce(database)
+    mocks.classify.mockReturnValue('true-corruption')
+    mocks.quarantine.mockImplementationOnce(() => {
+      throw new Error('EBUSY: resource busy or locked')
+    })
+    const { initializeMainDatabaseWithRecovery } =
+      await import('../../../src/main/app/databaseStartup')
+    const ports = createPorts({
+      password: 'secret',
+      recovery: [{ action: 'start-empty' }, { action: 'start-empty' }]
+    })
+
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
+    expect(ports.splash.requestDatabaseRecovery).toHaveBeenCalledTimes(2)
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0]).toMatchObject({
+      quarantineFailed: true
+    })
+    expect(mocks.quarantine).toHaveBeenCalledTimes(2)
+    expect(ports.splash.requestDatabaseRecovery.mock.calls[0]?.[0].preservedPath).not.toBe(
+      ports.splash.requestDatabaseRecovery.mock.calls[1]?.[0].preservedPath
+    )
   })
 })

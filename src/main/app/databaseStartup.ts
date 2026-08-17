@@ -1,7 +1,9 @@
 import logger from '@shared/logger'
 import { app } from 'electron'
 import type { MainDatabase } from '@/data/mainDatabase'
+import type { DatabaseStartupFailureKind } from '@shared/contracts/databaseSecurity'
 import {
+  allocateQuarantineDirectory,
   classifyDatabaseStartupFailure,
   isDecryptedDatabaseCorruptionError,
   quarantineDatabaseFiles
@@ -20,10 +22,21 @@ export async function initializeMainDatabaseWithRecovery(input: {
   let passwordResolved = false
   let pending:
     | {
-        kind: NonNullable<ReturnType<typeof classifyDatabaseStartupFailure>>
+        kind: DatabaseStartupFailureKind
         invalidPassword: boolean
+        quarantineFailed: boolean
+        quarantineDirectory: string
       }
     | undefined
+
+  const beginRecovery = (kind: DatabaseStartupFailureKind) => {
+    pending = {
+      kind,
+      invalidPassword: false,
+      quarantineFailed: false,
+      quarantineDirectory: allocateQuarantineDirectory(dbPath)
+    }
+  }
 
   while (true) {
     if (!passwordResolved) {
@@ -37,15 +50,16 @@ export async function initializeMainDatabaseWithRecovery(input: {
         if (!kind) {
           throw error
         }
-        pending = { kind, invalidPassword: false }
+        beginRecovery(kind)
       }
     }
 
     if (pending) {
       const choice = await input.splash.requestDatabaseRecovery({
         kind: pending.kind,
-        preservedPath: `${dbPath}.corrupt.*`,
-        invalidPassword: pending.invalidPassword
+        preservedPath: pending.quarantineDirectory,
+        invalidPassword: pending.invalidPassword,
+        ...(pending.quarantineFailed ? { quarantineFailed: true } : {})
       })
 
       if (!choice) {
@@ -61,10 +75,15 @@ export async function initializeMainDatabaseWithRecovery(input: {
             password = choice.password
             passwordResolved = true
             input.security.persistRecoveredEncryptionMetadata(choice.password)
-            pending = { kind: 'true-corruption', invalidPassword: false }
+            pending = {
+              ...pending,
+              kind: 'true-corruption',
+              invalidPassword: false,
+              quarantineFailed: false
+            }
             continue
           }
-          pending = { ...pending, invalidPassword: true }
+          pending = { ...pending, invalidPassword: true, quarantineFailed: false }
           continue
         }
 
@@ -75,8 +94,21 @@ export async function initializeMainDatabaseWithRecovery(input: {
         continue
       }
 
-      const preservedPath = quarantineDatabaseFiles(dbPath)
-      logger.info(`DatabaseStartup: quarantined damaged database to ${preservedPath}`)
+      try {
+        quarantineDatabaseFiles(dbPath, pending.quarantineDirectory)
+      } catch (error) {
+        logger.warn('DatabaseStartup: failed to quarantine damaged database', error)
+        pending = {
+          ...pending,
+          quarantineFailed: true,
+          quarantineDirectory: allocateQuarantineDirectory(dbPath)
+        }
+        continue
+      }
+
+      logger.info(
+        `DatabaseStartup: quarantined damaged database to ${pending.quarantineDirectory}`
+      )
       if (pending.kind === 'unreadable' && password === undefined) {
         input.security.clearEncryptionMetadata()
       }
@@ -98,7 +130,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
       if (!kind) {
         throw error
       }
-      pending = { kind, invalidPassword: false }
+      beginRecovery(kind)
     }
   }
 }

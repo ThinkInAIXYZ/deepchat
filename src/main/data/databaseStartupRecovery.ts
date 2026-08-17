@@ -79,16 +79,25 @@ export function classifyDatabaseStartupFailure(input: {
   }
 
   const header = readDatabaseHeader(input.dbPath)
-  if (!header || header.length === 0 || hasSqliteMagic(header)) {
+  if (!header || header.length < SQLITE_MAGIC_HEADER.length || hasSqliteMagic(header)) {
     return 'true-corruption'
   }
 
   return 'unreadable'
 }
 
-export function quarantineDatabaseFiles(dbPath: string): string {
+export function allocateQuarantineDirectory(dbPath: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const directory = `${dbPath}.corrupt.${timestamp}.${process.hrtime.bigint().toString(36)}`
+  let directory = `${dbPath}.corrupt.${timestamp}`
+  let suffix = 0
+  while (fs.existsSync(directory)) {
+    suffix += 1
+    directory = `${dbPath}.corrupt.${timestamp}.${suffix}`
+  }
+  return directory
+}
+
+export function quarantineDatabaseFiles(dbPath: string, directory: string): string {
   fs.mkdirSync(directory, { recursive: true })
 
   for (const source of [sqliteShmPath(dbPath), sqliteWalPath(dbPath), dbPath]) {

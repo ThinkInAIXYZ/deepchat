@@ -188,7 +188,8 @@ export class SplashWindow {
       requestId,
       kind: payload.kind,
       preservedPath: payload.preservedPath,
-      ...(payload.invalidPassword ? { invalidPassword: true } : {})
+      ...(payload.invalidPassword ? { invalidPassword: true } : {}),
+      ...(payload.quarantineFailed ? { quarantineFailed: true } : {})
     }
 
     return await new Promise((resolve) => {
@@ -740,8 +741,10 @@ export class SplashWindow {
         password.disabled = !needsPassword
         actions.hidden = false
         quit.disabled = false
-        error.hidden = !payload.invalidPassword
-        error.textContent = 'Wrong password. Try again.'
+        error.hidden = !payload.invalidPassword && !payload.quarantineFailed
+        error.textContent = payload.quarantineFailed
+          ? 'Could not move the original files. Try Start empty again or quit.'
+          : 'Wrong password. Try again.'
         password.value = ''
         submit.textContent = needsPassword ? 'Unlock' : 'Start empty'
         submit.disabled = needsPassword

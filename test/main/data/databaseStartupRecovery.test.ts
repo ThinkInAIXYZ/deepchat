@@ -7,6 +7,7 @@ import {
   OrphanWalDatabaseError,
   SQLITE_MAGIC_HEADER,
   assertNoOrphanWalSidecar,
+  allocateQuarantineDirectory,
   classifyDatabaseStartupFailure,
   hasOrphanWalSidecar,
   quarantineDatabaseFiles,
@@ -62,6 +63,18 @@ describe('database startup recovery classification', () => {
     expect(
       classifyDatabaseStartupFailure({
         error: new Error('database disk image is malformed'),
+        dbPath
+      })
+    ).toBe('true-corruption')
+  })
+
+  it('classifies a truncated header shorter than the SQLite magic as true corruption', () => {
+    const dbPath = path.join(tempDir(), 'agent.db')
+    fs.writeFileSync(dbPath, Buffer.from('SQLite'))
+
+    expect(
+      classifyDatabaseStartupFailure({
+        error: new Error('file is not a database'),
         dbPath
       })
     ).toBe('true-corruption')
@@ -126,7 +139,10 @@ describe('database file quarantine', () => {
     fs.writeFileSync(sqliteWalPath(dbPath), 'wal')
     fs.writeFileSync(sqliteShmPath(dbPath), 'shm')
 
-    const directory = quarantineDatabaseFiles(dbPath)
+    const directory = allocateQuarantineDirectory(dbPath)
+    expect(directory).toMatch(/agent\.db\.corrupt\./)
+    expect(fs.existsSync(directory)).toBe(false)
+    quarantineDatabaseFiles(dbPath, directory)
 
     expect(fs.existsSync(dbPath)).toBe(false)
     expect(fs.existsSync(sqliteWalPath(dbPath))).toBe(false)
@@ -141,9 +157,11 @@ describe('database file quarantine', () => {
     fs.writeFileSync(dbPath, 'main')
     fs.writeFileSync(sqliteWalPath(dbPath), 'wal')
 
-    const first = quarantineDatabaseFiles(dbPath)
+    const first = allocateQuarantineDirectory(dbPath)
+    quarantineDatabaseFiles(dbPath, first)
     fs.writeFileSync(dbPath, 'main-again')
-    const second = quarantineDatabaseFiles(dbPath)
+    const second = allocateQuarantineDirectory(dbPath)
+    quarantineDatabaseFiles(dbPath, second)
 
     expect(first).not.toBe(second)
     expect(fs.existsSync(path.join(first, 'agent.db-wal'))).toBe(true)

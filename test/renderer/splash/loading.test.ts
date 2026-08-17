@@ -139,7 +139,7 @@ describe('splash loading', () => {
     recoveryRequestListener?.({
       requestId: 'recovery-1',
       kind: 'true-corruption',
-      preservedPath: '/tmp/agent.db.corrupt.*'
+      preservedPath: '/tmp/agent.db.corrupt.2026-08-17T00-00-00-000Z'
     })
     await nextTick()
 

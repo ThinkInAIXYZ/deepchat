@@ -180,6 +180,7 @@ const unlockReason = ref<DatabaseUnlockRequestPayload['reason']>('manual-require
 const recoveryKind = ref<DatabaseRecoveryRequestPayload['kind']>('true-corruption')
 const recoveryPreservedPath = ref('')
 const recoveryInvalidPassword = ref(false)
+const recoveryQuarantineFailed = ref(false)
 const confirmingStartEmpty = ref(false)
 const safeStorageAvailable = ref(false)
 const unlockSubmitting = ref(false)
@@ -208,6 +209,9 @@ const recoverySubtitle = computed(() => {
 })
 
 const recoveryMessage = computed(() => {
+  if (recoveryQuarantineFailed.value) {
+    return 'Could not move the original files. Try Start empty again or quit.'
+  }
   if (recoveryInvalidPassword.value) {
     return 'Wrong password. Try again.'
   }
@@ -238,8 +242,9 @@ const handleDebugMode = (debugMode: SplashDebugMode) => {
   confirmingStartEmpty.value = false
   if (debugMode === 'recovery') {
     recoveryKind.value = 'unreadable'
-    recoveryPreservedPath.value = 'agent.db.corrupt.*'
+    recoveryPreservedPath.value = 'agent.db.corrupt.preview'
     recoveryInvalidPassword.value = false
+    recoveryQuarantineFailed.value = false
   }
   mode.value = debugMode
 }
@@ -250,6 +255,7 @@ const handleRecoveryRequest = (payload: DatabaseRecoveryRequestPayload) => {
   recoveryKind.value = payload.kind
   recoveryPreservedPath.value = payload.preservedPath
   recoveryInvalidPassword.value = payload.invalidPassword === true
+  recoveryQuarantineFailed.value = payload.quarantineFailed === true
   confirmingStartEmpty.value = false
   password.value = ''
   unlockSubmitting.value = false

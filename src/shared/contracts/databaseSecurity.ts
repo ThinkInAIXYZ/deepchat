@@ -36,6 +36,7 @@ export type DatabaseRecoveryRequestPayload = {
   kind: DatabaseStartupFailureKind
   preservedPath: string
   invalidPassword?: boolean
+  quarantineFailed?: boolean
 }
 
 export type DatabaseRecoverySubmitPayload =
