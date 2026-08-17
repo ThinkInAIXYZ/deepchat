@@ -110,8 +110,10 @@ const shouldDisableMarkdownVirtualization = computed(
   () => props.disableMarkdownVirtualization || isCapturingValue.value
 )
 const allRenderedMessages = computed(() => props.messages)
-const latestAssistantMessageId = computed(
-  () => props.latestAssistantMessageId ?? findLatestAssistantMessageId(props.messages)
+const latestAssistantMessageId = computed(() =>
+  props.latestAssistantMessageId === undefined
+    ? findLatestAssistantMessageId(props.messages)
+    : props.latestAssistantMessageId
 )
 const seenMessageIds = new Set<string>()
 const animatingMessageIds = ref(new Set<string>())

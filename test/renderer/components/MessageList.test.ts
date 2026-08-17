@@ -413,4 +413,17 @@ describe('MessageList', () => {
       'false'
     )
   })
+
+  it('does not enable Continue when the parent explicitly has no latest assistant', () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('assistant-old', 'assistant', 1)],
+        latestAssistantMessageId: null
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').attributes('data-allow-guard-stop-continue')).toBe(
+      'false'
+    )
+  })
 })
