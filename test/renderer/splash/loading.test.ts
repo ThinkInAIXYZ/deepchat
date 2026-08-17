@@ -125,7 +125,9 @@ describe('splash loading', () => {
     debugModeListener?.('recovery')
     await nextTick()
 
-    expect(wrapper.text()).toContain('This database cannot be read. It may be encrypted or damaged.')
+    expect(wrapper.text()).toContain(
+      'This database cannot be read. It may be encrypted or damaged.'
+    )
     expect(wrapper.get('#database-recovery-password').attributes('disabled')).toBeDefined()
     expect(
       wrapper.findAll('button').every((button) => button.attributes('disabled') !== undefined)
