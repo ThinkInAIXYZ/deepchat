@@ -1226,6 +1226,128 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it('recovers a legacy usage table after schema version 68 was already recorded', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const initialDatabase = new MainDatabaseCtor(dbPath)
+    initialDatabase.close()
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (68, ${Date.now()});
+      DROP TABLE deepchat_usage_stats;
+      CREATE TABLE deepchat_usage_stats (
+        message_id TEXT PRIMARY KEY,
+        usage_category TEXT NOT NULL DEFAULT 'chat',
+        compaction_attempt_id TEXT,
+        provider_call_id TEXT,
+        provider_call_seq INTEGER,
+        session_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        total_tokens INTEGER,
+        cached_input_tokens INTEGER,
+        cache_write_input_tokens INTEGER,
+        source TEXT NOT NULL DEFAULT 'live',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO deepchat_usage_stats (
+        message_id, session_id, usage_date, provider_id, model_id, input_tokens, output_tokens,
+        total_tokens, cached_input_tokens, cache_write_input_tokens, source, created_at, updated_at
+      ) VALUES (
+        'message-v68', 'session-1', '2026-08-17', 'minimax', 'MiniMax-M3', 120, 30, 150,
+        20, 5, 'live', 1000, 2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new MainDatabaseCtor(dbPath)
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const columns = checkDb.prepare('PRAGMA table_info(deepchat_usage_stats)').all() as Array<{
+      name: string
+      pk: number
+    }>
+    const row = checkDb
+      .prepare(
+        `SELECT usage_id, message_id, usage_category, input_tokens, total_tokens
+         FROM deepchat_usage_stats
+         WHERE usage_id = ?`
+      )
+      .get('message-v68')
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+
+    expect(columns.find((column) => column.name === 'usage_id')?.pk).toBe(1)
+    expect(columns.find((column) => column.name === 'message_id')?.pk).toBe(0)
+    expect(row).toEqual({
+      usage_id: 'message-v68',
+      message_id: 'message-v68',
+      usage_category: 'chat',
+      input_tokens: 120,
+      total_tokens: 150
+    })
+    expect(versions.map((entry) => entry.version)).toContain(69)
+    checkDb.close()
+  })
+
+  it('leaves an already-correct version 68 usage table unchanged', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const initialDatabase = new MainDatabaseCtor(dbPath)
+    initialDatabase.close()
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (68, ${Date.now()});
+      INSERT INTO deepchat_usage_stats (
+        usage_id, message_id, usage_category, compaction_attempt_id, provider_call_id,
+        provider_call_seq, session_id, usage_date, provider_id, model_id, input_tokens,
+        output_tokens, total_tokens, cached_input_tokens, cache_write_input_tokens, source,
+        created_at, updated_at
+      ) VALUES (
+        'compaction-1', NULL, 'compaction', 'attempt-1', 'call-1', 1, 'session-1',
+        '2026-08-17', 'minimax', 'MiniMax-M3', 1000, 40, 1040, 900, 0, 'live', 1000, 2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new MainDatabaseCtor(dbPath)
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const row = checkDb
+      .prepare(
+        `SELECT usage_id, message_id, usage_category, compaction_attempt_id, provider_call_id
+         FROM deepchat_usage_stats
+         WHERE usage_id = ?`
+      )
+      .get('compaction-1')
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+
+    expect(row).toEqual({
+      usage_id: 'compaction-1',
+      message_id: null,
+      usage_category: 'compaction',
+      compaction_attempt_id: 'attempt-1',
+      provider_call_id: 'call-1'
+    })
+    expect(versions.map((entry) => entry.version)).toContain(69)
+    checkDb.close()
+  })
+
   it('repairs a missing agent_memory category column', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)

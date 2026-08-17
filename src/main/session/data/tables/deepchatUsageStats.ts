@@ -77,6 +77,7 @@ export interface DeepChatUsageStatsCategoryRow {
 }
 
 export const USAGE_STATS_CATEGORY_SCHEMA_VERSION = 68
+export const USAGE_STATS_CATEGORY_RECOVERY_SCHEMA_VERSION = 69
 
 function normalizeAggregate(row: AggregateRow | undefined): DeepChatUsageStatsSummary {
   return {
@@ -125,6 +126,95 @@ export class DeepChatUsageStatsTable extends BaseTable {
         ON deepchat_usage_stats(session_id, compaction_attempt_id, provider_call_id)
         WHERE usage_category = 'compaction';
     `
+  }
+
+  private getCategoryMigrationSQL(targetTable: string): string {
+    return `
+      CREATE TABLE ${targetTable} (
+        usage_id TEXT PRIMARY KEY,
+        message_id TEXT,
+        usage_category TEXT NOT NULL CHECK (usage_category IN ('chat', 'compaction')),
+        compaction_attempt_id TEXT,
+        provider_call_id TEXT,
+        provider_call_seq INTEGER,
+        session_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        total_tokens INTEGER,
+        cached_input_tokens INTEGER,
+        cache_write_input_tokens INTEGER,
+        source TEXT NOT NULL DEFAULT 'live',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO ${targetTable} (
+        usage_id,
+        message_id,
+        usage_category,
+        compaction_attempt_id,
+        provider_call_id,
+        provider_call_seq,
+        session_id,
+        usage_date,
+        provider_id,
+        model_id,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_input_tokens,
+        cache_write_input_tokens,
+        source,
+        created_at,
+        updated_at
+      )
+      SELECT
+        message_id,
+        message_id,
+        'chat',
+        NULL,
+        NULL,
+        NULL,
+        session_id,
+        usage_date,
+        provider_id,
+        model_id,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_input_tokens,
+        cache_write_input_tokens,
+        source,
+        created_at,
+        updated_at
+      FROM deepchat_usage_stats;
+      DROP TABLE deepchat_usage_stats;
+      ALTER TABLE ${targetTable} RENAME TO deepchat_usage_stats;
+      CREATE INDEX idx_deepchat_usage_stats_date ON deepchat_usage_stats(usage_date);
+      CREATE INDEX idx_deepchat_usage_stats_provider_date ON deepchat_usage_stats(provider_id, usage_date);
+      CREATE INDEX idx_deepchat_usage_stats_model_date ON deepchat_usage_stats(model_id, usage_date);
+      CREATE INDEX idx_deepchat_usage_stats_category_date ON deepchat_usage_stats(usage_category, usage_date);
+      CREATE UNIQUE INDEX idx_deepchat_usage_stats_compaction_call
+        ON deepchat_usage_stats(session_id, compaction_attempt_id, provider_call_id)
+        WHERE usage_category = 'compaction';
+    `
+  }
+
+  private hasCategoryAwarePrimaryKey(): boolean {
+    const columns = this.db.prepare('PRAGMA table_info(deepchat_usage_stats)').all() as Array<{
+      name: string
+      pk: number
+    }>
+    const usageId = columns.find((column) => column.name === 'usage_id')
+    const messageId = columns.find((column) => column.name === 'message_id')
+
+    return (
+      usageId?.pk === 1 &&
+      messageId?.pk === 0 &&
+      columns.some((column) => column.name === 'usage_category')
+    )
   }
 
   getMigrationSQL(version: number): string | null {
@@ -189,83 +279,25 @@ export class DeepChatUsageStatsTable extends BaseTable {
       `
     }
     if (version === USAGE_STATS_CATEGORY_SCHEMA_VERSION) {
-      return `
-        CREATE TABLE deepchat_usage_stats_v68 (
-          usage_id TEXT PRIMARY KEY,
-          message_id TEXT,
-          usage_category TEXT NOT NULL CHECK (usage_category IN ('chat', 'compaction')),
-          compaction_attempt_id TEXT,
-          provider_call_id TEXT,
-          provider_call_seq INTEGER,
-          session_id TEXT NOT NULL,
-          usage_date TEXT NOT NULL,
-          provider_id TEXT NOT NULL,
-          model_id TEXT NOT NULL,
-          input_tokens INTEGER,
-          output_tokens INTEGER,
-          total_tokens INTEGER,
-          cached_input_tokens INTEGER,
-          cache_write_input_tokens INTEGER,
-          source TEXT NOT NULL DEFAULT 'live',
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        );
-        INSERT INTO deepchat_usage_stats_v68 (
-          usage_id,
-          message_id,
-          usage_category,
-          compaction_attempt_id,
-          provider_call_id,
-          provider_call_seq,
-          session_id,
-          usage_date,
-          provider_id,
-          model_id,
-          input_tokens,
-          output_tokens,
-          total_tokens,
-          cached_input_tokens,
-          cache_write_input_tokens,
-          source,
-          created_at,
-          updated_at
-        )
-        SELECT
-          message_id,
-          message_id,
-          'chat',
-          NULL,
-          NULL,
-          NULL,
-          session_id,
-          usage_date,
-          provider_id,
-          model_id,
-          input_tokens,
-          output_tokens,
-          total_tokens,
-          cached_input_tokens,
-          cache_write_input_tokens,
-          source,
-          created_at,
-          updated_at
-        FROM deepchat_usage_stats;
-        DROP TABLE deepchat_usage_stats;
-        ALTER TABLE deepchat_usage_stats_v68 RENAME TO deepchat_usage_stats;
-        CREATE INDEX idx_deepchat_usage_stats_date ON deepchat_usage_stats(usage_date);
-        CREATE INDEX idx_deepchat_usage_stats_provider_date ON deepchat_usage_stats(provider_id, usage_date);
-        CREATE INDEX idx_deepchat_usage_stats_model_date ON deepchat_usage_stats(model_id, usage_date);
-        CREATE INDEX idx_deepchat_usage_stats_category_date ON deepchat_usage_stats(usage_category, usage_date);
-        CREATE UNIQUE INDEX idx_deepchat_usage_stats_compaction_call
-          ON deepchat_usage_stats(session_id, compaction_attempt_id, provider_call_id)
-          WHERE usage_category = 'compaction';
-      `
+      return this.getCategoryMigrationSQL('deepchat_usage_stats_v68')
+    }
+    if (version === USAGE_STATS_CATEGORY_RECOVERY_SCHEMA_VERSION) {
+      return 'SELECT 1 /* recover usage stats schemas that already recorded version 68 */;'
     }
     return null
   }
 
   getLatestVersion(): number {
-    return USAGE_STATS_CATEGORY_SCHEMA_VERSION
+    return USAGE_STATS_CATEGORY_RECOVERY_SCHEMA_VERSION
+  }
+
+  finalizeMigration(version: number): void {
+    if (
+      version === USAGE_STATS_CATEGORY_RECOVERY_SCHEMA_VERSION &&
+      !this.hasCategoryAwarePrimaryKey()
+    ) {
+      this.db.exec(this.getCategoryMigrationSQL('deepchat_usage_stats_v69'))
+    }
   }
 
   upsert(row: UsageStatsRecordInput): void {
