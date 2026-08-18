@@ -61,6 +61,7 @@ import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { ToolchainService } from '@/toolchains'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { OcrSettings } from '@/ocr/ocrSettings'
@@ -1209,10 +1210,21 @@ export async function createMainProcessControl(dependencies: {
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
   const runtimeHelper = RuntimeHelper.getInstance()
   runtimeHelper.initializeRuntimes()
+  const toolchainService = ToolchainService.initialize({
+    appPath: app.getAppPath(),
+    userDataDir: app.getPath('userData')
+  })
   ocrRuntimeService = new OcrRuntimeService({
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,
-    nodeRuntimePath: runtimeHelper.getNodeRuntimePath(),
+    nodeRuntimePath: null,
+    resolveNode: () => {
+      const resolved = toolchainService.resolve('node', { purpose: 'ocr' })
+      if (!resolved.version) {
+        throw new Error('OCR Node version is unavailable')
+      }
+      return { executable: resolved.node, version: resolved.version }
+    },
     tempBaseDir: app.getPath('temp'),
     userDataDir: app.getPath('userData')
   })

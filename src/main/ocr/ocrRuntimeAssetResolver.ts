@@ -21,6 +21,7 @@ export type OcrRuntimeUnavailableReason =
 
 export interface OcrRuntimeAssets {
   nodeExecutable: string
+  nodeVersion?: string
   helperEntryPath: string
   facadeDir: string
   runtimeDir: string
@@ -50,6 +51,7 @@ export interface OcrRuntimeAssetResolverOptions {
   platform?: NodeJS.Platform
   arch?: string
   nodeRuntimePath?: string | null
+  resolveNode?: () => { executable: string; version: string }
 }
 
 interface PackagedRuntimeManifest {
@@ -168,7 +170,7 @@ export class OcrRuntimeAssetResolver {
 
     return {
       assets: {
-        nodeExecutable: resolveManifestPath(unpackedRoot, manifest.paths.node),
+        ...this.resolveNodeAssets(resolveManifestPath(unpackedRoot, manifest.paths.node)),
         helperEntryPath: resolveManifestPath(unpackedRoot, manifest.paths.helper),
         facadeDir: resolveManifestPath(unpackedRoot, manifest.paths.facade),
         runtimeDir: resolveManifestPath(unpackedRoot, manifest.paths.runtime),
@@ -184,7 +186,7 @@ export class OcrRuntimeAssetResolver {
   }
 
   private async resolveDevelopment(nativePackage: string): Promise<ResolvedRuntimeAssets> {
-    if (!this.options.nodeRuntimePath) {
+    if (!this.options.resolveNode && !this.options.nodeRuntimePath) {
       throw new RuntimeAssetError('assets_missing', 'Bundled Node runtime is not installed')
     }
 
@@ -209,7 +211,11 @@ export class OcrRuntimeAssetResolver {
 
     return {
       assets: {
-        nodeExecutable: resolveBundledNodeExecutable(this.options.nodeRuntimePath, this.platform),
+        ...this.resolveNodeAssets(
+          this.options.nodeRuntimePath
+            ? resolveBundledNodeExecutable(this.options.nodeRuntimePath, this.platform)
+            : ''
+        ),
         helperEntryPath: path.join(this.options.appPath, 'out', 'main', 'lightOcrHelper.js'),
         facadeDir: path.resolve(path.dirname(facadeEntry), '..'),
         runtimeDir: path.resolve(path.dirname(runtimeEntry), '..'),
@@ -222,6 +228,20 @@ export class OcrRuntimeAssetResolver {
       },
       expectedNativeArtifactInventory: null
     }
+  }
+
+  private resolveNodeAssets(fallbackExecutable: string): {
+    nodeExecutable: string
+    nodeVersion?: string
+  } {
+    if (this.options.resolveNode) {
+      const resolved = this.options.resolveNode()
+      return { nodeExecutable: resolved.executable, nodeVersion: resolved.version }
+    }
+    if (fallbackExecutable) {
+      return { nodeExecutable: fallbackExecutable }
+    }
+    throw new RuntimeAssetError('assets_missing', 'Bundled Node runtime is not installed')
   }
 
   private async verifyIdentity(

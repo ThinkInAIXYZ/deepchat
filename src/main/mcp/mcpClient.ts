@@ -36,6 +36,7 @@ import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { ToolchainService } from '@/toolchains'
 import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
@@ -263,6 +264,7 @@ export class McpClient {
   private readonly runtime: McpClientRuntime
   private readonly onRegistryChanged: () => void
   private readonly runtimeHelper = RuntimeHelper.getInstance()
+  private readonly toolchainService: ToolchainService
   private probe: McpServerDiagnostics['probe'] = { outcome: 'not-run' }
 
   constructor(
@@ -285,6 +287,7 @@ export class McpClient {
     this.runtime = runtime
     this.onRegistryChanged = onRegistryChanged
     this.runtimeHelper.initializeRuntimes()
+    this.toolchainService = ToolchainService.getInstance()
   }
 
   private emitServerStatusChanged(
@@ -314,8 +317,7 @@ export class McpClient {
     command: string,
     args: string[]
   ): { command: string; args: string[] } {
-    this.runtimeHelper.initializeRuntimes()
-    return this.runtimeHelper.processCommandWithArgs(command, args)
+    return this.toolchainService.rewriteCommand(command, args)
   }
 
   public expandPath(inputPath: string): string {
@@ -323,29 +325,19 @@ export class McpClient {
   }
 
   public get nodeRuntimePath(): string | null {
-    this.runtimeHelper.initializeRuntimes()
-    return this.runtimeHelper.getNodeRuntimePath()
-  }
-
-  public set nodeRuntimePath(value: string | null) {
-    this.runtimeHelper.setNodeRuntimePath(value)
-  }
-
-  public get bunRuntimePath(): string | null {
-    return this.nodeRuntimePath
-  }
-
-  public set bunRuntimePath(value: string | null) {
-    this.nodeRuntimePath = value
+    try {
+      return this.toolchainService.resolve('node').rootDir
+    } catch {
+      return null
+    }
   }
 
   public get uvRuntimePath(): string | null {
-    this.runtimeHelper.initializeRuntimes()
-    return this.runtimeHelper.getUvRuntimePath()
-  }
-
-  public set uvRuntimePath(value: string | null) {
-    this.runtimeHelper.setUvRuntimePath(value)
+    try {
+      return this.toolchainService.resolve('uv').rootDir
+    } catch {
+      return null
+    }
   }
 
   private addRuntimePathsToEnvironment(
@@ -356,25 +348,9 @@ export class McpClient {
     )
   ): void {
     const allPaths = [...inheritedPaths, ...this.runtimeHelper.getDefaultPaths(homeDir)]
-    const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
-    const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
-    if (process.platform === 'win32') {
-      if (uvRuntimePath) {
-        allPaths.unshift(uvRuntimePath)
-      }
-      if (nodeRuntimePath) {
-        allPaths.unshift(nodeRuntimePath)
-      }
-    } else {
-      if (uvRuntimePath) {
-        allPaths.unshift(uvRuntimePath)
-      }
-      if (nodeRuntimePath) {
-        allPaths.unshift(path.join(nodeRuntimePath, 'bin'))
-      }
-    }
     const { key, value } = this.runtimeHelper.normalizePathEnv(allPaths)
     env[key] = value
+    Object.assign(env, this.toolchainService.prependResolvedToEnv(env))
   }
 
   // Connect to MCP server
@@ -553,7 +529,7 @@ export class McpClient {
         const env: Record<string, string> = {}
 
         // Handle command and argument replacement
-        const processedCommand = this.runtimeHelper.processCommandWithArgs(command, args)
+        const processedCommand = this.toolchainService.rewriteCommand(command, args)
         command = processedCommand.command
         args = processedCommand.args
 

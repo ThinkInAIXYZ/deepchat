@@ -1,13 +1,14 @@
 import { EventEmitter } from 'events'
 import * as fs from 'fs'
 import path from 'path'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import spawn from 'cross-spawn'
 import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
 import {
   AcpProcessManager,
   parseLoadSessionCapability
 } from '@/agent/acp/runtime/acpProcessManager'
+import { ToolchainService } from '@/toolchains'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -28,6 +29,16 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
     ...actual,
     getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' })
   }
+})
+
+beforeEach(() => {
+  vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+    rewriteCommand: (command: string, args: string[]) => ({ command, args }),
+    prependResolvedToEnv: (env: Record<string, string>) => ({
+      ...env,
+      PATH: ['/runtime/bin', env.PATH].filter(Boolean).join(':')
+    })
+  } as never)
 })
 
 class MockStream extends EventEmitter {}

@@ -27,6 +27,7 @@ import {
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { ToolchainService } from '@/toolchains'
 import {
   buildCapabilitySnapshot,
   buildClientCapabilities,
@@ -1358,19 +1359,17 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     // Handle path expansion (including ~ and environment variables)
-    const useBundledRuntime =
+    const useResolvedToolchain =
       launchSpec.distributionType === 'npx' || launchSpec.distributionType === 'uvx'
     const expandedCommand = this.runtimeHelper.expandPath(launchSpec.command)
     const expandedArgs = (launchSpec.args ?? []).map((arg) =>
       typeof arg === 'string' ? this.runtimeHelper.expandPath(arg) : arg
     )
 
-    // Replace command with runtime version if needed
-    const processedCommand = this.runtimeHelper.replaceWithRuntimeCommand(
-      expandedCommand,
-      useBundledRuntime,
-      true
-    )
+    const rewritten = useResolvedToolchain
+      ? ToolchainService.getInstance().rewriteCommand(expandedCommand, expandedArgs)
+      : { command: expandedCommand, args: expandedArgs }
+    const processedCommand = rewritten.command
 
     // Validate processed command
     if (!processedCommand || processedCommand.trim().length === 0) {
@@ -1393,8 +1392,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       )
     }
 
-    // Use expanded args
-    const processedArgs = expandedArgs
+    const processedArgs = rewritten.args
 
     let env = mergeCommandEnvironment()
 
@@ -1427,8 +1425,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       })
     }
 
-    if (useBundledRuntime) {
-      const withRuntimePaths = this.runtimeHelper.prependBundledRuntimeToEnv(env)
+    if (useResolvedToolchain) {
+      const withRuntimePaths = ToolchainService.getInstance().prependResolvedToEnv(env)
       Object.assign(env, withRuntimePaths)
 
       env.ACP_IDE = 'deepchat'

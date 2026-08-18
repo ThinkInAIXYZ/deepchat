@@ -24,6 +24,7 @@ export interface OcrRuntimeServiceOptions {
   appPath: string
   isPackaged: boolean
   nodeRuntimePath: string | null
+  resolveNode?: () => { executable: string; version: string }
   tempBaseDir: string
   userDataDir: string
   platform?: NodeJS.Platform
@@ -64,6 +65,7 @@ export class OcrRuntimeService {
       appPath: options.appPath,
       isPackaged: options.isPackaged,
       nodeRuntimePath: options.nodeRuntimePath,
+      resolveNode: options.resolveNode,
       platform: options.platform,
       arch: options.arch
     })
@@ -163,6 +165,7 @@ export class OcrRuntimeService {
         helperEntryPath: availability.assets.helperEntryPath,
         bundlePath: availability.assets.bundlePath,
         expectedBundleId: availability.assets.bundleId,
+        expectedNodeVersion: availability.assets.nodeVersion,
         nativePackageDir: availability.assets.nativePackageDir,
         nativePayloadEncoding: availability.assets.nativePayloadEncoding,
         tempBaseDir: this.options.tempBaseDir

@@ -23,6 +23,7 @@ import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { ToolchainService } from '@/toolchains'
 import type { CommandShellDialect, ResolvedCommandShell } from '@shared/commandShell'
 import type { ResolvedSkillExecutionAuthority } from './skillExecutionAuthority'
 import {
@@ -451,21 +452,11 @@ export class SkillExecutionService {
       return system
     }
 
-    const systemUv = await this.resolveSystemCommand('uv', env, signal)
-    if (systemUv) {
-      return { command: systemUv, mode: 'uv' }
-    }
-
-    const bundledUv = this.getBundledRuntimeCommand('uv')
-    if (bundledUv) {
-      return { command: bundledUv, mode: 'uv' }
-    }
-
-    const fallback = await this.findSystemPythonRuntime(env, signal)
-    if (!fallback) {
+    try {
+      return { command: ToolchainService.getInstance().resolve('uv').uv, mode: 'uv' }
+    } catch {
       throw new Error('No compatible Python runtime found for this skill')
     }
-    return fallback
   }
 
   private async resolveNodeRuntime(
@@ -489,16 +480,11 @@ export class SkillExecutionService {
       return { command: systemNode, mode: 'node' }
     }
 
-    const systemNode = await this.resolveSystemCommand('node', env, signal)
-    if (systemNode) {
-      return { command: systemNode, mode: 'node' }
-    }
-
-    const bundledNode = this.getBundledRuntimeCommand('node')
-    if (!bundledNode) {
+    try {
+      return { command: ToolchainService.getInstance().resolve('node').node, mode: 'node' }
+    } catch {
       throw new Error('No compatible node runtime found for this skill')
     }
-    return { command: bundledNode, mode: 'node' }
   }
 
   private async findSystemPythonRuntime(
@@ -866,17 +852,15 @@ export class SkillExecutionService {
   }
 
   private getBundledRuntimeCommand(command: 'uv' | 'node'): string | null {
-    this.runtimeHelper.initializeRuntimes()
-
-    if (command === 'uv' && !this.runtimeHelper.getUvRuntimePath()) {
+    try {
+      const toolchain = ToolchainService.getInstance()
+      if (command === 'uv') {
+        return toolchain.resolve('uv', { sourceOverride: { source: 'bundled' } }).uv
+      }
+      return toolchain.resolve('node', { sourceOverride: { source: 'bundled' } }).node
+    } catch {
       return null
     }
-    if (command === 'node' && !this.runtimeHelper.getNodeRuntimePath()) {
-      return null
-    }
-
-    const resolved = this.runtimeHelper.replaceWithRuntimeCommand(command, true, true)
-    return resolved === command ? null : resolved
   }
 
   private async resolveSystemCommand(
