@@ -488,7 +488,7 @@ Check the [Contribution Guidelines](./CONTRIBUTING.md) to learn more about ways 
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://www.star-history.com/#ThinkInAIXYZ/deepchat&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://star-history.dera.page/#ThinkInAIXYZ/deepchat&Timeline)
 
 ## 👨‍💻 Contributors
 
