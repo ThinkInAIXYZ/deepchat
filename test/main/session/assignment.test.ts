@@ -312,8 +312,14 @@ describe('SessionAssignment', () => {
     })
   })
 
-  it('uses the required deletion port for bulk deletion and publishes once', async () => {
+  it('deletes active Agent sessions and ignores their queued input', async () => {
     const harness = createHarness([createSession({ id: 'parent' })])
+    harness.deepchatHandle.snapshot.mockResolvedValue({
+      status: 'generating',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    harness.pendingInputs.set('parent', [{ id: 'queued-1', mode: 'queue' }])
     harness.deletion.deleteSessionTree.mockResolvedValue(['child', 'parent'])
 
     await expect(harness.coordinator.deleteAgentSessions('source')).resolves.toEqual([

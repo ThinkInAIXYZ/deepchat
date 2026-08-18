@@ -495,6 +495,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
   private async assessTransferSession(session: SessionRecord): Promise<{
     status: SessionWithState['status']
     isEmptyDraft: boolean
+    queuedInputIds: string[]
     blockReason?: AgentTransferBlockReason
   }> {
     const { handle, facet } = this.dependencies.runtime.resolveTransferSource(
@@ -513,15 +514,18 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
       )
     }
 
-    let hasPendingInput = false
+    let queuedInputIds: string[] = []
+    let pendingInputInspectionFailed = false
     try {
-      hasPendingInput = (await facet.listPendingInputs(toAppSessionId(session.id))).length > 0
+      queuedInputIds = (await facet.listPendingInputs(toAppSessionId(session.id)))
+        .filter((input) => input.mode === 'queue')
+        .map((input) => input.id)
     } catch (error) {
       console.warn(
         `[SessionAssignment] Failed to inspect pending input for session=${session.id}:`,
         error
       )
-      hasPendingInput = true
+      pendingInputInspectionFailed = true
     }
 
     const hasSubagentChildren =
@@ -532,9 +536,24 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
       }).length > 0
     const isEmptyDraft = Boolean(session.isDraft) && !hasMessages && !hasSubagentChildren
 
-    if (status === 'generating') return { status, isEmptyDraft, blockReason: 'active' }
-    if (hasPendingInput) return { status, isEmptyDraft, blockReason: 'pending-input' }
-    return { status, isEmptyDraft }
+    if (pendingInputInspectionFailed) {
+      return { status, isEmptyDraft, queuedInputIds, blockReason: 'pending-input' }
+    }
+    return { status, isEmptyDraft, queuedInputIds }
+  }
+
+  private async prepareSessionForTransfer(
+    sessionId: string,
+    status: SessionWithState['status'],
+    queuedInputIds: string[]
+  ): Promise<void> {
+    if (status !== 'generating' && queuedInputIds.length === 0) return
+
+    const { handle } = this.dependencies.runtime.resolveTransferSource(toAppSessionId(sessionId))
+    if (status === 'generating') await handle.cancel()
+    for (const itemId of queuedInputIds) {
+      await handle.pending.delete(itemId)
+    }
   }
 
   private async moveSessionToAgentInternal(
@@ -578,6 +597,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
       targetAgentId,
       session.projectDir
     )
+    await this.prepareSessionForTransfer(sessionId, assessment.status, assessment.queuedInputIds)
     const source = this.dependencies.runtime.resolveTransferSource(toAppSessionId(sessionId))
     const previousDirectAcp = source.handle.kind === 'acp'
     const previousCompatibilityAcp =

@@ -4128,7 +4128,7 @@ describe('Session application coordinators', () => {
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
-    it('validates every batch session before applying the first mutation', async () => {
+    it('stops active sessions and discards queued input before batch transfer', async () => {
       const rows = [
         {
           id: 's-ready',
@@ -4169,6 +4169,25 @@ describe('Session application coordinators', () => {
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' }
       })
       deepChatAgent.hasMessages.mockResolvedValue(true)
+      deepChatAgent.listPendingInputs.mockImplementation(async (sessionId: string) =>
+        sessionId === 's-active'
+          ? [
+              {
+                id: 'queued-1',
+                sessionId,
+                mode: 'queue',
+                state: 'pending',
+                payload: { text: 'Ignore me', files: [] },
+                blocking: null,
+                queueOrder: 1,
+                claimedAt: null,
+                consumedAt: null,
+                createdAt: 1000,
+                updatedAt: 1000
+              }
+            ]
+          : []
+      )
       deepChatAgent.getSessionState.mockImplementation(async (sessionId: string) => ({
         status: sessionId === 's-active' ? 'generating' : 'idle',
         providerId: 'openai',
@@ -4178,13 +4197,27 @@ describe('Session application coordinators', () => {
 
       await expect(
         assignment.moveAgentSessions('deepchat-writer', 'deepchat-coder')
-      ).rejects.toThrow('Session s-active cannot be moved: active')
+      ).resolves.toEqual({
+        movedSessionIds: ['s-ready', 's-active'],
+        deletedSessionIds: []
+      })
 
-      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+      expect(deepChatAgent.cancelGeneration).toHaveBeenCalledExactlyOnceWith('s-active')
+      expect(deepChatAgent.deletePendingInput).toHaveBeenCalledExactlyOnceWith(
+        's-active',
+        'queued-1'
+      )
+      expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.deletePendingInput.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.deletePendingInput.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.setSessionAgentContext.mock.invocationCallOrder[1]
+      )
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).toHaveBeenCalledWith(
+        's-active',
+        'deepchat-coder'
+      )
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
-      expect(publishDeepchatEvent).not.toHaveBeenCalled()
     })
 
     it('moves a direct ACP conversation to DeepChat without entering compatibility cleanup', async () => {
