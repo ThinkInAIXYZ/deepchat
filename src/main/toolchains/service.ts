@@ -91,13 +91,13 @@ export class ToolchainService {
 
   private readonly platform: NodeJS.Platform
   private readonly arch: string
-  private readonly env: NodeJS.ProcessEnv
+  private env: NodeJS.ProcessEnv
   private readonly inspectNode: (executable: string) => NodeInspection | null
   private readonly fetchImpl: FetchLike
   private readonly extract: ArchiveExtractor
   private state: ToolchainState | null = null
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
-  private readonly inspectionCache = new Map<string, NodeInspection>()
+  private readonly inspectionCache = new Map<string, NodeInspection | null>()
   private readonly missing = new Map<string, ToolchainResolveReason>()
   private readonly progress = new Map<ToolchainKind, ToolchainInstallProgress>()
   private readonly inflight = new Map<ToolchainKind, Promise<void>>()
@@ -128,6 +128,12 @@ export class ToolchainService {
     this.instance = null
   }
 
+  updateDetectionEnv(env: NodeJS.ProcessEnv): void {
+    this.env = env
+    this.resolvedCache.clear()
+    this.inspectionCache.clear()
+  }
+
   getState(): ToolchainState {
     return structuredClone(this.ensureState())
   }
@@ -152,7 +158,6 @@ export class ToolchainService {
       [kind]: { ...next }
     })
     this.clearAllMissing(kind)
-    this.emitMissing()
     return this.getState()
   }
 
@@ -165,17 +170,20 @@ export class ToolchainService {
   }
 
   async install(kind: ToolchainKind): Promise<ToolchainState> {
-    await this.runExclusive(kind, () => this.installManaged(kind, true))
+    await this.runExclusive(kind, () => this.installManaged(kind))
     return this.getState()
   }
 
   async repair(kind: ToolchainKind): Promise<ToolchainState> {
     await this.runExclusive(kind, async () => {
       if (this.ensureState()[kind].source !== 'managed') {
-        this.resolvedCache.clear()
-        return
+        throw new ToolchainResolutionError(
+          kind,
+          'path_invalid',
+          'Repair is only available for a managed toolchain'
+        )
       }
-      await this.installManaged(kind, false)
+      await this.installManaged(kind)
     })
     return this.getState()
   }
@@ -384,10 +392,17 @@ export class ToolchainService {
         : `v${selection.version}`
     }
 
-    const inspected =
-      this.inspectionCache.get(resolved.node) ?? this.inspectNode(resolved.node) ?? null
+    if (this.inspectionCache.has(resolved.node)) {
+      const cached = this.inspectionCache.get(resolved.node)
+      if (cached) {
+        resolved.version = cached.version
+        resolved.nodeModuleVersion = cached.modules
+      }
+      return
+    }
+    const inspected = this.inspectNode(resolved.node) ?? null
+    this.inspectionCache.set(resolved.node, inspected)
     if (inspected) {
-      this.inspectionCache.set(resolved.node, inspected)
       resolved.version = inspected.version
       resolved.nodeModuleVersion = inspected.modules
     }
@@ -452,6 +467,7 @@ export class ToolchainService {
     saveToolchainState(this.options.userDataDir, state)
     this.state = state
     this.resolvedCache.clear()
+    this.inspectionCache.clear()
   }
 
   private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {
@@ -470,7 +486,7 @@ export class ToolchainService {
     }
   }
 
-  private async installManaged(kind: ToolchainKind, persistSource: boolean): Promise<void> {
+  private async installManaged(kind: ToolchainKind): Promise<void> {
     let artifact
     try {
       artifact = resolveToolchainArtifact(kind, this.platform, this.arch)
@@ -530,13 +546,7 @@ export class ToolchainService {
 
       this.setProgress(kind, 'activating')
       replaceDirectory(payloadRoot, managedDir)
-      if (persistSource) {
-        this.setSource(kind, { source: 'managed', version: artifact.version })
-      } else {
-        this.resolvedCache.clear()
-        this.clearAllMissing(kind)
-        this.emitMissing()
-      }
+      this.setSource(kind, { source: 'managed', version: artifact.version })
       rmSync(stagingDir, { recursive: true, force: true })
       this.setProgress(kind, 'idle')
     } catch (error) {
@@ -652,13 +662,20 @@ export class ToolchainService {
   }
 
   private clearMissing(kind: ToolchainKind, purpose?: ToolchainPurpose): void {
-    this.missing.delete(this.missingKey(kind, purpose))
+    if (this.missing.delete(this.missingKey(kind, purpose))) {
+      this.emitMissing()
+    }
   }
 
   private clearAllMissing(kind: ToolchainKind): void {
+    let changed = false
     for (const key of this.missing.keys()) {
-      if (key.startsWith(`${kind}:`)) this.missing.delete(key)
+      if (key.startsWith(`${kind}:`)) {
+        this.missing.delete(key)
+        changed = true
+      }
     }
+    if (changed) this.emitMissing()
   }
 
   private collectMissing(): ToolchainMissingNotice[] {

@@ -33,6 +33,8 @@ function createService(options?: {
   appPath?: string
   userDataDir?: string
   env?: NodeJS.ProcessEnv
+  onMissing?: (missing: { kind: string; reason: string }[]) => void
+  inspectNode?: () => { version: string; modules: number } | null
 }): { service: ToolchainService; appPath: string; userDataDir: string } {
   const appPath = options?.appPath ?? mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
   const userDataDir = options?.userDataDir ?? mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
@@ -41,7 +43,9 @@ function createService(options?: {
     userDataDir,
     platform: 'darwin',
     env: options?.env ?? { PATH: '' },
-    inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    inspectNode:
+      options?.inspectNode ?? (() => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })),
+    onMissing: options?.onMissing
   })
   return { service, appPath, userDataDir }
 }
@@ -162,6 +166,20 @@ describe('ToolchainService', () => {
     expect(service.getStatus().missing).toEqual([])
   })
 
+  it('clears the missing banner after a later successful resolve', () => {
+    const notices: Array<Array<{ kind: string; reason: string }>> = []
+    const { service, appPath } = createService({
+      onMissing: (missing) => notices.push(missing)
+    })
+    expect(() => service.resolve('node')).toThrow(/not configured/)
+    expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    service.setSource('node', { source: 'bundled' })
+    service.resolve('node')
+    expect(notices.at(-1)).toEqual([])
+  })
+
   it('keeps an OCR pin failure after a generic node resolve succeeds', () => {
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
@@ -213,6 +231,28 @@ describe('ToolchainService', () => {
 
     expect(reloaded.getState().node.source).toBe('unconfigured')
     expect(readFileSync(`${statePath}.corrupt`, 'utf8')).toBe('{not-json')
+  })
+
+  it('does not re-inspect a failed system Node until persist', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    let inspections = 0
+    const { service } = createService({
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => {
+        inspections += 1
+        return null
+      }
+    })
+
+    expect(service.getState().node.source).toBe('system')
+    service.getStatus()
+    service.getStatus()
+    expect(inspections).toBe(1)
+
+    service.setSource('node', { source: 'system' })
+    service.getStatus()
+    expect(inspections).toBe(2)
   })
 
   it('requires corepack only for managed Node', () => {

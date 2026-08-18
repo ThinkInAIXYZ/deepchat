@@ -161,10 +161,11 @@ describe('ToolchainService lifecycle', () => {
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
     const payload = Buffer.from('repair-node-archive')
-    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+    const artifact = {
       ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
       sha256: sha256(payload)
-    })
+    }
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue(artifact)
     const service = new ToolchainService({
       appPath,
       userDataDir,
@@ -179,13 +180,17 @@ describe('ToolchainService lifecycle', () => {
     })
 
     expect(service.getState().node.source).toBe('system')
-    await service.repair('node')
+    await expect(service.repair('node')).rejects.toMatchObject({ reason: 'path_invalid' })
     expect(service.getState().node.source).toBe('system')
 
     await service.install('node')
     expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
+    vi.mocked(catalog.resolveToolchainArtifact).mockReturnValue({
+      ...artifact,
+      version: 'v24.19.0'
+    })
     await service.repair('node')
-    expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
+    expect(service.getState().node).toEqual({ source: 'managed', version: 'v24.19.0' })
   })
 
   it('retries extract from a verified archive without re-downloading', async () => {
