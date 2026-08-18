@@ -697,7 +697,7 @@ describe('package-size contract', () => {
       ]
     })
     expect(() =>
-      validateInstallerSizeReport(report, definition.id, sourceSha)
+      validateInstallerSizeReport(report, definition.id, sourceSha, policy)
     ).not.toThrow()
 
     policy.expectedDelta = { baselineCommit: 'b'.repeat(40), bytes: -10 }
@@ -720,7 +720,7 @@ describe('package-size contract', () => {
         }
       ]
     })
-    expect(() => validateInstallerSizeReport(stale, definition.id, sourceSha)).toThrow(
+    expect(() => validateInstallerSizeReport(stale, definition.id, sourceSha, policy)).toThrow(
       /did not pass/
     )
     expect(() =>
@@ -734,7 +734,8 @@ describe('package-size contract', () => {
           }))
         },
         definition.id,
-        sourceSha
+        sourceSha,
+        policy
       )
     ).toThrow(/invalid limits/)
   })

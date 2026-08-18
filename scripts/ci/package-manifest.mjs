@@ -20,11 +20,13 @@ import { validateAppleTeamId } from '../apple-notarization.js'
 import { verifyDmgDistribution } from '../notarize-dmg.js'
 import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
 import {
+  createDefaultPackageSizePolicy,
   DARWIN_DISTRIBUTION_CHECK_NAMES,
   getMeasuredRoles,
   getTargetDefinition,
   getUpdaterPayloadRole,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
+  resolvePackageSizeExpectedDelta,
   SHA512_BASE64_PATTERN,
   SOURCE_SHA_PATTERN,
   targetId,
@@ -464,7 +466,8 @@ async function copyReport(reportPath, outputReportsDirectory, stagedNames) {
 export function validateInstallerSizeReport(
   report,
   expectedTarget,
-  expectedCommit
+  expectedCommit,
+  policy = createDefaultPackageSizePolicy()
 ) {
   const definition = getTargetDefinition(expectedTarget)
   const expectedRoles = getMeasuredRoles(definition).map(({ name }) => name)
@@ -509,11 +512,19 @@ export function validateInstallerSizeReport(
         )
       }
     }
-    const expectedDeltaBytes = Number.isSafeInteger(comparison.expectedDeltaBytes)
-      ? comparison.expectedDeltaBytes
-      : Number.isSafeInteger(report.expectedDeltaBytes)
-        ? report.expectedDeltaBytes
-        : 0
+    const baselineCommit =
+      typeof report.baseline?.commit === 'string' ? report.baseline.commit : expectedCommit
+    const expectedDeltaBytes = resolvePackageSizeExpectedDelta(policy, baselineCommit)
+    if (
+      (Number.isSafeInteger(report.expectedDeltaBytes) &&
+        report.expectedDeltaBytes !== expectedDeltaBytes) ||
+      (Number.isSafeInteger(comparison.expectedDeltaBytes) &&
+        comparison.expectedDeltaBytes !== expectedDeltaBytes)
+    ) {
+      throw new Error(
+        `Installer-size report expectedDelta does not match policy for ${expectedTarget}/${comparison.role}`
+      )
+    }
     const adjustedDeltaBytes = comparison.deltaBytes - expectedDeltaBytes
     if (
       !Number.isSafeInteger(comparison.deltaBytes) ||
