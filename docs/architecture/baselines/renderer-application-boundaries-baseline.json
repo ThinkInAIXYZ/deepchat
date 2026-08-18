@@ -152,7 +152,11 @@
       "specifier": "@/components/settings/ModelConfigDialog.vue"
     },
     {
-      "file": "src/renderer/settings/components/AddCustomProviderDialog.vue",
+      "file": "src/renderer/settings/components/AddProviderFlow.vue",
+      "specifier": "@/stores/modelStore"
+    },
+    {
+      "file": "src/renderer/settings/components/AddProviderFlow.vue",
       "specifier": "@/stores/providerStore"
     },
     {
@@ -460,6 +464,18 @@
       "specifier": "@/stores/modelCheck"
     },
     {
+      "file": "src/renderer/settings/components/ProviderCatalog.vue",
+      "specifier": "@/components/icons/ModelIcon.vue"
+    },
+    {
+      "file": "src/renderer/settings/components/ProviderCatalog.vue",
+      "specifier": "@/stores/providerStore"
+    },
+    {
+      "file": "src/renderer/settings/components/ProviderCatalog.vue",
+      "specifier": "@/stores/theme"
+    },
+    {
       "file": "src/renderer/settings/components/ProviderConfigImportDialog.vue",
       "specifier": "@/lib/utils"
     },
@@ -482,6 +498,10 @@
     {
       "file": "src/renderer/settings/components/ProviderModelList.vue",
       "specifier": "@/stores/uiSettingsStore"
+    },
+    {
+      "file": "src/renderer/settings/components/ProviderSettingsShell.vue",
+      "specifier": "@/stores/providerStore"
     },
     {
       "file": "src/renderer/settings/components/SettingsOverview.vue",
@@ -532,5 +552,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 120
+  "settingsToChatAppImportCount": 125
 }

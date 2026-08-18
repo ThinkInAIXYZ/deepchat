@@ -934,7 +934,9 @@ export class ProviderRuntime
   }> {
     let instance: BaseLLMProvider | undefined
     try {
-      instance = this.providerInstanceManager.createDraftInstance({ ...draft, enable: true })
+      // enable:false keeps the base-provider constructor from kicking off its
+      // background init fetch; check() and fetchModels() below are explicit.
+      instance = this.providerInstanceManager.createDraftInstance({ ...draft, enable: false })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { isOk: false, errorMsg: errorMessage, models: [] }

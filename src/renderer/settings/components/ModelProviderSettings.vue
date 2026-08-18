@@ -900,7 +900,7 @@ const handleProviderAdded = (provider: LLM_PROVIDER) => {
 
 onMounted(async () => {
   await providerStore.ensureInitialized()
-  if (!route.params.providerId && configuredList.value.length > 0) {
+  if (!route.params.providerId && !route.query.view && configuredList.value.length > 0) {
     setActiveProvider(configuredList.value[0].id)
   }
 
