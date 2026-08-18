@@ -80,7 +80,12 @@ export class OcrRuntimeService {
         bundleId: runtimeVersions.lightOcr.bundleId
       }
     }
-    this.availabilityPromise ??= this.resolver.resolve()
+    if (this.availabilityPromise) {
+      const current = await this.availabilityPromise
+      if (current.status === 'available') return current
+      this.availabilityPromise = null
+    }
+    this.availabilityPromise = this.resolver.resolve()
     return await this.availabilityPromise
   }
 

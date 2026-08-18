@@ -343,12 +343,29 @@ describe('SkillExecutionService', () => {
     })
   })
 
-  it('reports unavailable python runtime when uv is not configured', async () => {
+  it('falls back to system python when uv is not configured', async () => {
     vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
       resolve: () => {
         throw new ToolchainResolutionError('uv', 'unconfigured', 'uv toolchain is not configured')
       }
     } as never)
+    vi.spyOn(service as never, 'resolveSystemCommand' as never).mockImplementation(
+      async (command: string) => (command === 'python3' ? '/usr/bin/python3' : null)
+    )
+
+    await expect((service as never).resolvePythonRuntime('auto', { PATH: '/bin' })).resolves.toEqual({
+      command: '/usr/bin/python3',
+      mode: 'python'
+    })
+  })
+
+  it('reports unavailable python runtime when uv and system python are missing', async () => {
+    vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+      resolve: () => {
+        throw new ToolchainResolutionError('uv', 'unconfigured', 'uv toolchain is not configured')
+      }
+    } as never)
+    vi.spyOn(service as never, 'resolveSystemCommand' as never).mockResolvedValue(null)
 
     await expect((service as never).resolvePythonRuntime('auto', { PATH: '/bin' })).rejects.toThrow(
       'No compatible Python runtime found for this skill'

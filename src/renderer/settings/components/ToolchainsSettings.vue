@@ -80,15 +80,15 @@ async function changeSource(
     await runPickCustom(kind)
     return
   }
-  const version =
-    source === 'managed'
-      ? (snapshot.value?.[kind].selection.version ?? snapshot.value?.[kind].resolvedVersion)
-      : undefined
-  if (source === 'managed' && !version) {
+  if (source === 'managed') {
+    if (snapshot.value?.[kind].managedAvailable) {
+      await run(kind, () => client.setSource(kind, { source: 'managed' }))
+      return
+    }
     await runInstall(kind)
     return
   }
-  await run(kind, () => client.setSource(kind, { source, ...(version ? { version } : {}) }))
+  await run(kind, () => client.setSource(kind, { source }))
 }
 
 async function runInstall(kind: ToolchainKind): Promise<void> {

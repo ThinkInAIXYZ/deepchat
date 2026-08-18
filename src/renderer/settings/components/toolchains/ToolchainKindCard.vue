@@ -27,13 +27,19 @@
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-if="status?.bundledAvailable" value="bundled">
+            <SelectItem
+              v-if="status?.bundledAvailable || status?.selection.source === 'bundled'"
+              value="bundled"
+            >
               {{ t('settings.toolchains.sources.bundled') }}
             </SelectItem>
-            <SelectItem v-if="status?.managedAvailable" value="managed">
+            <SelectItem
+              v-if="status?.managedAvailable || status?.selection.source === 'managed'"
+              value="managed"
+            >
               {{ t('settings.toolchains.sources.managed') }}
             </SelectItem>
-            <SelectItem v-if="status?.system" value="system">
+            <SelectItem v-if="status?.system || status?.selection.source === 'system'" value="system">
               {{ t('settings.toolchains.sources.system') }}
             </SelectItem>
             <SelectItem value="custom">{{ t('settings.toolchains.sources.custom') }}</SelectItem>
@@ -81,6 +87,7 @@
           {{ t('settings.toolchains.install') }}
         </DcButton>
         <DcButton
+          v-if="status?.selection.source === 'managed'"
           size="sm"
           variant="outline"
           :disabled="busy || installing"
@@ -89,6 +96,7 @@
           {{ t('settings.toolchains.repair') }}
         </DcButton>
         <DcButton
+          v-if="status?.bundledAvailable"
           size="sm"
           variant="outline"
           :disabled="busy || installing"

@@ -4,53 +4,53 @@
     "win32-x64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     },
     "win32-arm64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     },
     "linux-x64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       },
       "archive": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     },
     "linux-arm64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       },
       "archive": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     },
     "darwin-x64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       },
       "updater-payload": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     },
     "darwin-arm64": {
       "installer": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       },
       "updater-payload": {
         "maxGrowthBytes": 94371840,
-        "maxShrinkBytes": 94371840
+        "maxShrinkBytes": 146800640
       }
     }
   }

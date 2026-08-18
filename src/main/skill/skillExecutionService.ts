@@ -455,7 +455,11 @@ export class SkillExecutionService {
     try {
       return { command: ToolchainService.getInstance().resolve('uv').uv, mode: 'uv' }
     } catch {
-      throw new Error('No compatible Python runtime found for this skill')
+      const system = await this.findSystemPythonRuntime(env, signal)
+      if (!system) {
+        throw new Error('No compatible Python runtime found for this skill')
+      }
+      return system
     }
   }
 
