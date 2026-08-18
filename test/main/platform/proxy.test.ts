@@ -247,6 +247,31 @@ describe('process-wide fetch dispatcher', () => {
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
   })
 
+  it('clears committed proxy env when system resolution becomes DIRECT', async () => {
+    electronMocks.resolveProxy
+      .mockResolvedValueOnce('PROXY 127.0.0.1:7890')
+      .mockResolvedValueOnce('DIRECT')
+    const config = new ProxyConfig()
+    await config.resolveProxy()
+    expect(process.env.HTTP_PROXY).toBe('http://127.0.0.1:7890')
+    expect(process.env.GRPC_PROXY).toBe('http://127.0.0.1:7890')
+
+    await expect(config.resolveProxy()).resolves.toBe(true)
+    expect(config.getProxyUrl()).toBeNull()
+    expect(process.env.http_proxy).toBeUndefined()
+    expect(process.env.https_proxy).toBeUndefined()
+    expect(process.env.HTTP_PROXY).toBeUndefined()
+    expect(process.env.HTTPS_PROXY).toBeUndefined()
+    expect(process.env.GRPC_PROXY).toBeUndefined()
+    expect(process.env.grpc_proxy).toBeUndefined()
+    expect(process.env.no_proxy).toBeUndefined()
+    expect(process.env.NO_PROXY).toBeUndefined()
+    expect(Agent).toHaveBeenLastCalledWith({
+      headersTimeout: 0,
+      bodyTimeout: 0
+    })
+  })
+
   it('treats a PROXY result without an address as a no-proxy dispatcher', async () => {
     electronMocks.resolveProxy.mockResolvedValue('PROXY')
     const config = new ProxyConfig()

@@ -105,6 +105,7 @@ export class ProxyConfig {
       } else {
         setGlobalDispatcher(createGlobalFetchDispatcher())
         this.proxyUrl = null
+        this.clearProxyEnv()
       }
       return true
     } catch (error) {
@@ -135,9 +136,7 @@ export class ProxyConfig {
     }
   }
 
-  private async clearProxy(): Promise<void> {
-    await session.defaultSession.setProxy({ mode: 'direct' })
-    this.proxyUrl = null
+  private clearProxyEnv(): void {
     delete process.env.http_proxy
     delete process.env.https_proxy
     delete process.env.HTTP_PROXY
@@ -146,6 +145,12 @@ export class ProxyConfig {
     delete process.env.grpc_proxy
     delete process.env.no_proxy
     delete process.env.NO_PROXY
+  }
+
+  private async clearProxy(): Promise<void> {
+    await session.defaultSession.setProxy({ mode: 'direct' })
+    this.proxyUrl = null
+    this.clearProxyEnv()
     setGlobalDispatcher(createGlobalFetchDispatcher())
   }
 
