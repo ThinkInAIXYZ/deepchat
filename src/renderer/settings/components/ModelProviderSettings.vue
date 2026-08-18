@@ -374,7 +374,7 @@ import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSet
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const windowClient = createWindowClient()
 const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
@@ -628,8 +628,21 @@ const showProviderSkeleton = computed(
     providerStore.sortedProviders.length === 0
 )
 
+// Compute each provider's health once per render instead of invoking the
+// store lookup repeatedly in healthLabel/healthTooltip/healthDotClass.
+const providerHealthMap = computed(() => {
+  const map: Record<string, { status: string; checkedAt?: number }> = {}
+  for (const provider of providerStore.configuredProviders) {
+    map[provider.id] = providerStore.getProviderHealth(provider.id)
+  }
+  return map
+})
+
+const getHealth = (providerId: string) =>
+  providerHealthMap.value[providerId] ?? { status: 'not_checked' }
+
 const healthLabel = (providerId: string) => {
-  const health = providerStore.getProviderHealth(providerId)
+  const health = getHealth(providerId)
   switch (health.status) {
     case 'verified':
       return t('settings.provider.health.verified')
@@ -643,15 +656,15 @@ const healthLabel = (providerId: string) => {
 }
 
 const healthTooltip = (providerId: string) => {
-  const health = providerStore.getProviderHealth(providerId)
+  const health = getHealth(providerId)
   if (health.checkedAt) {
-    return `${healthLabel(providerId)} · ${new Date(health.checkedAt).toLocaleString()}`
+    return `${healthLabel(providerId)} · ${new Date(health.checkedAt).toLocaleString(locale.value)}`
   }
   return healthLabel(providerId)
 }
 
 const healthDotClass = (providerId: string) => {
-  const health = providerStore.getProviderHealth(providerId)
+  const health = getHealth(providerId)
   switch (health.status) {
     case 'verified':
       return 'bg-emerald-500'
@@ -767,7 +780,11 @@ const sidebarProviders = computed({
     const unconfigured = providerStore.sortedProviders.filter(
       (provider) => !configuredIds.has(provider.id)
     )
-    providerStore.updateProvidersOrder([...reorderedConfigured, ...unconfigured])
+    void providerStore
+      .updateProvidersOrder([...reorderedConfigured, ...unconfigured])
+      .catch((error) => {
+        console.error('Failed to reorder providers:', error)
+      })
   }
 })
 
@@ -827,7 +844,12 @@ const scrollToProvider = (providerId: string) => {
 
 const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
   const willEnable = !provider.enable
-  await providerStore.updateProviderStatus(provider.id, willEnable)
+  try {
+    await providerStore.updateProviderStatus(provider.id, willEnable)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+    return
+  }
   // 切换状态后，同时打开该服务商的详情页面
   setActiveProvider(provider.id)
 
@@ -877,7 +899,10 @@ const showCatalog = computed(() => {
   if (route.query.view === 'catalog') {
     return true
   }
-  return !activeProvider.value && configuredList.value.length === 0
+  // Use the unfiltered configured set so a no-match search does not replace
+  // the detail pane with the catalog view.
+  const hasConfigured = providerStore.configuredProviders.some((p) => p.id !== 'acp')
+  return !activeProvider.value && !hasConfigured
 })
 
 const showAddFlow = computed(() => route.query.view === 'add-custom')

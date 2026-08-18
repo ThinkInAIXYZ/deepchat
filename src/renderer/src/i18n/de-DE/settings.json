@@ -1573,7 +1573,7 @@
     "sidebar": {
       "configured": "Konfiguriert",
       "disabledTag": "Aus",
-      "empty": "Noch keine Anbieter konfiguriert. Durchsuche alle Anbieter, um einen einzurichten."
+      "empty": "Noch keine Anbieter konfiguriert. Durchsuchen Sie alle Anbieter, um einen einzurichten."
     },
     "menu": {
       "enable": "Aktivieren",
@@ -1590,7 +1590,7 @@
     },
     "catalog": {
       "title": "Alle Anbieter durchsuchen",
-      "description": "Wähle einen Anbieter aus, um die Einrichtung zu starten. Nach der Konfiguration erscheint er in der Seitenleiste.",
+      "description": "Wählen Sie einen Anbieter aus, um die Einrichtung zu starten. Nach der Konfiguration erscheint er in der Seitenleiste.",
       "searchPlaceholder": "Anbieter suchen...",
       "noResults": "Keine passenden Anbieter",
       "configured": "Konfiguriert"

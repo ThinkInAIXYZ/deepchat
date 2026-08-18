@@ -22,12 +22,15 @@
             icon="lucide:search"
             class="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none"
           />
-          <Icon
+          <button
             v-else
-            icon="lucide:x"
-            class="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            type="button"
+            :aria-label="t('common.clear')"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             @click="searchQueryBase = ''"
-          />
+          >
+            <Icon icon="lucide:x" class="h-4 w-4" />
+          </button>
         </div>
 
         <button

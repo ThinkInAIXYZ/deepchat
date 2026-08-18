@@ -141,6 +141,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'layers',
     'layers-2',
     'layout-dashboard',
+    'layout-grid',
     'library-big',
     'link',
     'list-checks',

@@ -1573,7 +1573,7 @@
     "sidebar": {
       "configured": "Configurados",
       "disabledTag": "Apagado",
-      "empty": "Aún no hay proveedores configurados. Explora todos los proveedores para configurar uno."
+      "empty": "Aún no hay proveedores configurados. Explore todos los proveedores para configurar uno."
     },
     "menu": {
       "enable": "Activar",
@@ -1590,7 +1590,7 @@
     },
     "catalog": {
       "title": "Explorar todos los proveedores",
-      "description": "Elige un proveedor para empezar a configurarlo. Aparecerá en la barra lateral una vez configurado.",
+      "description": "Elija un proveedor para empezar a configurarlo. Aparecerá en la barra lateral una vez configurado.",
       "searchPlaceholder": "Buscar proveedores...",
       "noResults": "No hay proveedores coincidentes",
       "configured": "Configurado"

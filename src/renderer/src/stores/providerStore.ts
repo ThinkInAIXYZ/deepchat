@@ -73,8 +73,6 @@ export const useProviderStore = defineStore('provider', () => {
     const data = defaultProvidersQuery.data.value as LLM_PROVIDER[] | undefined
     return data ?? []
   })
-  const enabledProviders = computed(() => providers.value.filter((provider) => provider.enable))
-  const disabledProviders = computed(() => providers.value.filter((provider) => !provider.enable))
 
   const ensureOrderIncludesProviders = (order: string[], list: LLM_PROVIDER[]) => {
     const seen = new Set<string>()
@@ -116,11 +114,7 @@ export const useProviderStore = defineStore('provider', () => {
     })
   }
 
-  const sortedProviders = computed(() => {
-    const sortedEnabled = sortProviders(enabledProviders.value, true)
-    const sortedDisabled = sortProviders(disabledProviders.value, false)
-    return [...sortedEnabled, ...sortedDisabled]
-  })
+  const sortedProviders = computed(() => sortProviders(providers.value, true))
 
   const hasStoredCredentials = (provider: LLM_PROVIDER) =>
     Boolean(provider.apiKey?.trim() || provider.oauthToken)
@@ -196,11 +190,28 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const computeHealthFingerprint = (provider: LLM_PROVIDER): string => {
+    const bedrock = provider as AWS_BEDROCK_PROVIDER
+    const vertex = provider as VERTEX_PROVIDER
     const material = [
       provider.apiType,
       provider.baseUrl ?? '',
       provider.apiKey ? hashString(provider.apiKey) : '',
-      provider.oauthToken ? hashString(provider.oauthToken) : ''
+      provider.oauthToken ? hashString(provider.oauthToken) : '',
+      // Bedrock keeps its secrets in provider.credential, not apiKey.
+      bedrock.credential
+        ? hashString(
+            [
+              bedrock.credential.authMode ?? '',
+              bedrock.credential.accessKeyId ?? '',
+              bedrock.credential.secretAccessKey ?? '',
+              bedrock.credential.region ?? '',
+              bedrock.credential.profile ?? ''
+            ].join('|')
+          )
+        : '',
+      // Vertex keeps its secrets in dedicated fields.
+      vertex.projectId ? hashString(vertex.projectId) : '',
+      vertex.accountPrivateKey ? hashString(vertex.accountPrivateKey) : ''
     ].join('|')
     return hashString(material)
   }
@@ -367,9 +378,9 @@ export const useProviderStore = defineStore('provider', () => {
 
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
-      const enabledList = newProviders.filter((provider) => provider.enable)
-      const disabledList = newProviders.filter((provider) => !provider.enable)
-      const newOrder = [...enabledList.map((p) => p.id), ...disabledList.map((p) => p.id)]
+      // Preserve the caller-supplied sequence (including interleaved enabled
+      // and disabled entries) instead of re-partitioning into groups.
+      const newOrder = newProviders.map((provider) => provider.id)
       const allIds = providers.value.map((provider) => provider.id)
       const missingIds = allIds.filter((id) => !newOrder.includes(id))
       providerOrder.value = [...newOrder, ...missingIds]

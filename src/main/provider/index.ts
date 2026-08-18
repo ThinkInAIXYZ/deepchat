@@ -954,8 +954,9 @@ export class ProviderRuntime
       const models = await instance.fetchModels({ suppressErrors: false })
       return { isOk: true, errorMsg: null, models }
     } catch (error) {
-      // A failed attempt must not leave a partially seeded model catalog behind.
-      this.providerSettings.setProviderModels(draft.id, [])
+      // fetchModels with suppressErrors:false rethrows before any persisted
+      // write, so there is no partial catalog to clean up. Clearing here would
+      // erase an existing provider's saved models if draft.id matches it.
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { isOk: false, errorMsg: errorMessage, models: [] }
     } finally {

@@ -26,7 +26,7 @@
               >
                 {{
                   t('settings.provider.health.lastChecked', {
-                    time: new Date(health.checkedAt).toLocaleString()
+                    time: new Date(health.checkedAt).toLocaleString(locale)
                   })
                 }}
               </p>
@@ -113,7 +113,7 @@ const props = defineProps<{
   health?: ProviderHealthView | null
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const isAdvancedOpen = ref(false)
 

@@ -1204,7 +1204,7 @@
     "xaiGrokOpenVerification": "Открыть страницу подтверждения",
     "xaiGrokLoginTip": "Используется OAuth xAI с кодом устройства для SuperGrok или X Premium+. Токены хранятся отдельно от ключей API. Ниже по-прежнему можно использовать ключи API Console.",
     "xaiGrokApiKeyAlternative": "Или используйте ключ API xAI Console:",
-    "browseAll": "Все провайдеры",
+    "browseAll": "Просмотреть всех провайдеров",
     "updateKey": "Обновить ключ",
     "sidebar": {
       "configured": "Настроенные",
