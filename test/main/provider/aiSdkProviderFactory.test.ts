@@ -597,4 +597,103 @@ describe('AI SDK provider factory', () => {
     expect(headers.get('x-goog-api-key')).toBe('test-key-1234')
     expect(headers.has('authorization')).toBe(false)
   })
+
+  it('invokes openai-compatible fetch with a dispatcher that disables undici 300s headersTimeout', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'chatcmpl-headers-timeout',
+          object: 'chat.completion',
+          created: 1,
+          model: 'llama3',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: 'ok'
+              },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = createAiSdkProviderContext({
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'ollama',
+        name: 'Ollama',
+        apiType: 'ollama',
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:11434',
+        enable: true
+      } as any,
+      providerSettings: {
+        getAzureApiVersion: () => undefined
+      } as any,
+      defaultHeaders: {},
+      modelId: 'llama3',
+      wrapThinkReasoning: false
+    })
+
+    await generateText({
+      model: context.model,
+      messages: [{ role: 'user', content: 'Hello' }]
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const init = fetchMock.mock.calls[0]?.[1] as (RequestInit & { dispatcher?: object }) | undefined
+    const dispatcher = init?.dispatcher
+    expect(dispatcher).toBeDefined()
+
+    const { headersTimeout } = getUndiciDispatcherTimeouts(dispatcher)
+    const defaultUndiciHeadersTimeout = 300_000
+    const oneHourMs = 3_600_000
+    expect(headersTimeout).not.toBe(defaultUndiciHeadersTimeout)
+    expect(
+      headersTimeout === 0 || (typeof headersTimeout === 'number' && headersTimeout >= oneHourMs)
+    ).toBe(true)
+  })
 })
+
+function getUndiciDispatcherTimeouts(dispatcher: object | undefined): {
+  headersTimeout?: number
+  bodyTimeout?: number
+} {
+  if (!dispatcher) {
+    return {}
+  }
+
+  for (const symbol of Object.getOwnPropertySymbols(dispatcher)) {
+    const value = (dispatcher as Record<symbol, unknown>)[symbol]
+    if (!value || typeof value !== 'object') {
+      continue
+    }
+
+    const record = value as Record<string, unknown>
+    if (!('headersTimeout' in record) && !('bodyTimeout' in record) && !('maxOrigins' in record)) {
+      continue
+    }
+
+    return {
+      headersTimeout: typeof record.headersTimeout === 'number' ? record.headersTimeout : undefined,
+      bodyTimeout: typeof record.bodyTimeout === 'number' ? record.bodyTimeout : undefined
+    }
+  }
+
+  return {}
+}

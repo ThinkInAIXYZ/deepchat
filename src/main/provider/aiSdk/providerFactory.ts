@@ -9,7 +9,7 @@ import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
-import { ProxyAgent } from 'undici'
+import { Agent, ProxyAgent } from 'undici'
 import { proxyConfig } from '../../platform/proxy'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
 import {
@@ -363,22 +363,29 @@ function shouldUseGeminiApiKeyHeader(provider: LLM_PROVIDER): boolean {
   return provider.apiType === 'gemini'
 }
 
+const PROVIDER_FETCH_TIMEOUTS = {
+  headersTimeout: 0,
+  bodyTimeout: 0
+} as const
+
+export function createProviderFetchDispatcher(proxyUrl: string | null): Agent | ProxyAgent {
+  return proxyUrl
+    ? new ProxyAgent({ uri: proxyUrl, ...PROVIDER_FETCH_TIMEOUTS })
+    : new Agent(PROVIDER_FETCH_TIMEOUTS)
+}
+
 function createFetchMiddleware(
   provider: LLM_PROVIDER,
   defaultHeaders: Record<string, string>,
   cleanHeaders = false
 ) {
-  const proxyUrl = proxyConfig.getProxyUrl()
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+  const dispatcher = createProviderFetchDispatcher(proxyConfig.getProxyUrl())
 
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url
-    const nextInit: RequestInit & { dispatcher?: ProxyAgent } = {
-      ...init
-    }
-
-    if (dispatcher) {
-      nextInit.dispatcher = dispatcher
+    const nextInit: RequestInit & { dispatcher?: Agent | ProxyAgent } = {
+      ...init,
+      dispatcher
     }
 
     const headers = new Headers(init?.headers ?? {})
