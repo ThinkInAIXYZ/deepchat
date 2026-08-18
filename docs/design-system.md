@@ -625,6 +625,11 @@
 ### 22.2 使用规则
 
 - **按钮一律用 `DcButton`**：icon / tooltip / label / loading / active 均在组件内聚合，禁止手写 `Tooltip + Button + Icon` 组合；icon-only 至少传 `label` 或 `tooltip`（缺失 DEV 告警）。已有 tooltip 必须保留其文案、方位、延迟与显示条件；缺失 tooltip 的可操作 icon-only 控件必须补齐，优先复用对应操作的既有 i18n 文案，并同时作为 `label`。
+- **选中/切换态按钮（toggle chip）切 `variant`，禁止 class 覆盖**：`outline` 变体自带
+  `dark:bg-input/30 dark:border-input dark:hover:bg-input/50`，外部 class 传入的 `bg-primary` /
+  `border-primary`（无 `dark:` 修饰符）在 tailwind-merge 中不与其冲突，暗色模式下会被压过，
+  导致选中态失效（见 issue #2169）。正确写法：
+  `:variant="selected ? 'default' : 'outline'"`，如需与 outline 保持等宽可补 `border border-primary`。
 - **非按钮提示**（问号图标、下划线说明、Switch 包裹提示、Checkbox 行提示）不用按钮组件，用 `DcTooltip` / shadcn Tooltip 原样保持。
 - **确认/删除类对话框统一 `DcConfirmDialog`**；动态多按钮弹窗、需隐藏确认按钮或 ESC 拦截的路由守卫弹窗保持原实现。
 - **空状态统一 `DcEmpty`**（`#action` 放主行动按钮）；仅描述的内嵌小提示不套空态。

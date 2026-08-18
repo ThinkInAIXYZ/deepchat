@@ -547,12 +547,12 @@
                   v-for="tool in group.tools"
                   :key="tool.function.name"
                   type="button"
-                  variant="outline"
+                  :variant="isToolEnabled(tool.function.name) ? 'default' : 'outline'"
                   size="sm"
-                  class="h-10 rounded-xl px-4 text-sm shadow-none transition-colors"
+                  class="h-10 rounded-xl border px-4 text-sm shadow-none transition-colors"
                   :class="
                     isToolEnabled(tool.function.name)
-                      ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      ? 'border-primary'
                       : 'border-border bg-background text-foreground hover:bg-muted'
                   "
                   @click="toggleTool(tool.function.name)"

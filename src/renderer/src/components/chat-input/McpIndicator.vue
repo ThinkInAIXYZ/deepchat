@@ -173,12 +173,12 @@
                   v-for="item in group.items"
                   :key="item.id"
                   :as="item.configurable ? 'button' : 'span'"
-                  variant="outline"
+                  :variant="!item.configurable || isGroupItemEnabled(item) ? 'default' : 'outline'"
                   size="sm"
-                  class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
+                  class="h-7 rounded-md border px-2.5 text-xs shadow-none transition-colors"
                   :class="[
                     !item.configurable || isGroupItemEnabled(item)
-                      ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      ? 'border-primary'
                       : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
                     !item.configurable ? 'pointer-events-none' : ''
                   ]"
