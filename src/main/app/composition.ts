@@ -1212,15 +1212,25 @@ export async function createMainProcessControl(dependencies: {
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
   const runtimeHelper = RuntimeHelper.getInstance()
   runtimeHelper.initializeRuntimes()
+  const toolchainHomeDir = app.getPath('home')
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
     userDataDir: app.getPath('userData'),
-    env: mergeDetectionEnv(await getShellEnvironment(), app.getPath('home'), process.platform),
+    env: mergeDetectionEnv(process.env, toolchainHomeDir, process.platform),
     onProgress: (progress) =>
       publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
     onMissing: (missing) =>
       publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() })
   })
+  void getShellEnvironment()
+    .then((shellEnv) => {
+      toolchainService.updateDetectionEnv(
+        mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
+      )
+    })
+    .catch((error) => {
+      logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
+    })
   ocrRuntimeService = new OcrRuntimeService({
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,

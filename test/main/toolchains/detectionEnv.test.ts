@@ -16,6 +16,13 @@ describe('detectionEnv', () => {
     expect(paths).toContain('/Users/demo/.asdf/shims')
   })
 
+  it('adds Windows Node and npm locations', () => {
+    const paths = defaultDetectionPaths('C:\\Users\\demo', 'win32')
+    expect(paths).toContain('C:\\Program Files\\nodejs')
+    expect(paths).toContain('C:\\Users\\demo\\AppData\\Roaming\\npm')
+    expect(paths).toContain('C:\\Users\\demo\\AppData\\Roaming\\nvm')
+  })
+
   it('prepends the login PATH and then appends default bins', () => {
     const env = mergeDetectionEnv(
       { PATH: '/custom/bin:/usr/bin' },

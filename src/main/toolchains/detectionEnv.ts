@@ -29,6 +29,11 @@ export function defaultDetectionPaths(homeDir: string, platform: NodeJS.Platform
     ]
   }
   return [
+    'C:\\Program Files\\nodejs',
+    'C:\\Program Files (x86)\\nodejs',
+    `${homeDir}\\AppData\\Roaming\\npm`,
+    `${homeDir}\\AppData\\Roaming\\nvm`,
+    `${homeDir}\\AppData\\Local\\fnm`,
     `${homeDir}\\.local\\bin`,
     `${homeDir}\\.volta\\bin`,
     `${homeDir}\\AppData\\Roaming\\fnm`,
