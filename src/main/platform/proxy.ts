@@ -89,43 +89,47 @@ export class ProxyConfig {
       const proxyString = await session.defaultSession.resolveProxy('https://www.google.com')
       const [protocol, address] = proxyString.split(';')[0].split(' ')
       logger.info('proxy url', protocol, address)
-      this.proxyUrl = protocol === 'PROXY' ? `http://${address}` : null
+      const resolvedProxyUrl =
+        protocol === 'PROXY' && address?.trim() ? `http://${address.trim()}` : null
 
-      if (this.proxyUrl) {
-        process.env.http_proxy = this.proxyUrl
-        process.env.https_proxy = this.proxyUrl
-        process.env.HTTP_PROXY = this.proxyUrl
-        process.env.HTTPS_PROXY = this.proxyUrl
-        process.env.GRPC_PROXY = this.proxyUrl
-        process.env.grpc_proxy = this.proxyUrl
+      if (resolvedProxyUrl) {
         const mergedNoProxy = mergeNoProxy(NO_PROXY)
-        process.env.no_proxy = mergedNoProxy
-        process.env.NO_PROXY = mergedNoProxy
         setGlobalDispatcher(
           createGlobalFetchDispatcher({
-            httpProxy: this.proxyUrl,
-            httpsProxy: this.proxyUrl,
+            httpProxy: resolvedProxyUrl,
+            httpsProxy: resolvedProxyUrl,
             noProxy: mergedNoProxy
           })
         )
+        this.commitResolvedProxy(resolvedProxyUrl, mergedNoProxy)
       } else {
         setGlobalDispatcher(createGlobalFetchDispatcher())
+        this.proxyUrl = null
       }
       return true
     } catch (error) {
       console.error('Failed to resolve proxy:', error)
-      // Timeouts must still be disabled. Reuse a known proxy URL so a later
-      // resolve failure does not drop an already-working proxy.
-      if (this.proxyUrl) {
-        setGlobalDispatcher(
-          createGlobalFetchDispatcher({
-            httpProxy: this.proxyUrl,
-            httpsProxy: this.proxyUrl,
-            noProxy: mergeNoProxy(NO_PROXY)
-          })
-        )
-      } else {
-        setGlobalDispatcher(createGlobalFetchDispatcher())
+      // Never throw: a rejected resolutionPromise skips every later resolve.
+      // Reuse the last installed proxy URL so a later failure does not drop it.
+      try {
+        if (this.proxyUrl) {
+          setGlobalDispatcher(
+            createGlobalFetchDispatcher({
+              httpProxy: this.proxyUrl,
+              httpsProxy: this.proxyUrl,
+              noProxy: mergeNoProxy(NO_PROXY)
+            })
+          )
+        } else {
+          setGlobalDispatcher(createGlobalFetchDispatcher())
+        }
+      } catch (dispatcherError) {
+        console.error('Failed to install fetch dispatcher:', dispatcherError)
+        try {
+          setGlobalDispatcher(createGlobalFetchDispatcher())
+        } catch (fallbackError) {
+          console.error('Failed to install no-proxy fetch dispatcher:', fallbackError)
+        }
       }
       return false
     }
@@ -145,8 +149,7 @@ export class ProxyConfig {
     setGlobalDispatcher(createGlobalFetchDispatcher())
   }
 
-  private async setCustomProxy(proxyUrl: string): Promise<void> {
-    await session.defaultSession.setProxy({ proxyRules: proxyUrl })
+  private commitResolvedProxy(proxyUrl: string, mergedNoProxy: string): void {
     this.proxyUrl = proxyUrl
     process.env.http_proxy = proxyUrl
     process.env.https_proxy = proxyUrl
@@ -154,9 +157,13 @@ export class ProxyConfig {
     process.env.HTTPS_PROXY = proxyUrl
     process.env.GRPC_PROXY = proxyUrl
     process.env.grpc_proxy = proxyUrl
-    const mergedNoProxy = mergeNoProxy(NO_PROXY)
     process.env.no_proxy = mergedNoProxy
     process.env.NO_PROXY = mergedNoProxy
+  }
+
+  private async setCustomProxy(proxyUrl: string): Promise<void> {
+    await session.defaultSession.setProxy({ proxyRules: proxyUrl })
+    const mergedNoProxy = mergeNoProxy(NO_PROXY)
     setGlobalDispatcher(
       createGlobalFetchDispatcher({
         httpProxy: proxyUrl,
@@ -164,6 +171,7 @@ export class ProxyConfig {
         noProxy: mergedNoProxy
       })
     )
+    this.commitResolvedProxy(proxyUrl, mergedNoProxy)
   }
 
   /**
