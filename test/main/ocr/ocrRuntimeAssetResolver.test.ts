@@ -3,7 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { OcrRuntimeAssetResolver } from '../../../src/main/ocr/ocrRuntimeAssetResolver'
+import {
+  isPackagedRuntimeManifest,
+  OcrRuntimeAssetResolver
+} from '../../../src/main/ocr/ocrRuntimeAssetResolver'
 
 const lightOcrVersion = '0.5.7'
 const runtimeVersion = '0.1.7'
@@ -247,6 +250,57 @@ describe('OcrRuntimeAssetResolver', () => {
         arch: 'arm64'
       }).resolve()
     ).resolves.toMatchObject({ status: 'unavailable', reason: 'asset_identity_mismatch' })
+  })
+
+  it('resolves a packaged manifest that no longer ships Node', async () => {
+    const appPath = path.join(tempDir, 'resources', 'app.asar')
+    const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
+    const { facadeDir, runtimeDir, modelDir, nativeDir } = await seedAssetIdentity(unpackedRoot)
+    await writeText(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'))
+    const manifest = {
+      schemaVersion: 3,
+      supported: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      facadeVersion: lightOcrVersion,
+      runtimeVersion,
+      modelVersion,
+      nativeVersion,
+      pdfSupport: true,
+      bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
+      nativePackage,
+      nativeArtifactInventory,
+      paths: {
+        helper: 'out/main/lightOcrHelper.js',
+        facade: path.relative(unpackedRoot, facadeDir),
+        runtime: path.relative(unpackedRoot, runtimeDir),
+        bundle: path.relative(unpackedRoot, path.join(modelDir, 'bundle')),
+        native: path.relative(unpackedRoot, nativeDir)
+      }
+    }
+    await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), manifest)
+
+    expect(isPackagedRuntimeManifest(manifest)).toBe(true)
+
+    const nodeExecutable = path.join(tempDir, 'managed', 'node')
+    await writeText(nodeExecutable)
+    const availability = await new OcrRuntimeAssetResolver({
+      appPath,
+      isPackaged: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      resolveNode: () => ({ executable: nodeExecutable, version: 'v24.18.0' })
+    }).resolve()
+
+    expect(availability).toMatchObject({
+      status: 'available',
+      assets: {
+        nodeExecutable,
+        nodeVersion: 'v24.18.0',
+        bundlePath: path.join(modelDir, 'bundle')
+      }
+    })
   })
 
   it('classifies malformed manifest shapes as invalid instead of missing assets', async () => {

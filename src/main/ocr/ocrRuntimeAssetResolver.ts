@@ -388,7 +388,7 @@ function resolveManifestPath(rootDir: string, relativePath: string): string {
   return resolvedPath
 }
 
-function isPackagedRuntimeManifest(value: unknown): value is PackagedRuntimeManifest {
+export function isPackagedRuntimeManifest(value: unknown): value is PackagedRuntimeManifest {
   if (!isRecord(value)) return false
   if (
     typeof value.schemaVersion !== 'number' ||
@@ -421,8 +421,10 @@ function isPackagedRuntimeManifest(value: unknown): value is PackagedRuntimeMani
   }
   if (value.paths === undefined) return true
   if (!isRecord(value.paths)) return false
-  return ['node', 'helper', 'facade', 'runtime', 'bundle', 'native'].every(
-    (key) => typeof value.paths?.[key] === 'string'
+  const requiredPathKeys = ['helper', 'facade', 'runtime', 'bundle', 'native'] as const
+  return (
+    requiredPathKeys.every((key) => typeof value.paths?.[key] === 'string') &&
+    (value.paths.node === undefined || typeof value.paths.node === 'string')
   )
 }
 

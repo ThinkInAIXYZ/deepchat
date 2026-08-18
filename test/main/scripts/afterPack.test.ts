@@ -941,6 +941,10 @@ describe('afterPack', () => {
     expect(manifest.nodeVersion).toBe('v24.18.0')
     expect(manifest.nodeSha256).toBeUndefined()
     expect(manifest.paths.node).toBeUndefined()
+    const { isPackagedRuntimeManifest } = await import(
+      '../../../src/main/ocr/ocrRuntimeAssetResolver'
+    )
+    expect(isPackagedRuntimeManifest(manifest)).toBe(true)
   })
 
   it('fails packaging when bundled Node does not match the pinned target hash', async () => {
