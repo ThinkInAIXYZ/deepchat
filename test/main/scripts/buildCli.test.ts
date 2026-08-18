@@ -81,11 +81,17 @@ describe('CLI bundle', () => {
       expect(POSIX_LAUNCHER).toContain('../../../MacOS/DeepChat')
       expect(POSIX_LAUNCHER).toContain('../../../deepchat.bin')
       expect(POSIX_LAUNCHER).toContain('../../../DeepChat')
+      expect(POSIX_LAUNCHER).toContain('[ -f "$candidate" ] && [ -x "$candidate" ]')
+      expect(POSIX_LAUNCHER).toContain(
+        'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      )
       expect(POSIX_LAUNCHER).not.toContain('command -v node')
       expect(POSIX_LAUNCHER).not.toContain('runtime/node')
       expect(WINDOWS_LAUNCHER).toContain('setlocal')
       expect(WINDOWS_LAUNCHER).toContain('ELECTRON_RUN_AS_NODE=1')
+      expect(WINDOWS_LAUNCHER).toContain('node_modules\\electron\\dist\\electron.exe')
       expect(WINDOWS_LAUNCHER).toContain('..\\..\\..\\DeepChat.exe')
+      expect(WINDOWS_LAUNCHER).toContain('if exist "%electron_host%\\" goto missing_runtime')
       expect(WINDOWS_LAUNCHER).not.toContain('where node')
       expect(WINDOWS_LAUNCHER).not.toContain('runtime\\node')
       expect(WINDOWS_LAUNCHER).not.toContain('node "%~dp0deepchat.mjs"')
@@ -93,6 +99,37 @@ describe('CLI bundle', () => {
       await rm(temporaryDirectory, { recursive: true })
     }
   }, CLI_BUILD_TEST_TIMEOUT_MS)
+
+  it.skipIf(process.platform === 'win32')(
+    'skips a directory candidate and uses the dest Electron binary',
+    async () => {
+      const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-dir-host-'))
+      const outputDirectory = path.join(temporaryDirectory, 'out', 'cli')
+      const decoy = path.resolve(outputDirectory, '../../../DeepChat')
+      const electronHost = path.resolve(
+        outputDirectory,
+        '../../node_modules/electron/dist/electron'
+      )
+      try {
+        await mkdir(outputDirectory, { recursive: true })
+        await mkdir(decoy, { recursive: true })
+        await mkdir(path.dirname(electronHost), { recursive: true })
+        await symlink(process.execPath, electronHost)
+        await writeFile(path.join(outputDirectory, 'deepchat'), POSIX_LAUNCHER, { mode: 0o755 })
+        await chmod(path.join(outputDirectory, 'deepchat'), 0o755)
+        await writeFile(
+          path.join(outputDirectory, 'deepchat.mjs'),
+          "console.log(process.argv.slice(2).join(','))\n",
+          'utf8'
+        )
+
+        const result = await execFileAsync(path.join(outputDirectory, 'deepchat'), ['status'])
+        expect(result.stdout.trim()).toBe('status')
+      } finally {
+        await rm(temporaryDirectory, { recursive: true })
+      }
+    }
+  )
 
   it.skipIf(process.platform === 'win32')(
     'prefers the Linux deepchat.bin host over the --no-sandbox wrapper',

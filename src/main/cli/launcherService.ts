@@ -7,7 +7,6 @@ import {
   readlink,
   realpath,
   rename,
-  stat,
   symlink,
   unlink,
   writeFile
@@ -255,6 +254,7 @@ function createWindowsCommand(source: CliSource): string {
     `set "cli_module=${cliModule}"`,
     `set "electron_host=${electronHost}"`,
     'if not exist "%electron_host%" goto missing_runtime',
+    'if exist "%electron_host%\\" goto missing_runtime',
     'if not exist "%cli_module%" goto missing_runtime',
     'set ELECTRON_RUN_AS_NODE=1',
     '"%electron_host%" "%cli_module%" %*',
@@ -341,23 +341,34 @@ export class CliLauncherService {
       path.join(appRoot, 'DeepChat.exe'),
       path.join(appRoot, 'DeepChat'),
       path.join(appRoot, 'deepchat'),
-      path.join(appRoot, 'node_modules', 'electron', 'dist', 'Electron'),
+      path.join(
+        appRoot,
+        'node_modules',
+        'electron',
+        'dist',
+        'Electron.app',
+        'Contents',
+        'MacOS',
+        'Electron'
+      ),
+      path.join(appRoot, 'node_modules', 'electron', 'dist', 'electron.exe'),
       path.join(appRoot, 'node_modules', 'electron', 'dist', 'electron')
     ]
     let electronHost: string | null = null
     for (const candidate of hostCandidates) {
       try {
-        const stats = await stat(candidate)
-        if (stats.isFile() && (this.platform === 'win32' || (stats.mode & 0o111) !== 0)) {
+        const stats = await lstat(candidate)
+        if (
+          stats.isFile() &&
+          !stats.isSymbolicLink() &&
+          (this.platform === 'win32' || (stats.mode & 0o111) !== 0)
+        ) {
           electronHost = candidate
           break
         }
       } catch (error) {
         if (!isMissingFileError(error)) throw error
       }
-    }
-    if (!electronHost && process.versions.electron) {
-      electronHost = process.execPath
     }
     if (!electronHost) return null
     const source: CliSource = {
