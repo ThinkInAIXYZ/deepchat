@@ -9,7 +9,7 @@ vi.unmock('path')
 vi.unmock('node:path')
 
 import { replaceDirectory } from '../../../src/main/toolchains/extract'
-import { gcRetiredToolchainTrees } from '../../../src/main/toolchains/layout'
+import { gcUnreachableToolchainTrees } from '../../../src/main/toolchains/layout'
 
 function writeTree(rootDir: string, marker: string): void {
   mkdirSync(rootDir, { recursive: true })
@@ -32,24 +32,30 @@ describe('replaceDirectory', () => {
   })
 })
 
-describe('gcRetiredToolchainTrees', () => {
-  it('deletes timestamped archives and leftover next trees', () => {
+describe('gcUnreachableToolchainTrees', () => {
+  it('keeps referenced trees and deletes leftover archives, old versions, and staging', () => {
     const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-gc-'))
     const nodeRoot = path.join(userDataDir, 'toolchains', 'node')
     const current = path.join(nodeRoot, 'v24.18.0')
     const previous = `${current}.prev`
     const archived = `${current}.prev.1710000000000`
     const leftoverNext = `${current}.next`
+    const oldVersion = path.join(nodeRoot, 'v22.14.0')
+    const staging = path.join(userDataDir, 'toolchains', 'download', 'node-v22.14.0')
     writeTree(current, 'current')
     writeTree(previous, 'previous')
     writeTree(archived, 'archived')
     writeTree(leftoverNext, 'next')
+    writeTree(oldVersion, 'old')
+    writeTree(staging, 'staging')
 
-    gcRetiredToolchainTrees(userDataDir)
+    gcUnreachableToolchainTrees(userDataDir, [current])
 
     expect(existsSync(current)).toBe(true)
-    expect(existsSync(previous)).toBe(true)
+    expect(existsSync(previous)).toBe(false)
     expect(existsSync(archived)).toBe(false)
     expect(existsSync(leftoverNext)).toBe(false)
+    expect(existsSync(oldVersion)).toBe(false)
+    expect(existsSync(staging)).toBe(false)
   })
 })

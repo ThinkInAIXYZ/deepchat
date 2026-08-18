@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -55,8 +55,8 @@ afterEach(() => {
 })
 
 describe('ToolchainService', () => {
-  it('migrates a complete bundled tree to an explicit bundled source', () => {
-    const { service, appPath } = createService()
+  it('derives a complete bundled tree without persisting it', () => {
+    const { service, appPath, userDataDir } = createService()
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     seedUvTree(path.join(appPath, 'runtime', 'uv'))
 
@@ -65,6 +65,7 @@ describe('ToolchainService', () => {
     expect(state.uv).toEqual({ source: 'bundled' })
     expect(service.resolve('node').node).toBe(path.join(appPath, 'runtime', 'node', 'bin', 'node'))
     expect(service.resolve('uv').uv).toBe(path.join(appPath, 'runtime', 'uv', 'uv'))
+    expect(existsSync(path.join(userDataDir, 'toolchains', 'state.json'))).toBe(false)
   })
 
   it('migrates to system when bundled files are absent and PATH is complete', () => {
@@ -80,11 +81,10 @@ describe('ToolchainService', () => {
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
   })
 
-  it('stays unconfigured when nothing is available and does not switch later', () => {
+  it('keeps an explicit unconfigured source after a bundled tree appears', () => {
     const { service, appPath } = createService()
     expect(service.getState().node.source).toBe('unconfigured')
-    expect(() => service.resolve('node')).toThrow(ToolchainResolutionError)
-
+    service.setSource('node', { source: 'unconfigured' })
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     expect(() => service.resolve('node')).toThrow(/not configured/)
   })
@@ -101,6 +101,7 @@ describe('ToolchainService', () => {
   it('does not walk from a persisted bundled source to system when bundled files disappear', () => {
     const { service, appPath, userDataDir } = createService()
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    service.setSource('node', { source: 'bundled' })
     expect(service.resolve('node').source).toBe('bundled')
 
     const emptyApp = mkdtempSync(path.join(os.tmpdir(), 'dc-empty-'))
@@ -118,7 +119,7 @@ describe('ToolchainService', () => {
     expect(() => reloaded.resolve('node')).toThrow(/missing/)
   })
 
-  it('persists the first-run source and ignores a later bundled install', () => {
+  it('re-derives a bundled tree after first-run when nothing was persisted', () => {
     const { service, appPath, userDataDir } = createService()
     expect(service.getState().node.source).toBe('unconfigured')
 
@@ -130,7 +131,7 @@ describe('ToolchainService', () => {
       env: { PATH: '' },
       inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
     })
-    expect(reloaded.getState().node.source).toBe('unconfigured')
+    expect(reloaded.getState().node.source).toBe('bundled')
   })
 
   it('rewrites node and uv commands to resolved absolute paths', () => {
@@ -216,9 +217,9 @@ describe('ToolchainService', () => {
   })
 
   it('quarantines unreadable state instead of overwriting it in place', () => {
-    const { service, userDataDir } = createService()
-    service.getState()
+    const { userDataDir } = createService()
     const statePath = path.join(userDataDir, 'toolchains', 'state.json')
+    mkdirSync(path.dirname(statePath), { recursive: true })
     writeFileSync(statePath, '{not-json')
 
     const reloaded = new ToolchainService({
@@ -255,18 +256,20 @@ describe('ToolchainService', () => {
     expect(inspections).toBe(2)
   })
 
-  it('remigrates a provisional first-run after login-shell PATH arrives', () => {
+  it('re-derives missing kinds after login-shell PATH arrives', () => {
     const notices: Array<Array<{ kind: string; reason: string }>> = []
-    const { service } = createService({
+    const { service, userDataDir } = createService({
       env: { PATH: '' },
       onMissing: (missing) => notices.push(missing)
     })
-    expect(service.getState()).toMatchObject({
+    expect(service.getState()).toEqual({
+      schemaVersion: 1,
       node: { source: 'unconfigured' },
-      provisional: true
+      uv: { source: 'unconfigured' }
     })
     expect(() => service.resolve('node')).toThrow(/not configured/)
     expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+    expect(existsSync(path.join(userDataDir, 'toolchains', 'state.json'))).toBe(false)
 
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
@@ -275,25 +278,55 @@ describe('ToolchainService', () => {
       PATH: `${path.join(systemRoot, 'bin')}:${systemRoot}`
     })
 
-    expect(service.getState()).toMatchObject({
+    expect(service.getState()).toEqual({
+      schemaVersion: 1,
       node: { source: 'system' },
-      uv: { source: 'system' },
-      provisional: true
+      uv: { source: 'system' }
     })
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
     expect(notices.at(-1)).toEqual([])
   })
 
-  it('does not remigrate after an explicit source choice', () => {
+  it('does not overwrite an explicit source when PATH arrives', () => {
     const { service, appPath } = createService({ env: { PATH: '' } })
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     service.setSource('node', { source: 'bundled' })
-    expect(service.getState().provisional).toBeUndefined()
 
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
-    service.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    seedUvTree(systemRoot)
+    service.updateDetectionEnv({
+      PATH: `${path.join(systemRoot, 'bin')}:${systemRoot}`
+    })
     expect(service.getState().node.source).toBe('bundled')
+    expect(service.getState().uv.source).toBe('system')
+  })
+
+  it('ignores a provisional state file and treats kinds independently', () => {
+    const { appPath, userDataDir } = createService()
+    const statePath = path.join(userDataDir, 'toolchains', 'state.json')
+    mkdirSync(path.dirname(statePath), { recursive: true })
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        schemaVersion: 1,
+        provisional: true,
+        node: { source: 'system' },
+        uv: { source: 'system' }
+      })
+    )
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    expect(service.getState()).toEqual({
+      schemaVersion: 1,
+      node: { source: 'unconfigured' },
+      uv: { source: 'unconfigured' }
+    })
   })
 
   it('keeps a missing notice when the user selects unconfigured', () => {
@@ -326,10 +359,29 @@ describe('ToolchainService', () => {
       }
     })
     service.getStatus()
+    expect(inspections).toBeGreaterThan(0)
     const afterFirst = inspections
-    expect(afterFirst).toBeGreaterThan(0)
     service.getStatus()
-    expect(inspections).toBeGreaterThan(afterFirst)
+    expect(inspections).toBe(afterFirst)
+  })
+
+  it('throws transient instead of abi_mismatch when Node inspection times out', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const service = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir: mkdtempSync(path.join(os.tmpdir(), 'dc-data-')),
+      platform: 'darwin',
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => undefined
+    })
+    expect(() => service.resolve('node', { purpose: 'ocr' })).toThrow(ToolchainResolutionError)
+    try {
+      service.resolve('node', { purpose: 'ocr' })
+    } catch (error) {
+      expect(error).toMatchObject({ reason: 'transient' })
+    }
+    expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'transient' }])
   })
 
   it.skipIf(process.platform === 'win32')('treats a hung inspect spawn as retryable', () => {

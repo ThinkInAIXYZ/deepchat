@@ -8,7 +8,12 @@ import {
   writeSync
 } from 'node:fs'
 import path from 'node:path'
-import type { ToolchainSelection, ToolchainSource, ToolchainState } from '@shared/types/toolchains'
+import type {
+  ToolchainPersistedState,
+  ToolchainSelection,
+  ToolchainSource,
+  ToolchainState
+} from '@shared/types/toolchains'
 import { TOOLCHAIN_SOURCES } from '@shared/types/toolchains'
 import { stateFilePath } from './layout'
 
@@ -22,7 +27,11 @@ export function emptyToolchainState(): ToolchainState {
   }
 }
 
-export function loadToolchainState(userDataDir: string): ToolchainState | null {
+export function emptyPersistedToolchainState(): ToolchainPersistedState {
+  return { schemaVersion: 1 }
+}
+
+export function loadToolchainState(userDataDir: string): ToolchainPersistedState | null {
   const filePath = stateFilePath(userDataDir)
   try {
     const raw = readFileSync(filePath, 'utf8')
@@ -42,7 +51,7 @@ export function quarantineCorruptState(userDataDir: string): void {
   }
 }
 
-export function saveToolchainState(userDataDir: string, state: ToolchainState): void {
+export function saveToolchainState(userDataDir: string, state: ToolchainPersistedState): void {
   const filePath = stateFilePath(userDataDir)
   mkdirSync(path.dirname(filePath), { recursive: true })
   const payload = `${JSON.stringify(state, null, 2)}\n`
@@ -57,7 +66,7 @@ export function saveToolchainState(userDataDir: string, state: ToolchainState): 
   renameSync(tempPath, filePath)
 }
 
-export function parseToolchainState(value: unknown): ToolchainState {
+export function parseToolchainState(value: unknown): ToolchainPersistedState {
   if (!value || typeof value !== 'object') {
     throw new Error('Toolchain state is not an object')
   }
@@ -65,12 +74,13 @@ export function parseToolchainState(value: unknown): ToolchainState {
   if (record.schemaVersion !== 1) {
     throw new Error('Unsupported toolchain state schema')
   }
-  return {
-    schemaVersion: 1,
-    node: parseSelection(record.node, 'node'),
-    uv: parseSelection(record.uv, 'uv'),
-    ...(record.provisional === true ? { provisional: true } : {})
+  if (record.provisional === true) {
+    return emptyPersistedToolchainState()
   }
+  const persisted: ToolchainPersistedState = { schemaVersion: 1 }
+  if (record.node !== undefined) persisted.node = parseSelection(record.node, 'node')
+  if (record.uv !== undefined) persisted.uv = parseSelection(record.uv, 'uv')
+  return persisted
 }
 
 function parseSelection(value: unknown, label: string): ToolchainSelection {

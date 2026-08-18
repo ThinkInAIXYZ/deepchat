@@ -1220,7 +1220,13 @@ export async function createMainProcessControl(dependencies: {
     onProgress: (progress) =>
       publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
     onMissing: (missing) =>
-      publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() })
+      publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() }),
+    onReady: () => {
+      publishDeepchatEvent('toolchains.ready', { version: Date.now() })
+      void mcpService.retryUnstartedEnabledServers().catch((error) => {
+        logger.warn('[ToolchainService] Failed to retry MCP servers after PATH refresh', error)
+      })
+    }
   })
   if (process.platform !== 'win32') {
     void getShellEnvironment()
@@ -3214,6 +3220,23 @@ export async function createMainProcessControl(dependencies: {
       },
       'Failed to start disabled agent tool capability cleanup:',
       { component: 'disabled_agent_tool_capability_cleanup', category: 'persistence' }
+    )
+
+    scheduleMainStartupTask(
+      startupRunId,
+      {
+        id: 'main:toolchain-gc',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.toolchainGc',
+        run: async (taskContext) => {
+          await taskContext.yield()
+          toolchainService.gcUnreachableTrees()
+        }
+      },
+      'Failed to collect unused toolchain trees:',
+      { component: 'toolchain_gc', category: 'resource' }
     )
   }
 

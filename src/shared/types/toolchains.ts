@@ -14,7 +14,8 @@ export const TOOLCHAIN_RESOLVE_REASONS = [
   'version_mismatch',
   'abi_mismatch',
   'path_invalid',
-  'unsupported_platform'
+  'unsupported_platform',
+  'transient'
 ] as const
 export type ToolchainResolveReason = (typeof TOOLCHAIN_RESOLVE_REASONS)[number]
 
@@ -28,7 +29,12 @@ export interface ToolchainState {
   schemaVersion: 1
   node: ToolchainSelection
   uv: ToolchainSelection
-  provisional?: boolean
+}
+
+export type ToolchainPersistedState = {
+  schemaVersion: 1
+  node?: ToolchainSelection
+  uv?: ToolchainSelection
 }
 
 export interface ResolvedNodeToolchain {

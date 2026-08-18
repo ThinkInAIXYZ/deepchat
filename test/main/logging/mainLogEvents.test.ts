@@ -496,6 +496,7 @@ describe('Main log event projection', () => {
     'legacy_import',
     'rtk_health_check',
     'sqlite_mainline_normalization',
+    'toolchain_gc',
     'usage_stats_backfill'
   ] as const)('accepts the background startup component %s', (component) => {
     expect(

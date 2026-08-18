@@ -105,9 +105,16 @@ export function inferUvRootFromExecutable(executable: string): string {
   return path.dirname(executable)
 }
 
-const RETIRED_TREE_NAME = /(?:\.prev\.\d+|\.next)$/
+export function downloadRootDir(userDataDir: string): string {
+  return path.join(managedRootDir(userDataDir), 'download')
+}
 
-export function gcRetiredToolchainTrees(userDataDir: string): void {
+export function gcUnreachableToolchainTrees(
+  userDataDir: string,
+  keepDirectories: Iterable<string>,
+  options?: { collectDownload?: boolean }
+): void {
+  const keep = new Set([...keepDirectories].map((directory) => path.resolve(directory)))
   for (const kind of ['node', 'uv'] as const) {
     const kindRoot = path.join(managedRootDir(userDataDir), kind)
     let entries: string[]
@@ -117,12 +124,19 @@ export function gcRetiredToolchainTrees(userDataDir: string): void {
       continue
     }
     for (const name of entries) {
-      if (!RETIRED_TREE_NAME.test(name)) continue
+      const fullPath = path.resolve(kindRoot, name)
+      if (keep.has(fullPath)) continue
       try {
-        rmSync(path.join(kindRoot, name), { recursive: true, force: true })
+        rmSync(fullPath, { recursive: true, force: true })
       } catch {
         // Leave the tree for the next startup.
       }
     }
+  }
+  if (options?.collectDownload === false) return
+  try {
+    rmSync(downloadRootDir(userDataDir), { recursive: true, force: true })
+  } catch {
+    // Leave leftover staging for the next startup.
   }
 }

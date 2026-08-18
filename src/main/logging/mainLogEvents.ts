@@ -82,6 +82,7 @@ export type MainLogStartupComponent =
   | 'rtk_health_check'
   | 'skill_sync'
   | 'sqlite_mainline_normalization'
+  | 'toolchain_gc'
   | 'usage_stats_backfill'
 
 export type MainLogJsonValue =
@@ -452,6 +453,7 @@ const STARTUP_COMPONENTS = [
   'rtk_health_check',
   'skill_sync',
   'sqlite_mainline_normalization',
+  'toolchain_gc',
   'usage_stats_backfill'
 ] as const satisfies readonly MainLogStartupComponent[]
 const STARTUP_COMPONENT_ERROR_CATEGORIES = [

@@ -896,6 +896,32 @@ export class McpService implements McpServicePort {
     await this.mcpSettings.removeMcpServer(serverName)
   }
 
+  async retryUnstartedEnabledServers(): Promise<void> {
+    if (!this.isInitialized) return
+    const [servers, enabledServers, mcpEnabled] = await Promise.all([
+      this.mcpSettings.getMcpServers(),
+      this.mcpSettings.getEnabledMcpServers(),
+      this.mcpSettings.getMcpEnabled()
+    ])
+    if (!mcpEnabled) return
+    for (const serverName of enabledServers) {
+      const serverConfig = servers[serverName]
+      if (
+        !serverConfig ||
+        this.serverManager.isServerRunning(serverName) ||
+        this.isPluginOwnedServerConfig(serverConfig) ||
+        this.pluginRuntimeSupervisor.ownsServer(serverName)
+      ) {
+        continue
+      }
+      this.startServerInBackground(
+        serverName,
+        `[MCP] Enabled server ${serverName} started after toolchain PATH refresh`,
+        `[MCP] Failed to retry enabled server ${serverName}:`
+      )
+    }
+  }
+
   async isServerRunning(serverName: string): Promise<boolean> {
     return Promise.resolve(this.serverManager.isServerRunning(serverName))
   }

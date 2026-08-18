@@ -10,6 +10,7 @@ import type {
   ToolchainKind,
   ToolchainKindStatus,
   ToolchainMissingNotice,
+  ToolchainPersistedState,
   ToolchainPurpose,
   ToolchainResolveReason,
   ToolchainSelection,
@@ -42,7 +43,7 @@ import {
   assertSafeToolchainVersion,
   bundledKindRoot,
   downloadStagingDir,
-  gcRetiredToolchainTrees,
+  gcUnreachableToolchainTrees,
   managedKindRoot
 } from './layout'
 import {
@@ -54,7 +55,7 @@ import {
   probeUvRoot
 } from './probe'
 import {
-  emptyToolchainState,
+  emptyPersistedToolchainState,
   loadToolchainState,
   quarantineCorruptState,
   saveToolchainState
@@ -78,6 +79,7 @@ export type ToolchainServiceOptions = {
   mirrorUrl?: string
   onProgress?: (progress: ToolchainInstallProgress) => void
   onMissing?: (missing: ToolchainMissingNotice[]) => void
+  onReady?: () => void
 }
 
 export type ResolveOptions = {
@@ -87,6 +89,7 @@ export type ResolveOptions = {
 
 const NODE_COMMANDS = new Set(['node', 'npm', 'npx', 'corepack'])
 const UV_COMMANDS = new Set(['uv', 'uvx'])
+const INSPECT_TRANSIENT_TTL_MS = 2000
 
 export class ToolchainService {
   private static instance: ToolchainService | null = null
@@ -96,9 +99,10 @@ export class ToolchainService {
   private env: NodeJS.ProcessEnv
   private readonly fetchImpl: FetchLike
   private readonly extract: ArchiveExtractor
-  private state: ToolchainState | null = null
+  private persisted: ToolchainPersistedState | null = null
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
   private readonly inspectionCache = new Map<string, NodeInspection | null>()
+  private readonly inspectTransientUntil = new Map<string, number>()
   private readonly missing = new Map<string, ToolchainResolveReason>()
   private readonly progress = new Map<ToolchainKind, ToolchainInstallProgress>()
   private readonly inflight = new Map<ToolchainKind, Promise<void>>()
@@ -110,7 +114,6 @@ export class ToolchainService {
     this.env = options.env ?? process.env
     this.fetchImpl = options.fetch ?? fetch
     this.extract = options.extractArchive ?? extractArchive
-    gcRetiredToolchainTrees(options.userDataDir)
   }
 
   static initialize(options: ToolchainServiceOptions): ToolchainService {
@@ -132,6 +135,22 @@ export class ToolchainService {
   updateDetectionEnv(env: NodeJS.ProcessEnv): void {
     this.env = env
     this.invalidateAndReevaluate()
+    this.options.onReady?.()
+  }
+
+  gcUnreachableTrees(): void {
+    const persisted = this.loadPersisted()
+    const keep = (['node', 'uv'] as const).flatMap((kind) => {
+      const roots = [managedKindRoot(this.options.userDataDir, kind, catalogVersionFor(kind))]
+      const selection = persisted[kind]
+      if (selection?.source === 'managed' && selection.version) {
+        roots.push(managedKindRoot(this.options.userDataDir, kind, selection.version))
+      }
+      return roots
+    })
+    gcUnreachableToolchainTrees(this.options.userDataDir, keep, {
+      collectDownload: this.inflight.size === 0
+    })
   }
 
   getState(): ToolchainState {
@@ -150,14 +169,15 @@ export class ToolchainService {
   setSource(kind: ToolchainKind, selection: ToolchainSelection): ToolchainState {
     const next = this.normalizeSelection(kind, selection)
     this.assertSelection(kind, next)
-    const current = this.ensureState()
+    const current = this.loadPersisted()
     this.persist({
       schemaVersion: 1,
-      node: { ...current.node },
-      uv: { ...current.uv },
+      ...(current.node ? { node: { ...current.node } } : {}),
+      ...(current.uv ? { uv: { ...current.uv } } : {}),
       [kind]: { ...next }
     })
     if (next.source === 'unconfigured') {
+      this.clearAllMissing(kind)
       this.recordMissing(kind, undefined, 'unconfigured')
     } else {
       this.clearAllMissing(kind)
@@ -303,9 +323,12 @@ export class ToolchainService {
       ...probed.toolchain,
       source: selection.source as Exclude<ToolchainSource, 'unconfigured'>
     }
-    this.fillNodeIdentity(resolved, selection)
+    const identity = this.fillNodeIdentity(resolved, selection)
 
     if (purpose === 'ocr') {
+      if (identity === 'transient') {
+        throw new ToolchainResolutionError('node', 'transient', 'Node inspection timed out')
+      }
       if (!resolved.version || !isNodeVersionInCompatRange(resolved.version)) {
         throw new ToolchainResolutionError(
           'node',
@@ -384,11 +407,14 @@ export class ToolchainService {
     }
   }
 
-  private fillNodeIdentity(resolved: ResolvedNodeToolchain, selection: ToolchainSelection): void {
+  private fillNodeIdentity(
+    resolved: ResolvedNodeToolchain,
+    selection: ToolchainSelection
+  ): 'ok' | 'transient' {
     if (selection.source === 'bundled') {
       resolved.version = NODE_PIN
       resolved.nodeModuleVersion = NODE_MODULE_VERSION
-      return
+      return 'ok'
     }
     if (selection.source === 'managed' && selection.version) {
       resolved.version = selection.version.startsWith('v')
@@ -402,21 +428,37 @@ export class ToolchainService {
         resolved.version = cached.version
         resolved.nodeModuleVersion = cached.modules
       }
-      return
+      return 'ok'
     }
     const inspected = this.inspectNodeForCache(resolved.node)
-    if (inspected === undefined) return
+    if (inspected === undefined) return 'transient'
     this.inspectionCache.set(resolved.node, inspected)
     if (inspected) {
       resolved.version = inspected.version
       resolved.nodeModuleVersion = inspected.modules
     }
+    return 'ok'
   }
 
   private inspectNodeForCache(executable: string): NodeInspection | null | undefined {
-    if (this.options.inspectNode) return this.options.inspectNode(executable)
+    const until = this.inspectTransientUntil.get(executable)
+    if (until && Date.now() < until) return undefined
+    if (this.options.inspectNode) {
+      const inspected = this.options.inspectNode(executable)
+      if (inspected === undefined) {
+        this.inspectTransientUntil.set(executable, Date.now() + INSPECT_TRANSIENT_TTL_MS)
+        return undefined
+      }
+      this.inspectTransientUntil.delete(executable)
+      return inspected
+    }
     const result = inspectNodeExecutableResult(executable)
-    return result.retryable ? undefined : result.inspection
+    if (result.retryable) {
+      this.inspectTransientUntil.set(executable, Date.now() + INSPECT_TRANSIENT_TTL_MS)
+      return undefined
+    }
+    this.inspectTransientUntil.delete(executable)
+    return result.inspection
   }
 
   private rewriteToken(token: string): string {
@@ -437,27 +479,54 @@ export class ToolchainService {
   }
 
   private ensureState(): ToolchainState {
-    if (this.state) return this.state
+    return {
+      schemaVersion: 1,
+      node: this.selectionFor('node'),
+      uv: this.selectionFor('uv')
+    }
+  }
+
+  private selectionFor(kind: ToolchainKind): ToolchainSelection {
+    return this.loadPersisted()[kind] ?? this.deriveSelection(kind)
+  }
+
+  private deriveSelection(kind: ToolchainKind): ToolchainSelection {
+    if (kind === 'node') {
+      const bundled = probeNodeRoot(
+        bundledKindRoot(this.options.appPath, 'node'),
+        this.platform,
+        false
+      )
+      if (bundled.status === 'complete') return { source: 'bundled' }
+      if (probeSystemNode(this.env, this.platform).status === 'complete') {
+        return { source: 'system' }
+      }
+      return { source: 'unconfigured' }
+    }
+    const bundled = probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
+    if (bundled.status === 'complete') return { source: 'bundled' }
+    if (probeSystemUv(this.env, this.platform).status === 'complete') {
+      return { source: 'system' }
+    }
+    return { source: 'unconfigured' }
+  }
+
+  private loadPersisted(): ToolchainPersistedState {
+    if (this.persisted) return this.persisted
     try {
-      this.state = loadToolchainState(this.options.userDataDir)
+      this.persisted =
+        loadToolchainState(this.options.userDataDir) ?? emptyPersistedToolchainState()
     } catch (error) {
       logger.warn('[ToolchainService] Quarantining unreadable toolchain state', error)
       quarantineCorruptState(this.options.userDataDir)
-      this.state = null
+      this.persisted = emptyPersistedToolchainState()
     }
-    if (!this.state) {
-      this.state = this.migrateFirstRun()
-      this.persist(this.state)
-    }
-    return this.state
+    return this.persisted
   }
 
   private invalidateAndReevaluate(): void {
     this.resolvedCache.clear()
     this.inspectionCache.clear()
-    if (this.state?.provisional) {
-      this.persist(this.migrateFirstRun())
-    }
     this.recomputeMissing()
   }
 
@@ -477,32 +546,9 @@ export class ToolchainService {
     this.emitMissing()
   }
 
-  private migrateFirstRun(): ToolchainState {
-    const state = emptyToolchainState()
-    const bundledNode = probeNodeRoot(
-      bundledKindRoot(this.options.appPath, 'node'),
-      this.platform,
-      false
-    )
-    if (bundledNode.status === 'complete') {
-      state.node = { source: 'bundled' }
-    } else if (probeSystemNode(this.env, this.platform).status === 'complete') {
-      state.node = { source: 'system' }
-    }
-
-    const bundledUv = probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
-    if (bundledUv.status === 'complete') {
-      state.uv = { source: 'bundled' }
-    } else if (probeSystemUv(this.env, this.platform).status === 'complete') {
-      state.uv = { source: 'system' }
-    }
-    state.provisional = true
-    return state
-  }
-
-  private persist(state: ToolchainState): void {
+  private persist(state: ToolchainPersistedState): void {
     saveToolchainState(this.options.userDataDir, state)
-    this.state = state
+    this.persisted = state
     this.resolvedCache.clear()
     this.inspectionCache.clear()
   }
@@ -726,6 +772,7 @@ export class ToolchainService {
 
   private collectMissing(): ToolchainMissingNotice[] {
     const rank: Record<ToolchainResolveReason, number> = {
+      transient: 0,
       unconfigured: 1,
       missing: 2,
       path_invalid: 2,
