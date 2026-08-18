@@ -27,7 +27,7 @@ import {
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { ToolchainService } from '@/toolchains'
+import { isToolchainResolutionError, ToolchainService } from '@/toolchains'
 import {
   buildCapabilitySnapshot,
   buildClientCapabilities,
@@ -1366,9 +1366,20 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       typeof arg === 'string' ? this.runtimeHelper.expandPath(arg) : arg
     )
 
-    const rewritten = useResolvedToolchain
-      ? ToolchainService.getInstance().rewriteCommand(expandedCommand, expandedArgs)
-      : { command: expandedCommand, args: expandedArgs }
+    let rewritten: { command: string; args: string[] }
+    try {
+      rewritten = useResolvedToolchain
+        ? ToolchainService.getInstance().rewriteCommand(expandedCommand, expandedArgs)
+        : { command: expandedCommand, args: expandedArgs }
+    } catch (error) {
+      if (isToolchainResolutionError(error)) {
+        throw new Error(
+          `[ACP] ${error.kind} toolchain is ${error.reason} for agent ${agent.id}`,
+          { cause: error }
+        )
+      }
+      throw error
+    }
     const processedCommand = rewritten.command
 
     // Validate processed command
