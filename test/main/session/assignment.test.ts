@@ -327,6 +327,39 @@ describe('SessionAssignment', () => {
     })
   })
 
+  it('uses lightweight snapshots to transfer unavailable ACP sessions', async () => {
+    const harness = createHarness([createSession({ agentId: 'codex-acp' })])
+    const snapshot = vi.fn(async (options?: { lightweight?: boolean }) => {
+      if (!options?.lightweight) throw new Error('Agent "codex-acp" is unavailable: invalid-config')
+      return {
+        status: 'idle' as const,
+        providerId: 'acp',
+        modelId: 'codex-acp'
+      }
+    })
+    harness.runtime.resolveTransferSource.mockReturnValue({
+      descriptor: { id: 'codex-acp', kind: 'acp', source: 'registry' },
+      handle: { ...harness.acpHandle, snapshot },
+      facet: {
+        hasMessages: vi.fn().mockResolvedValue(true),
+        listPendingInputs: vi.fn().mockResolvedValue([])
+      },
+      closeRuntime: harness.acpFacet.closeRuntime
+    })
+
+    await expect(harness.coordinator.getAgentTransferImpact('codex-acp')).resolves.toMatchObject({
+      totalSessions: 1,
+      movableSessions: 1,
+      blockedSessions: 0
+    })
+    await expect(harness.coordinator.moveAgentSessions('codex-acp', 'target')).resolves.toEqual({
+      movedSessionIds: ['s1'],
+      deletedSessionIds: []
+    })
+    expect(snapshot).toHaveBeenCalled()
+    expect(snapshot.mock.calls.every(([options]) => options?.lightweight)).toBe(true)
+  })
+
   it('preserves the non-transactional project update order', async () => {
     const harness = createHarness([createSession({ agentId: 'claude-acp' })])
     const order: string[] = []
