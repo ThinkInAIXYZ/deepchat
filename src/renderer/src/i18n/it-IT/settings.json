@@ -2037,8 +2037,6 @@
     "description": "Gestisci ACP Agent locali avviati da DeepChat.",
     "enabledTitle": "Attiva ACP",
     "enabledDescription": "Dopo l'attivazione, gli ACP Agent configurati appariranno nella lista modelli.",
-    "useBuiltinRuntimeTitle": "Usa ambiente integrato DeepChat",
-    "useBuiltinRuntimeDescription": "Se selezionato, bypassa i comandi node e uv di sistema e usa le versioni incluse in DeepChat.",
     "enableToAccess": "Attiva ACP per configurare Agent.",
     "registryInstallEntry": "Installa Agent",
     "registryInstallEntryDescription": "Cerca e installa Agent da ACP Registry; al termine torna qui per attivarli e configurarli.",

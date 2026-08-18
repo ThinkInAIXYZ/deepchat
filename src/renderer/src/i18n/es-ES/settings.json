@@ -2037,8 +2037,6 @@
     "description": "Administrar Agent Client Protocol agents local iniciado por DeepChat.",
     "enabledTitle": "Habilitar ACP",
     "enabledDescription": "Cuando esté habilitado, los ACP agents configurados aparecerán como modelos en el selector.",
-    "useBuiltinRuntimeTitle": "Utilice el tiempo de ejecución integrado de DeepChat",
-    "useBuiltinRuntimeDescription": "Cuando está habilitado, omite los comandos uv y de nodo del sistema, utilizando las versiones incluidas de DeepChat.",
     "enableToAccess": "Habilite ACP para configurar agents.",
     "registryInstallEntry": "Instalar Agent",
     "registryInstallEntryDescription": "Busque e instale agents desde el Registro ACP, luego regrese aquí para habilitarlos y configurarlos.",

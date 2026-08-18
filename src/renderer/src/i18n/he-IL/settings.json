@@ -1727,8 +1727,6 @@
     "description": "ניהול סוכני ACP מקומיים (Agent Client Protocol) המופעלים על ידי DeepChat.",
     "enabledTitle": "הפעל את ACP",
     "enabledDescription": "כאשר מופעל, סוכני ACP מוגדרים יופיעו כמודלים בבוחר.",
-    "useBuiltinRuntimeTitle": "השתמש בסביבת הרצה מובנית של DeepChat",
-    "useBuiltinRuntimeDescription": "כאשר מופעל, עוקף פקודות node ו-uv של המערכת, ומשתמש בגרסאות המצורפות ל-DeepChat.",
     "enableToAccess": "הפעל את ACP כדי להגדיר סוכנים.",
     "addCustomAgent": "הוסף סוכן מותאם אישית",
     "customEmpty": "אין סוכנים מותאמים אישית עדיין.",

@@ -2037,8 +2037,6 @@
     "description": "Urus ACP Agent tempatan yang dimulakan oleh DeepChat.",
     "enabledTitle": "Dayakan ACP",
     "enabledDescription": "Selepas mendayakan, ACP Agent yang dikonfigurasikan akan muncul dalam senarai model.",
-    "useBuiltinRuntimeTitle": "Menggunakan persekitaran terbina dalam DeepChat",
-    "useBuiltinRuntimeDescription": "Apabila disemak, arahan node dan uv sistem akan dipintas dan versi terbina dalam DeepChat akan digunakan.",
     "enableToAccess": "Agent tidak boleh dikonfigurasikan sehingga ACP didayakan.",
     "registryInstallEntry": "Pasang Agent",
     "registryInstallEntryDescription": "Cari dan pasang Agent daripada ACP Registry, kemudian kembali ke sini untuk mendayakan dan mengkonfigurasi selepas pemasangan selesai.",

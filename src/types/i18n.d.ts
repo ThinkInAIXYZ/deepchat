@@ -3531,8 +3531,6 @@ declare module 'vue-i18n' {
       description: string
       enabledTitle: string
       enabledDescription: string
-      useBuiltinRuntimeTitle: string
-      useBuiltinRuntimeDescription: string
       enableToAccess: string
       registryInstallEntry: string
       registryInstallEntryDescription: string

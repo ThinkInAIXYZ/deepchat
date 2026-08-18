@@ -2037,8 +2037,6 @@
     "description": "Lokale ACP Agent verwalten, die von DeepChat gestartet werden.",
     "enabledTitle": "ACP aktivieren",
     "enabledDescription": "Nach Aktivierung erscheinen konfigurierte ACP Agent in der Modellliste.",
-    "useBuiltinRuntimeTitle": "Integrierte DeepChat-Umgebung verwenden",
-    "useBuiltinRuntimeDescription": "Wenn aktiviert, werden die Systembefehle node und uv umgangen und die mit DeepChat gebündelten Versionen verwendet.",
     "enableToAccess": "ACP aktivieren, um Agent zu konfigurieren.",
     "registryInstallEntry": "Agent installieren",
     "registryInstallEntryDescription": "In ACP Registry nach Agent suchen und installieren; danach hierher zurückkehren, um sie zu aktivieren und zu konfigurieren.",

@@ -1660,8 +1660,6 @@
     "description": "Administrér lokale Agent Client Protocol-agenter startede af DeepChat.",
     "enabledTitle": "Aktivér ACP",
     "enabledDescription": "Når aktiveret, vises konfigurerede ACP-agenter som modeller i vælgeren.",
-    "useBuiltinRuntimeTitle": "Brug DeepChats indbyggede runtime",
-    "useBuiltinRuntimeDescription": "Spring systemets node- og uv-kommandoer over ved at bruge DeepChats medfølgende versioner.",
     "enableToAccess": "Aktivér ACP for at konfigurere agenter.",
     "addCustomAgent": "Tilføj brugerdefineret agent",
     "customEmpty": "Ingen brugerdefinerede agenter endnu.",

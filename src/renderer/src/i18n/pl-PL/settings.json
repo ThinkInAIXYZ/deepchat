@@ -2037,8 +2037,6 @@
     "description": "Zarządzaj lokalnymi agentami protokołu klienta Agent uruchomionymi przez DeepChat.",
     "enabledTitle": "Włącz AKP",
     "enabledDescription": "Po włączeniu skonfigurowani agenci ACP pojawią się jako modele w selektorze.",
-    "useBuiltinRuntimeTitle": "Użyj wbudowanego środowiska wykonawczego DeepChat",
-    "useBuiltinRuntimeDescription": "Po włączeniu pomija polecenia węzła systemowego i uv, korzystając z dołączonych wersji DeepChat.",
     "enableToAccess": "Włącz ACP, aby skonfigurować agentów.",
     "registryInstallEntry": "Zainstaluj Agent",
     "registryInstallEntryDescription": "Wyszukaj i zainstaluj agenty z rejestru ACP, a następnie wróć tutaj, aby je włączyć i skonfigurować.",

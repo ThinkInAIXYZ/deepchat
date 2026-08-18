@@ -2037,8 +2037,6 @@
     "description": "DeepChat tarafından başlatılan yerel Agent İstemci Protokolü agents'yi yönetin.",
     "enabledTitle": "ACP'yi etkinleştir",
     "enabledDescription": "Etkinleştirildiğinde, yapılandırılmış ACP agents seçicide model olarak görünecektir.",
-    "useBuiltinRuntimeTitle": "DeepChat Yerleşik Çalışma Zamanını Kullan",
-    "useBuiltinRuntimeDescription": "Etkinleştirildiğinde, DeepChat'nin paketlenmiş sürümlerini kullanarak sistem node ve uv komutlarını atlar.",
     "enableToAccess": "agents'yi yapılandırmak için ACP'yi etkinleştirin.",
     "registryInstallEntry": "Agent'yi yükleyin",
     "registryInstallEntryDescription": "ACP Registry'den agents'yi arayın ve yükleyin, ardından bunları etkinleştirmek ve yapılandırmak için buraya geri dönün.",

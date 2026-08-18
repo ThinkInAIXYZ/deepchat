@@ -2037,8 +2037,6 @@
     "description": "Mengelola ACP Agent lokal yang dimulai oleh DeepChat.",
     "enabledTitle": "Aktifkan ACP",
     "enabledDescription": "Setelah diaktifkan, ACP Agent yang dikonfigurasi akan muncul di daftar model.",
-    "useBuiltinRuntimeTitle": "Gunakan lingkungan bawaan DeepChat",
-    "useBuiltinRuntimeDescription": "Jika dicentang, perintah node dan uv sistem akan dilewati dan versi yang disertakan dengan DeepChat akan digunakan.",
     "enableToAccess": "Agent tidak dapat dikonfigurasi sampai ACP diaktifkan.",
     "registryInstallEntry": "Instal Agent",
     "registryInstallEntryDescription": "Cari dan instal Agent dari ACP Registry dan kembali ke sini untuk mengaktifkan dan mengkonfigurasinya setelah instalasi selesai.",

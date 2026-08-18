@@ -2037,8 +2037,6 @@
     "description": "Quản lý các tác nhân Giao thức Máy khách Agent cục bộ do DeepChat bắt đầu.",
     "enabledTitle": "Kích hoạt ACP",
     "enabledDescription": "Khi được bật, các tác nhân ACP được định cấu hình sẽ xuất hiện dưới dạng mô hình trong bộ chọn.",
-    "useBuiltinRuntimeTitle": "Sử dụng Thời gian chạy tích hợp DeepChat",
-    "useBuiltinRuntimeDescription": "Khi được bật, bỏ qua các lệnh uv và nút hệ thống, sử dụng các phiên bản đi kèm của DeepChat.",
     "enableToAccess": "Kích hoạt ACP để định cấu hình các tác nhân.",
     "registryInstallEntry": "Cài đặt Agent",
     "registryInstallEntryDescription": "Tìm kiếm và cài đặt các tác nhân từ ACP Register, sau đó quay lại đây để kích hoạt và định cấu hình chúng.",
