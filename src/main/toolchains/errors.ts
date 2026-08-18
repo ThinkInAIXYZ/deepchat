@@ -55,7 +55,15 @@ export function classifyDownloadError(error: unknown): ToolchainDownloadError {
   ) {
     return new ToolchainDownloadError('timeout', 'Toolchain download timed out', { cause: error })
   }
-  if (code === 'ENOSPC' || code === 'EIO' || code === 'EACCES' || code === 'EROFS') {
+  if (
+    code === 'ENOSPC' ||
+    code === 'EIO' ||
+    code === 'EACCES' ||
+    code === 'EROFS' ||
+    code === 'EPERM' ||
+    code === 'EBUSY' ||
+    code === 'ENOTEMPTY'
+  ) {
     return new ToolchainDownloadError('disk', 'Toolchain download could not write to disk', {
       cause: error
     })

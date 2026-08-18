@@ -49,8 +49,11 @@ export function replaceDirectory(sourceDir: string, destDir: string): void {
   const prevDir = `${destDir}.prev`
   mkdirSync(path.dirname(destDir), { recursive: true })
   rmSync(nextDir, { recursive: true, force: true })
-  if (isDirectory(prevDir)) {
-    rmSync(prevDir, { recursive: true, force: true })
+  if (isDirectory(prevDir) && !archivePreviousTree(prevDir)) {
+    throw new ToolchainDownloadError(
+      'activation_failed',
+      'Could not archive the previous runtime tree'
+    )
   }
   if (!tryRename(sourceDir, nextDir)) {
     throw new ToolchainDownloadError('activation_failed', 'Could not stage the extracted runtime')
@@ -95,6 +98,17 @@ function extractZip(
     )
   }
   return spawnSync('unzip', ['-q', archivePath, '-d', destDir], options)
+}
+
+function archivePreviousTree(prevDir: string): boolean {
+  const archived = `${prevDir}.${Date.now()}`
+  if (tryRename(prevDir, archived)) return true
+  try {
+    rmSync(prevDir, { recursive: true, force: true })
+    return !isDirectory(prevDir)
+  } catch {
+    return false
+  }
 }
 
 function tryRename(sourceDir: string, destDir: string): boolean {
