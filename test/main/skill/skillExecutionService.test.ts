@@ -353,7 +353,9 @@ describe('SkillExecutionService', () => {
       async (command: string) => (command === 'python3' ? '/usr/bin/python3' : null)
     )
 
-    await expect((service as never).resolvePythonRuntime('auto', { PATH: '/bin' })).resolves.toEqual({
+    await expect(
+      (service as never).resolvePythonRuntime('auto', { PATH: '/bin' })
+    ).resolves.toEqual({
       command: '/usr/bin/python3',
       mode: 'python'
     })

@@ -41,12 +41,10 @@ describe('OcrRuntimeService', () => {
       bundleId: 'ppocrv6-small-native-20260719.1'
     }
     const resolve = vi.spyOn(OcrRuntimeAssetResolver.prototype, 'resolve')
-    resolve
-      .mockResolvedValueOnce(unavailable)
-      .mockResolvedValueOnce({
-        status: 'available',
-        assets: { nodeExecutable: '/managed/node' }
-      } as never)
+    resolve.mockResolvedValueOnce(unavailable).mockResolvedValueOnce({
+      status: 'available',
+      assets: { nodeExecutable: '/managed/node' }
+    } as never)
 
     const service = new OcrRuntimeService({
       appPath: '/application',

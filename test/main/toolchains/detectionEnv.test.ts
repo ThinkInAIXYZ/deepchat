@@ -24,11 +24,7 @@ describe('detectionEnv', () => {
   })
 
   it('prepends the login PATH and then appends default bins', () => {
-    const env = mergeDetectionEnv(
-      { PATH: '/custom/bin:/usr/bin' },
-      '/Users/demo',
-      'darwin'
-    )
+    const env = mergeDetectionEnv({ PATH: '/custom/bin:/usr/bin' }, '/Users/demo', 'darwin')
     expect(env.PATH?.startsWith('/custom/bin:/usr/bin')).toBe(true)
     expect(env.PATH).toContain('/opt/homebrew/bin')
     expect(env.PATH).toContain('/Users/demo/.volta/bin')

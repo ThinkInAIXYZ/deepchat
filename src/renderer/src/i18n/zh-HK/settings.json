@@ -3248,14 +3248,14 @@
     },
     "systemDetected": "偵測到系統二進位檔：{path}",
     "systemDetectedHint": "已有可用安裝時優先使用，不必再下載一份。",
-    "install": "安裝官方執行環境",
+    "install": "安裝官方執行階段",
     "repair": "修復",
     "revert": "還原",
     "cancelInstall": "取消",
     "installing": "正在安裝…",
     "version": "版本",
     "path": "路徑",
-    "bannerTitle": "缺少所需執行環境",
+    "bannerTitle": "缺少所需執行階段",
     "bannerDescription": "MCP、ACP、Skills 或 OCR 目前沒有可用的 Node 或 uv。",
     "bannerAction": "開啟工具鏈",
     "availability": {
@@ -3265,15 +3265,15 @@
       "unconfigured": "未設定"
     },
     "downloadReasons": {
-      "dns": "無法解析下載位址。",
+      "dns": "無法解析下載地址。",
       "timeout": "下載逾時。",
-      "http": "下載伺服器傳回了錯誤。",
+      "http": "下載伺服器返回了錯誤。",
       "proxy": "經由代理下載失敗。",
       "checksum_mismatch": "下載檔案未通過完整性檢查。",
-      "disk": "無法把執行環境寫入磁碟。",
+      "disk": "無法把執行階段寫入磁碟。",
       "cancelled": "下載已取消。",
-      "activation_failed": "無法啟用該執行環境。",
-      "unsupported_platform": "目前平台沒有官方執行環境建置。"
+      "activation_failed": "無法啟用該執行階段。",
+      "unsupported_platform": "目前平台沒有官方執行階段建置。"
     }
   }
 }

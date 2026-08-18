@@ -39,7 +39,10 @@
             >
               {{ t('settings.toolchains.sources.managed') }}
             </SelectItem>
-            <SelectItem v-if="status?.system || status?.selection.source === 'system'" value="system">
+            <SelectItem
+              v-if="status?.system || status?.selection.source === 'system'"
+              value="system"
+            >
               {{ t('settings.toolchains.sources.system') }}
             </SelectItem>
             <SelectItem value="custom">{{ t('settings.toolchains.sources.custom') }}</SelectItem>
