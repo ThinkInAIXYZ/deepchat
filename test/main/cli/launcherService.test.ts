@@ -96,6 +96,9 @@ describe('CliLauncherService', () => {
     expect(commandStats.isSymbolicLink()).toBe(false)
     if (supportsPosixFilesystemSemantics) expect(commandStats.mode & 0o111).not.toBe(0)
     expect(command).toContain(`electron_host='${fixture.electronHost}'`)
+    expect(command).toContain(
+      'if [ ! -f "$electron_host" ] || [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then'
+    )
     expect(command).toContain('ELECTRON_RUN_AS_NODE=1')
     expect(command).toContain(`cli_module='${path.join(fixture.cliDirectory, 'deepchat.mjs')}'`)
     expect(command).not.toContain('command -v node')

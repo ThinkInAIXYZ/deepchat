@@ -104,13 +104,14 @@ describe('CLI bundle', () => {
     'skips a directory candidate and uses the dest Electron binary',
     async () => {
       const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-dir-host-'))
-      const outputDirectory = path.join(temporaryDirectory, 'out', 'cli')
+      const outputDirectory = path.join(temporaryDirectory, 'workspace', 'out', 'cli')
       const decoy = path.resolve(outputDirectory, '../../../DeepChat')
       const electronHost = path.resolve(
         outputDirectory,
         '../../node_modules/electron/dist/electron'
       )
       try {
+        expect(decoy.startsWith(temporaryDirectory + path.sep)).toBe(true)
         await mkdir(outputDirectory, { recursive: true })
         await mkdir(decoy, { recursive: true })
         await mkdir(path.dirname(electronHost), { recursive: true })

@@ -236,7 +236,7 @@ function createPosixCommand(source: CliSource): string {
     'set -eu',
     'electron_host=' + quotePosixLiteral(source.electronHost),
     'cli_module=' + quotePosixLiteral(source.modulePath),
-    'if [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then',
+    'if [ ! -f "$electron_host" ] || [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then',
     '  echo "DeepChat CLI bundled resources are unavailable." >&2',
     '  exit 127',
     'fi',
