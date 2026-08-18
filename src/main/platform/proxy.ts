@@ -12,6 +12,29 @@ export const NO_PROXY =
   'localhost, 127.0.0.1, ::1, 192.168.*.*, 10.*.*.*, *.local, host.docker.internal'
 // const NO_PROXY = ''
 
+// undici's default Agent uses headersTimeout 300s. 0 disables it so slow first-token
+// providers (local Ollama) are bounded by the model timeout instead.
+export const FETCH_DISPATCHER_TIMEOUTS = {
+  headersTimeout: 0,
+  bodyTimeout: 0
+} as const
+
+export function createGlobalFetchDispatcher(proxy?: {
+  httpProxy: string
+  httpsProxy: string
+  noProxy: string
+}): Agent | EnvHttpProxyAgent {
+  if (proxy) {
+    return new EnvHttpProxyAgent({
+      httpProxy: proxy.httpProxy,
+      httpsProxy: proxy.httpsProxy,
+      noProxy: proxy.noProxy,
+      ...FETCH_DISPATCHER_TIMEOUTS
+    })
+  }
+  return new Agent(FETCH_DISPATCHER_TIMEOUTS)
+}
+
 // 合并系统和自定义的 no_proxy 设置
 function mergeNoProxy(defaultNoProxy: string): string {
   const systemNoProxy = process.env.no_proxy || process.env.NO_PROXY || ''
@@ -79,12 +102,14 @@ export class ProxyConfig {
         process.env.no_proxy = mergedNoProxy
         process.env.NO_PROXY = mergedNoProxy
         setGlobalDispatcher(
-          new EnvHttpProxyAgent({
+          createGlobalFetchDispatcher({
             httpProxy: this.proxyUrl,
             httpsProxy: this.proxyUrl,
             noProxy: mergedNoProxy
           })
         )
+      } else {
+        setGlobalDispatcher(createGlobalFetchDispatcher())
       }
       return true
     } catch (error) {
@@ -104,7 +129,7 @@ export class ProxyConfig {
     delete process.env.grpc_proxy
     delete process.env.no_proxy
     delete process.env.NO_PROXY
-    setGlobalDispatcher(new Agent())
+    setGlobalDispatcher(createGlobalFetchDispatcher())
   }
 
   private async setCustomProxy(proxyUrl: string): Promise<void> {
@@ -120,7 +145,7 @@ export class ProxyConfig {
     process.env.no_proxy = mergedNoProxy
     process.env.NO_PROXY = mergedNoProxy
     setGlobalDispatcher(
-      new EnvHttpProxyAgent({
+      createGlobalFetchDispatcher({
         httpProxy: proxyUrl,
         httpsProxy: proxyUrl,
         noProxy: mergedNoProxy

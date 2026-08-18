@@ -598,7 +598,7 @@ describe('AI SDK provider factory', () => {
     expect(headers.has('authorization')).toBe(false)
   })
 
-  it('invokes openai-compatible fetch with a dispatcher that disables undici 300s headersTimeout', async () => {
+  it('does not attach a private dispatcher for no-proxy openai-compatible fetch', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -657,43 +657,6 @@ describe('AI SDK provider factory', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const init = fetchMock.mock.calls[0]?.[1] as (RequestInit & { dispatcher?: object }) | undefined
-    const dispatcher = init?.dispatcher
-    expect(dispatcher).toBeDefined()
-
-    const { headersTimeout } = getUndiciDispatcherTimeouts(dispatcher)
-    const defaultUndiciHeadersTimeout = 300_000
-    const oneHourMs = 3_600_000
-    expect(headersTimeout).not.toBe(defaultUndiciHeadersTimeout)
-    expect(
-      headersTimeout === 0 || (typeof headersTimeout === 'number' && headersTimeout >= oneHourMs)
-    ).toBe(true)
+    expect(init?.dispatcher).toBeUndefined()
   })
 })
-
-function getUndiciDispatcherTimeouts(dispatcher: object | undefined): {
-  headersTimeout?: number
-  bodyTimeout?: number
-} {
-  if (!dispatcher) {
-    return {}
-  }
-
-  for (const symbol of Object.getOwnPropertySymbols(dispatcher)) {
-    const value = (dispatcher as Record<symbol, unknown>)[symbol]
-    if (!value || typeof value !== 'object') {
-      continue
-    }
-
-    const record = value as Record<string, unknown>
-    if (!('headersTimeout' in record) && !('bodyTimeout' in record) && !('maxOrigins' in record)) {
-      continue
-    }
-
-    return {
-      headersTimeout: typeof record.headersTimeout === 'number' ? record.headersTimeout : undefined,
-      bodyTimeout: typeof record.bodyTimeout === 'number' ? record.bodyTimeout : undefined
-    }
-  }
-
-  return {}
-}
