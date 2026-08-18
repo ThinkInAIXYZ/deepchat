@@ -333,19 +333,28 @@ describe('SessionAssignment', () => {
     })
   })
 
-  it('uses lightweight snapshots to transfer unavailable ACP sessions', async () => {
+  it('uses lightweight snapshots to stop and transfer unavailable ACP sessions', async () => {
     const harness = createHarness([createSession({ agentId: 'codex-acp' })])
+    let cancelled = false
+    const cancel = vi.fn(async () => {
+      cancelled = true
+    })
     const snapshot = vi.fn(async (options?: { lightweight?: boolean }) => {
       if (!options?.lightweight) throw new Error('Agent "codex-acp" is unavailable: invalid-config')
       return {
-        status: 'idle' as const,
+        status: cancelled ? ('idle' as const) : ('generating' as const),
         providerId: 'acp',
         modelId: 'codex-acp'
       }
     })
     harness.runtime.resolveTransferSource.mockReturnValue({
       descriptor: { id: 'codex-acp', kind: 'acp', source: 'registry' },
-      handle: { ...harness.acpHandle, snapshot },
+      handle: {
+        ...harness.acpHandle,
+        snapshot,
+        cancel,
+        pending: { delete: vi.fn().mockResolvedValue(undefined) }
+      },
       facet: {
         hasMessages: vi.fn().mockResolvedValue(true),
         listPendingInputs: vi.fn().mockResolvedValue([])
@@ -364,6 +373,7 @@ describe('SessionAssignment', () => {
     })
     expect(snapshot).toHaveBeenCalled()
     expect(snapshot.mock.calls.every(([options]) => options?.lightweight)).toBe(true)
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it('preserves the non-transactional project update order', async () => {

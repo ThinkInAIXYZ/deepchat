@@ -30,6 +30,10 @@ import {
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
 import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
+import { setTimeout as delay } from 'node:timers/promises'
+
+const TRANSFER_STOP_TIMEOUT_MS = 10_000
+const TRANSFER_STOP_POLL_MS = 50
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -550,9 +554,21 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     if (status !== 'generating' && queuedInputIds.length === 0) return
 
     const { handle } = this.dependencies.runtime.resolveTransferSource(toAppSessionId(sessionId))
-    if (status === 'generating') await handle.cancel()
     for (const itemId of queuedInputIds) {
       await handle.pending.delete(itemId)
+    }
+    if (status === 'generating') {
+      await handle.cancel()
+      const deadline = Date.now() + TRANSFER_STOP_TIMEOUT_MS
+      while (
+        (await handle.snapshot(handle.kind === 'acp' ? { lightweight: true } : undefined))
+          ?.status === 'generating'
+      ) {
+        if (Date.now() >= deadline) {
+          throw new Error(`Session ${sessionId} did not stop before transfer.`)
+        }
+        await delay(TRANSFER_STOP_POLL_MS)
+      }
     }
   }
 

@@ -4169,6 +4169,16 @@ describe('Session application coordinators', () => {
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' }
       })
       deepChatAgent.hasMessages.mockResolvedValue(true)
+      let activeStatus: 'generating' | 'idle' = 'generating'
+      let activeCancelRequested = false
+      deepChatAgent.cancelGeneration.mockImplementation(async (sessionId: string) => {
+        if (sessionId === 's-active') activeCancelRequested = true
+      })
+      deepChatAgent.setSessionAgentContext.mockImplementation(async (sessionId: string) => {
+        if (sessionId === 's-active' && activeStatus === 'generating') {
+          throw new Error('Cannot move session while it is generating.')
+        }
+      })
       deepChatAgent.listPendingInputs.mockImplementation(async (sessionId: string) =>
         sessionId === 's-active'
           ? [
@@ -4188,12 +4198,15 @@ describe('Session application coordinators', () => {
             ]
           : []
       )
-      deepChatAgent.getSessionState.mockImplementation(async (sessionId: string) => ({
-        status: sessionId === 's-active' ? 'generating' : 'idle',
-        providerId: 'openai',
-        modelId: 'gpt-4.1',
-        permissionMode: 'full_access'
-      }))
+      deepChatAgent.getSessionState.mockImplementation(async (sessionId: string) => {
+        if (sessionId === 's-active' && activeCancelRequested) activeStatus = 'idle'
+        return {
+          status: sessionId === 's-active' ? activeStatus : 'idle',
+          providerId: 'openai',
+          modelId: 'gpt-4.1',
+          permissionMode: 'full_access'
+        }
+      })
 
       await expect(
         assignment.moveAgentSessions('deepchat-writer', 'deepchat-coder')
@@ -4207,10 +4220,10 @@ describe('Session application coordinators', () => {
         's-active',
         'queued-1'
       )
-      expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]).toBeLessThan(
-        deepChatAgent.deletePendingInput.mock.invocationCallOrder[0]
-      )
       expect(deepChatAgent.deletePendingInput.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]).toBeLessThan(
         deepChatAgent.setSessionAgentContext.mock.invocationCallOrder[1]
       )
       expect(sqlitePresenter.newSessionsTable.updateAgentId).toHaveBeenCalledWith(
