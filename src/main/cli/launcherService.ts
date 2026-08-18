@@ -101,7 +101,7 @@ type AppendedManagedBlock = Readonly<{
 type CliSource = Readonly<{
   posixLauncher: string
   modulePath: string
-  runtimeNode: string
+  electronHost: string
 }>
 
 type OwnedCommand =
@@ -226,28 +226,29 @@ function createPosixCommand(source: CliSource): string {
   return [
     '#!/bin/sh',
     'set -eu',
-    'runtime_node=' + quotePosixLiteral(source.runtimeNode),
+    'electron_host=' + quotePosixLiteral(source.electronHost),
     'cli_module=' + quotePosixLiteral(source.modulePath),
-    'if [ ! -x "$runtime_node" ] || [ ! -f "$cli_module" ]; then',
+    'if [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then',
     '  echo "DeepChat CLI bundled resources are unavailable." >&2',
     '  exit 127',
     'fi',
-    'exec "$runtime_node" "$cli_module" "$@"',
+    'ELECTRON_RUN_AS_NODE=1 exec "$electron_host" "$cli_module" "$@"',
     ''
   ].join('\n')
 }
 
 function createWindowsCommand(source: CliSource): string {
   const cliModule = escapeBatchLiteral(source.modulePath)
-  const runtimeNode = escapeBatchLiteral(source.runtimeNode)
+  const electronHost = escapeBatchLiteral(source.electronHost)
   return [
     '@echo off',
     'setlocal',
     `set "cli_module=${cliModule}"`,
-    `set "runtime_node=${runtimeNode}"`,
-    'if not exist "%runtime_node%" goto missing_runtime',
+    `set "electron_host=${electronHost}"`,
+    'if not exist "%electron_host%" goto missing_runtime',
     'if not exist "%cli_module%" goto missing_runtime',
-    '"%runtime_node%" "%cli_module%" %*',
+    'set ELECTRON_RUN_AS_NODE=1',
+    '"%electron_host%" "%cli_module%" %*',
     'exit /b %errorlevel%',
     ':missing_runtime',
     'echo DeepChat CLI bundled resources are unavailable. 1>&2',
@@ -324,14 +325,15 @@ export class CliLauncherService {
     const directory = this.options.resolveCliDirectory()
     if (!directory) return null
     const resolvedDirectory = path.resolve(directory)
-    const runtimeExecutable =
-      this.platform === 'win32' ? path.join('node', 'node.exe') : path.join('node', 'bin', 'node')
-    const runtimeCandidates = [
-      path.resolve(resolvedDirectory, '..', 'runtime', runtimeExecutable),
-      path.resolve(resolvedDirectory, '..', '..', 'runtime', runtimeExecutable)
+    const appRoot = path.resolve(resolvedDirectory, '..', '..', '..')
+    const hostCandidates = [
+      path.join(appRoot, 'MacOS', 'DeepChat'),
+      path.join(appRoot, 'DeepChat.exe'),
+      path.join(appRoot, 'DeepChat'),
+      path.join(appRoot, 'deepchat')
     ]
-    let runtimeNode: string | null = null
-    for (const candidate of runtimeCandidates) {
+    let electronHost: string | null = null
+    for (const candidate of hostCandidates) {
       try {
         const stats = await lstat(candidate)
         if (
@@ -339,18 +341,18 @@ export class CliLauncherService {
           !stats.isSymbolicLink() &&
           (this.platform === 'win32' || (stats.mode & 0o111) !== 0)
         ) {
-          runtimeNode = candidate
+          electronHost = candidate
           break
         }
       } catch (error) {
         if (!isMissingFileError(error)) throw error
       }
     }
-    if (!runtimeNode) return null
+    if (!electronHost) return null
     const source: CliSource = {
       posixLauncher: path.join(resolvedDirectory, 'deepchat'),
       modulePath: path.join(resolvedDirectory, 'deepchat.mjs'),
-      runtimeNode
+      electronHost
     }
     const requiredPaths =
       this.platform === 'win32' ? [source.modulePath] : [source.posixLauncher, source.modulePath]

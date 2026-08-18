@@ -17,30 +17,35 @@ case "$0" in
   *) script_dir=. ;;
 esac
 script_dir=$(CDPATH= cd -P -- "$script_dir" && pwd)
-runtime_node="$script_dir/../runtime/node/bin/node"
-if [ ! -x "$runtime_node" ]; then
-  runtime_node="$script_dir/../../runtime/node/bin/node"
-fi
-if [ ! -x "$runtime_node" ]; then
-  runtime_node="$script_dir/../runtime/node/node.exe"
-fi
-if [ ! -x "$runtime_node" ]; then
-  runtime_node="$script_dir/../../runtime/node/node.exe"
-fi
 cli_module="$script_dir/deepchat.mjs"
-if [ -x "$runtime_node" ] && [ -f "$cli_module" ]; then
-  exec "$runtime_node" "$cli_module" "$@"
+electron_host=""
+for candidate in \\
+  "$script_dir/../../../MacOS/DeepChat" \\
+  "$script_dir/../../../DeepChat" \\
+  "$script_dir/../../../deepchat" \\
+  "$script_dir/../../../DeepChat.exe"
+do
+  if [ -x "$candidate" ]; then
+    electron_host="$candidate"
+    break
+  fi
+done
+if [ -n "$electron_host" ] && [ -f "$cli_module" ]; then
+  ELECTRON_RUN_AS_NODE=1 exec "$electron_host" "$cli_module" "$@"
 fi
 echo "DeepChat CLI bundled resources are unavailable." >&2
 exit 127
 `
 
 export const WINDOWS_LAUNCHER = `@echo off\r
-set "runtime_node=%~dp0..\\runtime\\node\\node.exe"\r
-if not exist "%runtime_node%" set "runtime_node=%~dp0..\\..\\runtime\\node\\node.exe"\r
-if not exist "%runtime_node%" goto missing_runtime\r
-if not exist "%~dp0deepchat.mjs" goto missing_runtime\r
-"%runtime_node%" "%~dp0deepchat.mjs" %*\r
+set "cli_module=%~dp0deepchat.mjs"\r
+set "electron_host=%~dp0..\\..\\..\\DeepChat.exe"\r
+if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\DeepChat"\r
+if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\deepchat"\r
+if not exist "%electron_host%" goto missing_runtime\r
+if not exist "%cli_module%" goto missing_runtime\r
+set ELECTRON_RUN_AS_NODE=1\r
+"%electron_host%" "%cli_module%" %*\r
 exit /b %errorlevel%\r
 :missing_runtime\r
 echo DeepChat CLI bundled resources are unavailable. 1>&2\r

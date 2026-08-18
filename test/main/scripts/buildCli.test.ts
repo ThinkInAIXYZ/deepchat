@@ -28,29 +28,39 @@ async function runGeneratedLauncher(outputDirectory: string) {
   })
 }
 
-async function provisionBundledRuntime(outputDirectory: string): Promise<void> {
-  const runtimeNode = path.resolve(
-    outputDirectory,
-    '..',
-    'runtime',
-    'node',
-    process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node')
-  )
-  await mkdir(path.dirname(runtimeNode), { recursive: true })
-  if (process.platform === 'win32') {
-    await copyFile(process.execPath, runtimeNode)
-  } else {
-    await symlink(process.execPath, runtimeNode)
+async function provisionElectronHost(outputDirectory: string): Promise<void> {
+  const appRoot = path.resolve(outputDirectory, '..', '..', '..')
+  const hostName = process.platform === 'win32' ? 'DeepChat.exe' : 'DeepChat'
+  const hosts = [
+    path.join(appRoot, hostName),
+    path.join(appRoot, 'MacOS', 'DeepChat'),
+    path.join(appRoot, 'deepchat')
+  ]
+  for (const host of hosts) {
+    await mkdir(path.dirname(host), { recursive: true })
+    try {
+      await symlink(process.execPath, host)
+    } catch {
+      await copyFile(process.execPath, host)
+      if (process.platform !== 'win32') {
+        await chmod(host, 0o755)
+      }
+    }
   }
 }
 
 describe('CLI bundle', () => {
-  it('builds a standalone Node entry and explicit bundled-runtime launchers', async () => {
+  it('builds a standalone Node entry and Electron-hosted launchers', async () => {
     const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-build-'))
-    const outputDirectory = path.join(temporaryDirectory, 'cli')
+    const outputDirectory = path.join(
+      temporaryDirectory,
+      'resources',
+      'app.asar.unpacked',
+      'cli'
+    )
     try {
       await buildCli({ outDir: outputDirectory, logLevel: 'silent' })
-      await provisionBundledRuntime(outputDirectory)
+      await provisionElectronHost(outputDirectory)
       const entryPath = path.join(outputDirectory, 'deepchat.mjs')
       const source = await readFile(entryPath, 'utf8')
       const result = await execFileAsync(process.execPath, [entryPath, 'help'])
@@ -67,14 +77,15 @@ describe('CLI bundle', () => {
       expect(await readFile(path.join(outputDirectory, 'deepchat.cmd'), 'utf8')).toBe(
         WINDOWS_LAUNCHER
       )
-      expect(POSIX_LAUNCHER).toContain('../runtime/node/bin/node')
-      expect(POSIX_LAUNCHER).toContain('../../runtime/node/bin/node')
-      expect(POSIX_LAUNCHER).toContain('../runtime/node/node.exe')
-      expect(POSIX_LAUNCHER).toContain('../../runtime/node/node.exe')
+      expect(POSIX_LAUNCHER).toContain('ELECTRON_RUN_AS_NODE=1')
+      expect(POSIX_LAUNCHER).toContain('../../../MacOS/DeepChat')
+      expect(POSIX_LAUNCHER).toContain('../../../DeepChat')
       expect(POSIX_LAUNCHER).not.toContain('command -v node')
-      expect(WINDOWS_LAUNCHER).toContain('..\\runtime\\node\\node.exe')
-      expect(WINDOWS_LAUNCHER).toContain('..\\..\\runtime\\node\\node.exe')
+      expect(POSIX_LAUNCHER).not.toContain('runtime/node')
+      expect(WINDOWS_LAUNCHER).toContain('ELECTRON_RUN_AS_NODE=1')
+      expect(WINDOWS_LAUNCHER).toContain('..\\..\\..\\DeepChat.exe')
       expect(WINDOWS_LAUNCHER).not.toContain('where node')
+      expect(WINDOWS_LAUNCHER).not.toContain('runtime\\node')
       expect(WINDOWS_LAUNCHER).not.toContain('node "%~dp0deepchat.mjs"')
     } finally {
       await rm(temporaryDirectory, { recursive: true })
@@ -82,15 +93,20 @@ describe('CLI bundle', () => {
   }, CLI_BUILD_TEST_TIMEOUT_MS)
 
   it.skipIf(process.platform === 'win32')(
-    'runs the POSIX launcher against the packaged Windows Node layout',
+    'runs the POSIX launcher against the packaged Electron host',
     async () => {
       const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-msys-'))
-      const outputDirectory = path.join(temporaryDirectory, 'cli')
-      const runtimeNode = path.join(temporaryDirectory, 'runtime', 'node', 'node.exe')
+      const outputDirectory = path.join(
+        temporaryDirectory,
+        'resources',
+        'app.asar.unpacked',
+        'cli'
+      )
+      const electronHost = path.join(temporaryDirectory, 'DeepChat')
       try {
         await mkdir(outputDirectory, { recursive: true })
-        await mkdir(path.dirname(runtimeNode), { recursive: true })
-        await symlink(process.execPath, runtimeNode)
+        await mkdir(path.dirname(electronHost), { recursive: true })
+        await symlink(process.execPath, electronHost)
         await writeFile(path.join(outputDirectory, 'deepchat'), POSIX_LAUNCHER, { mode: 0o755 })
         await chmod(path.join(outputDirectory, 'deepchat'), 0o755)
         await writeFile(

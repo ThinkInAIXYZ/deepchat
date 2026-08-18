@@ -24,21 +24,22 @@ async function createFixture(platform: NodeJS.Platform = 'darwin') {
   const homeDirectory = path.join(root, 'home')
   const userDataDirectory = path.join(root, 'user-data')
   const localAppDataDirectory = path.join(root, 'local-app-data')
-  const cliDirectory = path.join(root, 'cli-v1')
+  const appRoot = platform === 'darwin' ? path.join(root, 'Contents') : root
+  const cliDirectory = path.join(appRoot, 'resources', 'app.asar.unpacked', 'cli')
   await mkdir(homeDirectory, { recursive: true })
   await mkdir(userDataDirectory, { recursive: true })
   await mkdir(cliDirectory, { recursive: true })
   await writeFile(path.join(cliDirectory, 'deepchat'), '#!/bin/sh\n', { mode: 0o755 })
   await writeFile(path.join(cliDirectory, 'deepchat.cmd'), '@echo off\r\n')
   await writeFile(path.join(cliDirectory, 'deepchat.mjs'), 'console.log("deepchat")\n')
-  const runtimeNode = path.join(
-    root,
-    'runtime',
-    'node',
-    platform === 'win32' ? 'node.exe' : path.join('bin', 'node')
-  )
-  await mkdir(path.dirname(runtimeNode), { recursive: true })
-  await writeFile(runtimeNode, 'fixture runtime\n', { mode: 0o755 })
+  const electronHost =
+    platform === 'darwin'
+      ? path.join(appRoot, 'MacOS', 'DeepChat')
+      : platform === 'win32'
+        ? path.join(appRoot, 'DeepChat.exe')
+        : path.join(appRoot, 'deepchat')
+  await mkdir(path.dirname(electronHost), { recursive: true })
+  await writeFile(electronHost, 'fixture electron\n', { mode: 0o755 })
   let currentCliDirectory: string | null = cliDirectory
   const service = new CliLauncherService({
     platform,
@@ -58,7 +59,7 @@ async function createFixture(platform: NodeJS.Platform = 'darwin') {
     userDataDirectory,
     localAppDataDirectory,
     cliDirectory,
-    runtimeNode,
+    electronHost,
     service,
     setCliDirectory: (directory: string | null) => {
       currentCliDirectory = directory
@@ -94,7 +95,8 @@ describe('CliLauncherService', () => {
     expect(commandStats.isFile()).toBe(true)
     expect(commandStats.isSymbolicLink()).toBe(false)
     if (supportsPosixFilesystemSemantics) expect(commandStats.mode & 0o111).not.toBe(0)
-    expect(command).toContain(`runtime_node='${fixture.runtimeNode}'`)
+    expect(command).toContain(`electron_host='${fixture.electronHost}'`)
+    expect(command).toContain('ELECTRON_RUN_AS_NODE=1')
     expect(command).toContain(`cli_module='${path.join(fixture.cliDirectory, 'deepchat.mjs')}'`)
     expect(command).not.toContain('command -v node')
     expect(await readFile(profilePath, 'utf8')).toBe(
@@ -277,10 +279,15 @@ describe('CliLauncherService', () => {
     const fixture = await createFixture()
     const commandPath = path.join(fixture.homeDirectory, '.local', 'bin', 'deepchat')
     await fixture.service.ensureInstalled()
-    const nextCliDirectory = path.join(fixture.root, 'cli-v2')
-    await mkdir(nextCliDirectory)
+    const nextAppRoot = path.join(fixture.root, 'Contents-v2')
+    const nextCliDirectory = path.join(nextAppRoot, 'resources', 'app.asar.unpacked', 'cli')
+    await mkdir(nextCliDirectory, { recursive: true })
     await writeFile(path.join(nextCliDirectory, 'deepchat'), '#!/bin/sh\n', { mode: 0o755 })
     await writeFile(path.join(nextCliDirectory, 'deepchat.mjs'), 'console.log("v2")\n')
+    await mkdir(path.join(nextAppRoot, 'MacOS'), { recursive: true })
+    await writeFile(path.join(nextAppRoot, 'MacOS', 'DeepChat'), 'fixture electron v2\n', {
+      mode: 0o755
+    })
     fixture.setCliDirectory(nextCliDirectory)
 
     await expect(fixture.service.getStatus()).resolves.toMatchObject({
@@ -378,13 +385,16 @@ describe('CliLauncherService', () => {
       `set "cli_module=${path.join(fixture.cliDirectory, 'deepchat.mjs')}"`
     )
     expect(await readFile(commandPath, 'utf8')).toContain(
-      `set "runtime_node=${fixture.runtimeNode}"`
+      `set "electron_host=${fixture.electronHost}"`
     )
+    expect(await readFile(commandPath, 'utf8')).toContain('ELECTRON_RUN_AS_NODE=1')
     expect(await readFile(commandPath, 'utf8')).not.toContain('where node')
 
-    const nextCliDirectory = path.join(fixture.root, 'cli-win-v2')
-    await mkdir(nextCliDirectory)
+    const nextAppRoot = path.join(fixture.root, 'app-v2')
+    const nextCliDirectory = path.join(nextAppRoot, 'resources', 'app.asar.unpacked', 'cli')
+    await mkdir(nextCliDirectory, { recursive: true })
     await writeFile(path.join(nextCliDirectory, 'deepchat.mjs'), 'console.log("v2")\n')
+    await writeFile(path.join(nextAppRoot, 'DeepChat.exe'), 'fixture electron v2\n', { mode: 0o755 })
     fixture.setCliDirectory(nextCliDirectory)
     await expect(fixture.service.getStatus()).resolves.toMatchObject({ state: 'stale' })
     await fixture.service.ensureInstalled()
