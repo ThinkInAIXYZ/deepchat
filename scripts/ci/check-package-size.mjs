@@ -112,6 +112,16 @@ export function validatePackageSizePolicy(policy) {
   ) {
     throw new Error('Invalid package-size policy')
   }
+  // Clear expectedDeltaBytes when the baseline is refreshed so the temporary
+  // allowance for removing bundled Node does not become permanent slack.
+  if (policy.expectedDeltaBytes !== undefined) {
+    if (
+      !Number.isSafeInteger(policy.expectedDeltaBytes) ||
+      policy.expectedDeltaBytes > 0
+    ) {
+      throw new Error('Package-size policy expectedDeltaBytes must be a non-positive integer')
+    }
+  }
   for (const definition of TARGET_DEFINITIONS) {
     const target = policy.targets[definition.id]
     if (!target || typeof target !== 'object') {
@@ -246,8 +256,11 @@ export async function comparePackageSize({
     const candidateArtifact = candidate[roleDefinition.name]
     const limits = policy.targets[definition.id][roleDefinition.name]
     const deltaBytes = candidateArtifact.bytes - baselineArtifact.bytes
+    const expectedDeltaBytes = policy.expectedDeltaBytes ?? 0
+    const adjustedDeltaBytes = deltaBytes - expectedDeltaBytes
     const roleWithinPolicy =
-      deltaBytes <= limits.maxGrowthBytes && deltaBytes >= -limits.maxShrinkBytes
+      adjustedDeltaBytes <= limits.maxGrowthBytes &&
+      adjustedDeltaBytes >= -limits.maxShrinkBytes
     if (!roleWithinPolicy) withinPolicy = false
     comparisons.push({
       role: roleDefinition.name,
