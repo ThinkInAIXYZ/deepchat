@@ -554,8 +554,8 @@ export class ToolchainService {
           this.fillNodeIdentity(resolved, selection)
           resolvedVersion = resolved.version
           resolvedPath = resolved.node
-        } else {
-          resolvedVersion = selection.version ?? null
+        } else if (probed.toolchain.kind === 'uv') {
+          resolvedVersion = selection.version ?? probed.toolchain.version
           resolvedPath = probed.toolchain.uv
         }
       } else {

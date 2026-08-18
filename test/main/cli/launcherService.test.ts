@@ -394,7 +394,9 @@ describe('CliLauncherService', () => {
     const nextCliDirectory = path.join(nextAppRoot, 'resources', 'app.asar.unpacked', 'cli')
     await mkdir(nextCliDirectory, { recursive: true })
     await writeFile(path.join(nextCliDirectory, 'deepchat.mjs'), 'console.log("v2")\n')
-    await writeFile(path.join(nextAppRoot, 'DeepChat.exe'), 'fixture electron v2\n', { mode: 0o755 })
+    await writeFile(path.join(nextAppRoot, 'DeepChat.exe'), 'fixture electron v2\n', {
+      mode: 0o755
+    })
     fixture.setCliDirectory(nextCliDirectory)
     await expect(fixture.service.getStatus()).resolves.toMatchObject({ state: 'stale' })
     await fixture.service.ensureInstalled()

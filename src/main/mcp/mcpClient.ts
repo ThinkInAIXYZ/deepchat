@@ -30,7 +30,6 @@ import type {
   Transport
 } from '@modelcontextprotocol/client'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import path from 'path'
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
