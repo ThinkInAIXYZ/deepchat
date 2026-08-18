@@ -374,7 +374,7 @@ describe('smoke-light-ocr', () => {
     expect(components.otherRuntime.unpackedBytes).toBe(
       Buffer.byteLength('uv-runtime') + Buffer.byteLength('rtk-runtime')
     )
-    expect(Object.keys(components.otherRuntime.entries)).toEqual(['rtk', 'uv'])
+    expect(Object.keys(components.otherRuntime.entries).sort()).toEqual(['rtk', 'uv'])
     expect(components.ocrAssets.unpackedBytes).toBeGreaterThan(0)
 
     if (process.platform !== 'win32') {

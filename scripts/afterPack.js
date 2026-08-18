@@ -710,16 +710,18 @@ export async function packageLightOcrAssets(context) {
       : path.join('runtime', 'node', 'bin', 'node')
   const nodePath = path.join(unpackedRoot, nodeRelativePath)
   const nodeArtifact = runtimeVersions.nodeArtifacts?.[`${platform}-${arch}`]
-  if (!nodeArtifact || typeof nodeArtifact.executableSha256 !== 'string') {
-    throw new Error(`Missing bundled Node integrity metadata for ${platform}-${arch}`)
-  }
   await fs.access(helperPath)
-  await fs.access(nodePath)
-  const nodeSha256 = await hashFile(nodePath)
-  if (nodeSha256 !== nodeArtifact.executableSha256) {
-    throw new Error(
-      `Bundled Node checksum mismatch for ${platform}-${arch}: ${nodeSha256} != ${nodeArtifact.executableSha256}`
-    )
+  let nodeSha256 = null
+  if (await pathExists(nodePath)) {
+    if (!nodeArtifact || typeof nodeArtifact.executableSha256 !== 'string') {
+      throw new Error(`Missing bundled Node integrity metadata for ${platform}-${arch}`)
+    }
+    nodeSha256 = await hashFile(nodePath)
+    if (nodeSha256 !== nodeArtifact.executableSha256) {
+      throw new Error(
+        `Bundled Node checksum mismatch for ${platform}-${arch}: ${nodeSha256} != ${nodeArtifact.executableSha256}`
+      )
+    }
   }
   await assertPackageVersion(facadeDir, LIGHT_OCR_FACADE_PACKAGE, lightOcr.facadeVersion)
   await assertPackageVersion(runtimeDir, lightOcr.runtimePackage, lightOcr.runtimeVersion)
@@ -776,12 +778,12 @@ export async function packageLightOcrAssets(context) {
     pdfSupport: true,
     bundleId: lightOcr.bundleId,
     nodeVersion: runtimeVersions.node,
-    nodeSha256,
+    ...(nodeSha256 ? { nodeSha256 } : {}),
     nativePackage,
     nativePayloadEncoding,
     nativeArtifactInventory,
     paths: {
-      node: nodeRelativePath,
+      ...(nodeSha256 ? { node: nodeRelativePath } : {}),
       helper: path.join('out', 'main', 'lightOcrHelper.js'),
       facade: path.relative(unpackedRoot, facadeDir),
       runtime: path.relative(unpackedRoot, runtimeDir),

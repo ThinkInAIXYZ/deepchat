@@ -591,15 +591,20 @@ export async function resolvePackagedOcrLayout({
   if (manifest.nativePayloadEncoding !== expectedNativePayloadEncoding) {
     throw new Error('Supported OCR target has an invalid native payload encoding')
   }
-  if (
-    !expectedNodeArtifact ||
-    manifest.nodeVersion !== runtimeVersions.node ||
-    manifest.nodeSha256 !== expectedNodeArtifact.executableSha256
-  ) {
+  let nodeExecutable = null
+  if (typeof manifest.paths.node === 'string' && manifest.paths.node) {
+    if (
+      !expectedNodeArtifact ||
+      manifest.nodeVersion !== runtimeVersions.node ||
+      manifest.nodeSha256 !== expectedNodeArtifact.executableSha256
+    ) {
+      throw new Error('Supported OCR target has invalid bundled Node integrity metadata')
+    }
+    nodeExecutable = resolveContainedPath(unpackedRoot, manifest.paths.node, 'OCR Node path')
+  } else if (manifest.nodeSha256) {
     throw new Error('Supported OCR target has invalid bundled Node integrity metadata')
   }
 
-  const nodeExecutable = resolveContainedPath(unpackedRoot, manifest.paths.node, 'OCR Node path')
   const helperEntryPath = resolveContainedPath(
     unpackedRoot,
     manifest.paths.helper,
@@ -616,19 +621,21 @@ export async function resolvePackagedOcrLayout({
   const modelPackageDir = path.dirname(bundlePath)
 
   await Promise.all([
-    access(nodeExecutable),
+    ...(nodeExecutable ? [access(nodeExecutable)] : []),
     access(helperEntryPath),
     access(path.join(facadeDir, 'src', 'index.cjs')),
     access(path.join(runtimeDir, 'src', 'index.cjs')),
     access(path.join(nativePackageDir, 'native', 'runtime-descriptor.json'))
   ])
-  await assertPackagedArtifactIntegrity({
-    filePath: nodeExecutable,
-    expectedSha256: expectedNodeArtifact.executableSha256,
-    label: 'Packaged OCR bundled Node',
-    allowDarwinSignedMutation: platform === 'darwin',
-    verifySignature: effectiveSignatureVerifier
-  })
+  if (nodeExecutable) {
+    await assertPackagedArtifactIntegrity({
+      filePath: nodeExecutable,
+      expectedSha256: expectedNodeArtifact.executableSha256,
+      label: 'Packaged OCR bundled Node',
+      allowDarwinSignedMutation: platform === 'darwin',
+      verifySignature: effectiveSignatureVerifier
+    })
+  }
   await Promise.all([
     assertPackageIdentity(facadeDir, '@arcships/light-ocr', pinned.facadeVersion),
     assertPackageIdentity(runtimeDir, pinned.runtimePackage, pinned.runtimeVersion),
@@ -1281,7 +1288,7 @@ export async function runPackagedLightOcr(layout, options = {}) {
     await createFixtures(fixturePath, documentFixturePath, chineseDocumentFixturePath)
     const nativeRuntimeOverride = await materializePackagedNativeRuntime(layout, tempRoot)
     child = spawn(
-      layout.nodeExecutable,
+      layout.nodeExecutable ?? process.execPath,
       [
         layout.helperEntryPath,
         '--bundle-path',
@@ -1537,7 +1544,7 @@ export function readComponentBudgets(manifest, target) {
     !Number.isFinite(ocrAssetsCompressed) ||
     ocrAssetsCompressed <= 0 ||
     !Number.isFinite(nodeRuntimeCompressed) ||
-    nodeRuntimeCompressed <= 0 ||
+    nodeRuntimeCompressed < 0 ||
     !otherRuntimeCompressedByTarget ||
     typeof otherRuntimeCompressedByTarget !== 'object'
   ) {
@@ -1604,7 +1611,7 @@ export async function main(argv = process.argv.slice(2)) {
     ) *
     MIB
   const compressedNodeLimitBytes =
-    parsePositiveNumber(
+    parseNonNegativeNumber(
       args['max-node-compressed-mib'],
       '--max-node-compressed-mib',
       componentBudgets.nodeRuntimeCompressed

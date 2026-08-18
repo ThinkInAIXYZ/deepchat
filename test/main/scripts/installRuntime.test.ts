@@ -60,7 +60,6 @@ describe('install-runtime', () => {
 
     expect(plan.map(({ type, version }) => ({ type, version }))).toEqual([
       { type: 'uv', version: '0.9.18' },
-      { type: 'node', version: 'v24.18.0' },
       { type: 'rtk', version: 'v0.43.0' }
     ])
     for (const step of plan) {
@@ -74,7 +73,7 @@ describe('install-runtime', () => {
   it('preserves the unsupported RTK target exception for Windows arm64', () => {
     const plan = buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64' })
 
-    expect(plan.map((step) => step.type)).toEqual(['uv', 'node'])
+    expect(plan.map((step) => step.type)).toEqual(['uv'])
   })
 
   it.each(['x64', 'arm64'])('builds a Node-only plan for Linux %s', (arch) => {
@@ -133,7 +132,7 @@ describe('install-runtime', () => {
     const verify = vi.fn().mockResolvedValue(undefined)
 
     await expect(runRuntimeInstallPlan(plan, spawn, verify)).rejects.toThrow(
-      /node runtime installation failed/
+      /rtk runtime installation failed/
     )
     expect(spawn).toHaveBeenCalledTimes(2)
     expect(verify).toHaveBeenCalledTimes(1)

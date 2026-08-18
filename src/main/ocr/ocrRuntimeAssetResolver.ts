@@ -70,7 +70,7 @@ interface PackagedRuntimeManifest {
   nativePackage?: string
   nativeArtifactInventory?: NativeArtifactInventory
   paths?: {
-    node: string
+    node?: string
     helper: string
     facade: string
     runtime: string
@@ -170,7 +170,9 @@ export class OcrRuntimeAssetResolver {
 
     return {
       assets: {
-        ...this.resolveNodeAssets(resolveManifestPath(unpackedRoot, manifest.paths.node)),
+        ...this.resolveNodeAssets(
+          manifest.paths.node ? resolveManifestPath(unpackedRoot, manifest.paths.node) : ''
+        ),
         helperEntryPath: resolveManifestPath(unpackedRoot, manifest.paths.helper),
         facadeDir: resolveManifestPath(unpackedRoot, manifest.paths.facade),
         runtimeDir: resolveManifestPath(unpackedRoot, manifest.paths.runtime),

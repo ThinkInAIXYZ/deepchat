@@ -149,7 +149,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $nodePath = (Resolve-Path "dist/$env:UNPACKED_DIRECTORY/resources/app.asar.unpacked/runtime/node/node.exe").Path
+          $nodePath = (Get-Command node -CommandType Application).Source
           $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
           New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
           try {

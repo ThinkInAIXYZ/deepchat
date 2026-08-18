@@ -914,6 +914,35 @@ describe('afterPack', () => {
     ).rejects.toThrow('OCR model checksum mismatch for payload.bin')
   })
 
+  it('packages OCR assets when the installer no longer ships Node', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const unpackedRoot = path.join(tmpDir, 'resources', 'app.asar.unpacked')
+    const nodeModulesDir = path.join(unpackedRoot, 'node_modules')
+    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+    await rm(path.join(unpackedRoot, 'runtime', 'node'), { recursive: true, force: true })
+
+    await packageLightOcrAssets({
+      appOutDir: tmpDir,
+      electronPlatformName: 'linux',
+      arch: 'x64',
+      packager: { projectDir }
+    })
+
+    const manifest = JSON.parse(
+      await readFile(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), 'utf8')
+    ) as {
+      supported: boolean
+      nodeVersion: string
+      nodeSha256?: string
+      paths: { node?: string }
+    }
+    expect(manifest.supported).toBe(true)
+    expect(manifest.nodeVersion).toBe('v24.18.0')
+    expect(manifest.nodeSha256).toBeUndefined()
+    expect(manifest.paths.node).toBeUndefined()
+  })
+
   it('fails packaging when bundled Node does not match the pinned target hash', async () => {
     const packageLightOcrAssets = await loadPackageLightOcrAssets()
     const projectDir = path.join(tmpDir, 'project')

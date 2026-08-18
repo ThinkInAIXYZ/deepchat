@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "componentBudgetsMiB": {
     "ocrAssetsCompressed": 90,
-    "nodeRuntimeCompressed": 50,
+    "nodeRuntimeCompressed": 0,
     "otherRuntimeCompressedByTarget": {
       "darwin-arm64": 32,
       "darwin-x64": 32,

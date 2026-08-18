@@ -119,7 +119,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 - 🔧 **Strong MCP (Model Context Protocol) Support**
   - Full support for Resources / Prompts / Tools
   - Supports StreamableHTTP, SSE, Stdio, and other transports
-  - Built-in Node.js runtime so npx/node-style services work out of the box
+  - Official Node.js toolchain for npx/node-style services, installed from Settings when needed
   - inMemory services for code execution, web information retrieval, file operations, and other common utilities
   - Clear tool-call display with parameter and return-data debugging
   - DeepLink support for one-click MCP service installation

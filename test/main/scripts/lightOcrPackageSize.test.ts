@@ -6,7 +6,7 @@ import { TARGET_IDS } from '../../../scripts/ci/package-contract.mjs'
 import { readComponentBudgets } from '../../../scripts/smoke-light-ocr.js'
 
 describe('Light OCR packaged component budgets', () => {
-  it('requires OCR, Node, and other-runtime budgets for all six targets', async () => {
+  it('requires OCR and other-runtime budgets for all six targets', async () => {
     const manifest = JSON.parse(
       await readFile(path.resolve('resources/light-ocr-size-budgets.json'), 'utf8')
     ) as {
@@ -22,7 +22,7 @@ describe('Light OCR packaged component budgets', () => {
       schemaVersion: 1,
       componentBudgetsMiB: {
         ocrAssetsCompressed: 90,
-        nodeRuntimeCompressed: 50,
+        nodeRuntimeCompressed: 0,
         otherRuntimeCompressedByTarget: {
           'darwin-arm64': 32,
           'darwin-x64': 32,
@@ -39,7 +39,7 @@ describe('Light OCR packaged component budgets', () => {
     for (const target of TARGET_IDS) {
       expect(readComponentBudgets(manifest, target)).toEqual({
         ocrAssetsCompressed: 90,
-        nodeRuntimeCompressed: 50,
+        nodeRuntimeCompressed: 0,
         otherRuntimeCompressed: 32
       })
     }
@@ -52,7 +52,7 @@ describe('Light OCR packaged component budgets', () => {
           schemaVersion: 1,
           componentBudgetsMiB: {
             ocrAssetsCompressed: 90,
-            nodeRuntimeCompressed: 50,
+            nodeRuntimeCompressed: 0,
             otherRuntimeCompressedByTarget: {}
           }
         },

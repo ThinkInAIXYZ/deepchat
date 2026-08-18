@@ -131,7 +131,9 @@ export function buildRuntimeInstallPlan({
     runtimes.push({ type: 'rtk', version: versions.rtk })
   }
 
-  if (types) runtimes = runtimes.filter(({ type }) => types.includes(type))
+  runtimes = types
+    ? runtimes.filter(({ type }) => types.includes(type))
+    : runtimes.filter(({ type }) => type !== 'node')
   if (runtimes.length === 0) {
     throw new Error(`No selected runtimes are available for ${platform}-${arch}`)
   }

@@ -119,7 +119,7 @@ DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过�
 - 🔧 **出色的 MCP（Model Context Protocol）支持**
   - 完整支持 Resources / Prompts / Tools 三大核心能力
   - 支持 StreamableHTTP、SSE、Stdio 等传输协议
-  - 内置 Node.js 运行环境，npx/node 类服务可开箱即用
+  - 可在设置中安装官方 Node.js 工具链，供 npx/node 类服务使用
   - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用能力
   - 提供清晰的工具调用展示和参数/返回数据调试体验
   - 支持通过 DeepLink 一键安装 MCP 服务
