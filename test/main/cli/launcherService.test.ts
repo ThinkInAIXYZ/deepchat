@@ -149,6 +149,24 @@ describe('CliLauncherService', () => {
     })
   })
 
+  it('prefers the Linux deepchat.bin host over the --no-sandbox wrapper', async () => {
+    const fixture = await createFixture('linux')
+    const wrapper = path.join(path.dirname(fixture.electronHost), 'deepchat')
+    const electronHost = path.join(path.dirname(fixture.electronHost), 'deepchat.bin')
+    await writeFile(wrapper, '#!/bin/sh\nexec "$0.bin" --no-sandbox "$@"\n', { mode: 0o755 })
+    await writeFile(electronHost, 'real electron\n', { mode: 0o755 })
+
+    await expect(fixture.service.ensureInstalled()).resolves.toMatchObject({
+      state: 'installed'
+    })
+    const command = await readFile(
+      path.join(fixture.homeDirectory, '.local', 'bin', 'deepchat'),
+      'utf8'
+    )
+    expect(command).toContain(`electron_host='${electronHost}'`)
+    expect(command).not.toContain(`electron_host='${wrapper}'`)
+  })
+
   it('uses platform defaults when GUI startup has no shell environment', async () => {
     const macFixture = await createFixture()
     const macService = new CliLauncherService({

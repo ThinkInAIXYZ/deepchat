@@ -7,6 +7,7 @@ import {
   readlink,
   realpath,
   rename,
+  stat,
   symlink,
   unlink,
   writeFile
@@ -119,6 +120,14 @@ function isMissingFileError(error: unknown): boolean {
 function isPathWithin(root: string, candidate: string): boolean {
   const relative = path.relative(path.resolve(root), path.resolve(candidate))
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function resolveCliAppRoot(cliDirectory: string): string {
+  const parent = path.basename(path.dirname(cliDirectory))
+  if (parent === 'app.asar.unpacked') {
+    return path.resolve(cliDirectory, '..', '..', '..')
+  }
+  return path.resolve(cliDirectory, '..', '..')
 }
 
 function pathsEqual(left: string, right: string, platform: NodeJS.Platform): boolean {
@@ -325,28 +334,30 @@ export class CliLauncherService {
     const directory = this.options.resolveCliDirectory()
     if (!directory) return null
     const resolvedDirectory = path.resolve(directory)
-    const appRoot = path.resolve(resolvedDirectory, '..', '..', '..')
+    const appRoot = resolveCliAppRoot(resolvedDirectory)
     const hostCandidates = [
       path.join(appRoot, 'MacOS', 'DeepChat'),
+      path.join(appRoot, 'deepchat.bin'),
       path.join(appRoot, 'DeepChat.exe'),
       path.join(appRoot, 'DeepChat'),
-      path.join(appRoot, 'deepchat')
+      path.join(appRoot, 'deepchat'),
+      path.join(appRoot, 'node_modules', 'electron', 'dist', 'Electron'),
+      path.join(appRoot, 'node_modules', 'electron', 'dist', 'electron')
     ]
     let electronHost: string | null = null
     for (const candidate of hostCandidates) {
       try {
-        const stats = await lstat(candidate)
-        if (
-          stats.isFile() &&
-          !stats.isSymbolicLink() &&
-          (this.platform === 'win32' || (stats.mode & 0o111) !== 0)
-        ) {
+        const stats = await stat(candidate)
+        if (stats.isFile() && (this.platform === 'win32' || (stats.mode & 0o111) !== 0)) {
           electronHost = candidate
           break
         }
       } catch (error) {
         if (!isMissingFileError(error)) throw error
       }
+    }
+    if (!electronHost && process.versions.electron) {
+      electronHost = process.execPath
     }
     if (!electronHost) return null
     const source: CliSource = {
