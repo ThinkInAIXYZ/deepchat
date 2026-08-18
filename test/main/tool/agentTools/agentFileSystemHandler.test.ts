@@ -329,6 +329,52 @@ describe('AgentFileSystemHandler read batch isolation', () => {
     }
   })
 
+  it('reads a file larger than one chunk without a byte-window header', async () => {
+    const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-chunk-'))
+    try {
+      const handler = new AgentFileSystemHandler([testDir])
+      const filePath = path.join(testDir, 'chunked.txt')
+      const body = 'B'.repeat(80 * 1024)
+      await fs.writeFile(filePath, body, 'utf-8')
+
+      const content = await handler.readFile({ paths: [filePath] }, undefined, {
+        mimeType: 'text/plain',
+        autoTruncateChars: 200_000
+      })
+
+      expect(content).toContain(body)
+      expect(content).not.toContain('first ')
+    } finally {
+      await fs.rm(testDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads a batch of empty files without allocating a full window each', async () => {
+    const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-empty-batch-'))
+    try {
+      const handler = new AgentFileSystemHandler([testDir])
+      const paths = await Promise.all(
+        Array.from({ length: 8 }, async (_, index) => {
+          const filePath = path.join(testDir, `empty-${index}.txt`)
+          await fs.writeFile(filePath, '', 'utf-8')
+          return filePath
+        })
+      )
+
+      const content = await handler.readFile({ paths }, undefined, {
+        mimeType: 'text/plain',
+        autoTruncateChars: 4_500
+      })
+
+      for (const filePath of paths) {
+        expect(content).toContain(`${filePath}:\n\n`)
+      }
+      expect(content).not.toContain('first ')
+    } finally {
+      await fs.rm(testDir, { recursive: true, force: true })
+    }
+  })
+
   it('reads an empty regular file without a byte-window header', async () => {
     const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-fs-read-empty-'))
     try {

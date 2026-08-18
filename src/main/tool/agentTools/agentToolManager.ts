@@ -1090,8 +1090,16 @@ export class AgentToolManager {
         type: 'function',
         function: {
           name: 'read',
-          description:
-            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated using the Agent's configured output limit if not specified). Files larger than 10MB return only the first 10MB. Office and PDF files return extracted text, not the original binary. For image files, returns an English description of visible content instead of raw pixels. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
+          description: [
+            'Read the contents of a file.',
+            'Supports pagination via offset/limit for large files',
+            '(auto-truncated using the configured Agent output limit if not specified).',
+            'Raw text reads return only the first 10MB.',
+            'Office and PDF files return extracted text, not the original binary,',
+            'and follow the configured document size limit.',
+            'For image files, returns an English description of visible content instead of raw pixels.',
+            'When invoked from a skill context with relative paths, provide base_directory as the skill root directory.'
+          ].join(' '),
           parameters: toDeepChatJsonSchema(schemas.read) as {
             type: string
             properties: Record<string, unknown>

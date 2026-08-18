@@ -134,24 +134,7 @@ interface FileReadOptions {
   maxReadBytes?: number
 }
 
-async function readFully(
-  handle: Awaited<ReturnType<typeof fs.open>>,
-  targetBytes: number
-): Promise<Buffer> {
-  if (targetBytes <= 0) {
-    return Buffer.alloc(0)
-  }
-  const bytes = Buffer.alloc(targetBytes)
-  let offset = 0
-  while (offset < targetBytes) {
-    const { bytesRead } = await handle.read(bytes, offset, targetBytes - offset, offset)
-    if (bytesRead === 0) {
-      return bytes.subarray(0, offset)
-    }
-    offset += bytesRead
-  }
-  return bytes
-}
+const READ_CHUNK_BYTES = 64 * 1024
 
 async function readFileWindow(
   filePath: string,
@@ -160,11 +143,29 @@ async function readFileWindow(
   const handle = await fs.open(filePath, 'r')
   try {
     const { size } = await handle.stat()
-    const target = size > 0 ? Math.min(size, maxReadBytes) : maxReadBytes
-    const bytes = await readFully(handle, target)
-    // Size-0 files can still have content. A full window then means more remains.
-    const totalBytes =
-      size > 0 ? size : bytes.length === maxReadBytes ? bytes.length + 1 : bytes.length
+    const chunks: Buffer[] = []
+    let offset = 0
+    while (offset < maxReadBytes) {
+      const want = Math.min(READ_CHUNK_BYTES, maxReadBytes - offset)
+      const chunk = Buffer.alloc(want)
+      const { bytesRead } = await handle.read(chunk, 0, want, offset)
+      if (bytesRead === 0) {
+        break
+      }
+      chunks.push(bytesRead === want ? chunk : chunk.subarray(0, bytesRead))
+      offset += bytesRead
+      if (bytesRead < want) {
+        break
+      }
+    }
+    const bytes = Buffer.concat(chunks, offset)
+    let truncated = false
+    if (offset === maxReadBytes) {
+      const peek = Buffer.alloc(1)
+      const { bytesRead } = await handle.read(peek, 0, 1, offset)
+      truncated = bytesRead > 0
+    }
+    const totalBytes = truncated ? Math.max(size, bytes.length + 1) : bytes.length
     return { bytes, totalBytes }
   } finally {
     await handle.close()
