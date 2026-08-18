@@ -11,5 +11,6 @@ export {
   isToolchainDownloadError,
   isToolchainResolutionError
 } from './errors'
+export { mergeDetectionEnv, defaultDetectionPaths } from './detectionEnv'
 export { ToolchainService, inspectNodeExecutable } from './service'
 export type { NodeInspection, ResolveOptions, ToolchainServiceOptions } from './service'

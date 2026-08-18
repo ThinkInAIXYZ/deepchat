@@ -60,8 +60,9 @@ import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
+import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { ToolchainService } from '@/toolchains'
+import { mergeDetectionEnv, ToolchainService } from '@/toolchains'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
@@ -1214,6 +1215,7 @@ export async function createMainProcessControl(dependencies: {
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
     userDataDir: app.getPath('userData'),
+    env: mergeDetectionEnv(await getShellEnvironment(), app.getPath('home'), process.platform),
     onProgress: (progress) =>
       publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
     onMissing: (missing) =>
