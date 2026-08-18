@@ -49,12 +49,15 @@ export function replaceDirectory(sourceDir: string, destDir: string): void {
   const prevDir = `${destDir}.prev`
   mkdirSync(path.dirname(destDir), { recursive: true })
   rmSync(nextDir, { recursive: true, force: true })
-  rmSync(prevDir, { recursive: true, force: true })
+  if (isDirectory(prevDir)) {
+    rmSync(prevDir, { recursive: true, force: true })
+  }
   if (!tryRename(sourceDir, nextDir)) {
     throw new ToolchainDownloadError('activation_failed', 'Could not stage the extracted runtime')
   }
   try {
-    if (isDirectory(destDir) && !tryRename(destDir, prevDir) && isDirectory(destDir)) {
+    if (isDirectory(destDir) && !tryRename(destDir, prevDir)) {
+      rmSync(nextDir, { recursive: true, force: true })
       throw new Error('Could not move the current runtime aside')
     }
     if (!tryRename(nextDir, destDir)) {
@@ -64,6 +67,7 @@ export function replaceDirectory(sourceDir: string, destDir: string): void {
     if (isDirectory(prevDir) && !isDirectory(destDir)) {
       tryRename(prevDir, destDir)
     }
+    rmSync(nextDir, { recursive: true, force: true })
     throw new ToolchainDownloadError(
       'activation_failed',
       'Could not activate the extracted runtime',
@@ -72,7 +76,6 @@ export function replaceDirectory(sourceDir: string, destDir: string): void {
       }
     )
   }
-  rmSync(prevDir, { recursive: true, force: true })
 }
 
 function extractZip(

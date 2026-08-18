@@ -155,6 +155,75 @@ describe('ToolchainService lifecycle', () => {
     expect(service.getState().uv).toEqual({ source: 'managed', version: '0.9.18' })
   })
 
+  it('repairs a managed tree without rewriting a system source', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const payload = Buffer.from('repair-node-archive')
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: createFetch(payload),
+      extractArchive: async (_archive, destDir) => {
+        seedNodeTree(destDir, true)
+      }
+    })
+
+    expect(service.getState().node.source).toBe('system')
+    await service.repair('node')
+    expect(service.getState().node.source).toBe('system')
+
+    await service.install('node')
+    expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
+    await service.repair('node')
+    expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
+  })
+
+  it('retries extract from a verified archive without re-downloading', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const payload = Buffer.from('retry-node-archive-bytes')
+    let downloads = 0
+    let extracts = 0
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: async (url, init) => {
+        const range = (init?.headers as Record<string, string> | undefined)?.Range
+        if (range !== 'bytes=0-0') downloads += 1
+        return createFetch(payload)(url, init)
+      },
+      extractArchive: async (_archive, destDir) => {
+        extracts += 1
+        if (extracts === 1) throw new Error('extract exploded')
+        seedNodeTree(destDir, true)
+      }
+    })
+
+    await expect(service.install('node')).rejects.toBeInstanceOf(ToolchainDownloadError)
+    await service.install('node')
+    expect(downloads).toBe(1)
+    expect(extracts).toBe(2)
+    expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
+  })
+
   it('surfaces a missing notice when resolve fails', () => {
     const service = new ToolchainService({
       appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),

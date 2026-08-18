@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, mkdirSync, rmSync, statSync } from 'node:fs'
+import {
+  createReadStream,
+  createWriteStream,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  statSync
+} from 'node:fs'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -75,20 +82,22 @@ export async function downloadVerifiedFile(options: {
 }): Promise<void> {
   const fetchImpl = options.fetch ?? fetch
   mkdirSync(path.dirname(options.destPath), { recursive: true })
+  const destPath = options.destPath
+  const partialPath = `${destPath}.partial`
 
-  const existing = existingSize(options.destPath)
-  const headers: Record<string, string> = {}
-  if (existing > 0) headers.Range = `bytes=${existing}-`
+  if (existingSize(destPath) > 0) {
+    const actual = await sha256File(destPath)
+    if (actual === options.sha256) return
+    rmSync(destPath, { force: true })
+  }
 
-  let response: Response
-  try {
-    response = await fetchImpl(options.url, {
-      headers,
-      redirect: 'follow',
-      signal: options.signal
-    })
-  } catch (error) {
-    throw classifyDownloadError(error)
+  let existing = existingSize(partialPath)
+  let response = await requestDownload(fetchImpl, options.url, existing, options.signal)
+
+  if (response.status === 416) {
+    rmSync(partialPath, { force: true })
+    existing = 0
+    response = await requestDownload(fetchImpl, options.url, 0, options.signal)
   }
 
   if (response.status !== 200 && response.status !== 206) {
@@ -98,9 +107,12 @@ export async function downloadVerifiedFile(options: {
     )
   }
 
-  const restart = response.status === 200 && existing > 0
-  if (restart) rmSync(options.destPath, { force: true })
-  const append = response.status === 206 && existing > 0 && !restart
+  const restart = response.status === 200
+  if (restart) {
+    rmSync(partialPath, { force: true })
+    existing = 0
+  }
+  const append = response.status === 206 && existing > 0
   const receivedStart = append ? existing : 0
   const totalBytes = readTotalBytes(response, receivedStart)
 
@@ -111,7 +123,7 @@ export async function downloadVerifiedFile(options: {
   let receivedBytes = receivedStart
   options.onProgress?.({ receivedBytes, totalBytes })
 
-  const file = createWriteStream(options.destPath, { flags: append ? 'a' : 'w' })
+  const file = createWriteStream(partialPath, { flags: append ? 'a' : 'w' })
   const reader = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream)
   reader.on('data', (chunk: Buffer) => {
     receivedBytes += chunk.length
@@ -124,14 +136,17 @@ export async function downloadVerifiedFile(options: {
     throw classifyDownloadError(error)
   }
 
-  const actual = await sha256File(options.destPath)
+  const actual = await sha256File(partialPath)
   if (actual !== options.sha256) {
-    rmSync(options.destPath, { force: true })
+    rmSync(partialPath, { force: true })
     throw new ToolchainDownloadError(
       'checksum_mismatch',
       'Downloaded toolchain archive failed sha256 verification'
     )
   }
+
+  rmSync(destPath, { force: true })
+  renameSync(partialPath, destPath)
 }
 
 export async function sha256File(filePath: string): Promise<string> {
@@ -143,6 +158,25 @@ export async function sha256File(filePath: string): Promise<string> {
     stream.once('end', () => resolve())
   })
   return hash.digest('hex')
+}
+
+async function requestDownload(
+  fetchImpl: FetchLike,
+  url: string,
+  existing: number,
+  signal?: AbortSignal
+): Promise<Response> {
+  const headers: Record<string, string> = {}
+  if (existing > 0) headers.Range = `bytes=${existing}-`
+  try {
+    return await fetchImpl(url, {
+      headers,
+      redirect: 'follow',
+      signal
+    })
+  } catch (error) {
+    throw classifyDownloadError(error)
+  }
 }
 
 function existingSize(filePath: string): number {

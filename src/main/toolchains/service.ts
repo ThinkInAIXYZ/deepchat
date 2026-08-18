@@ -38,7 +38,12 @@ import {
   takeExtractedRoot,
   type ArchiveExtractor
 } from './extract'
-import { bundledKindRoot, downloadStagingDir, managedKindRoot } from './layout'
+import {
+  assertSafeToolchainVersion,
+  bundledKindRoot,
+  downloadStagingDir,
+  managedKindRoot
+} from './layout'
 import {
   probeCustomNode,
   probeCustomUv,
@@ -93,7 +98,7 @@ export class ToolchainService {
   private state: ToolchainState | null = null
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
   private readonly inspectionCache = new Map<string, NodeInspection>()
-  private readonly missing = new Map<ToolchainKind, ToolchainResolveReason>()
+  private readonly missing = new Map<string, ToolchainResolveReason>()
   private readonly progress = new Map<ToolchainKind, ToolchainInstallProgress>()
   private readonly inflight = new Map<ToolchainKind, Promise<void>>()
   private readonly controllers = new Map<ToolchainKind, AbortController>()
@@ -137,15 +142,16 @@ export class ToolchainService {
   }
 
   setSource(kind: ToolchainKind, selection: ToolchainSelection): ToolchainState {
-    this.assertSelection(kind, selection)
+    const next = this.normalizeSelection(kind, selection)
+    this.assertSelection(kind, next)
     const current = this.ensureState()
     this.persist({
       schemaVersion: 1,
       node: { ...current.node },
       uv: { ...current.uv },
-      [kind]: { ...selection }
+      [kind]: { ...next }
     })
-    this.missing.delete(kind)
+    this.clearAllMissing(kind)
     this.emitMissing()
     return this.getState()
   }
@@ -154,17 +160,23 @@ export class ToolchainService {
     return {
       node: this.inspectKind('node'),
       uv: this.inspectKind('uv'),
-      missing: [...this.missing.entries()].map(([kind, reason]) => ({ kind, reason }))
+      missing: this.collectMissing()
     }
   }
 
   async install(kind: ToolchainKind): Promise<ToolchainState> {
-    await this.runExclusive(kind, () => this.installManaged(kind))
+    await this.runExclusive(kind, () => this.installManaged(kind, true))
     return this.getState()
   }
 
   async repair(kind: ToolchainKind): Promise<ToolchainState> {
-    await this.runExclusive(kind, () => this.installManaged(kind))
+    await this.runExclusive(kind, async () => {
+      if (this.ensureState()[kind].source !== 'managed') {
+        this.resolvedCache.clear()
+        return
+      }
+      await this.installManaged(kind, false)
+    })
     return this.getState()
   }
 
@@ -198,8 +210,7 @@ export class ToolchainService {
         'unconfigured',
         `${kind} toolchain is not configured`
       )
-      this.missing.set(kind, error.reason)
-      this.emitMissing()
+      this.recordMissing(kind, options.purpose, error.reason)
       throw error
     }
 
@@ -208,12 +219,16 @@ export class ToolchainService {
         kind === 'node' ? this.resolveNode(selection, options.purpose) : this.resolveUv(selection)
       Object.freeze(resolved)
       this.resolvedCache.set(cacheKey, resolved)
-      if (this.missing.delete(kind)) this.emitMissing()
+      this.clearMissing(kind, options.purpose)
       return resolved
     } catch (error) {
       if (isToolchainResolutionError(error)) {
-        this.missing.set(kind, error.reason)
-        this.emitMissing()
+        logger.warn('[ToolchainService] Resolve failed', {
+          kind,
+          purpose: options.purpose ?? 'generic',
+          reason: error.reason
+        })
+        this.recordMissing(kind, options.purpose, error.reason)
       }
       throw error
     }
@@ -222,13 +237,14 @@ export class ToolchainService {
   rewriteCommand(command: string, args: string[]): { command: string; args: string[] } {
     return {
       command: this.rewriteToken(command),
-      args: args.map((arg) => this.rewriteToken(arg))
+      args
     }
   }
 
   prependResolvedToEnv(env: Record<string, string>): Record<string, string> {
     const binDirs: string[] = []
     for (const kind of ['uv', 'node'] as const) {
+      if (this.ensureState()[kind].source === 'unconfigured') continue
       try {
         binDirs.push(this.resolve(kind).binDir)
       } catch {
@@ -317,7 +333,11 @@ export class ToolchainService {
         return probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
       case 'managed':
         return probeNodeRoot(
-          managedKindRoot(this.options.userDataDir, 'node', selection.version ?? ''),
+          managedKindRoot(
+            this.options.userDataDir,
+            'node',
+            selection.version || catalogVersionFor('node')
+          ),
           this.platform,
           true
         )
@@ -336,7 +356,11 @@ export class ToolchainService {
         return probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
       case 'managed':
         return probeUvRoot(
-          managedKindRoot(this.options.userDataDir, 'uv', selection.version ?? ''),
+          managedKindRoot(
+            this.options.userDataDir,
+            'uv',
+            selection.version || catalogVersionFor('uv')
+          ),
           this.platform
         )
       case 'system':
@@ -446,7 +470,7 @@ export class ToolchainService {
     }
   }
 
-  private async installManaged(kind: ToolchainKind): Promise<void> {
+  private async installManaged(kind: ToolchainKind, persistSource: boolean): Promise<void> {
     let artifact
     try {
       artifact = resolveToolchainArtifact(kind, this.platform, this.arch)
@@ -506,11 +530,18 @@ export class ToolchainService {
 
       this.setProgress(kind, 'activating')
       replaceDirectory(payloadRoot, managedDir)
-      this.setSource(kind, { source: 'managed', version: artifact.version })
+      if (persistSource) {
+        this.setSource(kind, { source: 'managed', version: artifact.version })
+      } else {
+        this.resolvedCache.clear()
+        this.clearAllMissing(kind)
+        this.emitMissing()
+      }
       rmSync(stagingDir, { recursive: true, force: true })
       this.setProgress(kind, 'idle')
     } catch (error) {
       const classified = isToolchainDownloadError(error) ? error : classifyDownloadError(error)
+      logger.warn('[ToolchainService] Install failed', { kind, reason: classified.reason })
       this.setProgress(kind, 'idle', { error: classified.reason })
       throw classified
     }
@@ -607,10 +638,60 @@ export class ToolchainService {
     return resolved.version
   }
 
+  private missingKey(kind: ToolchainKind, purpose?: ToolchainPurpose): string {
+    return `${kind}:${purpose ?? 'generic'}`
+  }
+
+  private recordMissing(
+    kind: ToolchainKind,
+    purpose: ToolchainPurpose | undefined,
+    reason: ToolchainResolveReason
+  ): void {
+    this.missing.set(this.missingKey(kind, purpose), reason)
+    this.emitMissing()
+  }
+
+  private clearMissing(kind: ToolchainKind, purpose?: ToolchainPurpose): void {
+    this.missing.delete(this.missingKey(kind, purpose))
+  }
+
+  private clearAllMissing(kind: ToolchainKind): void {
+    for (const key of this.missing.keys()) {
+      if (key.startsWith(`${kind}:`)) this.missing.delete(key)
+    }
+  }
+
+  private collectMissing(): ToolchainMissingNotice[] {
+    const rank: Record<ToolchainResolveReason, number> = {
+      unconfigured: 1,
+      missing: 2,
+      path_invalid: 2,
+      incomplete: 3,
+      unsupported_platform: 3,
+      version_mismatch: 4,
+      abi_mismatch: 5
+    }
+    const byKind = new Map<ToolchainKind, ToolchainResolveReason>()
+    for (const [key, reason] of this.missing) {
+      const kind = key.split(':')[0] as ToolchainKind
+      const current = byKind.get(kind)
+      if (!current || rank[reason] > rank[current]) {
+        byKind.set(kind, reason)
+      }
+    }
+    return [...byKind.entries()].map(([kind, reason]) => ({ kind, reason }))
+  }
+
   private emitMissing(): void {
-    this.options.onMissing?.(
-      [...this.missing.entries()].map(([kind, reason]) => ({ kind, reason }))
-    )
+    this.options.onMissing?.(this.collectMissing())
+  }
+
+  private normalizeSelection(kind: ToolchainKind, selection: ToolchainSelection): ToolchainSelection {
+    if (selection.source !== 'managed') return selection
+    return {
+      ...selection,
+      version: assertSafeToolchainVersion(selection.version || catalogVersionFor(kind))
+    }
   }
 
   private assertSelection(kind: ToolchainKind, selection: ToolchainSelection): void {

@@ -28,7 +28,7 @@ describe('toolchain downloader', () => {
   it('resumes a partial file with Range and verifies sha256', async () => {
     const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')
     const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
-    writeFileSync(destPath, payload.subarray(0, 10))
+    writeFileSync(`${destPath}.partial`, payload.subarray(0, 10))
 
     await downloadVerifiedFile({
       url: 'https://nodejs.org/dist/v24.18.0/node.tar.gz',
@@ -43,6 +43,48 @@ describe('toolchain downloader', () => {
       }
     })
 
+    expect(readFileSync(destPath)).toEqual(payload)
+  })
+
+  it('skips download when the final file already matches sha256', async () => {
+    const payload = Buffer.from('already-complete-archive')
+    const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
+    writeFileSync(destPath, payload)
+    const fetchImpl = vi.fn()
+
+    await downloadVerifiedFile({
+      url: 'https://nodejs.org/dist/v24.18.0/node.tar.gz',
+      destPath,
+      sha256: sha256(payload),
+      fetch: fetchImpl
+    })
+
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(readFileSync(destPath)).toEqual(payload)
+  })
+
+  it('deletes a stale partial and retries after HTTP 416', async () => {
+    const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')
+    const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
+    writeFileSync(`${destPath}.partial`, payload)
+    let calls = 0
+
+    await downloadVerifiedFile({
+      url: 'https://nodejs.org/dist/v24.18.0/node.tar.gz',
+      destPath,
+      sha256: sha256(payload),
+      fetch: async (_url, init) => {
+        calls += 1
+        if (calls === 1) {
+          expect((init?.headers as Record<string, string>).Range).toBe('bytes=26-')
+          return new Response(null, { status: 416 })
+        }
+        expect((init?.headers as Record<string, string> | undefined)?.Range).toBeUndefined()
+        return new Response(payload, { status: 200 })
+      }
+    })
+
+    expect(calls).toBe(2)
     expect(readFileSync(destPath)).toEqual(payload)
   })
 

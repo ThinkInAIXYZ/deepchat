@@ -17,8 +17,21 @@ export function managedRootDir(userDataDir: string): string {
   return path.join(userDataDir, TOOLCHAINS_DIRNAME)
 }
 
+export function assertSafeToolchainVersion(version: string): string {
+  if (
+    !version ||
+    version.includes('\0') ||
+    version.includes('..') ||
+    /[\\/]/.test(version) ||
+    !/^[vA-Za-z0-9][A-Za-z0-9._-]*$/.test(version)
+  ) {
+    throw new Error(`Invalid toolchain version: ${version}`)
+  }
+  return version
+}
+
 export function managedKindRoot(userDataDir: string, kind: ToolchainKind, version: string): string {
-  return path.join(managedRootDir(userDataDir), kind, version)
+  return path.join(managedRootDir(userDataDir), kind, assertSafeToolchainVersion(version))
 }
 
 export function stateFilePath(userDataDir: string): string {
@@ -30,7 +43,11 @@ export function downloadStagingDir(
   kind: ToolchainKind,
   version: string
 ): string {
-  return path.join(managedRootDir(userDataDir), 'download', `${kind}-${version}`)
+  return path.join(
+    managedRootDir(userDataDir),
+    'download',
+    `${kind}-${assertSafeToolchainVersion(version)}`
+  )
 }
 
 export function nodeLayout(

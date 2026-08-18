@@ -146,6 +146,36 @@ describe('ToolchainService', () => {
       command: 'python',
       args: ['app.py']
     })
+    expect(service.rewriteCommand('npx', ['server', path.join('/Users/me', 'node')])).toEqual({
+      command: path.join(appPath, 'runtime', 'node', 'bin', 'npx'),
+      args: ['server', path.join('/Users/me', 'node')]
+    })
+  })
+
+  it('does not mark node missing when only uv is prepended', () => {
+    const { service, appPath } = createService()
+    seedUvTree(path.join(appPath, 'runtime', 'uv'))
+
+    expect(service.prependResolvedToEnv({ PATH: '/bin' }).PATH).toContain(
+      path.join(appPath, 'runtime', 'uv')
+    )
+    expect(service.getStatus().missing).toEqual([])
+  })
+
+  it('keeps an OCR pin failure after a generic node resolve succeeds', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const ocrService = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir: mkdtempSync(path.join(os.tmpdir(), 'dc-data-')),
+      platform: 'darwin',
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => ({ version: 'v22.14.0', modules: 127 })
+    })
+
+    expect(() => ocrService.resolve('node', { purpose: 'ocr' })).toThrow(/compatibility range/)
+    expect(ocrService.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
+    expect(ocrService.getStatus().missing).toEqual([{ kind: 'node', reason: 'version_mismatch' }])
   })
 
   it('enforces the OCR official ABI pin', () => {
