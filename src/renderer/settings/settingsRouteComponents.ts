@@ -7,6 +7,7 @@ export const settingsRouteComponents = {
   'settings-dashboard': () => import('./components/SettingsOverview.vue'),
   'settings-mcp': () => import('./components/McpSettings.vue'),
   'settings-ocr': () => import('./components/OcrSettings.vue'),
+  'settings-toolchains': () => import('./components/ToolchainsSettings.vue'),
   'settings-deepchat-agents': () => import('./components/DeepChatAgentsSettings.vue'),
   'settings-acp': () => import('./components/AcpSettings.vue'),
   'settings-remote': () => import('./components/RemoteSettings.vue'),

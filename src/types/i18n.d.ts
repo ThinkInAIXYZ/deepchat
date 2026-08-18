@@ -2037,6 +2037,7 @@ declare module 'vue-i18n' {
     settings: string
     'settings-common': string
     'settings-ocr': string
+    'settings-toolchains': string
     'settings-provider': string
     'settings-mcp': string
     'settings-deepchat-agents': string
@@ -2152,6 +2153,48 @@ declare module 'vue-i18n' {
       defaultModel: {
         title: string
         chatModel: string
+      }
+    }
+    toolchains: {
+      description: string
+      nodeTitle: string
+      uvTitle: string
+      source: string
+      sources: {
+        bundled: string
+        managed: string
+        system: string
+        custom: string
+        unconfigured: string
+      }
+      systemDetected: string
+      systemDetectedHint: string
+      install: string
+      repair: string
+      revert: string
+      cancelInstall: string
+      installing: string
+      version: string
+      path: string
+      bannerTitle: string
+      bannerDescription: string
+      bannerAction: string
+      availability: {
+        ready: string
+        missing: string
+        incomplete: string
+        unconfigured: string
+      }
+      downloadReasons: {
+        dns: string
+        timeout: string
+        http: string
+        proxy: string
+        checksum_mismatch: string
+        disk: string
+        cancelled: string
+        activation_failed: string
+        unsupported_platform: string
       }
     }
     ocr: {

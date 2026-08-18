@@ -25,5 +25,6 @@
   "settings-overview": "نمای کلی تنظیمات",
   "settings-memory": "حافظه",
   "plugins": "Plugins",
-  "settings-debug": "Debug"
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

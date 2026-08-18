@@ -3233,5 +3233,47 @@
       "description": "Crea simulazioni di onboarding, conversazioni e aggiornamenti riservate allo sviluppo.",
       "failed": "Impossibile avviare il flusso guidato di debug."
     }
+  },
+  "toolchains": {
+    "description": "Choose where DeepChat gets Node and uv. The source never switches by itself.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Source",
+    "sources": {
+      "bundled": "Bundled with the app",
+      "managed": "Installed by DeepChat",
+      "system": "System installation",
+      "custom": "Custom path",
+      "unconfigured": "Not configured"
+    },
+    "systemDetected": "System binary found: {path}",
+    "systemDetectedHint": "Use this if you already have a working install. It does not download anything.",
+    "install": "Install official runtime",
+    "repair": "Repair",
+    "revert": "Revert",
+    "cancelInstall": "Cancel",
+    "installing": "Installing…",
+    "version": "Version",
+    "path": "Path",
+    "bannerTitle": "A required runtime is missing",
+    "bannerDescription": "Node or uv is unavailable for MCP, ACP, Skills, or OCR.",
+    "bannerAction": "Open Toolchains",
+    "availability": {
+      "ready": "Ready",
+      "missing": "Missing",
+      "incomplete": "Incomplete",
+      "unconfigured": "Not configured"
+    },
+    "downloadReasons": {
+      "dns": "The download host could not be resolved.",
+      "timeout": "The download timed out.",
+      "http": "The download server returned an error.",
+      "proxy": "The download failed through the configured proxy.",
+      "checksum_mismatch": "The downloaded file failed integrity verification.",
+      "disk": "The runtime could not be written to disk.",
+      "cancelled": "The download was cancelled.",
+      "activation_failed": "The runtime could not be activated.",
+      "unsupported_platform": "This platform does not have an official runtime build."
+    }
   }
 }

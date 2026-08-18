@@ -3233,5 +3233,47 @@
       "description": "创建仅供开发环境使用的引导、会话和更新模拟。",
       "failed": "无法启动调试引导。"
     }
+  },
+  "toolchains": {
+    "description": "选择 DeepChat 使用的 Node 和 uv。来源选定后不会再偷偷切换。",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "来源",
+    "sources": {
+      "bundled": "应用内置",
+      "managed": "由 DeepChat 安装",
+      "system": "系统已有安装",
+      "custom": "自定义路径",
+      "unconfigured": "未配置"
+    },
+    "systemDetected": "检测到系统二进制：{path}",
+    "systemDetectedHint": "已有可用安装时优先用它，不用再下载一份。",
+    "install": "安装官方运行时",
+    "repair": "修复",
+    "revert": "还原",
+    "cancelInstall": "取消",
+    "installing": "正在安装…",
+    "version": "版本",
+    "path": "路径",
+    "bannerTitle": "缺少所需运行时",
+    "bannerDescription": "MCP、ACP、Skills 或 OCR 现在没有可用的 Node 或 uv。",
+    "bannerAction": "打开工具链",
+    "availability": {
+      "ready": "可用",
+      "missing": "缺失",
+      "incomplete": "不完整",
+      "unconfigured": "未配置"
+    },
+    "downloadReasons": {
+      "dns": "无法解析下载地址。",
+      "timeout": "下载超时。",
+      "http": "下载服务器返回了错误。",
+      "proxy": "经代理下载失败。",
+      "checksum_mismatch": "下载文件未通过完整性校验。",
+      "disk": "无法把运行时写到磁盘。",
+      "cancelled": "下载已取消。",
+      "activation_failed": "无法激活该运行时。",
+      "unsupported_platform": "当前平台没有官方运行时构建。"
+    }
   }
 }

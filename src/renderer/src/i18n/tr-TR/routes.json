@@ -25,5 +25,6 @@
   "settings-scheduled-tasks": "Zamanlanmış görevler",
   "settings-memory": "Bellek",
   "plugins": "Plugins",
-  "settings-debug": "Debug"
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

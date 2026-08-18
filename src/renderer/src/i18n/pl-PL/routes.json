@@ -25,5 +25,6 @@
   "settings-scheduled-tasks": "Zaplanowane zadania",
   "settings-memory": "Pamięć",
   "plugins": "Plugins",
-  "settings-debug": "Debug"
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

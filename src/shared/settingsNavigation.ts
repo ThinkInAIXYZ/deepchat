@@ -8,6 +8,7 @@ export interface SettingsNavigationItem {
     | 'settings-dashboard'
     | 'settings-mcp'
     | 'settings-ocr'
+    | 'settings-toolchains'
     | 'settings-deepchat-agents'
     | 'settings-acp'
     | 'settings-remote'
@@ -180,6 +181,15 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     groupKey: 'tools',
     keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理'],
     hiddenInSidebar: true
+  },
+  {
+    routeName: 'settings-toolchains',
+    path: '/toolchains',
+    titleKey: 'routes.settings-toolchains',
+    icon: 'lucide:hammer',
+    position: 5.15,
+    groupKey: 'tools',
+    keywords: ['toolchain', 'node', 'uv', 'runtime', 'npx', 'uvx', '运行时', '工具链']
   },
   {
     routeName: 'settings-remote',

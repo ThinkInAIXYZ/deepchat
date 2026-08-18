@@ -31,6 +31,7 @@ import { ensureIconsLoaded } from '@/lib/iconLoader'
 import { useFontManager } from '@/composables/useFontManager'
 import { applyDocumentAppearance } from '@/foundation/appearance/documentAppearance'
 import AppBar from '@/components/AppBar.vue'
+import ToolchainMissingBanner from '@/components/toolchains/ToolchainMissingBanner.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from '@/components/WindowSideBar.vue'
 import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
@@ -538,6 +539,7 @@ onBeforeUnmount(() => {
             data-testid="app-main"
             class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
           >
+            <ToolchainMissingBanner />
             <div class="min-h-0 flex-1">
               <RouterView v-if="isStartupRouteReady" />
             </div>

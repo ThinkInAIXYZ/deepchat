@@ -25,5 +25,6 @@
   "settings-plugins": "插件",
   "settings-overview": "设置概览",
   "settings-memory": "记忆",
-  "settings-debug": "调试"
+  "settings-debug": "调试",
+  "settings-toolchains": "工具链"
 }

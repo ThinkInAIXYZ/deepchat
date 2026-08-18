@@ -25,5 +25,6 @@
   "settings-overview": "設定の概要",
   "settings-memory": "メモリ",
   "plugins": "Plugins",
-  "settings-debug": "デバッグ"
+  "settings-debug": "デバッグ",
+  "settings-toolchains": "Toolchains"
 }

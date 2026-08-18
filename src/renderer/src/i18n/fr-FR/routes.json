@@ -25,5 +25,6 @@
   "settings-overview": "Aperçu des paramètres",
   "settings-memory": "Mémoire",
   "plugins": "Plugins",
-  "settings-debug": "Debug"
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }
