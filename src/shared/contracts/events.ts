@@ -99,6 +99,7 @@ import {
   settingsProviderInstallRequestedEvent
 } from './events/settings.events'
 import { startupWorkloadChangedEvent } from './events/startup.events'
+import { toolchainsMissingEvent, toolchainsProgressEvent } from './events/toolchains.events'
 import {
   sessionsAcpCommandsReadyEvent,
   sessionsAcpConfigOptionsReadyEvent,
@@ -171,6 +172,7 @@ export * from './events/sessions.events'
 export * from './events/skills.events'
 export * from './events/skillSync.events'
 export * from './events/sync.events'
+export * from './events/toolchains.events'
 export * from './events/upgrade.events'
 export * from './events/window.events'
 export * from './events/workspace.events'
@@ -288,7 +290,9 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [upgradeProgressEvent.name]: upgradeProgressEvent,
   [upgradeWillRestartEvent.name]: upgradeWillRestartEvent,
   [upgradeErrorEvent.name]: upgradeErrorEvent,
-  [dialogRequestedEvent.name]: dialogRequestedEvent
+  [dialogRequestedEvent.name]: dialogRequestedEvent,
+  [toolchainsProgressEvent.name]: toolchainsProgressEvent,
+  [toolchainsMissingEvent.name]: toolchainsMissingEvent
 } satisfies Record<string, EventContract>
 
 export type DeepchatEventCatalog = typeof DEEPCHAT_EVENT_CATALOG

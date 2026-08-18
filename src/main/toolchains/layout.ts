@@ -25,6 +25,14 @@ export function stateFilePath(userDataDir: string): string {
   return path.join(managedRootDir(userDataDir), STATE_FILENAME)
 }
 
+export function downloadStagingDir(
+  userDataDir: string,
+  kind: ToolchainKind,
+  version: string
+): string {
+  return path.join(managedRootDir(userDataDir), 'download', `${kind}-${version}`)
+}
+
 export function nodeLayout(
   rootDir: string,
   platform: NodeJS.Platform

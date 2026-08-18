@@ -62,6 +62,7 @@ import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
+import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { OcrSettings } from '@/ocr/ocrSettings'
@@ -1212,7 +1213,11 @@ export async function createMainProcessControl(dependencies: {
   runtimeHelper.initializeRuntimes()
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
-    userDataDir: app.getPath('userData')
+    userDataDir: app.getPath('userData'),
+    onProgress: (progress) =>
+      publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
+    onMissing: (missing) =>
+      publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() })
   })
   ocrRuntimeService = new OcrRuntimeService({
     appPath: app.getAppPath(),
@@ -2766,6 +2771,10 @@ export async function createMainProcessControl(dependencies: {
     })
     const fileRoutes = createFileRoutes(fileService)
     const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
+    const toolchainRoutes = createToolchainRoutes({
+      service: toolchainService,
+      pickPath: () => deviceService.selectFiles({ multiple: false })
+    })
     const knowledgeRoutes = createKnowledgeRoutes({
       service: knowledgeService,
       settings: knowledgeSettings,
@@ -2997,6 +3006,7 @@ export async function createMainProcessControl(dependencies: {
         desktopRoutes,
         fileRoutes,
         ocrRoutes,
+        toolchainRoutes,
         knowledgeRoutes,
         workspaceRoutes,
         orchestrationRoutes,

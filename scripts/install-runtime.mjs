@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, readFileSync } from 'node:fs'
+import { createReadStream, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import crossSpawn from 'cross-spawn'
@@ -189,6 +189,33 @@ export async function verifyInstalledRuntime(step, spawn = crossSpawn.sync) {
     throw new Error(
       `node runtime executable checksum mismatch: ${actualHash} != ${step.expectedExecutableSha256}`
     )
+  }
+
+  const nodeRoot =
+    step.platform === 'win32'
+      ? path.dirname(step.executablePath)
+      : path.dirname(path.dirname(step.executablePath))
+  const companions =
+    step.platform === 'win32'
+      ? [
+          path.join(nodeRoot, 'npm.cmd'),
+          path.join(nodeRoot, 'npx.cmd'),
+          path.join(nodeRoot, 'corepack.cmd')
+        ]
+      : [
+          path.join(nodeRoot, 'bin', 'npm'),
+          path.join(nodeRoot, 'bin', 'npx'),
+          path.join(nodeRoot, 'bin', 'corepack')
+        ]
+  for (const companion of companions) {
+    try {
+      if (!statSync(companion).isFile()) {
+        throw new Error(`node runtime is missing ${path.basename(companion)}`)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('node runtime is missing')) throw error
+      throw new Error(`node runtime is missing ${path.basename(companion)}`, { cause: error })
+    }
   }
 
   if (step.platform !== process.platform || step.arch !== process.arch) return

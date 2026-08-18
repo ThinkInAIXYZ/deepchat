@@ -569,6 +569,15 @@ import {
   syncPullFromCloudRoute
 } from './routes/sync.routes'
 import { systemOpenSettingsRoute } from './routes/system.routes'
+import {
+  toolchainsCancelInstallRoute,
+  toolchainsGetStatusRoute,
+  toolchainsInstallRoute,
+  toolchainsPickCustomRoute,
+  toolchainsRepairRoute,
+  toolchainsRevertRoute,
+  toolchainsSetSourceRoute
+} from './routes/toolchains.routes'
 import { toolsListDefinitionsRoute } from './routes/tools.routes'
 import { tabCaptureCurrentAreaRoute, tabStitchImagesWithWatermarkRoute } from './routes/tab.routes'
 import {
@@ -658,6 +667,7 @@ export * from './routes/skills.routes'
 export * from './routes/skillSync.routes'
 export * from './routes/sync.routes'
 export * from './routes/system.routes'
+export * from './routes/toolchains.routes'
 export * from './routes/tab.routes'
 export * from './routes/tools.routes'
 export * from './routes/upgrade.routes'
@@ -1233,7 +1243,14 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [orchestrationSetPolicyRoute.name]: orchestrationSetPolicyRoute,
   [orchestrationListLiveDelegationsRoute.name]: orchestrationListLiveDelegationsRoute,
   [orchestrationInspectLiveDelegationRoute.name]: orchestrationInspectLiveDelegationRoute,
-  [orchestrationInterruptLiveDelegationRoute.name]: orchestrationInterruptLiveDelegationRoute
+  [orchestrationInterruptLiveDelegationRoute.name]: orchestrationInterruptLiveDelegationRoute,
+  [toolchainsGetStatusRoute.name]: toolchainsGetStatusRoute,
+  [toolchainsSetSourceRoute.name]: toolchainsSetSourceRoute,
+  [toolchainsInstallRoute.name]: toolchainsInstallRoute,
+  [toolchainsCancelInstallRoute.name]: toolchainsCancelInstallRoute,
+  [toolchainsRepairRoute.name]: toolchainsRepairRoute,
+  [toolchainsRevertRoute.name]: toolchainsRevertRoute,
+  [toolchainsPickCustomRoute.name]: toolchainsPickCustomRoute
 } satisfies Record<string, RouteContract>
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG_PART_1 &

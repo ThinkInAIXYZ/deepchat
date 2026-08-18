@@ -1,19 +1,44 @@
 import { spawnSync } from 'node:child_process'
+import { rmSync } from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
 import type {
   ResolvedNodeToolchain,
   ResolvedToolchain,
   ResolvedUvToolchain,
+  ToolchainInstallProgress,
   ToolchainKind,
+  ToolchainKindStatus,
+  ToolchainMissingNotice,
   ToolchainPurpose,
+  ToolchainResolveReason,
   ToolchainSelection,
   ToolchainSource,
-  ToolchainState
+  ToolchainState,
+  ToolchainStatusSnapshot
 } from '@shared/types/toolchains'
-import { isNodeVersionInCompatRange, NODE_MODULE_VERSION, NODE_PIN } from './catalog'
-import { ToolchainResolutionError } from './errors'
-import { bundledKindRoot, managedKindRoot } from './layout'
+import {
+  catalogVersionFor,
+  isNodeVersionInCompatRange,
+  NODE_MODULE_VERSION,
+  NODE_PIN,
+  resolveToolchainArtifact
+} from './catalog'
+import { downloadVerifiedFile, selectDownloadUrl, type FetchLike } from './downloader'
+import {
+  classifyDownloadError,
+  isToolchainDownloadError,
+  isToolchainResolutionError,
+  ToolchainDownloadError,
+  ToolchainResolutionError
+} from './errors'
+import {
+  extractArchive,
+  replaceDirectory,
+  takeExtractedRoot,
+  type ArchiveExtractor
+} from './extract'
+import { bundledKindRoot, downloadStagingDir, managedKindRoot } from './layout'
 import {
   probeCustomNode,
   probeCustomUv,
@@ -38,8 +63,14 @@ export type ToolchainServiceOptions = {
   userDataDir: string
   appPath: string
   platform?: NodeJS.Platform
+  arch?: string
   env?: NodeJS.ProcessEnv
   inspectNode?: (executable: string) => NodeInspection | null
+  fetch?: FetchLike
+  extractArchive?: ArchiveExtractor
+  mirrorUrl?: string
+  onProgress?: (progress: ToolchainInstallProgress) => void
+  onMissing?: (missing: ToolchainMissingNotice[]) => void
 }
 
 export type ResolveOptions = {
@@ -47,23 +78,33 @@ export type ResolveOptions = {
   sourceOverride?: ToolchainSelection
 }
 
-const NODE_COMMANDS = new Set(['node', 'npm', 'npx'])
+const NODE_COMMANDS = new Set(['node', 'npm', 'npx', 'corepack'])
 const UV_COMMANDS = new Set(['uv', 'uvx'])
 
 export class ToolchainService {
   private static instance: ToolchainService | null = null
 
   private readonly platform: NodeJS.Platform
+  private readonly arch: string
   private readonly env: NodeJS.ProcessEnv
   private readonly inspectNode: (executable: string) => NodeInspection | null
+  private readonly fetchImpl: FetchLike
+  private readonly extract: ArchiveExtractor
   private state: ToolchainState | null = null
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
   private readonly inspectionCache = new Map<string, NodeInspection>()
+  private readonly missing = new Map<ToolchainKind, ToolchainResolveReason>()
+  private readonly progress = new Map<ToolchainKind, ToolchainInstallProgress>()
+  private readonly inflight = new Map<ToolchainKind, Promise<void>>()
+  private readonly controllers = new Map<ToolchainKind, AbortController>()
 
   constructor(private readonly options: ToolchainServiceOptions) {
     this.platform = options.platform ?? process.platform
+    this.arch = options.arch ?? process.arch
     this.env = options.env ?? process.env
     this.inspectNode = options.inspectNode ?? ((executable) => inspectNodeExecutable(executable))
+    this.fetchImpl = options.fetch ?? fetch
+    this.extract = options.extractArchive ?? extractArchive
   }
 
   static initialize(options: ToolchainServiceOptions): ToolchainService {
@@ -104,7 +145,42 @@ export class ToolchainService {
       uv: { ...current.uv },
       [kind]: { ...selection }
     })
+    this.missing.delete(kind)
+    this.emitMissing()
     return this.getState()
+  }
+
+  getStatus(): ToolchainStatusSnapshot {
+    return {
+      node: this.inspectKind('node'),
+      uv: this.inspectKind('uv'),
+      missing: [...this.missing.entries()].map(([kind, reason]) => ({ kind, reason }))
+    }
+  }
+
+  async install(kind: ToolchainKind): Promise<ToolchainState> {
+    await this.runExclusive(kind, () => this.installManaged(kind))
+    return this.getState()
+  }
+
+  async repair(kind: ToolchainKind): Promise<ToolchainState> {
+    await this.runExclusive(kind, () => this.installManaged(kind))
+    return this.getState()
+  }
+
+  revert(kind: ToolchainKind): ToolchainState {
+    const bundled =
+      kind === 'node'
+        ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
+        : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
+    if (bundled.status === 'complete') {
+      return this.setSource(kind, { source: 'bundled' })
+    }
+    return this.setSource(kind, { source: 'unconfigured' })
+  }
+
+  cancelInstall(kind: ToolchainKind): void {
+    this.controllers.get(kind)?.abort()
   }
 
   resolve(kind: 'node', options?: ResolveOptions): ResolvedNodeToolchain
@@ -117,18 +193,30 @@ export class ToolchainService {
     if (cached) return cached as ResolvedToolchain
 
     if (selection.source === 'unconfigured') {
-      throw new ToolchainResolutionError(
+      const error = new ToolchainResolutionError(
         kind,
         'unconfigured',
         `${kind} toolchain is not configured`
       )
+      this.missing.set(kind, error.reason)
+      this.emitMissing()
+      throw error
     }
 
-    const resolved =
-      kind === 'node' ? this.resolveNode(selection, options.purpose) : this.resolveUv(selection)
-    Object.freeze(resolved)
-    this.resolvedCache.set(cacheKey, resolved)
-    return resolved
+    try {
+      const resolved =
+        kind === 'node' ? this.resolveNode(selection, options.purpose) : this.resolveUv(selection)
+      Object.freeze(resolved)
+      this.resolvedCache.set(cacheKey, resolved)
+      if (this.missing.delete(kind)) this.emitMissing()
+      return resolved
+    } catch (error) {
+      if (isToolchainResolutionError(error)) {
+        this.missing.set(kind, error.reason)
+        this.emitMissing()
+      }
+      throw error
+    }
   }
 
   rewriteCommand(command: string, args: string[]): { command: string; args: string[] } {
@@ -288,6 +376,7 @@ export class ToolchainService {
       const resolved = this.resolve('node')
       if (command === 'npm') return resolved.npm
       if (command === 'npx') return resolved.npx
+      if (command === 'corepack') return resolved.corepack ?? token
       return resolved.node
     }
     if (UV_COMMANDS.has(command)) {
@@ -339,6 +428,189 @@ export class ToolchainService {
     saveToolchainState(this.options.userDataDir, state)
     this.state = state
     this.resolvedCache.clear()
+  }
+
+  private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {
+    const existing = this.inflight.get(kind)
+    if (existing) {
+      await existing
+      return
+    }
+    const task = operation()
+    this.inflight.set(kind, task)
+    try {
+      await task
+    } finally {
+      this.inflight.delete(kind)
+      this.controllers.delete(kind)
+    }
+  }
+
+  private async installManaged(kind: ToolchainKind): Promise<void> {
+    let artifact
+    try {
+      artifact = resolveToolchainArtifact(kind, this.platform, this.arch)
+    } catch {
+      this.setProgress(kind, 'idle', { error: 'unsupported_platform' })
+      throw new ToolchainDownloadError(
+        'unsupported_platform',
+        `${kind} has no official artifact for ${this.platform}-${this.arch}`
+      )
+    }
+
+    const controller = new AbortController()
+    this.controllers.set(kind, controller)
+    const stagingDir = downloadStagingDir(this.options.userDataDir, kind, artifact.version)
+    const archivePath = path.join(stagingDir, artifact.filename)
+    const extractDir = path.join(stagingDir, 'extract')
+    const managedDir = managedKindRoot(this.options.userDataDir, kind, artifact.version)
+
+    try {
+      this.setProgress(kind, 'probing')
+      const url = await selectDownloadUrl(artifact.officialUrl, this.fetchImpl, {
+        mirrorUrl: this.options.mirrorUrl,
+        signal: controller.signal,
+        allowProbe: true
+      })
+
+      this.setProgress(kind, 'downloading')
+      await downloadVerifiedFile({
+        url,
+        destPath: archivePath,
+        sha256: artifact.sha256,
+        fetch: this.fetchImpl,
+        signal: controller.signal,
+        onProgress: (progress) =>
+          this.setProgress(kind, 'downloading', {
+            receivedBytes: progress.receivedBytes,
+            totalBytes: progress.totalBytes
+          })
+      })
+
+      this.setProgress(kind, 'verifying')
+      rmSync(extractDir, { recursive: true, force: true })
+      this.setProgress(kind, 'extracting')
+      await this.extract(archivePath, extractDir)
+
+      const payloadRoot = takeExtractedRoot(extractDir, this.platform)
+      const complete =
+        kind === 'node'
+          ? probeNodeRoot(payloadRoot, this.platform, true)
+          : probeUvRoot(payloadRoot, this.platform)
+      if (complete.status !== 'complete') {
+        throw new ToolchainDownloadError(
+          'activation_failed',
+          `${kind} archive is missing required binaries`
+        )
+      }
+
+      this.setProgress(kind, 'activating')
+      replaceDirectory(payloadRoot, managedDir)
+      this.setSource(kind, { source: 'managed', version: artifact.version })
+      rmSync(stagingDir, { recursive: true, force: true })
+      this.setProgress(kind, 'idle')
+    } catch (error) {
+      const classified = isToolchainDownloadError(error) ? error : classifyDownloadError(error)
+      this.setProgress(kind, 'idle', { error: classified.reason })
+      throw classified
+    }
+  }
+
+  private inspectKind(kind: ToolchainKind): ToolchainKindStatus {
+    const selection = this.ensureState()[kind]
+    const bundled =
+      kind === 'node'
+        ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
+        : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
+    const managedVersion =
+      selection.source === 'managed' ? selection.version : catalogVersionFor(kind)
+    const managed =
+      kind === 'node'
+        ? probeNodeRoot(
+            managedKindRoot(this.options.userDataDir, 'node', managedVersion ?? ''),
+            this.platform,
+            true
+          )
+        : probeUvRoot(
+            managedKindRoot(this.options.userDataDir, 'uv', managedVersion ?? ''),
+            this.platform
+          )
+    const system = this.detectSystem(kind)
+    let availability: ToolchainKindStatus['availability'] = 'unconfigured'
+    let reason: ToolchainResolveReason | null = null
+    let resolvedVersion: string | null = null
+    let resolvedPath: string | null = null
+
+    if (selection.source !== 'unconfigured') {
+      const probed =
+        kind === 'node' ? this.probeNodeSelection(selection) : this.probeUvSelection(selection)
+      if (probed.status === 'complete') {
+        availability = 'ready'
+        if (kind === 'node') {
+          const resolved = {
+            ...probed.toolchain,
+            source: selection.source
+          } as ResolvedNodeToolchain
+          this.fillNodeIdentity(resolved, selection)
+          resolvedVersion = resolved.version
+          resolvedPath = resolved.node
+        } else {
+          resolvedVersion = selection.version ?? null
+          resolvedPath = probed.toolchain.uv
+        }
+      } else {
+        availability = probed.status
+        reason = probed.status
+      }
+    }
+
+    return {
+      kind,
+      selection,
+      availability,
+      reason,
+      resolvedVersion,
+      resolvedPath,
+      bundledAvailable: bundled.status === 'complete',
+      managedAvailable: managed.status === 'complete',
+      system: system
+        ? {
+            path: system.kind === 'node' ? system.node : system.uv,
+            version: system.kind === 'node' ? this.peekNodeVersion(system) : system.version
+          }
+        : null,
+      install: this.progress.get(kind) ?? null
+    }
+  }
+
+  private setProgress(
+    kind: ToolchainKind,
+    phase: ToolchainInstallProgress['phase'],
+    extras?: Partial<Pick<ToolchainInstallProgress, 'receivedBytes' | 'totalBytes' | 'error'>>
+  ): void {
+    const current = this.progress.get(kind)
+    const next: ToolchainInstallProgress = {
+      kind,
+      phase,
+      receivedBytes:
+        extras?.receivedBytes ?? (phase === 'downloading' ? (current?.receivedBytes ?? 0) : 0),
+      totalBytes:
+        extras?.totalBytes ?? (phase === 'downloading' ? (current?.totalBytes ?? null) : null),
+      error: extras?.error ?? null
+    }
+    this.progress.set(kind, next)
+    this.options.onProgress?.(next)
+  }
+
+  private peekNodeVersion(resolved: ResolvedNodeToolchain): string | null {
+    this.fillNodeIdentity(resolved, { source: resolved.source })
+    return resolved.version
+  }
+
+  private emitMissing(): void {
+    this.options.onMissing?.(
+      [...this.missing.entries()].map(([kind, reason]) => ({ kind, reason }))
+    )
   }
 
   private assertSelection(kind: ToolchainKind, selection: ToolchainSelection): void {

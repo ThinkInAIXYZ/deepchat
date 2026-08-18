@@ -54,3 +54,63 @@ export interface ResolvedUvToolchain {
 }
 
 export type ResolvedToolchain = ResolvedNodeToolchain | ResolvedUvToolchain
+
+export const TOOLCHAIN_DOWNLOAD_REASONS = [
+  'dns',
+  'timeout',
+  'http',
+  'proxy',
+  'checksum_mismatch',
+  'disk',
+  'cancelled',
+  'activation_failed',
+  'unsupported_platform'
+] as const
+export type ToolchainDownloadReason = (typeof TOOLCHAIN_DOWNLOAD_REASONS)[number]
+
+export const TOOLCHAIN_INSTALL_PHASES = [
+  'idle',
+  'probing',
+  'downloading',
+  'verifying',
+  'extracting',
+  'activating'
+] as const
+export type ToolchainInstallPhase = (typeof TOOLCHAIN_INSTALL_PHASES)[number]
+
+export interface ToolchainInstallProgress {
+  kind: ToolchainKind
+  phase: ToolchainInstallPhase
+  receivedBytes: number
+  totalBytes: number | null
+  error: ToolchainDownloadReason | null
+}
+
+export interface ToolchainSystemPresence {
+  path: string
+  version: string | null
+}
+
+export interface ToolchainKindStatus {
+  kind: ToolchainKind
+  selection: ToolchainSelection
+  availability: 'ready' | 'missing' | 'incomplete' | 'unconfigured'
+  reason: ToolchainResolveReason | null
+  resolvedVersion: string | null
+  resolvedPath: string | null
+  bundledAvailable: boolean
+  managedAvailable: boolean
+  system: ToolchainSystemPresence | null
+  install: ToolchainInstallProgress | null
+}
+
+export interface ToolchainMissingNotice {
+  kind: ToolchainKind
+  reason: ToolchainResolveReason
+}
+
+export interface ToolchainStatusSnapshot {
+  node: ToolchainKindStatus
+  uv: ToolchainKindStatus
+  missing: ToolchainMissingNotice[]
+}
