@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Tìm nhà cung cấp...",
       "noResults": "Không có nhà cung cấp phù hợp",
       "configured": "Đã cấu hình"
+    },
+    "addFlow": {
+      "connect": "Kết nối và tải mô hình",
+      "validating": "Đang xác minh kết nối...",
+      "loadingModels": "Đang tải mô hình...",
+      "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại."
     }
   },
   "knowledgeBase": {

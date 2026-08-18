@@ -1230,6 +1230,12 @@
       "searchPlaceholder": "חיפוש ספקים...",
       "noResults": "אין ספקים תואמים",
       "configured": "מוגדר"
+    },
+    "addFlow": {
+      "connect": "התחברות וטעינת מודלים",
+      "validating": "מאמת את החיבור...",
+      "loadingModels": "טוען מודלים...",
+      "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב."
     }
   },
   "knowledgeBase": {

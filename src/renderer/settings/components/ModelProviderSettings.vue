@@ -201,7 +201,7 @@
             data-testid="provider-add-button"
             variant="outline"
             class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg hover:bg-accent"
-            @click="openAddProviderDialog"
+            @click="openAddProviderFlow"
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
@@ -210,7 +210,19 @@
       </div>
     </ScrollArea>
     <div ref="providerDetailRef" class="flex min-w-0 flex-1">
-      <ProviderCatalog v-if="showCatalog" class="flex-1" @select="handleCatalogSelect" />
+      <AddProviderFlow
+        v-if="showAddFlow"
+        :key="addFlowKey"
+        class="flex-1"
+        @cancel="openCatalog"
+        @created="handleProviderAdded"
+      />
+      <ProviderCatalog
+        v-else-if="showCatalog"
+        class="flex-1"
+        @select="handleCatalogSelect"
+        @add-custom="openAddProviderFlow"
+      />
       <template v-else-if="activeProvider">
         <OllamaProviderSettingsDetail
           v-if="activeProvider.apiType === 'ollama'"
@@ -239,10 +251,6 @@
         />
       </template>
     </div>
-    <AddCustomProviderDialog
-      v-model:open="isAddProviderDialogOpen"
-      @provider-added="handleProviderAdded"
-    />
     <DcConfirmDialog
       :open="Boolean(providerPendingDelete)"
       :title="t('settings.provider.dialog.deleteProvider.title')"
@@ -334,7 +342,7 @@ import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
 import ProviderCatalog from './ProviderCatalog.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
-import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
+import AddProviderFlow from './AddProviderFlow.vue'
 import { useI18n } from 'vue-i18n'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/types/provider'
 import { Input } from '@shadcn/components/ui/input'
@@ -407,7 +415,7 @@ const startupWorkloadStore = (() => {
     return null
   }
 })()
-const isAddProviderDialogOpen = ref(false)
+const addFlowCounter = ref(0)
 const providerPendingDelete = ref<LLM_PROVIDER | null>(null)
 
 const continueProviderGuide = async (
@@ -872,8 +880,17 @@ const showCatalog = computed(() => {
   return !activeProvider.value && configuredList.value.length === 0
 })
 
-const openAddProviderDialog = () => {
-  isAddProviderDialogOpen.value = true
+const showAddFlow = computed(() => route.query.view === 'add-custom')
+// A fresh key per entry gives every add attempt its own draft id.
+const addFlowKey = computed(() => `add-provider-${addFlowCounter.value}`)
+
+const openAddProviderFlow = () => {
+  addFlowCounter.value += 1
+  return router.push({
+    name: 'settings-provider',
+    params: route.params,
+    query: { view: 'add-custom' }
+  })
 }
 
 const handleProviderAdded = (provider: LLM_PROVIDER) => {

@@ -236,6 +236,8 @@ const validateApiKey = async () => {
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
       await modelStore.refreshProviderModels(props.provider.id)
+      // 首次配置成功且用户尚未勾选任何模型时，应用确定性的初始推荐
+      await modelStore.applyInitialModelRecommendations(props.provider.id)
       return true
     } else {
       console.log('验证失败', resp.errorMsg)

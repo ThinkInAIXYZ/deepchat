@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Search providers...",
       "noResults": "No matching providers",
       "configured": "Configured"
+    },
+    "addFlow": {
+      "connect": "Connect and load models",
+      "validating": "Verifying connection...",
+      "loadingModels": "Loading models...",
+      "failed": "Connection failed. Check the configuration and try again."
     }
   },
   "knowledgeBase": {

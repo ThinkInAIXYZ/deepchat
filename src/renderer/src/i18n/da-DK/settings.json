@@ -1163,6 +1163,12 @@
       "searchPlaceholder": "Søg efter udbydere...",
       "noResults": "Ingen matchende udbydere",
       "configured": "Konfigureret"
+    },
+    "addFlow": {
+      "connect": "Forbind og indlæs modeller",
+      "validating": "Verificerer forbindelsen...",
+      "loadingModels": "Indlæser modeller...",
+      "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen."
     }
   },
   "knowledgeBase": {

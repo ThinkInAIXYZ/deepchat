@@ -30,6 +30,24 @@
           />
         </div>
 
+        <button
+          data-testid="catalog-add-custom"
+          type="button"
+          class="flex items-center gap-3 rounded-lg border border-dashed border-border p-3 text-start transition-colors hover:bg-accent"
+          @click="$emit('add-custom')"
+        >
+          <Icon icon="lucide:plus" class="h-5 w-5 shrink-0 text-muted-foreground" />
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium">
+              {{ t('settings.provider.addCustomProvider') }}
+            </div>
+            <div class="truncate text-xs text-muted-foreground">
+              {{ t('settings.provider.dialog.addCustomProvider.description') }}
+            </div>
+          </div>
+          <Icon icon="lucide:chevron-right" class="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+
         <div v-if="filteredProviders.length === 0" class="py-10 text-center">
           <p class="text-sm text-muted-foreground">
             {{ t('settings.provider.catalog.noResults') }}
@@ -85,6 +103,7 @@ import { useThemeStore } from '@/stores/theme'
 
 defineEmits<{
   select: [providerId: string]
+  'add-custom': []
 }>()
 
 const { t } = useI18n()

@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "搜索服务商...",
       "noResults": "没有匹配的服务商",
       "configured": "已配置"
+    },
+    "addFlow": {
+      "connect": "连接并加载模型",
+      "validating": "正在验证连接...",
+      "loadingModels": "正在加载模型...",
+      "failed": "连接失败，请检查配置后重试。"
     }
   },
   "knowledgeBase": {

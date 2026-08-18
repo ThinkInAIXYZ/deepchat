@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Cerca provider...",
       "noResults": "Nessun provider corrispondente",
       "configured": "Configurato"
+    },
+    "addFlow": {
+      "connect": "Connetti e carica i modelli",
+      "validating": "Verifica della connessione...",
+      "loadingModels": "Caricamento dei modelli...",
+      "failed": "Connessione non riuscita. Controlla la configurazione e riprova."
     }
   },
   "knowledgeBase": {

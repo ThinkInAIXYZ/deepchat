@@ -1230,6 +1230,12 @@
       "searchPlaceholder": "搜尋服務商...",
       "noResults": "沒有符合的服務商",
       "configured": "已設定"
+    },
+    "addFlow": {
+      "connect": "連線並載入模型",
+      "validating": "正在驗證連線...",
+      "loadingModels": "正在載入模型...",
+      "failed": "連線失敗，請檢查設定後重試。"
     }
   },
   "knowledgeBase": {

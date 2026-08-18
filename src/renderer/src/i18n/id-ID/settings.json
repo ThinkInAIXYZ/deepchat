@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Cari penyedia...",
       "noResults": "Tidak ada penyedia yang cocok",
       "configured": "Terkonfigurasi"
+    },
+    "addFlow": {
+      "connect": "Hubungkan dan muat model",
+      "validating": "Memverifikasi koneksi...",
+      "loadingModels": "Memuat model...",
+      "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi."
     }
   },
   "knowledgeBase": {

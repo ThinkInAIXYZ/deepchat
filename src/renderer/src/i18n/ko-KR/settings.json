@@ -1230,6 +1230,12 @@
       "searchPlaceholder": "제공업체 검색...",
       "noResults": "일치하는 제공업체가 없습니다",
       "configured": "구성됨"
+    },
+    "addFlow": {
+      "connect": "연결하고 모델 불러오기",
+      "validating": "연결 확인 중...",
+      "loadingModels": "모델 불러오는 중...",
+      "failed": "연결에 실패했습니다. 구성을 확인하고 다시 시도하세요."
     }
   },
   "knowledgeBase": {

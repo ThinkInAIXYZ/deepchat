@@ -39,6 +39,7 @@ import {
   oauthXaiGrokLogoutRoute,
   oauthXaiGrokStartDeviceLoginRoute,
   providersAddRoute,
+  providersValidateDraftRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetEmbeddingDimensionsRoute,
   providersGetKeyStatusRoute,
@@ -293,6 +294,22 @@ export function createProviderRoutes(deps: {
           summaryParams: { name: input.provider.name }
         })
         return result
+      }
+    ],
+    [
+      providersValidateDraftRoute.name,
+      async (rawInput) => {
+        const input = providersValidateDraftRoute.input.parse(rawInput)
+        const result = await providerRuntime.validateDraft(input.provider)
+        return providersValidateDraftRoute.output.parse({
+          isOk: result.isOk,
+          errorMsg: result.errorMsg,
+          models: result.models.map((model) => ({
+            id: model.id,
+            name: model.name,
+            ...(model.type ? { type: model.type } : {})
+          }))
+        })
       }
     ],
     [

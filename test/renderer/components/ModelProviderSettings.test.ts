@@ -296,10 +296,11 @@ const setup = async (options?: {
       }
     })
   }))
-  vi.doMock('../../../src/renderer/settings/components/AddCustomProviderDialog.vue', () => ({
+  vi.doMock('../../../src/renderer/settings/components/AddProviderFlow.vue', () => ({
     default: defineComponent({
-      name: 'AddCustomProviderDialog',
-      template: '<div />'
+      name: 'AddProviderFlow',
+      emits: ['cancel', 'created'],
+      template: '<div data-testid="add-provider-flow" />'
     })
   }))
   vi.doMock('@/components/icons/ModelIcon.vue', () => ({

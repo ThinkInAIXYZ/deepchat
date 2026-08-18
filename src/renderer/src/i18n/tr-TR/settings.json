@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Sağlayıcı ara...",
       "noResults": "Eşleşen sağlayıcı yok",
       "configured": "Yapılandırıldı"
+    },
+    "addFlow": {
+      "connect": "Bağlan ve modelleri yükle",
+      "validating": "Bağlantı doğrulanıyor...",
+      "loadingModels": "Modeller yükleniyor...",
+      "failed": "Bağlantı başarısız. Yapılandırmayı kontrol edip yeniden deneyin."
     }
   },
   "knowledgeBase": {

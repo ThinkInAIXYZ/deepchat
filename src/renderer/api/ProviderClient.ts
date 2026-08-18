@@ -30,6 +30,7 @@ import {
   providersSyncModelScopeMcpServersRoute,
   providersTestConnectionRoute,
   providersUpdateRoute,
+  providersValidateDraftRoute,
   providersUpdateRateLimitRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
@@ -83,6 +84,10 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
   async function addProviderAtomic(provider: LLM_PROVIDER) {
     const result = await bridge.invoke(providersAddRoute.name, { provider })
     return result.provider
+  }
+
+  async function validateDraftProvider(provider: LLM_PROVIDER) {
+    return await bridge.invoke(providersValidateDraftRoute.name, { provider })
   }
 
   async function removeProviderAtomic(providerId: string) {
@@ -293,6 +298,7 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     setProviderById,
     updateProviderAtomic,
     addProviderAtomic,
+    validateDraftProvider,
     removeProviderAtomic,
     reorderProvidersAtomic,
     listModels,

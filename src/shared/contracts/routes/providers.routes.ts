@@ -254,6 +254,28 @@ export const providersAddRoute = defineRouteContract({
   })
 })
 
+// Validates a draft provider configuration and loads its model catalog in a
+// single main-process operation. Nothing is persisted and no enable flag is
+// toggled: the draft only becomes a configured provider after the renderer
+// commits it on success.
+export const providersValidateDraftRoute = defineRouteContract({
+  name: 'providers.validateDraft',
+  input: z.object({
+    provider: LlmProviderSchema
+  }),
+  output: z.object({
+    isOk: z.boolean(),
+    errorMsg: z.string().nullable(),
+    models: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string().optional()
+      })
+    )
+  })
+})
+
 export const providersRemoveRoute = defineRouteContract({
   name: 'providers.remove',
   input: z.object({

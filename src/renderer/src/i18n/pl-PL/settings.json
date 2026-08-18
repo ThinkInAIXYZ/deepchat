@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Szukaj dostawców...",
       "noResults": "Brak pasujących dostawców",
       "configured": "Skonfigurowany"
+    },
+    "addFlow": {
+      "connect": "Połącz i wczytaj modele",
+      "validating": "Weryfikacja połączenia...",
+      "loadingModels": "Wczytywanie modeli...",
+      "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie."
     }
   },
   "knowledgeBase": {

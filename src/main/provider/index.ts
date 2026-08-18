@@ -922,6 +922,54 @@ export class ProviderRuntime
     return provider.getKeyStatus()
   }
 
+  /**
+   * Validates a draft provider configuration and loads its model catalog in one
+   * operation, without persisting the provider or toggling any enable flag.
+   * Used by the add-provider "Connect and load models" flow.
+   */
+  async validateDraft(draft: LLM_PROVIDER): Promise<{
+    isOk: boolean
+    errorMsg: string | null
+    models: MODEL_META[]
+  }> {
+    let instance: BaseLLMProvider | undefined
+    try {
+      instance = this.providerInstanceManager.createDraftInstance({ ...draft, enable: true })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { isOk: false, errorMsg: errorMessage, models: [] }
+    }
+    if (!instance) {
+      return { isOk: false, errorMsg: `Unsupported provider type: ${draft.apiType}`, models: [] }
+    }
+
+    try {
+      const checkResult = await instance.check()
+      if (!checkResult.isOk) {
+        return { ...checkResult, models: [] }
+      }
+
+      const models = await instance.fetchModels({ suppressErrors: false })
+      return { isOk: true, errorMsg: null, models }
+    } catch (error) {
+      // A failed attempt must not leave a partially seeded model catalog behind.
+      this.providerSettings.setProviderModels(draft.id, [])
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { isOk: false, errorMsg: errorMessage, models: [] }
+    } finally {
+      if (
+        'cleanup' in instance &&
+        typeof (instance as { cleanup?: unknown }).cleanup === 'function'
+      ) {
+        try {
+          ;(instance as unknown as { cleanup: () => void }).cleanup()
+        } catch (error) {
+          console.error(`Failed to clean up draft provider instance ${draft.id}:`, error)
+        }
+      }
+    }
+  }
+
   private getEnabledProviderIdsUsingProviderDb(): string[] {
     return this.providerInstanceManager
       .getProviders()

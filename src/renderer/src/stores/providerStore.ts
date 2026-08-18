@@ -440,6 +440,22 @@ export const useProviderStore = defineStore('provider', () => {
     await refreshProviders()
   }
 
+  // Runs "Connect and load models" against a draft configuration. Nothing is
+  // persisted and no enable flag is toggled; the typed main-process boundary
+  // validates the draft with a transient provider instance.
+  const validateDraftProvider = async (draft: LLM_PROVIDER) => {
+    return await providerClient.validateDraftProvider(draft)
+  }
+
+  // Persists a successfully validated draft as a configured, available provider
+  // and records its verified health for the validated configuration.
+  const commitValidatedDraft = async (draft: LLM_PROVIDER) => {
+    const provider = { ...draft, enable: true }
+    await addCustomProvider(provider)
+    await markProviderConfigured(provider.id)
+    await recordProviderHealth(provider.id, computeHealthFingerprint(provider), true)
+  }
+
   const removeProvider = async (providerId: string) => {
     await providerClient.removeProviderAtomic(providerId)
     providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
@@ -646,6 +662,8 @@ export const useProviderStore = defineStore('provider', () => {
     loadProviderTimestamps,
     saveProviderTimestamps,
     addCustomProvider,
+    validateDraftProvider,
+    commitValidatedDraft,
     removeProvider,
     updateAwsBedrockProviderConfig,
     updateVertexProviderConfig,

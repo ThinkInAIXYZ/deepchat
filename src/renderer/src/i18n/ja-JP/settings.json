@@ -1230,6 +1230,12 @@
       "searchPlaceholder": "プロバイダーを検索...",
       "noResults": "一致するプロバイダーがありません",
       "configured": "設定済み"
+    },
+    "addFlow": {
+      "connect": "接続してモデルを読み込む",
+      "validating": "接続を検証中...",
+      "loadingModels": "モデルを読み込み中...",
+      "failed": "接続に失敗しました。設定を確認して再試行してください。"
     }
   },
   "knowledgeBase": {

@@ -316,6 +316,16 @@ export class ProviderInstanceManager {
   }
 
   /**
+   * Creates a transient instance for draft validation. The instance is not
+   * registered in the runtime maps, so validating a draft never touches the
+   * persisted provider list or an existing provider's live instance.
+   */
+  createDraftInstance(draft: LLM_PROVIDER): BaseLLMProvider | undefined {
+    if (this.closed) throw new Error('[Provider] Runtime is closed')
+    return this.createProviderInstance(draft)
+  }
+
+  /**
    * Creates a provider instance while preserving backward compatibility.
    * Lookup order MUST remain id -> apiType so that legacy configs lacking ids continue to work.
    */

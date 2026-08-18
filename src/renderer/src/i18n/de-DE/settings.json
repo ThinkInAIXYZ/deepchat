@@ -1594,6 +1594,12 @@
       "searchPlaceholder": "Anbieter suchen...",
       "noResults": "Keine passenden Anbieter",
       "configured": "Konfiguriert"
+    },
+    "addFlow": {
+      "connect": "Verbinden und Modelle laden",
+      "validating": "Verbindung wird geprüft...",
+      "loadingModels": "Modelle werden geladen...",
+      "failed": "Verbindung fehlgeschlagen. Konfiguration prüfen und erneut versuchen."
     }
   },
   "knowledgeBase": {
