@@ -500,7 +500,8 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     const { handle, facet } = this.dependencies.runtime.resolveTransferSource(
       toAppSessionId(session.id)
     )
-    const state = await handle.snapshot({ lightweight: true })
+    const state =
+      handle.kind === 'acp' ? await handle.snapshot({ lightweight: true }) : await handle.snapshot()
     const status = state?.status ?? 'idle'
     let hasMessages = true
     try {
@@ -578,10 +579,9 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
       session.projectDir
     )
     const source = this.dependencies.runtime.resolveTransferSource(toAppSessionId(sessionId))
-    const sourceState = await source.handle.snapshot({ lightweight: true })
     const previousDirectAcp = source.handle.kind === 'acp'
     const previousCompatibilityAcp =
-      source.handle.kind === 'deepchat' && sourceState?.providerId === 'acp'
+      source.handle.kind === 'deepchat' && (await source.handle.snapshot())?.providerId === 'acp'
     const { facet: transferTarget } = this.dependencies.runtime.resolveDeepChatTransferTarget(
       target.agentId
     )
