@@ -1,5 +1,3 @@
-import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../platform/proxy'
 import { getGlobalXaiGrokAuth } from '../provider/auth/xaiGrok'
 import {
   XAI_GROK_API_BASE_URL,
@@ -7,8 +5,6 @@ import {
   isTrustedXaiApiEndpoint
 } from '../provider/auth/xaiGrok/constants'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-
-type FetchInitWithDispatcher = RequestInit & { dispatcher?: ProxyAgent }
 
 function applyBearerHeaders(
   headersInit: HeadersInit | undefined,
@@ -30,33 +26,7 @@ export function createXaiGrokFetch(
   defaultHeaders: Record<string, string>,
   baseFetch?: (url: string | URL | Request, init?: RequestInit) => Promise<Response>
 ) {
-  let currentProxyUrl: string | null = null
-  let proxyAgent: ProxyAgent | undefined
   const underlyingFetch = baseFetch ?? fetch
-
-  const closeProxyAgent = () => {
-    if (proxyAgent) {
-      void proxyAgent.close().catch(() => undefined)
-    }
-    proxyAgent = undefined
-    currentProxyUrl = null
-  }
-
-  const getDispatcher = () => {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    if (!proxyUrl) {
-      closeProxyAgent()
-      return undefined
-    }
-
-    if (currentProxyUrl !== proxyUrl || !proxyAgent) {
-      closeProxyAgent()
-      proxyAgent = new ProxyAgent(proxyUrl)
-      currentProxyUrl = proxyUrl
-    }
-
-    return proxyAgent
-  }
 
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const requestUrl = url instanceof Request ? url.url : url.toString()
@@ -71,14 +41,9 @@ export function createXaiGrokFetch(
       throw new Error('Grok requires xAI OAuth sign-in or an API key')
     }
 
-    const dispatcher = getDispatcher()
-    const nextInit: FetchInitWithDispatcher = {
+    const nextInit: RequestInit = {
       ...init,
       headers: applyBearerHeaders(init?.headers, defaultHeaders, accessToken)
-    }
-
-    if (dispatcher) {
-      nextInit.dispatcher = dispatcher
     }
 
     let response = await underlyingFetch(url, nextInit)

@@ -190,4 +190,60 @@ describe('process-wide fetch dispatcher', () => {
     )
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
   })
+
+  it('merges process NO_PROXY into the system proxy dispatcher', async () => {
+    process.env.NO_PROXY = 'example.test, .internal'
+    electronMocks.resolveProxy.mockResolvedValue('PROXY 127.0.0.1:7890')
+    const config = new ProxyConfig()
+    await config.resolveProxy()
+
+    expect(EnvHttpProxyAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        noProxy: expect.stringMatching(/localhost/),
+        headersTimeout: 0,
+        bodyTimeout: 0
+      })
+    )
+    const noProxy = (EnvHttpProxyAgent.mock.calls[0]?.[0] as { noProxy?: string } | undefined)
+      ?.noProxy
+    expect(noProxy).toContain('example.test')
+    expect(noProxy).toContain('.internal')
+  })
+
+  it('installs a no-proxy Agent with those timeouts when resolveProxy fails', async () => {
+    electronMocks.resolveProxy.mockRejectedValue(new Error('resolve failed'))
+    const config = new ProxyConfig()
+
+    await expect(config.resolveProxy()).resolves.toBe(false)
+
+    expect(Agent).toHaveBeenCalledWith({
+      headersTimeout: 0,
+      bodyTimeout: 0
+    })
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+    expect(EnvHttpProxyAgent).not.toHaveBeenCalled()
+  })
+
+  it('keeps the known proxy dispatcher when a later resolve fails', async () => {
+    electronMocks.resolveProxy
+      .mockResolvedValueOnce('PROXY 127.0.0.1:7890')
+      .mockRejectedValueOnce(new Error('resolve failed'))
+    const config = new ProxyConfig()
+    await config.resolveProxy()
+    vi.clearAllMocks()
+    electronMocks.setProxy.mockResolvedValue(undefined)
+
+    await expect(config.resolveProxy()).resolves.toBe(false)
+
+    expect(EnvHttpProxyAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        httpProxy: 'http://127.0.0.1:7890',
+        httpsProxy: 'http://127.0.0.1:7890',
+        headersTimeout: 0,
+        bodyTimeout: 0
+      })
+    )
+    expect(Agent).not.toHaveBeenCalled()
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+  })
 })

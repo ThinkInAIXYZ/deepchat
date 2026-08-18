@@ -2,12 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { VoiceAIProvider } from '@/provider/providers/voiceAIProvider'
 
-vi.mock('@/platform/proxy', () => ({
-  proxyConfig: {
-    getProxyUrl: vi.fn().mockReturnValue(null)
-  }
-}))
-
 describe('VoiceAIProvider text cancellation', () => {
   afterEach(() => {
     vi.useRealTimers()

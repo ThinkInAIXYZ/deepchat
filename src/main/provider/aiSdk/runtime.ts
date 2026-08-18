@@ -47,8 +47,6 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { mcpToolsToAISDKTools } from './toolMapper'
 import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
-import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../../platform/proxy'
 import {
   type AiSdkProviderKind,
   createAiSdkProviderContext,
@@ -468,9 +466,7 @@ async function executeTtsPatternA(
   const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+    const fetchInit: RequestInit = {
       method: 'POST',
       headers: {
         ...defaultHeaders,
@@ -480,7 +476,6 @@ async function executeTtsPatternA(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    if (dispatcher) fetchInit.dispatcher = dispatcher
     const response = await fetch(url, fetchInit)
 
     if (!response.ok) {
@@ -533,9 +528,7 @@ async function executeTtsPatternB(
   const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+    const fetchInit: RequestInit = {
       method: 'POST',
       headers: {
         ...defaultHeaders,
@@ -545,7 +538,6 @@ async function executeTtsPatternB(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    if (dispatcher) fetchInit.dispatcher = dispatcher
     const response = await fetch(url, fetchInit)
 
     if (!response.ok) {
@@ -617,9 +609,7 @@ async function executeTtsPatternC(
   const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+    const fetchInit: RequestInit = {
       method: 'POST',
       headers: {
         ...defaultHeaders,
@@ -629,7 +619,6 @@ async function executeTtsPatternC(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    if (dispatcher) fetchInit.dispatcher = dispatcher
     const response = await fetch(url, fetchInit)
 
     if (!response.ok) {
@@ -1088,11 +1077,8 @@ async function executeOpenAICompatibleVideoGeneration(
   const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-
     const fetchJson = async <T>(url: string, init: RequestInit): Promise<T> => {
-      const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+      const fetchInit: RequestInit = {
         ...init,
         headers: {
           ...defaultHeaders,
@@ -1101,7 +1087,6 @@ async function executeOpenAICompatibleVideoGeneration(
         },
         signal: controller.signal
       }
-      if (dispatcher) fetchInit.dispatcher = dispatcher
 
       const response = await fetch(url, fetchInit)
       if (!response.ok) {
@@ -1113,7 +1098,7 @@ async function executeOpenAICompatibleVideoGeneration(
     }
 
     const fetchBinary = async (url: string): Promise<{ buffer: ArrayBuffer; mimeType: string }> => {
-      const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+      const fetchInit: RequestInit = {
         method: 'GET',
         headers: {
           ...defaultHeaders,
@@ -1121,7 +1106,6 @@ async function executeOpenAICompatibleVideoGeneration(
         },
         signal: controller.signal
       }
-      if (dispatcher) fetchInit.dispatcher = dispatcher
 
       const response = await fetch(url, fetchInit)
       if (!response.ok) {

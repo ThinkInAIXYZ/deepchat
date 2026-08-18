@@ -1,14 +1,8 @@
-import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../platform/proxy'
 import {
   OPENAI_CODEX_API_BASE_URL,
   isOpenAICodexDisabled
 } from '../provider/auth/openaiCodex/constants'
 import { getGlobalOpenAICodexAuth, type OpenAICodexBackendAuth } from '../provider/auth/openaiCodex'
-
-type FetchInitWithDispatcher = RequestInit & {
-  dispatcher?: ProxyAgent
-}
 
 const OPENAI_CODEX_PRODUCT_SKU = 'codex'
 const OPENAI_CODEX_ORIGINATOR = 'codex_cli_rs'
@@ -185,49 +179,17 @@ function applyCodexHeaders(
 }
 
 export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
-  let currentProxyUrl: string | null = null
-  let proxyAgent: ProxyAgent | undefined
-
-  const closeProxyAgent = () => {
-    if (proxyAgent) {
-      void proxyAgent.close().catch(() => undefined)
-    }
-    proxyAgent = undefined
-    currentProxyUrl = null
-  }
-
-  const getDispatcher = () => {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    if (!proxyUrl) {
-      closeProxyAgent()
-      return undefined
-    }
-
-    if (currentProxyUrl !== proxyUrl || !proxyAgent) {
-      closeProxyAgent()
-      proxyAgent = new ProxyAgent(proxyUrl)
-      currentProxyUrl = proxyUrl
-    }
-
-    return proxyAgent
-  }
-
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (isOpenAICodexDisabled()) {
       throw new Error('OpenAI Codex provider is disabled by environment')
     }
 
-    const dispatcher = getDispatcher()
     const auth = getGlobalOpenAICodexAuth()
     const backendAuth = await auth.getBackendAuth()
-    const nextInit: FetchInitWithDispatcher = {
+    const nextInit: RequestInit = {
       ...init,
       body: normalizeOpenAICodexRequestBody(init?.body),
       headers: applyCodexHeaders(init?.headers, defaultHeaders, backendAuth)
-    }
-
-    if (dispatcher) {
-      nextInit.dispatcher = dispatcher
     }
 
     let response = await fetch(url, nextInit)

@@ -27,7 +27,6 @@ import type {
 } from '@shared/types/provider'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
-import { ProxyAgent } from 'undici'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,
@@ -46,7 +45,6 @@ import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/provider
 import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 import { getGlobalXaiGrokAuth } from '../../provider/auth/xaiGrok'
 import { isTrustedXaiApiEndpoint } from '../../provider/auth/xaiGrok/constants'
-import { proxyConfig } from '../../platform/proxy'
 import {
   type AiSdkBehaviorPreset,
   type AiSdkCredentialStrategy,
@@ -655,11 +653,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     return this.getModelFetchTimeout()
   }
 
-  private getFetchDispatcher(): ProxyAgent | undefined {
-    const proxyUrl = proxyConfig.getProxyUrl()
-    return proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-  }
-
   private isAzureOpenAI(decision: RouteDecision, runtimeProvider: LLM_PROVIDER): boolean {
     return decision.providerKind === 'azure' || runtimeProvider.id === 'azure-openai'
   }
@@ -873,7 +866,6 @@ export class AiSdkProvider extends BaseLLMProvider {
       const requestRuntimeProvider = useGrokOAuth
         ? refreshedRuntimeProvider
         : { ...refreshedRuntimeProvider, oauthToken: undefined }
-      const dispatcher = this.getFetchDispatcher()
       const response = await fetch(url, {
         ...init,
         headers: {
@@ -885,9 +877,8 @@ export class AiSdkProvider extends BaseLLMProvider {
           ),
           ...(init.headers as Record<string, string> | undefined)
         },
-        signal: controller.signal,
-        ...(dispatcher ? ({ dispatcher } as Record<string, unknown>) : {})
-      } as RequestInit)
+        signal: controller.signal
+      })
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -1412,7 +1403,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     const { signal, dispose } = this.createModelRequestSignal(null)
 
     try {
-      const dispatcher = this.getFetchDispatcher()
       const response = await fetch(modelsUrl, {
         method: 'GET',
         headers: {
@@ -1422,8 +1412,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           ...this.defaultHeaders,
           ...this.definition.defaultHeadersPatch
         },
-        signal,
-        ...(dispatcher ? ({ dispatcher } as Record<string, unknown>) : {})
+        signal
       })
 
       if (!response.ok) {
@@ -1470,7 +1459,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     const { signal, dispose } = this.createModelRequestSignal(null)
 
     try {
-      const dispatcher = this.getFetchDispatcher()
       const response = await fetch(modelsUrl, {
         method: 'GET',
         headers: {
@@ -1479,8 +1467,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           ...this.defaultHeaders,
           ...this.definition.defaultHeadersPatch
         },
-        signal,
-        ...(dispatcher ? ({ dispatcher } as Record<string, unknown>) : {})
+        signal
       })
 
       if (!response.ok) {

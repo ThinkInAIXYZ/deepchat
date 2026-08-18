@@ -114,6 +114,19 @@ export class ProxyConfig {
       return true
     } catch (error) {
       console.error('Failed to resolve proxy:', error)
+      // Timeouts must still be disabled. Reuse a known proxy URL so a later
+      // resolve failure does not drop an already-working proxy.
+      if (this.proxyUrl) {
+        setGlobalDispatcher(
+          createGlobalFetchDispatcher({
+            httpProxy: this.proxyUrl,
+            httpsProxy: this.proxyUrl,
+            noProxy: mergeNoProxy(NO_PROXY)
+          })
+        )
+      } else {
+        setGlobalDispatcher(createGlobalFetchDispatcher())
+      }
       return false
     }
   }
