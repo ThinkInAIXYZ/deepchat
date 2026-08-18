@@ -49,4 +49,30 @@ describe('ProxyConfig readiness', () => {
     await expect(config.whenReady()).resolves.toBe(true)
     expect(electronMocks.resolveProxy).toHaveBeenCalledWith('https://www.google.com')
   })
+
+  it('keeps the latest proxy mode when an earlier system resolution finishes late', async () => {
+    let finishResolution!: (value: string) => void
+    electronMocks.resolveProxy.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finishResolution = resolve
+      })
+    )
+    const config = new ProxyConfig()
+
+    config.setProxyMode(ProxyMode.SYSTEM)
+    const systemResolution = config.resolveProxy()
+    await vi.waitFor(() => {
+      expect(electronMocks.resolveProxy).toHaveBeenCalledTimes(1)
+    })
+
+    config.setProxyMode(ProxyMode.NONE)
+    const directResolution = config.resolveProxy()
+    expect(electronMocks.setProxy).not.toHaveBeenCalledWith({ mode: 'direct' })
+
+    finishResolution('PROXY stale.example:8080')
+    await Promise.all([systemResolution, directResolution])
+
+    expect(config.getProxyUrl()).toBeNull()
+    expect(electronMocks.setProxy).toHaveBeenLastCalledWith({ mode: 'direct' })
+  })
 })

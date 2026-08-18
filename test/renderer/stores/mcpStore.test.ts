@@ -5,6 +5,7 @@ const addMcpServerMutate = vi.hoisted(() => vi.fn())
 const updateMcpServerMutate = vi.hoisted(() => vi.fn())
 const removeMcpServerMutate = vi.hoisted(() => vi.fn())
 const configRefetch = vi.hoisted(() => vi.fn())
+const mountedCallbacks = vi.hoisted(() => [] as Array<() => Promise<void>>)
 
 const mcpClientMock = vi.hoisted(() => ({
   getMcpServers: vi.fn().mockResolvedValue({}),
@@ -24,7 +25,13 @@ const mcpClientMock = vi.hoisted(() => ({
   }),
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getMcpClients: vi.fn().mockResolvedValue([]),
-  getAllResources: vi.fn().mockResolvedValue([])
+  getAllResources: vi.fn().mockResolvedValue([]),
+  onServerStarted: vi.fn(() => vi.fn()),
+  onServerStopped: vi.fn(() => vi.fn()),
+  onConfigChanged: vi.fn(() => vi.fn()),
+  onServerStatusChanged: vi.fn(() => vi.fn()),
+  onServerAuthChanged: vi.fn(() => vi.fn()),
+  onToolCallResult: vi.fn(() => vi.fn())
 }))
 
 const configServiceMock = vi.hoisted(() => ({
@@ -48,7 +55,9 @@ vi.mock('vue', async () => {
   const actual = await vi.importActual<typeof import('vue')>('vue')
   return {
     ...actual,
-    onMounted: vi.fn()
+    onMounted: vi.fn((callback: () => Promise<void>) => {
+      mountedCallbacks.push(callback)
+    })
   }
 })
 
@@ -105,6 +114,7 @@ const setupStore = async () => {
 describe('useMcpStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mountedCallbacks.length = 0
     setMcpServerEnabledMutate.mockReset()
     addMcpServerMutate.mockReset()
     updateMcpServerMutate.mockReset()
@@ -283,6 +293,53 @@ describe('useMcpStore', () => {
       lifecycleStatus: 'failed',
       errorMessage: 'connection failed'
     })
+  })
+
+  it('keeps a newer lifecycle event over stale diagnostics', async () => {
+    let finishDiagnostics!: (value: {
+      lifecycleStatus: 'connected'
+      connectionState: 'connected'
+    }) => void
+    mcpClientMock.getServerDiagnostics.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishDiagnostics = resolve
+      })
+    )
+    const store = await setupStore()
+    await mountedCallbacks[0]()
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          disable: false,
+          type: 'stdio',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    const pendingStatus = store.updateServerStatus('demo', true)
+    await vi.waitFor(() => {
+      expect(mcpClientMock.getServerDiagnostics).toHaveBeenCalledWith('demo', undefined)
+    })
+    const statusListener = mcpClientMock.onServerStatusChanged.mock.calls[0][0]
+    statusListener({
+      serverName: 'demo',
+      lifecycleStatus: 'failed',
+      message: 'startup failed'
+    })
+    finishDiagnostics({ lifecycleStatus: 'connected', connectionState: 'connected' })
+    await pendingStatus
+
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(store.serverLifecycleStatuses.demo).toBe('failed')
+    expect(store.serverStatusMessages.demo).toBe('startup failed')
   })
 
   it('hides plugin-owned servers from MCP UI lists', async () => {
