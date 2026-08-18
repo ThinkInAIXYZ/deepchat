@@ -3235,45 +3235,45 @@
     }
   },
   "toolchains": {
-    "description": "选择 DeepChat 使用的 Node 和 uv。来源选定后不会再偷偷切换。",
+    "description": "選擇 DeepChat 使用的 Node 和 uv。來源選定後不會再偷偷切換。",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
-    "source": "来源",
+    "source": "來源",
     "sources": {
-      "bundled": "应用内置",
-      "managed": "由 DeepChat 安装",
-      "system": "系统已有安装",
-      "custom": "自定义路径",
-      "unconfigured": "未配置"
+      "bundled": "應用內建",
+      "managed": "由 DeepChat 安裝",
+      "system": "系統既有安裝",
+      "custom": "自訂路徑",
+      "unconfigured": "未設定"
     },
-    "systemDetected": "检测到系统二进制：{path}",
-    "systemDetectedHint": "已有可用安装时优先用它，不用再下载一份。",
-    "install": "安装官方运行时",
-    "repair": "修复",
-    "revert": "还原",
+    "systemDetected": "偵測到系統二進位檔：{path}",
+    "systemDetectedHint": "已有可用安裝時優先使用，不必再下載一份。",
+    "install": "安裝官方執行環境",
+    "repair": "修復",
+    "revert": "還原",
     "cancelInstall": "取消",
-    "installing": "正在安装…",
+    "installing": "正在安裝…",
     "version": "版本",
-    "path": "路径",
-    "bannerTitle": "缺少所需运行时",
-    "bannerDescription": "MCP、ACP、Skills 或 OCR 现在没有可用的 Node 或 uv。",
-    "bannerAction": "打开工具链",
+    "path": "路徑",
+    "bannerTitle": "缺少所需執行環境",
+    "bannerDescription": "MCP、ACP、Skills 或 OCR 目前沒有可用的 Node 或 uv。",
+    "bannerAction": "開啟工具鏈",
     "availability": {
       "ready": "可用",
       "missing": "缺失",
       "incomplete": "不完整",
-      "unconfigured": "未配置"
+      "unconfigured": "未設定"
     },
     "downloadReasons": {
-      "dns": "无法解析下载地址。",
-      "timeout": "下载超时。",
-      "http": "下载服务器返回了错误。",
-      "proxy": "经代理下载失败。",
-      "checksum_mismatch": "下载文件未通过完整性校验。",
-      "disk": "无法把运行时写到磁盘。",
-      "cancelled": "下载已取消。",
-      "activation_failed": "无法激活该运行时。",
-      "unsupported_platform": "当前平台没有官方运行时构建。"
+      "dns": "無法解析下載位址。",
+      "timeout": "下載逾時。",
+      "http": "下載伺服器傳回了錯誤。",
+      "proxy": "經由代理下載失敗。",
+      "checksum_mismatch": "下載檔案未通過完整性檢查。",
+      "disk": "無法把執行環境寫入磁碟。",
+      "cancelled": "下載已取消。",
+      "activation_failed": "無法啟用該執行環境。",
+      "unsupported_platform": "目前平台沒有官方執行環境建置。"
     }
   }
 }
