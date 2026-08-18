@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "Annuler",
     "xaiGrokOpenVerification": "Ouvrir la page de vérification",
     "xaiGrokLoginTip": "Utilise le flux OAuth par code d’appareil de xAI pour SuperGrok ou X Premium+. Les jetons sont stockés séparément des clés API. Les clés API de Console restent prises en charge ci-dessous.",
-    "xaiGrokApiKeyAlternative": "Ou utiliser une clé API xAI Console :"
+    "xaiGrokApiKeyAlternative": "Ou utiliser une clé API xAI Console :",
+    "browseAll": "Parcourir tous les fournisseurs",
+    "updateKey": "Mettre à jour la clé",
+    "sidebar": {
+      "configured": "Configurés",
+      "disabledTag": "Désactivé",
+      "empty": "Aucun fournisseur configuré. Parcourez tous les fournisseurs pour en configurer un."
+    },
+    "menu": {
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "rename": "Renommer",
+      "delete": "Supprimer"
+    },
+    "health": {
+      "verified": "Vérifié",
+      "checking": "Vérification",
+      "needsAttention": "Attention requise",
+      "notChecked": "Non vérifié",
+      "lastChecked": "Dernière vérification {time}"
+    },
+    "catalog": {
+      "title": "Parcourir tous les fournisseurs",
+      "description": "Choisissez un fournisseur pour commencer la configuration. Il apparaîtra dans la barre latérale une fois configuré.",
+      "searchPlaceholder": "Rechercher des fournisseurs...",
+      "noResults": "Aucun fournisseur correspondant",
+      "configured": "Configuré"
+    }
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

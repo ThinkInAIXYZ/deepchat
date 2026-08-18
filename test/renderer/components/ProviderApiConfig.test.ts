@@ -389,7 +389,8 @@ describe('ProviderApiConfig', () => {
   it('does not emit validation from the API key enter shortcut when the provider is disabled', async () => {
     const { wrapper } = await setup({
       provider: createProvider({
-        enable: false
+        enable: false,
+        apiKey: ''
       })
     })
 
@@ -397,6 +398,35 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(wrapper.emitted('validate-key')).toBeUndefined()
+  })
+
+  it('renders a masked key summary once configured and edits via Update key', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
+    expect(summary.text()).toContain('••••••••abcd')
+    expect(summary.text()).not.toContain('sk-1234567890abcd')
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+
+    const input = wrapper.get('[data-testid="provider-api-key-input"]')
+    expect((input.element as HTMLInputElement).value).toBe('')
+  })
+
+  it('keeps the stored key when the Update key editor is left empty', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
+    await flushPromises()
+
+    expect(wrapper.emitted('api-key-change')).toBeUndefined()
+    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
   })
 
   it('reports metadata-backed refresh failures as transient feedback', async () => {

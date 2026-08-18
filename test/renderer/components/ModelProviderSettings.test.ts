@@ -77,7 +77,8 @@ const setup = async (options?: {
   const route = reactive({
     params: {
       providerId: routeProviderId
-    }
+    },
+    query: {} as Record<string, string>
   })
 
   const provider = {
@@ -92,6 +93,20 @@ const setup = async (options?: {
   const providerStore = reactive({
     providers,
     sortedProviders: providers,
+    configuredProviders: computed(() =>
+      providers.filter(
+        (provider: { enable: boolean; apiKey: string; custom?: boolean }) =>
+          provider.enable || Boolean(provider.apiKey) || Boolean(provider.custom)
+      )
+    ),
+    isProviderConfigured: (providerId: string) =>
+      providers.some(
+        (provider: { id: string; enable: boolean; apiKey: string; custom?: boolean }) =>
+          provider.id === providerId &&
+          (provider.enable || Boolean(provider.apiKey) || Boolean(provider.custom))
+      ),
+    getProviderHealth: () => ({ status: 'not_checked' }),
+    removeProvider: vi.fn().mockResolvedValue(undefined),
     initialized: ref(true),
     ensureInitialized: vi.fn().mockResolvedValue(undefined),
     refreshProviders: vi.fn().mockResolvedValue(undefined),
@@ -117,9 +132,18 @@ const setup = async (options?: {
   })
 
   const router = {
-    push: vi.fn(async ({ params }: { params?: Record<string, string> }) => {
-      route.params.providerId = params?.providerId
-    }),
+    push: vi.fn(
+      async ({
+        params,
+        query
+      }: {
+        params?: Record<string, string>
+        query?: Record<string, string>
+      }) => {
+        route.params.providerId = params?.providerId
+        route.query = query ?? {}
+      }
+    ),
     replace: vi.fn(),
     hasRoute: vi.fn(() => false)
   }
@@ -198,7 +222,7 @@ const setup = async (options?: {
           <button data-testid="generic-detail-complete" @click="$emit('provider-configured')">
             complete
           </button>
-          <button data-testid="provider-models-tab-trigger" type="button">models</button>
+          <button data-testid="provider-models-section" type="button">models</button>
           <button
             v-for="model in providerModels"
             :key="model.id"
@@ -248,6 +272,28 @@ const setup = async (options?: {
     default: defineComponent({
       name: 'BedrockProviderSettingsDetail',
       template: '<div data-testid="bedrock-detail" />'
+    })
+  }))
+  vi.doMock('../../../src/renderer/settings/components/ProviderCatalog.vue', () => ({
+    default: defineComponent({
+      name: 'ProviderCatalog',
+      emits: ['select'],
+      template: `
+        <div data-testid="provider-catalog">
+          <button
+            v-for="provider in providers"
+            :key="provider.id"
+            :data-testid="'catalog-select-' + provider.id"
+            type="button"
+            @click="$emit('select', provider.id)"
+          >
+            {{ provider.id }}
+          </button>
+        </div>
+      `,
+      setup() {
+        return { providers: providerStore.providers }
+      }
     })
   }))
   vi.doMock('../../../src/renderer/settings/components/AddCustomProviderDialog.vue', () => ({
@@ -314,6 +360,27 @@ const setup = async (options?: {
         }),
         Icon: true,
         draggable: draggableStub,
+        DropdownMenu: passthrough('DropdownMenu'),
+        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        DropdownMenuContent: passthrough('DropdownMenuContent'),
+        DropdownMenuSeparator: true,
+        DcDropdownActionItem: defineComponent({
+          name: 'DcDropdownActionItem',
+          props: { label: { type: String, default: '' } },
+          emits: ['select'],
+          template: '<button type="button" @click="$emit(\'select\')">{{ label }}</button>'
+        }),
+        DcConfirmDialog: defineComponent({
+          name: 'DcConfirmDialog',
+          props: { open: { type: Boolean, default: false } },
+          emits: ['update:open', 'confirm'],
+          template:
+            '<div v-if="open" data-testid="delete-provider-dialog"><button data-testid="confirm-delete-provider" @click="$emit(\'confirm\')" /></div>'
+        }),
+        TooltipProvider: passthrough('TooltipProvider'),
+        Tooltip: passthrough('Tooltip'),
+        TooltipTrigger: passthrough('TooltipTrigger'),
+        TooltipContent: passthrough('TooltipContent'),
         AnthropicProviderSettingsDetail: defineComponent({
           name: 'AnthropicProviderSettingsDetail',
           template: '<div data-testid="anthropic-detail" />'
@@ -324,7 +391,7 @@ const setup = async (options?: {
 
   await waitForGuideTargetSync()
 
-  return { wrapper, router, completeStep, modelStore }
+  return { wrapper, router, completeStep, modelStore, route }
 }
 
 describe('ModelProviderSettings', () => {
@@ -418,7 +485,7 @@ describe('ModelProviderSettings', () => {
     TEST_TIMEOUT_MS
   )
 
-  it('keeps disabled providers collapsed until the section is expanded', async () => {
+  it('shows only configured providers in the sidebar', async () => {
     const { wrapper } = await setup({
       providers: [
         {
@@ -440,42 +507,30 @@ describe('ModelProviderSettings', () => {
       ]
     })
 
-    expect(wrapper.text()).toContain('settings.provider.disabled (1)')
+    expect(wrapper.find('[data-provider-id="anthropic"]').exists()).toBe(true)
     expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(false)
-
-    await wrapper.get('[data-testid="disabled-providers-toggle"]').trigger('click')
-
-    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="provider-browse-all"]').exists()).toBe(true)
   })
 
-  it('automatically expands disabled providers when search matches them', async () => {
-    const { wrapper } = await setup({
-      providers: [
-        {
-          id: 'anthropic',
-          name: 'Anthropic',
-          apiType: 'anthropic',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.anthropic.com',
-          enable: true
-        },
-        {
-          id: 'mistral',
-          name: 'Mistral',
-          apiType: 'mistral',
-          apiKey: '',
-          baseUrl: 'https://api.mistral.ai',
-          enable: false
-        }
-      ]
-    })
+  it('opens the catalog view from Browse all providers and selects an entry', async () => {
+    const { wrapper, router, route } = await setup()
 
-    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(false)
-
-    await wrapper.get('input').setValue('mistral')
+    await wrapper.get('[data-testid="provider-browse-all"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(true)
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'settings-provider',
+        query: { view: 'catalog' }
+      })
+    )
+    expect(wrapper.find('[data-testid="provider-catalog"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="catalog-select-anthropic"]').trigger('click')
+    await flushPromises()
+
+    expect(route.params.providerId).toBe('anthropic')
+    expect(wrapper.find('[data-testid="provider-catalog"]').exists()).toBe(false)
   })
 
   it('auto-continues onboarding after the provider is configured', async () => {
@@ -580,7 +635,7 @@ describe('ModelProviderSettings', () => {
     })
 
     expect(wrapper.get('[data-testid="guided-overlay"]').attributes('data-target-testid')).toBe(
-      'provider-models-tab-trigger'
+      'provider-models-section'
     )
 
     modelStore.allProviderModels = [
@@ -610,7 +665,7 @@ describe('ModelProviderSettings', () => {
     })
 
     expect(wrapper.get('[data-testid="guided-overlay"]').attributes('data-target-testid')).toBe(
-      'provider-models-tab-trigger'
+      'provider-models-section'
     )
 
     const delayedToggle = document.createElement('button')

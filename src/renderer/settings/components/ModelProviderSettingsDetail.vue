@@ -1,9 +1,9 @@
 <template>
   <ProviderSettingsShell
-    v-model:active-tab="activeTab"
     :title="t(provider.name)"
     :subtitle="provider.baseUrl"
     :enabled-count="enabledModels.length"
+    :health="providerHealth"
   >
     <template #connection>
       <ProviderApiConfig
@@ -167,9 +167,18 @@ const enabledModels = computed(() => {
 })
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
-const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
-const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
-  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
+const providerHealth = computed(() => providerStore.getProviderHealth(props.provider.id))
+// The vertical page keeps every section mounted; onboarding steps scroll to the
+// relevant section instead of switching tabs.
+const scrollToOnboardingSection = (stepId?: string | null) => {
+  if (stepId !== 'provider-model') {
+    return
+  }
+  void nextTick(() => {
+    document
+      .querySelector('[data-testid="provider-models-section"]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
@@ -314,7 +323,7 @@ const initProviderSettings = async () => {
 watch(
   () => props.provider.id,
   () => {
-    syncActiveTabFromOnboardingStep(props.activeOnboardingStepId)
+    scrollToOnboardingSection(props.activeOnboardingStepId)
     initProviderSettings()
   },
   { immediate: true }
@@ -323,7 +332,7 @@ watch(
 watch(
   () => props.activeOnboardingStepId,
   (stepId) => {
-    syncActiveTabFromOnboardingStep(stepId)
+    scrollToOnboardingSection(stepId)
   },
   { immediate: true }
 )

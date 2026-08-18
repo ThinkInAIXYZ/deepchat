@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
 import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
+import type { ProviderHealthEntry } from '@shared/contracts/routes'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/types/provider'
 
 type VoiceAIConfig = {
@@ -15,8 +16,26 @@ type VoiceAIConfig = {
   agentId: string
 }
 
+export type ProviderHealthStatus = 'not_checked' | 'checking' | 'verified' | 'needs_attention'
+
+export type ProviderHealthView = {
+  status: ProviderHealthStatus
+  checkedAt?: number
+  errorMsg?: string
+}
+
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
+const PROVIDER_CONFIGURED_KEY = 'configuredProviders'
+const PROVIDER_HEALTH_KEY = 'providerHealth'
+
+const hashString = (input: string): string => {
+  let hash = 5381
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash + input.charCodeAt(i)) >>> 0
+  }
+  return hash.toString(16)
+}
 
 export const useProviderStore = defineStore('provider', () => {
   const configClient = createConfigClient()
@@ -37,6 +56,10 @@ export const useProviderStore = defineStore('provider', () => {
 
   const providerOrder = ref<string[]>([])
   const providerTimestamps = ref<Record<string, number>>({})
+  const configuredProviderIds = ref<string[]>([])
+  const configuredLoaded = ref(false)
+  const providerHealthCache = ref<Record<string, ProviderHealthEntry>>({})
+  const checkingProviderIds = ref<Set<string>>(new Set())
   const listenersRegistered = ref(false)
   const voiceAIConfig = ref<VoiceAIConfig | null>(null)
   const initialized = ref(false)
@@ -98,6 +121,150 @@ export const useProviderStore = defineStore('provider', () => {
     const sortedDisabled = sortProviders(disabledProviders.value, false)
     return [...sortedEnabled, ...sortedDisabled]
   })
+
+  const hasStoredCredentials = (provider: LLM_PROVIDER) =>
+    Boolean(provider.apiKey?.trim() || provider.oauthToken)
+
+  // "Configured" is sidebar membership: it is sticky (kept while disabled or failing)
+  // and only ever leaves through an explicit removal, never through a transient failure.
+  const isProviderConfiguredByState = (provider: LLM_PROVIDER) =>
+    provider.enable || Boolean(provider.custom) || hasStoredCredentials(provider)
+
+  const configuredIdSet = computed(() => new Set(configuredProviderIds.value))
+
+  const isProviderConfigured = (providerId: string) => configuredIdSet.value.has(providerId)
+
+  const configuredProviders = computed(() =>
+    sortedProviders.value.filter((provider) => configuredIdSet.value.has(provider.id))
+  )
+
+  const unconfiguredProviders = computed(() =>
+    sortedProviders.value.filter((provider) => !configuredIdSet.value.has(provider.id))
+  )
+
+  const loadConfiguredProviders = async () => {
+    try {
+      const saved = await configClient.getSetting(PROVIDER_CONFIGURED_KEY)
+      if (saved) {
+        configuredProviderIds.value = saved
+      }
+    } catch (error) {
+      console.error('Failed to load configured providers:', error)
+    } finally {
+      configuredLoaded.value = true
+    }
+    await syncConfiguredFromProviders(providers.value)
+  }
+
+  const saveConfiguredProviders = async () => {
+    try {
+      await configClient.setSetting(PROVIDER_CONFIGURED_KEY, [...configuredProviderIds.value])
+    } catch (error) {
+      console.error('Failed to save configured providers:', error)
+    }
+  }
+
+  const markProviderConfigured = async (providerId: string) => {
+    if (configuredIdSet.value.has(providerId)) {
+      return
+    }
+    configuredProviderIds.value = [...configuredProviderIds.value, providerId]
+    await saveConfiguredProviders()
+  }
+
+  const unmarkProviderConfigured = async (providerId: string) => {
+    if (!configuredIdSet.value.has(providerId)) {
+      return
+    }
+    configuredProviderIds.value = configuredProviderIds.value.filter((id) => id !== providerId)
+    await saveConfiguredProviders()
+  }
+
+  const syncConfiguredFromProviders = async (list: LLM_PROVIDER[]) => {
+    if (!configuredLoaded.value) {
+      return
+    }
+    const missing = list
+      .filter((provider) => isProviderConfiguredByState(provider))
+      .map((provider) => provider.id)
+      .filter((id) => !configuredIdSet.value.has(id))
+    if (missing.length === 0) {
+      return
+    }
+    configuredProviderIds.value = [...configuredProviderIds.value, ...missing]
+    await saveConfiguredProviders()
+  }
+
+  const computeHealthFingerprint = (provider: LLM_PROVIDER): string => {
+    const material = [
+      provider.apiType,
+      provider.baseUrl ?? '',
+      provider.apiKey ? hashString(provider.apiKey) : '',
+      provider.oauthToken ? hashString(provider.oauthToken) : ''
+    ].join('|')
+    return hashString(material)
+  }
+
+  const loadProviderHealth = async () => {
+    try {
+      const saved = await configClient.getSetting(PROVIDER_HEALTH_KEY)
+      providerHealthCache.value = saved ?? {}
+    } catch (error) {
+      console.error('Failed to load provider health cache:', error)
+      providerHealthCache.value = {}
+    }
+  }
+
+  const saveProviderHealth = async () => {
+    try {
+      await configClient.setSetting(PROVIDER_HEALTH_KEY, { ...providerHealthCache.value })
+    } catch (error) {
+      console.error('Failed to save provider health cache:', error)
+    }
+  }
+
+  // Health is a cached verification result for the current configuration, not a live
+  // connection state: a stale fingerprint (config changed since the check) degrades to
+  // not_checked instead of showing a misleading verified/failed result.
+  const getProviderHealth = (providerId: string): ProviderHealthView => {
+    if (checkingProviderIds.value.has(providerId)) {
+      return { status: 'checking' }
+    }
+    const entry = providerHealthCache.value[providerId]
+    const provider = providers.value.find((item) => item.id === providerId)
+    if (!entry || !provider || entry.fingerprint !== computeHealthFingerprint(provider)) {
+      return { status: 'not_checked' }
+    }
+    return { status: entry.status, checkedAt: entry.checkedAt, errorMsg: entry.errorMsg }
+  }
+
+  const recordProviderHealth = async (
+    providerId: string,
+    fingerprint: string,
+    ok: boolean,
+    errorMsg?: string
+  ) => {
+    providerHealthCache.value = {
+      ...providerHealthCache.value,
+      [providerId]: {
+        status: ok ? 'verified' : 'needs_attention',
+        fingerprint,
+        checkedAt: Date.now(),
+        ...(ok || !errorMsg ? {} : { errorMsg })
+      }
+    }
+    await saveProviderHealth()
+  }
+
+  const clearProviderHealth = async (providerId: string) => {
+    if (!(providerId in providerHealthCache.value)) {
+      return
+    }
+    const next = { ...providerHealthCache.value }
+    delete next[providerId]
+    providerHealthCache.value = next
+    await saveProviderHealth()
+  }
 
   const loadProviderOrder = async () => {
     try {
@@ -251,6 +418,9 @@ export const useProviderStore = defineStore('provider', () => {
     try {
       await saveProviderTimestamps()
       await updateProviderConfig(providerId, { enable })
+      if (enable) {
+        await markProviderConfigured(providerId)
+      }
       await optimizeProviderOrder(providerId, enable)
     } catch (error) {
       if (previousTimestamp === undefined) {
@@ -274,6 +444,8 @@ export const useProviderStore = defineStore('provider', () => {
     await providerClient.removeProviderAtomic(providerId)
     providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
     await saveProviderOrder()
+    await unmarkProviderConfigured(providerId)
+    await clearProviderHealth(providerId)
     await refreshProviders()
   }
 
@@ -292,7 +464,35 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const checkProvider = async (providerId: string, modelId?: string) => {
-    return await providerClient.testConnection({ providerId, modelId })
+    const provider = providers.value.find((item) => item.id === providerId)
+    // Capture the fingerprint of the configuration actually being tested so a
+    // mid-flight config change cannot attach this result to the new configuration.
+    const fingerprint = provider ? computeHealthFingerprint(provider) : null
+    checkingProviderIds.value.add(providerId)
+    try {
+      const result = await providerClient.testConnection({ providerId, modelId })
+      if (fingerprint) {
+        await recordProviderHealth(
+          providerId,
+          fingerprint,
+          result.isOk,
+          result.errorMsg ?? undefined
+        )
+      }
+      return result
+    } catch (error) {
+      if (fingerprint) {
+        await recordProviderHealth(
+          providerId,
+          fingerprint,
+          false,
+          error instanceof Error ? error.message : String(error)
+        )
+      }
+      throw error
+    } finally {
+      checkingProviderIds.value.delete(providerId)
+    }
   }
 
   const setAzureApiVersion = async (version: string) => {
@@ -356,8 +556,10 @@ export const useProviderStore = defineStore('provider', () => {
     initializationPromise.value = (async () => {
       await loadProviderTimestamps()
       await loadProviderOrder()
+      await loadProviderHealth()
       setupProviderListeners()
       await refreshProviders()
+      await loadConfiguredProviders()
       initialized.value = true
     })()
 
@@ -379,6 +581,8 @@ export const useProviderStore = defineStore('provider', () => {
     await providersQuery.refetch()
     await loadProviderOrder()
     await loadProviderTimestamps()
+    await loadProviderHealth()
+    await loadConfiguredProviders()
   }
 
   // Equivalent to the previous 80ms setTimeout debounce; only the API changes.
@@ -398,6 +602,7 @@ export const useProviderStore = defineStore('provider', () => {
     providers,
     (list) => {
       if (!list || list.length === 0) return
+      void syncConfiguredFromProviders(list)
       // Only update order if we already have an order established
       if (providerOrder.value.length === 0) {
         // If no order yet, try to load it first (or init from list if load fails/empty)
@@ -414,6 +619,13 @@ export const useProviderStore = defineStore('provider', () => {
     providers,
     defaultProviders,
     sortedProviders,
+    configuredProviders,
+    unconfiguredProviders,
+    configuredProviderIds,
+    isProviderConfigured,
+    markProviderConfigured,
+    unmarkProviderConfigured,
+    getProviderHealth,
     providerOrder,
     providerTimestamps,
     initialized,

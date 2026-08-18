@@ -1136,7 +1136,34 @@
     "xaiGrokCancel": "Annuller",
     "xaiGrokOpenVerification": "Åbn bekræftelsessiden",
     "xaiGrokLoginTip": "Bruger xAI-enhedskode-OAuth til SuperGrok eller X Premium+. Tokens gemmes separat fra API-nøgler. API-nøgler fra Console understøttes stadig nedenfor.",
-    "xaiGrokApiKeyAlternative": "Eller brug en xAI Console-API-nøgle:"
+    "xaiGrokApiKeyAlternative": "Eller brug en xAI Console-API-nøgle:",
+    "browseAll": "Gennemse alle udbydere",
+    "updateKey": "Opdater nøgle",
+    "sidebar": {
+      "configured": "Konfigurerede",
+      "disabledTag": "Fra",
+      "empty": "Ingen udbydere er konfigureret endnu. Gennemse alle udbydere for at opsætte en."
+    },
+    "menu": {
+      "enable": "Aktivér",
+      "disable": "Deaktivér",
+      "rename": "Omdøb",
+      "delete": "Slet"
+    },
+    "health": {
+      "verified": "Verificeret",
+      "checking": "Kontrollerer",
+      "needsAttention": "Kræver opmærksomhed",
+      "notChecked": "Ikke kontrolleret",
+      "lastChecked": "Sidst kontrolleret {time}"
+    },
+    "catalog": {
+      "title": "Gennemse alle udbydere",
+      "description": "Vælg en udbyder for at starte opsætningen. Den vises i sidepanelet, når den er konfigureret.",
+      "searchPlaceholder": "Søg efter udbydere...",
+      "noResults": "Ingen matchende udbydere",
+      "configured": "Konfigureret"
+    }
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",

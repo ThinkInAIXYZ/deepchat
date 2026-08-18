@@ -119,7 +119,24 @@
 
       <div class="flex flex-col gap-2 w-full">
         <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
-        <div class="relative w-full">
+        <div v-if="showKeySummary" class="flex w-full items-center gap-2">
+          <div
+            data-testid="provider-api-key-summary"
+            class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+          >
+            <span class="truncate font-mono">{{ maskedApiKey }}</span>
+          </div>
+          <DcButton
+            data-testid="provider-update-key-button"
+            variant="outline"
+            size="sm"
+            class="shrink-0 text-xs"
+            @click="startEditingKey"
+          >
+            {{ t('settings.provider.updateKey') }}
+          </DcButton>
+        </div>
+        <div v-else class="relative w-full">
           <Input
             data-testid="provider-api-key-input"
             :id="`${provider.id}-apikey`"
@@ -287,7 +304,15 @@ const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
 const isRefreshing = ref(false)
 const showApiKey = ref(false)
+const isEditingKey = ref(false)
 const baseUrlUnlocked = ref(false)
+// After setup the stored key renders as a masked summary; the full secret is
+// never shown again — replacing it goes through the explicit Update key action.
+const showKeySummary = computed(() => !isEditingKey.value && Boolean(props.provider.apiKey?.trim()))
+const maskedApiKey = computed(() => {
+  const key = props.provider.apiKey?.trim() ?? ''
+  return key.length > 8 ? `••••••••${key.slice(-4)}` : '••••••••'
+})
 const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
 const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
 const isBaseUrlEditableByDefault = computed(
@@ -334,9 +359,16 @@ watch(
     apiKey.value = props.provider.apiKey || ''
     apiHost.value = props.provider.baseUrl || ''
     baseUrlUnlocked.value = false
+    isEditingKey.value = false
   },
   { immediate: true }
 )
+
+const startEditingKey = () => {
+  isEditingKey.value = true
+  apiKey.value = ''
+  showApiKey.value = false
+}
 
 const handleApiKeyChange = (value: string) => {
   emit('api-key-change', value)
@@ -345,6 +377,12 @@ const handleApiKeyChange = (value: string) => {
 const handleApiKeyBlur = (event: FocusEvent) => {
   const target = event.target as HTMLInputElement | null
   if (!target) return
+  // Leaving the Update key editor empty keeps the stored key instead of wiping it.
+  if (isEditingKey.value && !target.value.trim()) {
+    isEditingKey.value = false
+    apiKey.value = props.provider.apiKey || ''
+    return
+  }
   handleApiKeyChange(target.value)
 }
 

@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "취소",
     "xaiGrokOpenVerification": "인증 페이지 열기",
     "xaiGrokLoginTip": "SuperGrok 또는 X Premium+에 xAI 기기 코드 OAuth를 사용합니다. 토큰은 API 키와 별도로 저장됩니다. 아래에서 Console API 키도 계속 사용할 수 있습니다.",
-    "xaiGrokApiKeyAlternative": "또는 xAI Console API 키 사용:"
+    "xaiGrokApiKeyAlternative": "또는 xAI Console API 키 사용:",
+    "browseAll": "모든 제공업체 보기",
+    "updateKey": "키 업데이트",
+    "sidebar": {
+      "configured": "구성됨",
+      "disabledTag": "꺼짐",
+      "empty": "아직 구성된 제공업체가 없습니다. 모든 제공업체를 둘러보고 설정을 시작하세요."
+    },
+    "menu": {
+      "enable": "활성화",
+      "disable": "비활성화",
+      "rename": "이름 바꾸기",
+      "delete": "삭제"
+    },
+    "health": {
+      "verified": "확인됨",
+      "checking": "확인 중",
+      "needsAttention": "주의 필요",
+      "notChecked": "확인 안 됨",
+      "lastChecked": "마지막 확인 {time}"
+    },
+    "catalog": {
+      "title": "모든 제공업체 보기",
+      "description": "설정할 제공업체를 선택하세요. 구성이 완료되면 사이드바에 표시됩니다.",
+      "searchPlaceholder": "제공업체 검색...",
+      "noResults": "일치하는 제공업체가 없습니다",
+      "configured": "구성됨"
+    }
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

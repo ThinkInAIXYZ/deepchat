@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "Annulla",
     "xaiGrokOpenVerification": "Apri la pagina di verifica",
     "xaiGrokLoginTip": "Usa OAuth con codice dispositivo di xAI per SuperGrok o X Premium+. I token vengono archiviati separatamente dalle chiavi API. Le chiavi API di Console restano supportate qui sotto.",
-    "xaiGrokApiKeyAlternative": "Oppure usa una chiave API xAI Console:"
+    "xaiGrokApiKeyAlternative": "Oppure usa una chiave API xAI Console:",
+    "browseAll": "Sfoglia tutti i provider",
+    "updateKey": "Aggiorna chiave",
+    "sidebar": {
+      "configured": "Configurati",
+      "disabledTag": "Spento",
+      "empty": "Nessun provider configurato. Sfoglia tutti i provider per configurarne uno."
+    },
+    "menu": {
+      "enable": "Abilita",
+      "disable": "Disabilita",
+      "rename": "Rinomina",
+      "delete": "Elimina"
+    },
+    "health": {
+      "verified": "Verificato",
+      "checking": "Verifica in corso",
+      "needsAttention": "Richiede attenzione",
+      "notChecked": "Non verificato",
+      "lastChecked": "Ultimo controllo {time}"
+    },
+    "catalog": {
+      "title": "Sfoglia tutti i provider",
+      "description": "Scegli un provider per iniziare la configurazione. Comparirà nella barra laterale una volta configurato.",
+      "searchPlaceholder": "Cerca provider...",
+      "noResults": "Nessun provider corrispondente",
+      "configured": "Configurato"
+    }
   },
   "knowledgeBase": {
     "title": "Impostazioni base di conoscenza",

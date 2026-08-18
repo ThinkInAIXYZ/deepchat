@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "لغو",
     "xaiGrokOpenVerification": "باز کردن صفحه تأیید",
     "xaiGrokLoginTip": "برای SuperGrok یا X Premium+ از OAuth کد دستگاه xAI استفاده می‌کند. توکن‌ها جدا از کلیدهای API ذخیره می‌شوند. کلیدهای API کنسول نیز در پایین پشتیبانی می‌شوند.",
-    "xaiGrokApiKeyAlternative": "یا از کلید API کنسول xAI استفاده کنید:"
+    "xaiGrokApiKeyAlternative": "یا از کلید API کنسول xAI استفاده کنید:",
+    "browseAll": "مرور همه ارائه‌دهندگان",
+    "updateKey": "به‌روزرسانی کلید",
+    "sidebar": {
+      "configured": "پیکربندی‌شده",
+      "disabledTag": "خاموش",
+      "empty": "هنوز هیچ ارائه‌دهنده‌ای پیکربندی نشده است. برای راه‌اندازی، همه ارائه‌دهندگان را مرور کنید."
+    },
+    "menu": {
+      "enable": "فعال کردن",
+      "disable": "غیرفعال کردن",
+      "rename": "تغییر نام",
+      "delete": "حذف"
+    },
+    "health": {
+      "verified": "تأیید شده",
+      "checking": "در حال بررسی",
+      "needsAttention": "نیاز به توجه",
+      "notChecked": "بررسی نشده",
+      "lastChecked": "آخرین بررسی {time}"
+    },
+    "catalog": {
+      "title": "مرور همه ارائه‌دهندگان",
+      "description": "یک ارائه‌دهنده را برای شروع راه‌اندازی انتخاب کنید. پس از پیکربندی در نوار کناری نمایش داده می‌شود.",
+      "searchPlaceholder": "جستجوی ارائه‌دهندگان...",
+      "noResults": "ارائه‌دهنده منطبقی یافت نشد",
+      "configured": "پیکربندی‌شده"
+    }
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

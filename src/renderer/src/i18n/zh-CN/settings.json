@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "取消",
     "xaiGrokOpenVerification": "打开验证页面",
     "xaiGrokLoginTip": "通过 xAI 设备码 OAuth 使用 SuperGrok 或 X Premium+ 订阅。Token 单独存储，不会写入 API Key。下方仍支持控制台 API Key。",
-    "xaiGrokApiKeyAlternative": "或者使用 xAI 控制台 API Key："
+    "xaiGrokApiKeyAlternative": "或者使用 xAI 控制台 API Key：",
+    "browseAll": "浏览全部服务商",
+    "updateKey": "更新密钥",
+    "sidebar": {
+      "configured": "已配置",
+      "disabledTag": "停用",
+      "empty": "还没有配置任何服务商。浏览全部服务商开始配置。"
+    },
+    "menu": {
+      "enable": "启用",
+      "disable": "停用",
+      "rename": "重命名",
+      "delete": "删除"
+    },
+    "health": {
+      "verified": "已验证",
+      "checking": "检查中",
+      "needsAttention": "需要处理",
+      "notChecked": "未检查",
+      "lastChecked": "上次检查于 {time}"
+    },
+    "catalog": {
+      "title": "浏览全部服务商",
+      "description": "选择一个服务商开始配置，配置完成后会出现在侧边栏。",
+      "searchPlaceholder": "搜索服务商...",
+      "noResults": "没有匹配的服务商",
+      "configured": "已配置"
+    }
   },
   "knowledgeBase": {
     "title": "知识库设置",

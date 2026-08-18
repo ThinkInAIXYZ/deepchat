@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "Abbrechen",
     "xaiGrokOpenVerification": "Bestätigungsseite öffnen",
     "xaiGrokLoginTip": "Verwendet xAI-Gerätecode-OAuth für SuperGrok oder X Premium+. Tokens werden getrennt von API-Schlüsseln gespeichert. Console-API-Schlüssel werden unten weiterhin unterstützt.",
-    "xaiGrokApiKeyAlternative": "Oder einen xAI Console-API-Schlüssel verwenden:"
+    "xaiGrokApiKeyAlternative": "Oder einen xAI Console-API-Schlüssel verwenden:",
+    "browseAll": "Alle Anbieter durchsuchen",
+    "updateKey": "Schlüssel aktualisieren",
+    "sidebar": {
+      "configured": "Konfiguriert",
+      "disabledTag": "Aus",
+      "empty": "Noch keine Anbieter konfiguriert. Durchsuche alle Anbieter, um einen einzurichten."
+    },
+    "menu": {
+      "enable": "Aktivieren",
+      "disable": "Deaktivieren",
+      "rename": "Umbenennen",
+      "delete": "Löschen"
+    },
+    "health": {
+      "verified": "Verifiziert",
+      "checking": "Wird geprüft",
+      "needsAttention": "Aufmerksamkeit nötig",
+      "notChecked": "Nicht geprüft",
+      "lastChecked": "Zuletzt geprüft {time}"
+    },
+    "catalog": {
+      "title": "Alle Anbieter durchsuchen",
+      "description": "Wähle einen Anbieter aus, um die Einrichtung zu starten. Nach der Konfiguration erscheint er in der Seitenleiste.",
+      "searchPlaceholder": "Anbieter suchen...",
+      "noResults": "Keine passenden Anbieter",
+      "configured": "Konfiguriert"
+    }
   },
   "knowledgeBase": {
     "title": "Wissensdatenbank-Einstellungen",

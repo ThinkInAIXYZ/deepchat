@@ -62,7 +62,8 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     checkProvider: vi.fn().mockResolvedValue({ isOk: true }),
     getAzureApiVersion: vi.fn().mockResolvedValue('2024-02-01'),
     getGeminiSafety: vi.fn().mockResolvedValue('BLOCK_MEDIUM_AND_ABOVE'),
-    removeProvider: vi.fn().mockResolvedValue(undefined)
+    removeProvider: vi.fn().mockResolvedValue(undefined),
+    getProviderHealth: vi.fn(() => ({ status: 'not_checked' }))
   }
 
   const modelStore = {

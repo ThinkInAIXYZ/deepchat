@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "İptal",
     "xaiGrokOpenVerification": "Doğrulama sayfasını aç",
     "xaiGrokLoginTip": "SuperGrok veya X Premium+ için xAI cihaz kodu OAuth kullanır. Token'lar API anahtarlarından ayrı saklanır. Console API anahtarları aşağıda desteklenmeye devam eder.",
-    "xaiGrokApiKeyAlternative": "Veya bir xAI Console API anahtarı kullanın:"
+    "xaiGrokApiKeyAlternative": "Veya bir xAI Console API anahtarı kullanın:",
+    "browseAll": "Tüm sağlayıcılara göz at",
+    "updateKey": "Anahtarı güncelle",
+    "sidebar": {
+      "configured": "Yapılandırılmış",
+      "disabledTag": "Kapalı",
+      "empty": "Henüz yapılandırılmış sağlayıcı yok. Birini kurmak için tüm sağlayıcılara göz atın."
+    },
+    "menu": {
+      "enable": "Etkinleştir",
+      "disable": "Devre dışı bırak",
+      "rename": "Yeniden adlandır",
+      "delete": "Sil"
+    },
+    "health": {
+      "verified": "Doğrulandı",
+      "checking": "Kontrol ediliyor",
+      "needsAttention": "İlgilenilmeli",
+      "notChecked": "Kontrol edilmedi",
+      "lastChecked": "Son kontrol {time}"
+    },
+    "catalog": {
+      "title": "Tüm sağlayıcılara göz at",
+      "description": "Kurulumu başlatmak için bir sağlayıcı seçin. Yapılandırıldıktan sonra kenar çubuğunda görünecek.",
+      "searchPlaceholder": "Sağlayıcı ara...",
+      "noResults": "Eşleşen sağlayıcı yok",
+      "configured": "Yapılandırıldı"
+    }
   },
   "knowledgeBase": {
     "title": "Bilgi Bankası Ayarları",

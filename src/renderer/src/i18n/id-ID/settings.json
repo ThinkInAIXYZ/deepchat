@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "Batal",
     "xaiGrokOpenVerification": "Buka halaman verifikasi",
     "xaiGrokLoginTip": "Menggunakan OAuth kode perangkat xAI untuk SuperGrok atau X Premium+. Token disimpan terpisah dari kunci API. Kunci API Console tetap didukung di bawah ini.",
-    "xaiGrokApiKeyAlternative": "Atau gunakan kunci API xAI Console:"
+    "xaiGrokApiKeyAlternative": "Atau gunakan kunci API xAI Console:",
+    "browseAll": "Jelajahi semua penyedia",
+    "updateKey": "Perbarui kunci",
+    "sidebar": {
+      "configured": "Terkonfigurasi",
+      "disabledTag": "Mati",
+      "empty": "Belum ada penyedia yang dikonfigurasi. Jelajahi semua penyedia untuk mulai menyiapkan."
+    },
+    "menu": {
+      "enable": "Aktifkan",
+      "disable": "Nonaktifkan",
+      "rename": "Ubah nama",
+      "delete": "Hapus"
+    },
+    "health": {
+      "verified": "Terverifikasi",
+      "checking": "Memeriksa",
+      "needsAttention": "Perlu perhatian",
+      "notChecked": "Belum diperiksa",
+      "lastChecked": "Terakhir diperiksa {time}"
+    },
+    "catalog": {
+      "title": "Jelajahi semua penyedia",
+      "description": "Pilih penyedia untuk mulai menyiapkannya. Penyedia akan muncul di bilah samping setelah dikonfigurasi.",
+      "searchPlaceholder": "Cari penyedia...",
+      "noResults": "Tidak ada penyedia yang cocok",
+      "configured": "Terkonfigurasi"
+    }
   },
   "knowledgeBase": {
     "title": "Pengaturan basis pengetahuan",

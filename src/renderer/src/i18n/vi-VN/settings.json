@@ -1567,7 +1567,34 @@
     "xaiGrokCancel": "Hủy",
     "xaiGrokOpenVerification": "Mở trang xác minh",
     "xaiGrokLoginTip": "Sử dụng OAuth mã thiết bị của xAI cho SuperGrok hoặc X Premium+. Token được lưu riêng với khóa API. Khóa API Console vẫn được hỗ trợ bên dưới.",
-    "xaiGrokApiKeyAlternative": "Hoặc sử dụng khóa API xAI Console:"
+    "xaiGrokApiKeyAlternative": "Hoặc sử dụng khóa API xAI Console:",
+    "browseAll": "Duyệt tất cả nhà cung cấp",
+    "updateKey": "Cập nhật khóa",
+    "sidebar": {
+      "configured": "Đã cấu hình",
+      "disabledTag": "Tắt",
+      "empty": "Chưa có nhà cung cấp nào được cấu hình. Duyệt tất cả nhà cung cấp để bắt đầu thiết lập."
+    },
+    "menu": {
+      "enable": "Bật",
+      "disable": "Tắt",
+      "rename": "Đổi tên",
+      "delete": "Xóa"
+    },
+    "health": {
+      "verified": "Đã xác minh",
+      "checking": "Đang kiểm tra",
+      "needsAttention": "Cần chú ý",
+      "notChecked": "Chưa kiểm tra",
+      "lastChecked": "Kiểm tra lần cuối {time}"
+    },
+    "catalog": {
+      "title": "Duyệt tất cả nhà cung cấp",
+      "description": "Chọn một nhà cung cấp để bắt đầu thiết lập. Sau khi cấu hình xong sẽ hiển thị ở thanh bên.",
+      "searchPlaceholder": "Tìm nhà cung cấp...",
+      "noResults": "Không có nhà cung cấp phù hợp",
+      "configured": "Đã cấu hình"
+    }
   },
   "knowledgeBase": {
     "title": "Cài đặt cơ sở kiến thức",

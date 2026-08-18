@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "ביטול",
     "xaiGrokOpenVerification": "פתיחת דף האימות",
     "xaiGrokLoginTip": "משתמש ב-OAuth עם קוד מכשיר של xAI עבור SuperGrok או X Premium+. האסימונים נשמרים בנפרד ממפתחות API. מפתחות API של Console עדיין נתמכים למטה.",
-    "xaiGrokApiKeyAlternative": "או להשתמש במפתח API של xAI Console:"
+    "xaiGrokApiKeyAlternative": "או להשתמש במפתח API של xAI Console:",
+    "browseAll": "עיון בכל הספקים",
+    "updateKey": "עדכון מפתח",
+    "sidebar": {
+      "configured": "מוגדרים",
+      "disabledTag": "כבוי",
+      "empty": "עדיין לא הוגדרו ספקים. עיינו בכל הספקים כדי להגדיר אחד."
+    },
+    "menu": {
+      "enable": "הפעלה",
+      "disable": "השבתה",
+      "rename": "שינוי שם",
+      "delete": "מחיקה"
+    },
+    "health": {
+      "verified": "מאומת",
+      "checking": "בבדיקה",
+      "needsAttention": "דורש טיפול",
+      "notChecked": "לא נבדק",
+      "lastChecked": "נבדק לאחרונה {time}"
+    },
+    "catalog": {
+      "title": "עיון בכל הספקים",
+      "description": "בחרו ספק כדי להתחיל בהגדרתו. הוא יופיע בסרגל הצד לאחר ההגדרה.",
+      "searchPlaceholder": "חיפוש ספקים...",
+      "noResults": "אין ספקים תואמים",
+      "configured": "מוגדר"
+    }
   },
   "knowledgeBase": {
     "title": "הגדרות בסיס ידע",

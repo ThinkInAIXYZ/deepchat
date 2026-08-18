@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "取消",
     "xaiGrokOpenVerification": "開啟驗證頁面",
     "xaiGrokLoginTip": "透過 xAI 裝置代碼 OAuth 使用 SuperGrok 或 X Premium+。Token 會與 API Key 分開儲存，下方仍支援 Console API Key。",
-    "xaiGrokApiKeyAlternative": "或使用 xAI Console API Key："
+    "xaiGrokApiKeyAlternative": "或使用 xAI Console API Key：",
+    "browseAll": "瀏覽全部服務商",
+    "updateKey": "更新金鑰",
+    "sidebar": {
+      "configured": "已設定",
+      "disabledTag": "停用",
+      "empty": "尚未設定任何服務商。瀏覽全部服務商開始設定。"
+    },
+    "menu": {
+      "enable": "啟用",
+      "disable": "停用",
+      "rename": "重新命名",
+      "delete": "刪除"
+    },
+    "health": {
+      "verified": "已驗證",
+      "checking": "檢查中",
+      "needsAttention": "需要處理",
+      "notChecked": "未檢查",
+      "lastChecked": "上次檢查於 {time}"
+    },
+    "catalog": {
+      "title": "瀏覽全部服務商",
+      "description": "選擇一個服務商開始設定，設定完成後會出現在側邊欄。",
+      "searchPlaceholder": "搜尋服務商...",
+      "noResults": "沒有符合的服務商",
+      "configured": "已設定"
+    }
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",

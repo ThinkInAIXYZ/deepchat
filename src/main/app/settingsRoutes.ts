@@ -65,6 +65,8 @@ export function createAppSettingsRoutes(deps: {
     read('artifact_think_collapse')
     read('providerOrder')
     read('providerTimestamps')
+    read('configuredProviders')
+    read('providerHealth')
     read('sidebar_group_mode')
     read('input_enabledMcpTools')
     return values

@@ -1203,7 +1203,34 @@
     "xaiGrokCancel": "Отмена",
     "xaiGrokOpenVerification": "Открыть страницу подтверждения",
     "xaiGrokLoginTip": "Используется OAuth xAI с кодом устройства для SuperGrok или X Premium+. Токены хранятся отдельно от ключей API. Ниже по-прежнему можно использовать ключи API Console.",
-    "xaiGrokApiKeyAlternative": "Или используйте ключ API xAI Console:"
+    "xaiGrokApiKeyAlternative": "Или используйте ключ API xAI Console:",
+    "browseAll": "Все провайдеры",
+    "updateKey": "Обновить ключ",
+    "sidebar": {
+      "configured": "Настроенные",
+      "disabledTag": "Выкл",
+      "empty": "Провайдеры ещё не настроены. Просмотрите всех провайдеров, чтобы настроить одного."
+    },
+    "menu": {
+      "enable": "Включить",
+      "disable": "Отключить",
+      "rename": "Переименовать",
+      "delete": "Удалить"
+    },
+    "health": {
+      "verified": "Проверено",
+      "checking": "Проверка",
+      "needsAttention": "Требует внимания",
+      "notChecked": "Не проверено",
+      "lastChecked": "Последняя проверка {time}"
+    },
+    "catalog": {
+      "title": "Все провайдеры",
+      "description": "Выберите провайдера, чтобы начать настройку. После настройки он появится в боковой панели.",
+      "searchPlaceholder": "Поиск провайдеров...",
+      "noResults": "Нет подходящих провайдеров",
+      "configured": "Настроен"
+    }
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",
