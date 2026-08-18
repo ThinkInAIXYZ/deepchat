@@ -358,11 +358,7 @@ export class CliLauncherService {
     for (const candidate of hostCandidates) {
       try {
         const stats = await lstat(candidate)
-        if (
-          stats.isFile() &&
-          !stats.isSymbolicLink() &&
-          (this.platform === 'win32' || (stats.mode & 0o111) !== 0)
-        ) {
+        if (stats.isFile() && (this.platform === 'win32' || (stats.mode & 0o111) !== 0)) {
           electronHost = candidate
           break
         }
@@ -381,7 +377,7 @@ export class CliLauncherService {
     for (const requiredPath of requiredPaths) {
       try {
         const stats = await lstat(requiredPath)
-        if (!stats.isFile() || stats.isSymbolicLink()) return null
+        if (!stats.isFile()) return null
         if (
           this.platform !== 'win32' &&
           requiredPath === source.posixLauncher &&
@@ -853,7 +849,7 @@ export class CliLauncherService {
     let exists = false
     try {
       const stats = await lstat(profilePath)
-      if (!stats.isFile() || stats.isSymbolicLink()) {
+      if (!stats.isFile()) {
         return { kind, path: profilePath, content, exists: true, blockState: 'modified' }
       }
       if (stats.size > MAX_SHELL_CONFIG_BYTES) {
@@ -1063,7 +1059,7 @@ export class CliLauncherService {
     if (!commandPath) return null
     try {
       const stats = await lstat(commandPath)
-      if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 64 * 1024) {
+      if (!stats.isFile() || stats.size > 64 * 1024) {
         throw new Error('DeepChat CLI command is not an owned launcher file')
       }
       return await readFile(commandPath, 'utf8')
@@ -1080,7 +1076,7 @@ export class CliLauncherService {
     }
     await mkdir(directory, { recursive: true, mode: 0o755 })
     const stats = await lstat(directory)
-    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    if (!stats.isDirectory()) {
       throw new Error('CLI launcher directory is not a real directory')
     }
   }
@@ -1088,7 +1084,7 @@ export class CliLauncherService {
   private async prepareHomeManagedDirectory(directory: string): Promise<void> {
     await mkdir(directory, { recursive: true, mode: 0o755 })
     const stats = await lstat(directory)
-    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    if (!stats.isDirectory()) {
       throw new Error('Managed user directory is not a real directory')
     }
     const [physicalHome, physicalDirectory] = await Promise.all([
@@ -1178,7 +1174,7 @@ export class CliLauncherService {
   private async readRegularText(filePath: string, maxBytes: number): Promise<string | null> {
     try {
       const stats = await lstat(filePath)
-      if (!stats.isFile() || stats.isSymbolicLink() || stats.size > maxBytes) {
+      if (!stats.isFile() || stats.size > maxBytes) {
         throw new Error('Managed path is not a supported regular file')
       }
       return await readFile(filePath, 'utf8')
@@ -1220,7 +1216,7 @@ export class CliLauncherService {
     try {
       const directory = path.dirname(this.markerPath)
       const directoryStats = await lstat(directory)
-      if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) {
+      if (!directoryStats.isDirectory()) {
         return { state: 'invalid', raw: '' }
       }
       const [physicalUserData, physicalDirectory] = await Promise.all([
@@ -1231,7 +1227,7 @@ export class CliLauncherService {
         return { state: 'invalid', raw: '' }
       }
       const stats = await lstat(this.markerPath)
-      if (!stats.isFile() || stats.isSymbolicLink() || stats.size > MAX_MARKER_BYTES) {
+      if (!stats.isFile() || stats.size > MAX_MARKER_BYTES) {
         return { state: 'invalid', raw: '' }
       }
       const raw = await readFile(this.markerPath, 'utf8')
@@ -1248,7 +1244,7 @@ export class CliLauncherService {
     const directory = path.dirname(this.markerPath)
     await mkdir(directory, { recursive: true, mode: 0o700 })
     const directoryStats = await lstat(directory)
-    if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) {
+    if (!directoryStats.isDirectory()) {
       throw new Error('CLI launcher ownership directory is not a real directory')
     }
     const [physicalUserData, physicalDirectory] = await Promise.all([
