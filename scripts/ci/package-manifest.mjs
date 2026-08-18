@@ -509,6 +509,12 @@ export function validateInstallerSizeReport(
         )
       }
     }
+    const expectedDeltaBytes = Number.isSafeInteger(comparison.expectedDeltaBytes)
+      ? comparison.expectedDeltaBytes
+      : Number.isSafeInteger(report.expectedDeltaBytes)
+        ? report.expectedDeltaBytes
+        : 0
+    const adjustedDeltaBytes = comparison.deltaBytes - expectedDeltaBytes
     if (
       !Number.isSafeInteger(comparison.deltaBytes) ||
       comparison.deltaBytes !== comparison.candidate.bytes - comparison.baseline.bytes ||
@@ -516,8 +522,10 @@ export function validateInstallerSizeReport(
       comparison.maxGrowthBytes < 0 ||
       !Number.isSafeInteger(comparison.maxShrinkBytes) ||
       comparison.maxShrinkBytes < 0 ||
-      comparison.deltaBytes > comparison.maxGrowthBytes ||
-      comparison.deltaBytes < -comparison.maxShrinkBytes
+      (comparison.adjustedDeltaBytes !== undefined &&
+        comparison.adjustedDeltaBytes !== adjustedDeltaBytes) ||
+      adjustedDeltaBytes > comparison.maxGrowthBytes ||
+      adjustedDeltaBytes < -comparison.maxShrinkBytes
     ) {
       throw new Error(
         `Installer-size report has invalid limits for ${expectedTarget}/${comparison.role}`

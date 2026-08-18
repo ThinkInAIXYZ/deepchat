@@ -34,11 +34,13 @@ import {
   getTargetDefinition,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   RELEASE_INDEX_SCHEMA_VERSION,
+  resolvePackageSizeExpectedDelta,
   SHA512_BASE64_PATTERN,
   TARGET_DEFINITIONS
 } from '../../../scripts/ci/package-contract.mjs'
 import {
   createPackageManifest,
+  validateInstallerSizeReport,
   validateMacZipEntries,
   verifyMacAppDistribution,
   verifyMacZipDistribution
@@ -654,6 +656,87 @@ describe('package-size contract', () => {
       workflow: 'Build Application'
     })
     expect(policy).toEqual(createDefaultPackageSizePolicy())
+    expect(policy.expectedDelta.baselineCommit).toBe(baseline.source.commit)
+    expect(resolvePackageSizeExpectedDelta(policy, baseline.source.commit)).toBe(
+      policy.expectedDelta.bytes
+    )
+    expect(resolvePackageSizeExpectedDelta(policy, sourceSha)).toBe(0)
+  })
+
+  it('applies expectedDelta only when the baseline commit matches', async () => {
+    const definition = getTargetDefinition('win32-x64')
+    const candidateName = `DeepChat-${version}-windows-x64.exe`
+    const candidatePath = path.join(tempDirectory, candidateName)
+    const baseline = createBaseline()
+    baseline.targets[definition.id].installer.bytes = 20
+    const policy = createDefaultPackageSizePolicy()
+    policy.expectedDelta = { baselineCommit: sourceSha, bytes: -10 }
+    policy.targets[definition.id].installer = {
+      maxGrowthBytes: 5,
+      maxShrinkBytes: 5
+    }
+    await writeFile(candidatePath, '12345678')
+
+    const report = await comparePackageSize({
+      target: definition.id,
+      candidateDirectory: tempDirectory,
+      candidateCommit: sourceSha,
+      baseline,
+      policy
+    })
+    expect(report).toMatchObject({
+      withinPolicy: true,
+      expectedDeltaBytes: -10,
+      comparisons: [
+        {
+          deltaBytes: -12,
+          expectedDeltaBytes: -10,
+          adjustedDeltaBytes: -2,
+          withinPolicy: true
+        }
+      ]
+    })
+    expect(() =>
+      validateInstallerSizeReport(report, definition.id, sourceSha)
+    ).not.toThrow()
+
+    policy.expectedDelta = { baselineCommit: 'b'.repeat(40), bytes: -10 }
+    const stale = await comparePackageSize({
+      target: definition.id,
+      candidateDirectory: tempDirectory,
+      candidateCommit: sourceSha,
+      baseline,
+      policy
+    })
+    expect(stale).toMatchObject({
+      withinPolicy: false,
+      expectedDeltaBytes: 0,
+      comparisons: [
+        {
+          deltaBytes: -12,
+          expectedDeltaBytes: 0,
+          adjustedDeltaBytes: -12,
+          withinPolicy: false
+        }
+      ]
+    })
+    expect(() => validateInstallerSizeReport(stale, definition.id, sourceSha)).toThrow(
+      /did not pass/
+    )
+    expect(() =>
+      validateInstallerSizeReport(
+        {
+          ...stale,
+          withinPolicy: true,
+          comparisons: stale.comparisons.map((comparison) => ({
+            ...comparison,
+            withinPolicy: true
+          }))
+        },
+        definition.id,
+        sourceSha
+      )
+    ).toThrow(/invalid limits/)
   })
 })
 

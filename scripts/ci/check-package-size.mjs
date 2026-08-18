@@ -12,6 +12,7 @@ import {
   SOURCE_SHA_PATTERN,
   TARGET_DEFINITIONS,
   matchesRoleFileName,
+  resolvePackageSizeExpectedDelta,
   validateSourceSha
 } from './package-contract.mjs'
 import { findRoleFile } from './package-files.mjs'
@@ -112,14 +113,17 @@ export function validatePackageSizePolicy(policy) {
   ) {
     throw new Error('Invalid package-size policy')
   }
-  // Clear expectedDeltaBytes when the baseline is refreshed so the temporary
-  // allowance for removing bundled Node does not become permanent slack.
-  if (policy.expectedDeltaBytes !== undefined) {
+  if (policy.expectedDelta !== undefined) {
+    const expected = policy.expectedDelta
     if (
-      !Number.isSafeInteger(policy.expectedDeltaBytes) ||
-      policy.expectedDeltaBytes > 0
+      !expected ||
+      typeof expected !== 'object' ||
+      typeof expected.baselineCommit !== 'string' ||
+      !SOURCE_SHA_PATTERN.test(expected.baselineCommit) ||
+      !Number.isSafeInteger(expected.bytes) ||
+      expected.bytes > 0
     ) {
-      throw new Error('Package-size policy expectedDeltaBytes must be a non-positive integer')
+      throw new Error('Package-size policy expectedDelta is invalid')
     }
   }
   for (const definition of TARGET_DEFINITIONS) {
@@ -256,7 +260,7 @@ export async function comparePackageSize({
     const candidateArtifact = candidate[roleDefinition.name]
     const limits = policy.targets[definition.id][roleDefinition.name]
     const deltaBytes = candidateArtifact.bytes - baselineArtifact.bytes
-    const expectedDeltaBytes = policy.expectedDeltaBytes ?? 0
+    const expectedDeltaBytes = resolvePackageSizeExpectedDelta(policy, baseline.source.commit)
     const adjustedDeltaBytes = deltaBytes - expectedDeltaBytes
     const roleWithinPolicy =
       adjustedDeltaBytes <= limits.maxGrowthBytes &&
@@ -267,6 +271,8 @@ export async function comparePackageSize({
       baseline: baselineArtifact,
       candidate: candidateArtifact,
       deltaBytes,
+      expectedDeltaBytes,
+      adjustedDeltaBytes,
       maxGrowthBytes: limits.maxGrowthBytes,
       maxShrinkBytes: limits.maxShrinkBytes,
       withinPolicy: roleWithinPolicy
@@ -277,6 +283,7 @@ export async function comparePackageSize({
     target: definition.id,
     baseline: baseline.source,
     candidateCommit: candidateCommit ?? null,
+    expectedDeltaBytes: resolvePackageSizeExpectedDelta(policy, baseline.source.commit),
     comparisons,
     withinPolicy
   }

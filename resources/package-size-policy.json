@@ -1,6 +1,9 @@
 {
   "schemaVersion": 1,
-  "expectedDeltaBytes": -52428800,
+  "expectedDelta": {
+    "baselineCommit": "dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343",
+    "bytes": -52428800
+  },
   "targets": {
     "win32-x64": {
       "installer": {

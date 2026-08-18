@@ -20,6 +20,11 @@ export const DARWIN_DISTRIBUTION_CHECK_NAMES = Object.freeze([
 
 const MIB = 1024 * 1024
 export const DEFAULT_INSTALLER_DELTA_BYTES = 90 * MIB
+export const PACKAGE_SIZE_TRANSIENT_DELTA = Object.freeze({
+  reason: 'stop-shipping-bundled-node',
+  baselineCommit: 'dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343',
+  bytes: -50 * MIB
+})
 
 const role = (name, directory, suffixes, options = {}) =>
   Object.freeze({
@@ -250,9 +255,23 @@ export function expectedReleaseAssetCount() {
   return packageAssetCount + 4 + 1
 }
 
+export function resolvePackageSizeExpectedDelta(policy, baselineCommit) {
+  const expected = policy?.expectedDelta
+  if (!expected) return 0
+  if (expected.baselineCommit !== baselineCommit) return 0
+  if (!Number.isSafeInteger(expected.bytes) || expected.bytes > 0) {
+    throw new Error('Package-size policy expectedDelta.bytes must be a non-positive integer')
+  }
+  return expected.bytes
+}
+
 export function createDefaultPackageSizePolicy() {
   return {
     schemaVersion: PACKAGE_SIZE_POLICY_SCHEMA_VERSION,
+    expectedDelta: {
+      baselineCommit: PACKAGE_SIZE_TRANSIENT_DELTA.baselineCommit,
+      bytes: PACKAGE_SIZE_TRANSIENT_DELTA.bytes
+    },
     targets: Object.fromEntries(
       targetDefinitions.map((definition) => [
         definition.id,
