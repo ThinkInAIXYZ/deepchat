@@ -42,6 +42,7 @@ import {
   assertSafeToolchainVersion,
   bundledKindRoot,
   downloadStagingDir,
+  gcRetiredToolchainTrees,
   managedKindRoot
 } from './layout'
 import {
@@ -70,9 +71,10 @@ export type ToolchainServiceOptions = {
   platform?: NodeJS.Platform
   arch?: string
   env?: NodeJS.ProcessEnv
-  inspectNode?: (executable: string) => NodeInspection | null
+  inspectNode?: (executable: string) => NodeInspection | null | undefined
   fetch?: FetchLike
   extractArchive?: ArchiveExtractor
+  removeTree?: (directory: string) => void
   mirrorUrl?: string
   onProgress?: (progress: ToolchainInstallProgress) => void
   onMissing?: (missing: ToolchainMissingNotice[]) => void
@@ -92,7 +94,6 @@ export class ToolchainService {
   private readonly platform: NodeJS.Platform
   private readonly arch: string
   private env: NodeJS.ProcessEnv
-  private readonly inspectNode: (executable: string) => NodeInspection | null
   private readonly fetchImpl: FetchLike
   private readonly extract: ArchiveExtractor
   private state: ToolchainState | null = null
@@ -107,9 +108,9 @@ export class ToolchainService {
     this.platform = options.platform ?? process.platform
     this.arch = options.arch ?? process.arch
     this.env = options.env ?? process.env
-    this.inspectNode = options.inspectNode ?? ((executable) => inspectNodeExecutable(executable))
     this.fetchImpl = options.fetch ?? fetch
     this.extract = options.extractArchive ?? extractArchive
+    gcRetiredToolchainTrees(options.userDataDir)
   }
 
   static initialize(options: ToolchainServiceOptions): ToolchainService {
@@ -130,8 +131,7 @@ export class ToolchainService {
 
   updateDetectionEnv(env: NodeJS.ProcessEnv): void {
     this.env = env
-    this.resolvedCache.clear()
-    this.inspectionCache.clear()
+    this.invalidateAndReevaluate()
   }
 
   getState(): ToolchainState {
@@ -157,7 +157,11 @@ export class ToolchainService {
       uv: { ...current.uv },
       [kind]: { ...next }
     })
-    this.clearAllMissing(kind)
+    if (next.source === 'unconfigured') {
+      this.recordMissing(kind, undefined, 'unconfigured')
+    } else {
+      this.clearAllMissing(kind)
+    }
     return this.getState()
   }
 
@@ -400,12 +404,19 @@ export class ToolchainService {
       }
       return
     }
-    const inspected = this.inspectNode(resolved.node) ?? null
+    const inspected = this.inspectNodeForCache(resolved.node)
+    if (inspected === undefined) return
     this.inspectionCache.set(resolved.node, inspected)
     if (inspected) {
       resolved.version = inspected.version
       resolved.nodeModuleVersion = inspected.modules
     }
+  }
+
+  private inspectNodeForCache(executable: string): NodeInspection | null | undefined {
+    if (this.options.inspectNode) return this.options.inspectNode(executable)
+    const result = inspectNodeExecutableResult(executable)
+    return result.retryable ? undefined : result.inspection
   }
 
   private rewriteToken(token: string): string {
@@ -441,6 +452,31 @@ export class ToolchainService {
     return this.state
   }
 
+  private invalidateAndReevaluate(): void {
+    this.resolvedCache.clear()
+    this.inspectionCache.clear()
+    if (this.state?.provisional) {
+      this.persist(this.migrateFirstRun())
+    }
+    this.recomputeMissing()
+  }
+
+  private recomputeMissing(): void {
+    const pending = [...this.missing.keys()]
+    this.missing.clear()
+    for (const key of pending) {
+      const [kind, purpose] = key.split(':') as [ToolchainKind, string]
+      try {
+        this.resolve(kind, {
+          purpose: purpose === 'generic' ? undefined : (purpose as ToolchainPurpose)
+        })
+      } catch {
+        // resolve() records typed missing notices.
+      }
+    }
+    this.emitMissing()
+  }
+
   private migrateFirstRun(): ToolchainState {
     const state = emptyToolchainState()
     const bundledNode = probeNodeRoot(
@@ -460,6 +496,7 @@ export class ToolchainService {
     } else if (probeSystemUv(this.env, this.platform).status === 'complete') {
       state.uv = { source: 'system' }
     }
+    state.provisional = true
     return state
   }
 
@@ -547,13 +584,22 @@ export class ToolchainService {
       this.setProgress(kind, 'activating')
       replaceDirectory(payloadRoot, managedDir)
       this.setSource(kind, { source: 'managed', version: artifact.version })
-      rmSync(stagingDir, { recursive: true, force: true })
       this.setProgress(kind, 'idle')
     } catch (error) {
       const classified = isToolchainDownloadError(error) ? error : classifyDownloadError(error)
       logger.warn('[ToolchainService] Install failed', { kind, reason: classified.reason })
       this.setProgress(kind, 'idle', { error: classified.reason })
       throw classified
+    }
+    this.removeTreeBestEffort(stagingDir, kind)
+  }
+
+  private removeTreeBestEffort(directory: string, kind: ToolchainKind): void {
+    try {
+      if (this.options.removeTree) this.options.removeTree(directory)
+      else rmSync(directory, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('[ToolchainService] Staging cleanup failed', { kind, error })
     }
   }
 
@@ -703,7 +749,10 @@ export class ToolchainService {
     this.options.onMissing?.(this.collectMissing())
   }
 
-  private normalizeSelection(kind: ToolchainKind, selection: ToolchainSelection): ToolchainSelection {
+  private normalizeSelection(
+    kind: ToolchainKind,
+    selection: ToolchainSelection
+  ): ToolchainSelection {
     if (selection.source !== 'managed') return selection
     return {
       ...selection,
@@ -725,12 +774,25 @@ export class ToolchainService {
 }
 
 export function inspectNodeExecutable(executable: string): NodeInspection | null {
+  return inspectNodeExecutableResult(executable).inspection
+}
+
+export function inspectNodeExecutableResult(
+  executable: string,
+  timeout = 5000
+): {
+  inspection: NodeInspection | null
+  retryable: boolean
+} {
   const result = spawnSync(
     executable,
     ['-p', 'JSON.stringify({v:process.version,m:Number(process.versions.modules)})'],
-    { encoding: 'utf8', timeout: 5000, windowsHide: true }
+    { encoding: 'utf8', timeout, windowsHide: true }
   )
-  if (result.status !== 0 || !result.stdout) return null
+  if (isRetryableInspectFailure(result)) {
+    return { inspection: null, retryable: true }
+  }
+  if (result.status !== 0 || !result.stdout) return { inspection: null, retryable: false }
   try {
     const parsed = JSON.parse(result.stdout) as { v?: unknown; m?: unknown }
     if (
@@ -738,12 +800,17 @@ export function inspectNodeExecutable(executable: string): NodeInspection | null
       typeof parsed.m !== 'number' ||
       !Number.isFinite(parsed.m)
     ) {
-      return null
+      return { inspection: null, retryable: false }
     }
-    return { version: parsed.v, modules: parsed.m }
+    return { inspection: { version: parsed.v, modules: parsed.m }, retryable: false }
   } catch {
-    return null
+    return { inspection: null, retryable: false }
   }
+}
+
+function isRetryableInspectFailure(result: ReturnType<typeof spawnSync>): boolean {
+  const code = (result.error as NodeJS.ErrnoException | undefined)?.code
+  return code === 'ETIMEDOUT' || result.signal === 'SIGTERM' || result.signal === 'SIGKILL'
 }
 
 function toolchainCommandName(token: string, platform: NodeJS.Platform): string | null {

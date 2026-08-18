@@ -1,3 +1,4 @@
+import { readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import type { ToolchainKind } from '@shared/types/toolchains'
 
@@ -102,4 +103,26 @@ export function inferNodeRootFromExecutable(executable: string, platform: NodeJS
 
 export function inferUvRootFromExecutable(executable: string): string {
   return path.dirname(executable)
+}
+
+const RETIRED_TREE_NAME = /(?:\.prev\.\d+|\.next)$/
+
+export function gcRetiredToolchainTrees(userDataDir: string): void {
+  for (const kind of ['node', 'uv'] as const) {
+    const kindRoot = path.join(managedRootDir(userDataDir), kind)
+    let entries: string[]
+    try {
+      entries = readdirSync(kindRoot)
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      if (!RETIRED_TREE_NAME.test(name)) continue
+      try {
+        rmSync(path.join(kindRoot, name), { recursive: true, force: true })
+      } catch {
+        // Leave the tree for the next startup.
+      }
+    }
+  }
 }

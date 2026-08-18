@@ -68,7 +68,8 @@ export function parseToolchainState(value: unknown): ToolchainState {
   return {
     schemaVersion: 1,
     node: parseSelection(record.node, 'node'),
-    uv: parseSelection(record.uv, 'uv')
+    uv: parseSelection(record.uv, 'uv'),
+    ...(record.provisional === true ? { provisional: true } : {})
   }
 }
 

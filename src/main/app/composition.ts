@@ -1222,15 +1222,17 @@ export async function createMainProcessControl(dependencies: {
     onMissing: (missing) =>
       publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() })
   })
-  void getShellEnvironment()
-    .then((shellEnv) => {
-      toolchainService.updateDetectionEnv(
-        mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
-      )
-    })
-    .catch((error) => {
-      logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
-    })
+  if (process.platform !== 'win32') {
+    void getShellEnvironment()
+      .then((shellEnv) => {
+        toolchainService.updateDetectionEnv(
+          mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
+        )
+      })
+      .catch((error) => {
+        logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
+      })
+  }
   ocrRuntimeService = new OcrRuntimeService({
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,

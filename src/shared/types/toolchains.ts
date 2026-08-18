@@ -28,6 +28,7 @@ export interface ToolchainState {
   schemaVersion: 1
   node: ToolchainSelection
   uv: ToolchainSelection
+  provisional?: boolean
 }
 
 export interface ResolvedNodeToolchain {

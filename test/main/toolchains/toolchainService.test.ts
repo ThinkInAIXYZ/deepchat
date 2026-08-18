@@ -9,7 +9,7 @@ vi.unmock('path')
 vi.unmock('node:path')
 import { NODE_MODULE_VERSION, NODE_PIN } from '../../../src/main/toolchains/catalog'
 import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
-import { ToolchainService } from '../../../src/main/toolchains/service'
+import { inspectNodeExecutableResult, ToolchainService } from '../../../src/main/toolchains/service'
 
 function writeExecutable(filePath: string): void {
   mkdirSync(path.dirname(filePath), { recursive: true })
@@ -253,6 +253,92 @@ describe('ToolchainService', () => {
     service.setSource('node', { source: 'system' })
     service.getStatus()
     expect(inspections).toBe(2)
+  })
+
+  it('remigrates a provisional first-run after login-shell PATH arrives', () => {
+    const notices: Array<Array<{ kind: string; reason: string }>> = []
+    const { service } = createService({
+      env: { PATH: '' },
+      onMissing: (missing) => notices.push(missing)
+    })
+    expect(service.getState()).toMatchObject({
+      node: { source: 'unconfigured' },
+      provisional: true
+    })
+    expect(() => service.resolve('node')).toThrow(/not configured/)
+    expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    seedUvTree(systemRoot)
+    service.updateDetectionEnv({
+      PATH: `${path.join(systemRoot, 'bin')}:${systemRoot}`
+    })
+
+    expect(service.getState()).toMatchObject({
+      node: { source: 'system' },
+      uv: { source: 'system' },
+      provisional: true
+    })
+    expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
+    expect(notices.at(-1)).toEqual([])
+  })
+
+  it('does not remigrate after an explicit source choice', () => {
+    const { service, appPath } = createService({ env: { PATH: '' } })
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    service.setSource('node', { source: 'bundled' })
+    expect(service.getState().provisional).toBeUndefined()
+
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    service.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    expect(service.getState().node.source).toBe('bundled')
+  })
+
+  it('keeps a missing notice when the user selects unconfigured', () => {
+    const notices: Array<Array<{ kind: string; reason: string }>> = []
+    const { service, appPath } = createService({
+      onMissing: (missing) => notices.push(missing)
+    })
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    service.setSource('node', { source: 'bundled' })
+    expect(service.resolve('node').source).toBe('bundled')
+    expect(service.getStatus().missing).toEqual([])
+
+    service.setSource('node', { source: 'unconfigured' })
+    expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+    expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+  })
+
+  it('does not cache a timed-out Node inspection', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    let inspections = 0
+    const service = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir: mkdtempSync(path.join(os.tmpdir(), 'dc-data-')),
+      platform: 'darwin',
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => {
+        inspections += 1
+        return undefined
+      }
+    })
+    service.getStatus()
+    const afterFirst = inspections
+    expect(afterFirst).toBeGreaterThan(0)
+    service.getStatus()
+    expect(inspections).toBeGreaterThan(afterFirst)
+  })
+
+  it.skipIf(process.platform === 'win32')('treats a hung inspect spawn as retryable', () => {
+    const script = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-hang-')), 'hang')
+    writeFileSync(script, '#!/bin/sh\nsleep 1\n')
+    chmodSync(script, 0o755)
+    const result = inspectNodeExecutableResult(script, 40)
+    expect(result.retryable).toBe(true)
+    expect(result.inspection).toBeNull()
   })
 
   it('requires corepack only for managed Node', () => {

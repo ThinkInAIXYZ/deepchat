@@ -229,6 +229,35 @@ describe('ToolchainService lifecycle', () => {
     expect(service.getState().node).toEqual({ source: 'managed', version: NODE_PIN })
   })
 
+  it('keeps a successful install when staging cleanup fails', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const payload = Buffer.from('cleanup-node-archive-bytes')
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: createFetch(payload),
+      extractArchive: async (_archive, destDir) => {
+        seedNodeTree(destDir, true)
+      },
+      removeTree: () => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      }
+    })
+
+    await expect(service.install('node')).resolves.toMatchObject({
+      node: { source: 'managed', version: NODE_PIN }
+    })
+  })
+
   it('surfaces a missing notice when resolve fails', () => {
     const service = new ToolchainService({
       appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),
