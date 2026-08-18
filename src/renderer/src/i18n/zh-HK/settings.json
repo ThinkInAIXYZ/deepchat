@@ -3240,13 +3240,13 @@
     "uvTitle": "uv",
     "source": "來源",
     "sources": {
-      "bundled": "應用內建",
+      "bundled": "應用內置",
       "managed": "由 DeepChat 安裝",
       "system": "系統既有安裝",
-      "custom": "自訂路徑",
+      "custom": "自定義路徑",
       "unconfigured": "未設定"
     },
-    "systemDetected": "偵測到系統二進位檔：{path}",
+    "systemDetected": "檢測到系統二進位檔：{path}",
     "systemDetectedHint": "已有可用安裝時優先使用，不必再下載一份。",
     "install": "安裝官方執行階段",
     "repair": "修復",
