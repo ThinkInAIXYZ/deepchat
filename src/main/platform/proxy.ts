@@ -35,20 +35,19 @@ export function createGlobalFetchDispatcher(proxy?: {
   return new Agent(FETCH_DISPATCHER_TIMEOUTS)
 }
 
-// 合并系统和自定义的 no_proxy 设置
-function mergeNoProxy(defaultNoProxy: string): string {
-  const systemNoProxy = process.env.no_proxy || process.env.NO_PROXY || ''
-  logger.info('systemNoProxy', systemNoProxy)
-  if (!systemNoProxy) {
+// Merge app defaults with the process inherited no_proxy snapshot, not live env.
+// resolve can write NO_PROXY then later clear it; live env would lose the original.
+function mergeNoProxy(defaultNoProxy: string, inheritedNoProxy: string): string {
+  logger.info('systemNoProxy', inheritedNoProxy)
+  if (!inheritedNoProxy) {
     return defaultNoProxy
   }
-  // 将两个 no_proxy 字符串分割成数组，去重，然后重新组合
   const noProxySet = new Set(
     [
       ...defaultNoProxy.split(',').map((item) => item.trim()),
-      ...systemNoProxy.split(',').map((item) => item.trim())
+      ...inheritedNoProxy.split(',').map((item) => item.trim())
     ].filter(Boolean)
-  ) // 过滤掉空字符串
+  )
 
   return Array.from(noProxySet).join(', ')
 }
@@ -58,13 +57,26 @@ export class ProxyConfig {
   private mode: ProxyMode = ProxyMode.SYSTEM
   private customProxyUrl: string = ''
   private resolutionPromise: Promise<boolean> = Promise.resolve(true)
+  private dispatcherInstalled = false
+  private readonly inheritedNoProxy = process.env.no_proxy || process.env.NO_PROXY || ''
 
   resolveProxy(): Promise<boolean> {
     const mode = this.mode
     const customProxyUrl = this.customProxyUrl
-    const resolution = this.resolutionPromise.then(() => this.resolveProxyNow(mode, customProxyUrl))
+    const resolution = this.resolutionPromise.then(
+      () => this.resolveProxyNow(mode, customProxyUrl),
+      () => this.resolveProxyNow(mode, customProxyUrl)
+    )
     this.resolutionPromise = resolution
     return resolution
+  }
+
+  private ensureTimeoutDispatcher(): void {
+    if (this.dispatcherInstalled) {
+      return
+    }
+    setGlobalDispatcher(createGlobalFetchDispatcher())
+    this.dispatcherInstalled = true
   }
 
   whenReady(): Promise<boolean> {
@@ -73,6 +85,7 @@ export class ProxyConfig {
 
   private async resolveProxyNow(mode: ProxyMode, customProxyUrl: string): Promise<boolean> {
     try {
+      this.ensureTimeoutDispatcher()
       // 根据不同的代理模式设置
       if (mode === ProxyMode.NONE) {
         await this.clearProxy()
@@ -93,7 +106,7 @@ export class ProxyConfig {
         protocol === 'PROXY' && address?.trim() ? `http://${address.trim()}` : null
 
       if (resolvedProxyUrl) {
-        const mergedNoProxy = mergeNoProxy(NO_PROXY)
+        const mergedNoProxy = mergeNoProxy(NO_PROXY, this.inheritedNoProxy)
         setGlobalDispatcher(
           createGlobalFetchDispatcher({
             httpProxy: resolvedProxyUrl,
@@ -110,28 +123,8 @@ export class ProxyConfig {
       return true
     } catch (error) {
       console.error('Failed to resolve proxy:', error)
-      // Never throw: a rejected resolutionPromise skips every later resolve.
-      // Reuse the last installed proxy URL so a later failure does not drop it.
-      try {
-        if (this.proxyUrl) {
-          setGlobalDispatcher(
-            createGlobalFetchDispatcher({
-              httpProxy: this.proxyUrl,
-              httpsProxy: this.proxyUrl,
-              noProxy: mergeNoProxy(NO_PROXY)
-            })
-          )
-        } else {
-          setGlobalDispatcher(createGlobalFetchDispatcher())
-        }
-      } catch (dispatcherError) {
-        console.error('Failed to install fetch dispatcher:', dispatcherError)
-        try {
-          setGlobalDispatcher(createGlobalFetchDispatcher())
-        } catch (fallbackError) {
-          console.error('Failed to install no-proxy fetch dispatcher:', fallbackError)
-        }
-      }
+      // Leave the last good dispatcher in place. Recreating it here leaks the
+      // previous pool and can drop a working proxy after a later resolve fails.
       return false
     }
   }
@@ -168,7 +161,7 @@ export class ProxyConfig {
 
   private async setCustomProxy(proxyUrl: string): Promise<void> {
     await session.defaultSession.setProxy({ proxyRules: proxyUrl })
-    const mergedNoProxy = mergeNoProxy(NO_PROXY)
+    const mergedNoProxy = mergeNoProxy(NO_PROXY, this.inheritedNoProxy)
     setGlobalDispatcher(
       createGlobalFetchDispatcher({
         httpProxy: proxyUrl,
@@ -253,6 +246,7 @@ export class ProxyConfig {
         this.mode = ProxyMode.SYSTEM
       }
     }
+    this.ensureTimeoutDispatcher()
     void this.resolveProxy()
   }
 }

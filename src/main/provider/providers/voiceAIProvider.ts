@@ -389,22 +389,30 @@ export class VoiceAIProvider extends BaseLLMProvider {
   }
 
   private async listVoices(): Promise<VoiceStatusResponse[]> {
-    const response = await fetch(this.buildUrl('/api/v1/tts/voices'), {
-      method: 'GET',
-      headers: this.getAuthHeaders()
+    const { signal, dispose } = this.createModelRequestSignal({
+      timeout: this.getModelFetchTimeout()
     })
+    try {
+      const response = await fetch(this.buildUrl('/api/v1/tts/voices'), {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+        ...(signal ? { signal } : {})
+      })
 
-    if (!response.ok) {
-      throw createProviderHttpErrorFromResponse(
-        `Voice.ai list voices failed: ${response.status} ${response.statusText}`,
-        response,
-        'voiceai_voices_http_error'
-      )
+      if (!response.ok) {
+        throw createProviderHttpErrorFromResponse(
+          `Voice.ai list voices failed: ${response.status} ${response.statusText}`,
+          response,
+          'voiceai_voices_http_error'
+        )
+      }
+
+      const data = await response.json()
+      if (!Array.isArray(data)) return []
+      return data as VoiceStatusResponse[]
+    } finally {
+      dispose()
     }
-
-    const data = await response.json()
-    if (!Array.isArray(data)) return []
-    return data as VoiceStatusResponse[]
   }
 
   private async generateSpeech(

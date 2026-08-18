@@ -1400,7 +1400,9 @@ export class AiSdkProvider extends BaseLLMProvider {
     const modelsUrl = /\/v1$/i.test(normalizedBaseUrl)
       ? `${normalizedBaseUrl}/models`
       : `${normalizedBaseUrl}/v1/models`
-    const { signal, dispose } = this.createModelRequestSignal(null)
+    const { signal, dispose } = this.createModelRequestSignal({
+      timeout: this.getModelFetchTimeout()
+    })
 
     try {
       const response = await fetch(modelsUrl, {
@@ -1456,7 +1458,9 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     const modelsUrl = `${normalizeGeminiBaseUrl(this.provider.baseUrl || undefined).replace(/\/+$/, '')}/models`
-    const { signal, dispose } = this.createModelRequestSignal(null)
+    const { signal, dispose } = this.createModelRequestSignal({
+      timeout: this.getModelFetchTimeout()
+    })
 
     try {
       const response = await fetch(modelsUrl, {

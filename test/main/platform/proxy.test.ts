@@ -159,7 +159,7 @@ describe('process-wide fetch dispatcher', () => {
       headersTimeout: 0,
       bodyTimeout: 0
     })
-    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(2)
     expect(EnvHttpProxyAgent).not.toHaveBeenCalled()
   })
 
@@ -172,7 +172,7 @@ describe('process-wide fetch dispatcher', () => {
       headersTimeout: 0,
       bodyTimeout: 0
     })
-    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(2)
   })
 
   it('installs EnvHttpProxyAgent with those timeouts when a proxy is set', async () => {
@@ -188,7 +188,7 @@ describe('process-wide fetch dispatcher', () => {
         bodyTimeout: 0
       })
     )
-    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(2)
   })
 
   it('merges process NO_PROXY into the system proxy dispatcher', async () => {
@@ -235,16 +235,26 @@ describe('process-wide fetch dispatcher', () => {
 
     await expect(config.resolveProxy()).resolves.toBe(false)
 
-    expect(EnvHttpProxyAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        httpProxy: 'http://127.0.0.1:7890',
-        httpsProxy: 'http://127.0.0.1:7890',
-        headersTimeout: 0,
-        bodyTimeout: 0
-      })
-    )
+    expect(EnvHttpProxyAgent).not.toHaveBeenCalled()
     expect(Agent).not.toHaveBeenCalled()
-    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1)
+    expect(setGlobalDispatcher).not.toHaveBeenCalled()
+    expect(config.getProxyUrl()).toBe('http://127.0.0.1:7890')
+  })
+
+  it('preserves inherited NO_PROXY after a DIRECT to proxy transition', async () => {
+    process.env.NO_PROXY = 'corp.internal'
+    electronMocks.resolveProxy
+      .mockResolvedValueOnce('DIRECT')
+      .mockResolvedValueOnce('PROXY 127.0.0.1:7890')
+    const config = new ProxyConfig()
+    await config.resolveProxy()
+    expect(process.env.NO_PROXY).toBeUndefined()
+
+    await expect(config.resolveProxy()).resolves.toBe(true)
+    const noProxy = (EnvHttpProxyAgent.mock.calls.at(-1)?.[0] as { noProxy?: string } | undefined)
+      ?.noProxy
+    expect(noProxy).toContain('corp.internal')
+    expect(noProxy).toContain('localhost')
   })
 
   it('clears committed proxy env when system resolution becomes DIRECT', async () => {
