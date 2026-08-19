@@ -110,7 +110,7 @@ pnpm run dev
 - `src/renderer/`：Vue 3 + Pinia 应用。业务/UI 代码在 `src/renderer/src`（components、stores、views、lib、i18n），Shell UI 在 `src/renderer/shell/`。
 - `src/renderer/api/`：renderer-main 边界层。typed `*Client`、event subscription、命名 runtime wrapper 都应放在这里；`src/renderer/api/legacy/` 仅作为 quarantine compatibility 目录。
 - `src/shared/`：主渲染共享的 route contract、event contract、类型与工具。legacy presenter typing 仍会为 main 内部和 quarantine adapter 保留。
-- `runtime/`：随应用发布的 MCP/Agent 运行时（Node/uv）。
+- `runtime/`：打包时的运行时种子（uv；开发环境还可有本地 Node 树）。正式包通过「设置 → 工具链」解析 Node，不再随包装 Node。
 - `scripts/`、`resources/`：构建、打包与资产管线。
 - `build/`、`out/`、`dist/`：构建产物（请勿直接修改）。
 - `docs/`：设计文档与指南。
@@ -124,7 +124,7 @@ pnpm run dev
 - **Presenter 留在 main 内部**：Presenter 仍承载大量主进程能力，但在 active path 上它们应被 routes、events、wrapper 隔离起来；`src/renderer/api/legacy/**` 只作为 quarantine compatibility code 存在。
 - **多窗口 + 多 Tab Shell**：WindowPresenter 与 TabPresenter 管理真正的 Electron 窗口/BrowserView，可分离/移动；EventBus 负责跨进程广播。
 - **清晰数据边界**：聊天数据在 SQLite（`app_db/chat.db`），设置在 Electron Store，知识库在 DuckDB，备份由 SyncPresenter 负责；渲染进程不直接读写文件系统。
-- **工具优先运行时**：LLMProviderPresenter 统一流式处理、限流、实例管理（云/本地/ACP Agent）；MCPPresenter 启动 MCP 服务器、Router 市场和内置工具，捆绑 Node 运行时。
+- **工具优先运行时**：LLMProviderPresenter 统一流式处理、限流、实例管理（云/本地/ACP Agent）；MCPPresenter 启动 MCP 服务器、Router 市场和内置工具，使用解析后的 Node/uv 工具链（托管、系统、自定义，或仍随包的 uv 种子）。
 - **安全与韧性**：开启 `contextIsolation`；renderer 侧 OS/文件/网络访问必须经 typed bridge 或 quarantine wrapper；备份/导入校验输入；限流保护避免 Provider 过载。
 
 ```

@@ -21,6 +21,7 @@ const sharedPackagePaths = new Set([
   'resources/package-size-policy.json',
   'resources/runtime-versions.json',
   'scripts/afterPack.js',
+  'scripts/build-cli.mjs',
   'scripts/build-cua-plugin-runtime.mjs',
   'scripts/compare-light-ocr-package-size.mjs',
   'scripts/install-runtime.mjs',
@@ -136,7 +137,8 @@ const packagingScriptNames = new Set([
   'build',
   'postbuild',
   'install:sharp',
-  'afterSign'
+  'afterSign',
+  'cli:build'
 ])
 
 function findPackageImpactRule(changedPath) {
