@@ -111,7 +111,19 @@ async function runPickCustom(kind: ToolchainKind): Promise<void> {
 }
 
 async function runCancel(kind: ToolchainKind): Promise<void> {
-  await client.cancelInstall(kind)
+  const { cancelled } = await client.cancelInstall(kind)
+  if (cancelled) {
+    await refresh()
+  }
+}
+
+function isCancelledToolchainError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as { reason?: unknown; message?: unknown }
+  return (
+    record.reason === 'cancelled' ||
+    (typeof record.message === 'string' && /cancell?ed/i.test(record.message))
+  )
 }
 
 async function run(kind: ToolchainKind, operation: () => Promise<unknown>): Promise<void> {
@@ -121,12 +133,13 @@ async function run(kind: ToolchainKind, operation: () => Promise<unknown>): Prom
     await operation()
     await refresh()
   } catch (error) {
-    notifyRenderer({
-      kind: 'error',
-      code: 'settings.toolchains.operationFailed',
-      title: t('common.error.operationFailed')
-    })
-    void error
+    if (!isCancelledToolchainError(error)) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.toolchains.operationFailed',
+        title: t('common.error.operationFailed')
+      })
+    }
     await refresh()
   } finally {
     busyKind.value = null
