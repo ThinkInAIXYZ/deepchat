@@ -256,10 +256,6 @@ const buildDraft = (): LLM_PROVIDER => ({
   custom: true
 })
 
-const applyInitialRecommendations = async (providerId: string) => {
-  return await modelStore.applyInitialModelRecommendations(providerId)
-}
-
 const finishToDetail = () => {
   if (committedProvider) {
     emit('created', committedProvider)
@@ -309,7 +305,7 @@ const connectAndLoad = async () => {
 
     phase.value = 'committing'
     await providerStore.commitValidatedDraft(draft)
-    const selectedCount = await applyInitialRecommendations(draft.id)
+    const selectedCount = await modelStore.applyInitialModelRecommendations(draft.id)
     if (activeAttempt !== attempt) {
       return
     }
