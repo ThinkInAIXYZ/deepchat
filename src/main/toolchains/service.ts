@@ -296,7 +296,7 @@ export class ToolchainService {
     }
   }
 
-  prependResolvedToEnv(env: Record<string, string>): Record<string, string> {
+  resolvedBinDirs(): string[] {
     const binDirs: string[] = []
     for (const kind of ['uv', 'node'] as const) {
       if (this.ensureState()[kind].source === 'unconfigured') continue
@@ -306,6 +306,11 @@ export class ToolchainService {
         // Keep PATH unchanged for kinds that are not configured.
       }
     }
+    return binDirs
+  }
+
+  prependResolvedToEnv(env: Record<string, string>): Record<string, string> {
+    const binDirs = this.resolvedBinDirs()
     if (binDirs.length === 0) return { ...env }
 
     const next = { ...env }

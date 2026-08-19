@@ -350,7 +350,7 @@ export class McpClient {
     setPathEntriesOnEnv(
       env,
       [
-        getPathEntriesFromEnv(this.toolchainService.prependResolvedToEnv({})),
+        this.toolchainService.resolvedBinDirs(),
         inheritedPaths,
         this.runtimeHelper.getDefaultPaths(homeDir)
       ],

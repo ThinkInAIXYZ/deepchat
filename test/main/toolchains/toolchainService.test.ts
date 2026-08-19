@@ -9,6 +9,7 @@ vi.unmock('path')
 vi.unmock('node:path')
 import { NODE_MODULE_VERSION, NODE_PIN } from '../../../src/main/toolchains/catalog'
 import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
+import { mergeDetectionEnv } from '../../../src/main/toolchains/detectionEnv'
 import { inspectNodeExecutableResult, ToolchainService } from '../../../src/main/toolchains/service'
 
 function writeExecutable(filePath: string): void {
@@ -166,6 +167,17 @@ describe('ToolchainService', () => {
       command: path.join(appPath, 'runtime', 'node', 'bin', 'npx'),
       args: ['server', path.join('/Users/me', 'node')]
     })
+  })
+
+  it('exposes resolved bin dirs without the detection PATH', () => {
+    const { service, appPath } = createService({
+      env: mergeDetectionEnv({ PATH: '/usr/bin' }, '/Users/me', 'darwin')
+    })
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    const bins = service.resolvedBinDirs()
+    expect(bins).toContain(path.join(appPath, 'runtime', 'node', 'bin'))
+    expect(bins.join(':')).not.toContain('.asdf/shims')
+    expect(service.prependResolvedToEnv({}).PATH).toContain('.asdf/shims')
   })
 
   it('does not mark node missing when only uv is prepended', () => {
