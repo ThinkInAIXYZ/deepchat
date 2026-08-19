@@ -104,7 +104,6 @@ export class ToolchainService {
   private readonly fetchImpl: FetchLike
   private readonly extract: ArchiveExtractor
   private persisted: ToolchainPersistedState | null = null
-  private readonly derivedCache = new Map<ToolchainKind, ToolchainSelection>()
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
   private readonly inspectionCache = new Map<string, NodeInspection | null>()
   private readonly inspectTransientUntil = new Map<string, number>()
@@ -140,7 +139,10 @@ export class ToolchainService {
 
   updateDetectionEnv(env: NodeJS.ProcessEnv): void {
     this.env = env
-    this.invalidateAndReevaluate()
+    this.promoteUnconfiguredFromDetectedSystem()
+    this.resolvedCache.clear()
+    this.inspectionCache.clear()
+    this.recomputeMissing()
     this.options.onStateChanged?.()
   }
 
@@ -157,7 +159,8 @@ export class ToolchainService {
       return roots
     })
     gcUnreachableToolchainTrees(this.options.userDataDir, keep, {
-      collectDownload: this.inflight.size === 0
+      collectDownload: this.inflight.size === 0,
+      skipKinds: this.inflight.keys()
     })
   }
 
@@ -180,16 +183,7 @@ export class ToolchainService {
     }
     const next = this.normalizeSelection(kind, selection)
     this.assertSelection(kind, next)
-    const current = this.loadPersisted()
-    this.persist(
-      {
-        schemaVersion: 1,
-        ...(current.node ? { node: { ...current.node } } : {}),
-        ...(current.uv ? { uv: { ...current.uv } } : {}),
-        [kind]: { ...next }
-      },
-      kind
-    )
+    this.writeSelection(kind, next)
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
     this.emitMissing()
@@ -197,14 +191,10 @@ export class ToolchainService {
   }
 
   clearSource(kind: ToolchainKind): ToolchainState {
-    const current = this.loadPersisted()
-    const next: ToolchainPersistedState = { schemaVersion: 1 }
-    if (kind !== 'node' && current.node) next.node = current.node
-    if (kind !== 'uv' && current.uv) next.uv = current.uv
-    this.persist(next, kind)
+    this.writeSelection(kind, { source: 'unconfigured' })
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
-    if (this.selectionFor(kind).selection.source === 'unconfigured' && this.demanded.has(kind)) {
+    if (this.demanded.has(kind)) {
       this.recordMissing(kind, undefined, 'unconfigured')
     }
     return this.getState()
@@ -526,14 +516,10 @@ export class ToolchainService {
     selection: ToolchainSelection
     derived: boolean
   } {
+    this.ensureFirstRunPersisted()
     const explicit = this.loadPersisted()[kind]
     if (explicit) return { selection: explicit, derived: false }
-    let derived = this.derivedCache.get(kind)
-    if (!derived) {
-      derived = this.deriveSelection(kind)
-      this.derivedCache.set(kind, derived)
-    }
-    return { selection: derived, derived: true }
+    return { selection: this.deriveSelection(kind), derived: true }
   }
 
   private deriveSelection(kind: ToolchainKind): ToolchainSelection {
@@ -570,11 +556,50 @@ export class ToolchainService {
     return this.persisted
   }
 
-  private invalidateAndReevaluate(): void {
-    this.derivedCache.clear()
-    this.resolvedCache.clear()
-    this.inspectionCache.clear()
-    this.recomputeMissing()
+  private ensureFirstRunPersisted(): void {
+    const current = this.loadPersisted()
+    if (current.node && current.uv) return
+    this.persist(
+      {
+        schemaVersion: 1,
+        node: current.node ?? this.deriveSelection('node'),
+        uv: current.uv ?? this.deriveSelection('uv')
+      },
+      undefined,
+      { silent: true }
+    )
+  }
+
+  private promoteUnconfiguredFromDetectedSystem(): void {
+    this.ensureFirstRunPersisted()
+    const current = this.loadPersisted()
+    const next: ToolchainPersistedState = {
+      schemaVersion: 1,
+      node: current.node,
+      uv: current.uv
+    }
+    let changed = false
+    for (const kind of ['node', 'uv'] as const) {
+      if (current[kind]?.source !== 'unconfigured') continue
+      const detected = this.deriveSelection(kind)
+      if (detected.source !== 'system') continue
+      next[kind] = detected
+      changed = true
+    }
+    if (changed) this.persist(next, undefined, { silent: true })
+  }
+
+  private writeSelection(kind: ToolchainKind, selection: ToolchainSelection): void {
+    this.ensureFirstRunPersisted()
+    const current = this.loadPersisted()
+    this.persist(
+      {
+        schemaVersion: 1,
+        node: kind === 'node' ? selection : (current.node ?? { source: 'unconfigured' }),
+        uv: kind === 'uv' ? selection : (current.uv ?? { source: 'unconfigured' })
+      },
+      kind
+    )
   }
 
   private recomputeMissing(): void {
@@ -593,13 +618,16 @@ export class ToolchainService {
     this.emitMissing()
   }
 
-  private persist(state: ToolchainPersistedState, kind?: ToolchainKind): void {
+  private persist(
+    state: ToolchainPersistedState,
+    kind?: ToolchainKind,
+    options?: { silent?: boolean }
+  ): void {
     saveToolchainState(this.options.userDataDir, state)
     this.persisted = state
-    this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
-    this.options.onStateChanged?.(kind)
+    if (!options?.silent) this.options.onStateChanged?.(kind)
   }
 
   private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {

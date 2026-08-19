@@ -1231,7 +1231,7 @@ export async function createMainProcessControl(dependencies: {
       if (state.node.source === 'unconfigured' && state.uv.source === 'unconfigured') {
         return
       }
-      void mcpService.retryUnstartedEnabledServers().catch((error) => {
+      void mcpService?.retryUnstartedEnabledServers().catch((error) => {
         logger.warn('[ToolchainService] Failed to retry MCP servers after PATH refresh', error)
       })
     }

@@ -132,10 +132,10 @@ describe('ToolchainService lifecycle', () => {
     service.setSource('uv', { source: 'managed', version: '0.9.18' })
     expect(service.revert('uv').uv.source).toBe('bundled')
     expect(service.revert('node').node.source).toBe('unconfigured')
-    expect(service.getStatus().node.derived).toBe(true)
+    expect(service.getStatus().node.derived).toBe(false)
     expect(
       JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
-    ).toBeUndefined()
+    ).toEqual({ source: 'unconfigured' })
 
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     const reloaded = new ToolchainService({
@@ -145,8 +145,8 @@ describe('ToolchainService lifecycle', () => {
       env: { PATH: '' },
       inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
     })
-    expect(reloaded.getState().node.source).toBe('bundled')
-    expect(reloaded.getStatus().node.derived).toBe(true)
+    expect(reloaded.getState().node.source).toBe('unconfigured')
+    expect(reloaded.getStatus().node.derived).toBe(false)
   })
 
   it('shares one in-flight install per kind', async () => {

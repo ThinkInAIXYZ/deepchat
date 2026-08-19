@@ -343,35 +343,22 @@ describe('SkillExecutionService', () => {
     })
   })
 
-  it('falls back to system python when uv is not configured', async () => {
+  it('fail-closes python auto when uv is not configured', async () => {
     vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
       resolve: () => {
         throw new ToolchainResolutionError('uv', 'unconfigured', 'uv toolchain is not configured')
       }
     } as never)
-    vi.spyOn(service as never, 'resolveSystemCommand' as never).mockImplementation(
-      async (command: string) => (command === 'python3' ? '/usr/bin/python3' : null)
-    )
-
-    await expect(
-      (service as never).resolvePythonRuntime('auto', { PATH: '/bin' })
-    ).resolves.toEqual({
-      command: '/usr/bin/python3',
-      mode: 'python'
-    })
-  })
-
-  it('reports unavailable python runtime when uv and system python are missing', async () => {
-    vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
-      resolve: () => {
-        throw new ToolchainResolutionError('uv', 'unconfigured', 'uv toolchain is not configured')
-      }
-    } as never)
-    vi.spyOn(service as never, 'resolveSystemCommand' as never).mockResolvedValue(null)
+    const resolveSystem = vi
+      .spyOn(service as never, 'resolveSystemCommand' as never)
+      .mockImplementation(async (command: string) =>
+        command === 'python3' ? '/usr/bin/python3' : null
+      )
 
     await expect((service as never).resolvePythonRuntime('auto', { PATH: '/bin' })).rejects.toThrow(
-      'No compatible Python runtime found for this skill'
+      'No compatible uv runtime found for this skill'
     )
+    expect(resolveSystem).not.toHaveBeenCalled()
   })
 
   it.each([WINDOWS_POWERSHELL_COMMAND_SHELL, CMD_COMMAND_SHELL, POSIX_COMMAND_SHELL])(

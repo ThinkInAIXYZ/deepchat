@@ -2,15 +2,35 @@ import type { MCPServerConfig } from '@shared/types/mcp'
 import type { ToolchainKind } from '@shared/types/toolchains'
 
 const NODE_TOOLCHAIN_COMMANDS = new Set(['node', 'npm', 'npx', 'corepack'])
+const UV_TOOLCHAIN_COMMANDS = new Set(['uv', 'uvx'])
+
+function mcpServerIsDemandCandidate(
+  config: Pick<MCPServerConfig, 'command' | 'type' | 'source' | 'ownerPluginId' | 'enabled'>
+): boolean {
+  if (config.enabled === false) return false
+  if (config.source === 'plugin' || config.ownerPluginId) return false
+  if (config.type && config.type !== 'stdio') return false
+  return true
+}
 
 export function mcpServerNeedsNode(
   config: Pick<MCPServerConfig, 'command' | 'type' | 'source' | 'ownerPluginId' | 'enabled'>,
   platform: NodeJS.Platform = process.platform
 ): boolean {
-  if (config.enabled === false) return false
-  if (config.source === 'plugin' || config.ownerPluginId) return false
-  if (config.type && config.type !== 'stdio') return false
-  return NODE_TOOLCHAIN_COMMANDS.has(commandBasename(config.command, platform))
+  return (
+    mcpServerIsDemandCandidate(config) &&
+    NODE_TOOLCHAIN_COMMANDS.has(commandBasename(config.command, platform))
+  )
+}
+
+export function mcpServerNeedsUv(
+  config: Pick<MCPServerConfig, 'command' | 'type' | 'source' | 'ownerPluginId' | 'enabled'>,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  return (
+    mcpServerIsDemandCandidate(config) &&
+    UV_TOOLCHAIN_COMMANDS.has(commandBasename(config.command, platform))
+  )
 }
 
 export async function noteNodeDemandFromMcp(
@@ -26,12 +46,20 @@ export async function noteNodeDemandFromMcp(
     settings.getEnabledMcpServers(),
     settings.getMcpServers()
   ])
+  let notedNode = false
+  let notedUv = false
   for (const name of enabled) {
     const config = servers[name]
-    if (config && mcpServerNeedsNode(config)) {
+    if (!config) continue
+    if (!notedNode && mcpServerNeedsNode(config)) {
       toolchains.noteDemand('node')
-      return
+      notedNode = true
     }
+    if (!notedUv && mcpServerNeedsUv(config)) {
+      toolchains.noteDemand('uv')
+      notedUv = true
+    }
+    if (notedNode && notedUv) return
   }
 }
 

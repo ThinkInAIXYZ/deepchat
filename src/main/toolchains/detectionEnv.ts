@@ -1,3 +1,8 @@
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
+
+const NVM_VERSION_SCAN_LIMIT = 32
+
 export function defaultDetectionPaths(homeDir: string, platform: NodeJS.Platform): string[] {
   if (platform === 'darwin') {
     return [
@@ -13,7 +18,9 @@ export function defaultDetectionPaths(homeDir: string, platform: NodeJS.Platform
       `${homeDir}/.volta/bin`,
       `${homeDir}/.fnm/current/bin`,
       `${homeDir}/.asdf/shims`,
-      `${homeDir}/.cargo/bin`
+      `${homeDir}/.cargo/bin`,
+      `${homeDir}/.nvm/current/bin`,
+      ...existingNvmVersionBins(homeDir, platform)
     ]
   }
   if (platform === 'linux') {
@@ -25,7 +32,9 @@ export function defaultDetectionPaths(homeDir: string, platform: NodeJS.Platform
       `${homeDir}/.volta/bin`,
       `${homeDir}/.fnm/current/bin`,
       `${homeDir}/.asdf/shims`,
-      `${homeDir}/.cargo/bin`
+      `${homeDir}/.cargo/bin`,
+      `${homeDir}/.nvm/current/bin`,
+      ...existingNvmVersionBins(homeDir, platform)
     ]
   }
   return [
@@ -37,8 +46,34 @@ export function defaultDetectionPaths(homeDir: string, platform: NodeJS.Platform
     `${homeDir}\\.local\\bin`,
     `${homeDir}\\.volta\\bin`,
     `${homeDir}\\AppData\\Roaming\\fnm`,
-    `${homeDir}\\.cargo\\bin`
+    `${homeDir}\\.cargo\\bin`,
+    ...existingNvmVersionBins(homeDir, platform)
   ]
+}
+
+function existingNvmVersionBins(homeDir: string, platform: NodeJS.Platform): string[] {
+  try {
+    if (platform === 'win32') {
+      const nvmRoot = path.join(homeDir, 'AppData', 'Roaming', 'nvm')
+      return listVersionDirs(nvmRoot)
+        .slice(0, NVM_VERSION_SCAN_LIMIT)
+        .map((name) => path.join(nvmRoot, name))
+    }
+    const versionsRoot = path.join(homeDir, '.nvm', 'versions', 'node')
+    return listVersionDirs(versionsRoot)
+      .slice(0, NVM_VERSION_SCAN_LIMIT)
+      .map((name) => path.join(versionsRoot, name, 'bin'))
+  } catch {
+    return []
+  }
+}
+
+function listVersionDirs(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^v?\d/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+    .reverse()
 }
 
 export function mergeDetectionEnv(

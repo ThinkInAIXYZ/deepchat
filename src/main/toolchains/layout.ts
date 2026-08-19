@@ -109,13 +109,21 @@ export function downloadRootDir(userDataDir: string): string {
   return path.join(managedRootDir(userDataDir), 'download')
 }
 
+const ACTIVATE_SIDECAR_NAME = /\.(?:prev|next)(?:\.\d+)?$/
+
+function isActivateSidecarName(name: string): boolean {
+  return ACTIVATE_SIDECAR_NAME.test(name)
+}
+
 export function gcUnreachableToolchainTrees(
   userDataDir: string,
   keepDirectories: Iterable<string>,
-  options?: { collectDownload?: boolean }
+  options?: { collectDownload?: boolean; skipKinds?: Iterable<ToolchainKind> }
 ): void {
   const keep = new Set([...keepDirectories].map((directory) => path.resolve(directory)))
+  const skipKinds = new Set(options?.skipKinds ?? [])
   for (const kind of ['node', 'uv'] as const) {
+    if (skipKinds.has(kind)) continue
     const kindRoot = path.join(managedRootDir(userDataDir), kind)
     let entries: string[]
     try {
@@ -124,6 +132,7 @@ export function gcUnreachableToolchainTrees(
       continue
     }
     for (const name of entries) {
+      if (isActivateSidecarName(name)) continue
       const fullPath = path.resolve(kindRoot, name)
       if (keep.has(fullPath)) continue
       try {

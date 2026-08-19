@@ -44,7 +44,7 @@ describe('replaceDirectory', () => {
 })
 
 describe('gcUnreachableToolchainTrees', () => {
-  it('keeps referenced trees and deletes leftover archives, old versions, and staging', () => {
+  it('keeps activate sidecars and deletes old versions and staging', () => {
     const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-gc-'))
     const nodeRoot = path.join(userDataDir, 'toolchains', 'node')
     const current = path.join(nodeRoot, 'v24.18.0')
@@ -63,10 +63,29 @@ describe('gcUnreachableToolchainTrees', () => {
     gcUnreachableToolchainTrees(userDataDir, [current])
 
     expect(existsSync(current)).toBe(true)
-    expect(existsSync(previous)).toBe(false)
-    expect(existsSync(archived)).toBe(false)
-    expect(existsSync(leftoverNext)).toBe(false)
+    expect(existsSync(previous)).toBe(true)
+    expect(existsSync(archived)).toBe(true)
+    expect(existsSync(leftoverNext)).toBe(true)
     expect(existsSync(oldVersion)).toBe(false)
     expect(existsSync(staging)).toBe(false)
+  })
+
+  it('skips an in-flight kind instead of collecting its trees', () => {
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-gc-'))
+    const nodeRoot = path.join(userDataDir, 'toolchains', 'node')
+    const current = path.join(nodeRoot, 'v24.18.0')
+    const oldVersion = path.join(nodeRoot, 'v22.14.0')
+    const staging = path.join(userDataDir, 'toolchains', 'download', 'node-v24.18.0')
+    writeTree(current, 'current')
+    writeTree(oldVersion, 'old')
+    writeTree(staging, 'staging')
+
+    gcUnreachableToolchainTrees(userDataDir, [current], {
+      collectDownload: false,
+      skipKinds: ['node']
+    })
+
+    expect(existsSync(oldVersion)).toBe(true)
+    expect(existsSync(staging)).toBe(true)
   })
 })

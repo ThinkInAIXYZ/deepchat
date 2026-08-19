@@ -59,7 +59,7 @@ afterEach(() => {
 })
 
 describe('ToolchainService', () => {
-  it('derives a complete bundled tree without persisting it', () => {
+  it('persists a complete bundled tree on first run', () => {
     const { service, appPath, userDataDir } = createService()
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     seedUvTree(path.join(appPath, 'runtime', 'uv'))
@@ -69,23 +69,35 @@ describe('ToolchainService', () => {
     expect(state.uv).toEqual({ source: 'bundled' })
     expect(service.resolve('node').node).toBe(path.join(appPath, 'runtime', 'node', 'bin', 'node'))
     expect(service.resolve('uv').uv).toBe(path.join(appPath, 'runtime', 'uv', 'uv'))
-    expect(existsSync(path.join(userDataDir, 'toolchains', 'state.json'))).toBe(false)
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
+    ).toMatchObject({
+      node: { source: 'bundled' },
+      uv: { source: 'bundled' }
+    })
+    expect(service.getStatus().node.derived).toBe(false)
   })
 
   it('migrates to system when bundled files are absent and PATH is complete', () => {
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
     seedUvTree(systemRoot)
-    const { service } = createService({
+    const { service, userDataDir } = createService({
       env: { PATH: path.join(systemRoot, 'bin') + ':' + systemRoot }
     })
 
     expect(service.getState().node).toEqual({ source: 'system' })
     expect(service.getState().uv).toEqual({ source: 'system' })
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
+    ).toMatchObject({
+      node: { source: 'system' },
+      uv: { source: 'system' }
+    })
   })
 
-  it('clears a source back to derived defaults', () => {
+  it('clears a source to persisted unconfigured instead of re-deriving', () => {
     const { service, appPath, userDataDir } = createService()
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     service.setSource('node', { source: 'bundled' })
@@ -95,10 +107,10 @@ describe('ToolchainService', () => {
     const persisted = JSON.parse(
       readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')
     )
-    expect(persisted.node).toBeUndefined()
-    expect(service.getState().node).toEqual({ source: 'bundled' })
-    expect(service.getStatus().node.derived).toBe(true)
-    expect(service.resolve('node').source).toBe('bundled')
+    expect(persisted.node).toEqual({ source: 'unconfigured' })
+    expect(service.getState().node).toEqual({ source: 'unconfigured' })
+    expect(service.getStatus().node.derived).toBe(false)
+    expect(() => service.resolve('node')).toThrow(/not configured/)
   })
 
   it('rejects a half-installed bundled Node instead of rewriting to a missing npx', () => {
@@ -131,9 +143,12 @@ describe('ToolchainService', () => {
     expect(() => reloaded.resolve('node')).toThrow(/missing/)
   })
 
-  it('re-derives a bundled tree after first-run when nothing was persisted', () => {
+  it('does not rememoize bundled after first-run persisted unconfigured', () => {
     const { service, appPath, userDataDir } = createService()
     expect(service.getState().node.source).toBe('unconfigured')
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
+    ).toEqual({ source: 'unconfigured' })
 
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     const reloaded = new ToolchainService({
@@ -143,7 +158,7 @@ describe('ToolchainService', () => {
       env: { PATH: '' },
       inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
     })
-    expect(reloaded.getState().node.source).toBe('bundled')
+    expect(reloaded.getState().node.source).toBe('unconfigured')
   })
 
   it('rewrites node and uv commands to resolved absolute paths', () => {
@@ -310,7 +325,7 @@ describe('ToolchainService', () => {
     expect(inspections).toBe(2)
   })
 
-  it('re-derives missing kinds after login-shell PATH arrives', () => {
+  it('promotes persisted unconfigured to system after login-shell PATH arrives', () => {
     const notices: Array<Array<{ kind: string; reason: string }>> = []
     const { service, userDataDir } = createService({
       env: { PATH: '' },
@@ -323,7 +338,12 @@ describe('ToolchainService', () => {
     })
     expect(() => service.resolve('node')).toThrow(/not configured/)
     expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
-    expect(existsSync(path.join(userDataDir, 'toolchains', 'state.json'))).toBe(false)
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
+    ).toMatchObject({
+      node: { source: 'unconfigured' },
+      uv: { source: 'unconfigured' }
+    })
 
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
@@ -338,7 +358,14 @@ describe('ToolchainService', () => {
       uv: { source: 'system' }
     })
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
+    expect(service.getStatus().node.derived).toBe(false)
     expect(notices.at(-1)).toEqual([])
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
+    ).toMatchObject({
+      node: { source: 'system' },
+      uv: { source: 'system' }
+    })
   })
 
   it('does not overwrite an explicit source when PATH arrives', () => {
@@ -391,7 +418,7 @@ describe('ToolchainService', () => {
     service.setSource('node', { source: 'unconfigured' })
     expect(notices.at(-1) ?? []).toEqual([])
     expect(service.getStatus().missing).toEqual([])
-    expect(service.getStatus().node.derived).toBe(true)
+    expect(service.getStatus().node.derived).toBe(false)
   })
 
   it('keeps a missing notice when demand exists and clearing leaves no derived source', () => {
@@ -434,19 +461,22 @@ describe('ToolchainService', () => {
     })
   })
 
-  it('rememoizes a derived source after PATH refresh', () => {
-    const { service } = createService({ env: { PATH: '' } })
+  it('persists unconfigured on first run and promotes to system once after PATH refresh', () => {
+    const { service, userDataDir } = createService({ env: { PATH: '' } })
     expect(service.getStatus().node).toMatchObject({
       selection: { source: 'unconfigured' },
-      derived: true
+      derived: false
     })
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
+    ).toEqual({ source: 'unconfigured' })
 
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
     service.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
     expect(service.getStatus().node).toMatchObject({
       selection: { source: 'system' },
-      derived: true
+      derived: false
     })
   })
 

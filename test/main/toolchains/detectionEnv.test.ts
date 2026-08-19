@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('fs')
@@ -14,6 +17,16 @@ describe('detectionEnv', () => {
     expect(paths).toContain('/Users/demo/.volta/bin')
     expect(paths).toContain('/Users/demo/.fnm/current/bin')
     expect(paths).toContain('/Users/demo/.asdf/shims')
+    expect(paths).toContain('/Users/demo/.nvm/current/bin')
+  })
+
+  it('adds existing nvm version bins from the home directory', () => {
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), 'dc-nvm-'))
+    const versionBin = path.join(homeDir, '.nvm', 'versions', 'node', 'v24.18.0', 'bin')
+    mkdirSync(versionBin, { recursive: true })
+    const paths = defaultDetectionPaths(homeDir, 'darwin')
+    expect(paths).toContain(path.join(homeDir, '.nvm', 'current', 'bin'))
+    expect(paths).toContain(versionBin)
   })
 
   it('adds Windows Node and npm locations', () => {

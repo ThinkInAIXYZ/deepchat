@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { mcpServerNeedsNode, noteNodeDemandFromMcp } from '../../../src/main/toolchains/mcpDemand'
+import {
+  mcpServerNeedsNode,
+  mcpServerNeedsUv,
+  noteNodeDemandFromMcp
+} from '../../../src/main/toolchains/mcpDemand'
 
 describe('mcp Node demand', () => {
   it('detects stdio Node-family commands and skips everything else', () => {
@@ -10,6 +14,9 @@ describe('mcp Node demand', () => {
     ).toBe(true)
     expect(mcpServerNeedsNode({ command: '/usr/bin/node', type: 'stdio' })).toBe(true)
     expect(mcpServerNeedsNode({ command: 'uvx', type: 'stdio' })).toBe(false)
+    expect(mcpServerNeedsUv({ command: 'uvx', type: 'stdio', enabled: true })).toBe(true)
+    expect(mcpServerNeedsUv({ command: 'uv', type: 'stdio' })).toBe(true)
+    expect(mcpServerNeedsUv({ command: 'npx', type: 'stdio' })).toBe(false)
     expect(mcpServerNeedsNode({ command: 'npx', type: 'http' })).toBe(false)
     expect(mcpServerNeedsNode({ command: 'npx', type: 'inmemory' })).toBe(false)
     expect(mcpServerNeedsNode({ command: 'npx', type: 'stdio', source: 'plugin' })).toBe(false)
@@ -59,5 +66,29 @@ describe('mcp Node demand', () => {
       { noteDemand }
     )
     expect(noteDemand).not.toHaveBeenCalled()
+  })
+
+  it('notes uv demand for an enabled uvx stdio server', async () => {
+    const noteDemand = vi.fn()
+    await noteNodeDemandFromMcp(
+      {
+        getMcpEnabled: async () => true,
+        getEnabledMcpServers: async () => ['search'],
+        getMcpServers: async () => ({
+          search: {
+            command: 'uvx',
+            args: ['example'],
+            env: {},
+            descriptions: '',
+            icons: '',
+            enabled: true,
+            type: 'stdio'
+          }
+        })
+      },
+      { noteDemand }
+    )
+    expect(noteDemand).toHaveBeenCalledWith('uv')
+    expect(noteDemand).not.toHaveBeenCalledWith('node')
   })
 })

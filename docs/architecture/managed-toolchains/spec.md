@@ -100,8 +100,11 @@ If `{userData}/toolchains/state.json` is missing:
   PATH; else `unconfigured`.
 
 This records what the machine already had. It is not a per-resolve fallback.
-After this write, source never changes unless the user (or Repair / Revert)
-changes it.
+After this write, source changes only when the user (or Repair / Revert)
+changes it, with one exception: if login-shell PATH arrives later and a kind
+is still persisted `unconfigured`, persist `system` once for that kind.
+Never rememoize `bundled` → `system`. Clearing a source persists
+`unconfigured` explicitly; do not omit the key and re-derive.
 
 Upgrade after Node is removed from the installer: if the persisted source is
 `bundled` and the bundled tree is gone, keep `bundled` and fail with `missing`.
@@ -187,8 +190,10 @@ There is no Bun downloader.
 Skill `auto` no longer prefers system over bundled. The first-run migration
 plus an explicit Settings pick replace that implicit chain.
 
-Python skills resolve uv through `ToolchainService`. Explicit skill `system`
-may still use a system CPython. DeepChat does not download CPython.
+Python skills resolve uv through `ToolchainService`. Skill `auto` fail-closes
+on that persisted uv source; it must not fall back to a system CPython.
+Explicit skill `system` may still use a system CPython. DeepChat does not
+download CPython.
 
 ### Packaging end state
 
@@ -279,8 +284,9 @@ writer.
 ## Acceptance criteria
 
 1. MCP, ACP, Skill, and OCR resolve Node/uv only through `ToolchainService`.
-2. Changing source in Settings is the only way a later resolve uses a
-   different source (plus Repair/Revert).
+2. After first-run persist, Settings (plus Repair/Revert) is the only way a
+   later resolve uses a different source, except one-shot
+   `unconfigured` → `system` when login-shell PATH arrives.
 3. A failed or interrupted Node download leaves the previous working version
    active.
 4. OCR helper handshake accepts the activated official pin and rejects
