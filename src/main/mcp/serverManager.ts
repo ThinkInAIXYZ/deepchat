@@ -30,6 +30,7 @@ type StartServerOptions = {
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
   private readonly starting = new Map<string, Promise<McpConnectResult>>()
+  private readonly stopping = new Map<string, Promise<void>>()
   private serverLastErrors: Map<string, string> = new Map()
   private readonly mcpSettings: McpSettings
   private npmRegistry: string | null = null
@@ -252,16 +253,23 @@ export class ServerManager {
   }
 
   async startServer(name: string, options: StartServerOptions = {}): Promise<McpConnectResult> {
+    const pendingStop = this.stopping.get(name)
+    if (pendingStop) await pendingStop
+
     const inflight = this.starting.get(name)
     if (inflight && !options.configOverride) {
       const result = await inflight
-      if (options.waitForConnection && result === 'soft-timeout-released') {
+      const stopAfter = this.stopping.get(name)
+      if (stopAfter) {
+        await stopAfter
+      } else if (options.waitForConnection && result === 'soft-timeout-released') {
         const client = this.clients.get(name)
         if (client) {
           return client.connect({ phase: 'startup', waitForConnection: true })
         }
+      } else {
+        return result
       }
-      return result
     }
     const task = this.connectServer(name, options)
     if (!options.configOverride) {
@@ -441,23 +449,40 @@ export class ServerManager {
   }
 
   async stopServer(name: string): Promise<void> {
-    this.starting.delete(name)
-    const client = this.clients.get(name)
+    const existing = this.stopping.get(name)
+    if (existing) return existing
 
+    const task = this.stopServerOnce(name)
+    this.stopping.set(name, task)
+    try {
+      await task
+    } finally {
+      if (this.stopping.get(name) === task) {
+        this.stopping.delete(name)
+      }
+    }
+  }
+
+  private async stopServerOnce(name: string): Promise<void> {
+    const inflight = this.starting.get(name)
+    if (inflight) {
+      await inflight.catch(() => {})
+    }
+    if (this.starting.get(name) === inflight) {
+      this.starting.delete(name)
+    }
+
+    const client = this.clients.get(name)
     if (!client) {
       this.recoverConnectionNotification(name)
       return
     }
 
     try {
-      // Disconnect, this will stop the service
       await client.disconnect()
-
-      // Remove from client list
       this.clients.delete(name)
       this.clearServerLastError(name)
       this.recoverConnectionNotification(name)
-
       console.info(`MCP server ${name} has been stopped`)
       this.onRegistryChanged()
     } catch (error) {
@@ -475,7 +500,11 @@ export class ServerManager {
   }
 
   isServerActive(name: string): boolean {
-    return this.starting.has(name) || (this.clients.get(name)?.isActive() ?? false)
+    return (
+      this.starting.has(name) ||
+      this.stopping.has(name) ||
+      (this.clients.get(name)?.isActive() ?? false)
+    )
   }
 
   /**

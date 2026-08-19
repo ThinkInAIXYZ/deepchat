@@ -387,10 +387,49 @@ describe('ServerManager notifications and plugin isolation', () => {
     const first = manager.startServer('regular')
     await Promise.resolve()
     expect(manager.isServerActive('regular')).toBe(true)
-    await manager.stopServer('regular')
-    expect(manager.isServerActive('regular')).toBe(false)
+    const stopped = manager.stopServer('regular')
     release()
     await first
+    await stopped
+    expect(manager.isServerActive('regular')).toBe(false)
+    expect(clientMocks.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('does not leave a second client when stop races a pre-client start', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    providerSettings.getMcpServers.mockImplementation(async () => {
+      await blocked
+      return {
+        regular: {
+          command: 'regular-command',
+          args: [],
+          env: {},
+          type: 'stdio'
+        }
+      }
+    })
+    const manager = createManager(providerSettings)
+    const first = manager.startServer('regular')
+    await Promise.resolve()
+    const stopped = manager.stopServer('regular')
+    const second = manager.startServer('regular')
+    release()
+    await first
+    await stopped
+    await second
+    expect(McpClient).toHaveBeenCalledTimes(2)
+    expect(clientMocks.disconnect).toHaveBeenCalledOnce()
   })
 
   it('upgrades an in-flight soft-timeout start when a later caller waits', async () => {
