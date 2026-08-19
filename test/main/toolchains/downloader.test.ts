@@ -104,6 +104,30 @@ describe('toolchain downloader', () => {
     expect(() => readFileSync(destPath)).toThrow()
   })
 
+  it('classifies a timed-out fetch as timeout instead of cancelled', async () => {
+    const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
+    await expect(
+      downloadVerifiedFile({
+        url: 'https://example.test/node.tar.gz',
+        destPath,
+        sha256: '0'.repeat(64),
+        timeoutMs: 20,
+        fetch: (_url, init) =>
+          new Promise((_, reject) => {
+            init?.signal?.addEventListener(
+              'abort',
+              () => {
+                const error = new Error('aborted')
+                error.name = 'AbortError'
+                reject(error)
+              },
+              { once: true }
+            )
+          })
+      })
+    ).rejects.toMatchObject({ reason: 'timeout' })
+  })
+
   it('uses the official URL without probing when allowProbe is false', async () => {
     const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
     const fetchImpl = vi.fn()

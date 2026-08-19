@@ -255,7 +255,7 @@ export class ToolchainService {
 
   cancelInstall(kind: ToolchainKind): boolean {
     const controller = this.controllers.get(kind)
-    if (!controller) return false
+    if (!controller || controller.signal.aborted) return false
     controller.abort()
     return true
   }
@@ -268,6 +268,7 @@ export class ToolchainService {
     const cacheKey = `${kind}:${selection.source}:${selection.version ?? ''}:${selection.customPath ?? ''}:${options.purpose ?? ''}`
     const cached = this.resolvedCache.get(cacheKey)
     if (cached) return cached as ResolvedToolchain
+    const trackMissing = options.sourceOverride == null
 
     if (selection.source === 'unconfigured') {
       const error = new ToolchainResolutionError(
@@ -275,7 +276,7 @@ export class ToolchainService {
         'unconfigured',
         `${kind} toolchain is not configured`
       )
-      this.recordMissing(kind, options.purpose, error.reason)
+      if (trackMissing) this.recordMissing(kind, options.purpose, error.reason)
       throw error
     }
 
@@ -284,7 +285,7 @@ export class ToolchainService {
         kind === 'node' ? this.resolveNode(selection, options.purpose) : this.resolveUv(selection)
       Object.freeze(resolved)
       this.resolvedCache.set(cacheKey, resolved)
-      this.clearMissing(kind, options.purpose)
+      if (trackMissing) this.clearMissing(kind, options.purpose)
       return resolved
     } catch (error) {
       if (isToolchainResolutionError(error)) {
@@ -293,7 +294,7 @@ export class ToolchainService {
           purpose: options.purpose ?? 'generic',
           reason: error.reason
         })
-        if (error.reason !== 'transient') {
+        if (trackMissing && error.reason !== 'transient') {
           this.recordMissing(kind, options.purpose, error.reason)
         }
       }
@@ -657,14 +658,14 @@ export class ToolchainService {
           })
       })
 
-      this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'verifying')
       rmSync(extractDir, { recursive: true, force: true })
       this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'extracting')
-      await this.extract(archivePath, extractDir)
-
+      await this.extract(archivePath, extractDir, controller.signal)
       this.throwIfInstallCancelled(controller.signal)
+      this.controllers.delete(kind)
+
       const payloadRoot = takeExtractedRoot(extractDir, this.platform)
       const complete =
         kind === 'node'
@@ -677,10 +678,8 @@ export class ToolchainService {
         )
       }
 
-      this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'activating')
       replaceDirectory(payloadRoot, managedDir)
-      this.throwIfInstallCancelled(controller.signal)
       this.setSource(kind, { source: 'managed', version: artifact.version })
       this.setProgress(kind, 'idle')
     } catch (error) {
@@ -713,16 +712,18 @@ export class ToolchainService {
         ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
         : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
     const managedVersion =
-      selection.source === 'managed' ? selection.version : catalogVersionFor(kind)
+      selection.source === 'managed' && selection.version
+        ? selection.version
+        : catalogVersionFor(kind)
     const managed =
       kind === 'node'
         ? probeNodeRoot(
-            managedKindRoot(this.options.userDataDir, 'node', managedVersion ?? ''),
+            managedKindRoot(this.options.userDataDir, 'node', managedVersion),
             this.platform,
             true
           )
         : probeUvRoot(
-            managedKindRoot(this.options.userDataDir, 'uv', managedVersion ?? ''),
+            managedKindRoot(this.options.userDataDir, 'uv', managedVersion),
             this.platform
           )
     const system = this.detectSystem(kind)

@@ -206,6 +206,14 @@ describe('ToolchainService', () => {
     expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'unconfigured' }])
   })
 
+  it('does not record missing from a sourceOverride probe', () => {
+    const { service } = createService()
+    expect(() => service.resolve('node', { sourceOverride: { source: 'bundled' } })).toThrow(
+      /missing/
+    )
+    expect(service.getStatus().missing).toEqual([])
+  })
+
   it('surfaces a broken explicit source without waiting for resolve', () => {
     const { service } = createService()
     service.setSource('node', { source: 'bundled' })

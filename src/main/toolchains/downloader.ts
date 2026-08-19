@@ -72,18 +72,33 @@ export async function selectDownloadUrl(
   return success?.url ?? officialUrl
 }
 
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
+const PROGRESS_THROTTLE_MS = 150
+
 export async function downloadVerifiedFile(options: {
   url: string
   destPath: string
   sha256: string
   fetch?: FetchLike
   signal?: AbortSignal
+  timeoutMs?: number
   onProgress?: (progress: DownloadProgress) => void
 }): Promise<void> {
   const fetchImpl = options.fetch ?? fetch
   mkdirSync(path.dirname(options.destPath), { recursive: true })
   const destPath = options.destPath
   const partialPath = `${destPath}.partial`
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? DOWNLOAD_TIMEOUT_MS)
+  let timedOut = false
+  timeout.addEventListener(
+    'abort',
+    () => {
+      timedOut = true
+    },
+    { once: true }
+  )
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+  const emitProgress = createThrottledProgress(options.onProgress)
 
   if (existingSize(destPath) > 0) {
     const actual = await sha256File(destPath)
@@ -92,12 +107,21 @@ export async function downloadVerifiedFile(options: {
   }
 
   let existing = existingSize(partialPath)
-  let response = await requestDownload(fetchImpl, options.url, existing, options.signal)
+  let response: Response
+  try {
+    response = await requestDownload(fetchImpl, options.url, existing, signal)
+  } catch (error) {
+    throw timedOutDownloadError(error, timedOut)
+  }
 
   if (response.status === 416) {
     rmSync(partialPath, { force: true })
     existing = 0
-    response = await requestDownload(fetchImpl, options.url, 0, options.signal)
+    try {
+      response = await requestDownload(fetchImpl, options.url, 0, signal)
+    } catch (error) {
+      throw timedOutDownloadError(error, timedOut)
+    }
   }
 
   if (response.status !== 200 && response.status !== 206) {
@@ -121,20 +145,21 @@ export async function downloadVerifiedFile(options: {
   }
 
   let receivedBytes = receivedStart
-  options.onProgress?.({ receivedBytes, totalBytes })
+  emitProgress({ receivedBytes, totalBytes })
 
   const file = createWriteStream(partialPath, { flags: append ? 'a' : 'w' })
   const reader = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream)
   reader.on('data', (chunk: Buffer) => {
     receivedBytes += chunk.length
-    options.onProgress?.({ receivedBytes, totalBytes })
+    emitProgress({ receivedBytes, totalBytes })
   })
 
   try {
     await pipeline(reader, file)
   } catch (error) {
-    throw classifyDownloadError(error)
+    throw timedOutDownloadError(error, timedOut)
   }
+  emitProgress({ receivedBytes, totalBytes }, true)
 
   const actual = await sha256File(partialPath)
   if (actual !== options.sha256) {
@@ -177,6 +202,25 @@ async function requestDownload(
   } catch (error) {
     throw classifyDownloadError(error)
   }
+}
+
+function createThrottledProgress(
+  onProgress?: (progress: DownloadProgress) => void
+): (progress: DownloadProgress, force?: boolean) => void {
+  let lastEmit = 0
+  return (progress, force = false) => {
+    const now = Date.now()
+    if (!force && lastEmit !== 0 && now - lastEmit < PROGRESS_THROTTLE_MS) return
+    lastEmit = now
+    onProgress?.(progress)
+  }
+}
+
+function timedOutDownloadError(error: unknown, timedOut: boolean): ToolchainDownloadError {
+  if (timedOut) {
+    return new ToolchainDownloadError('timeout', 'Toolchain download timed out', { cause: error })
+  }
+  return classifyDownloadError(error)
 }
 
 function existingSize(filePath: string): number {

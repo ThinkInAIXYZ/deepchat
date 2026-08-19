@@ -11,21 +11,12 @@ import path from 'node:path'
 import type {
   ToolchainPersistedState,
   ToolchainSelection,
-  ToolchainSource,
-  ToolchainState
+  ToolchainSource
 } from '@shared/types/toolchains'
 import { TOOLCHAIN_SOURCES } from '@shared/types/toolchains'
 import { stateFilePath } from './layout'
 
 const SOURCE_SET = new Set<string>(TOOLCHAIN_SOURCES)
-
-export function emptyToolchainState(): ToolchainState {
-  return {
-    schemaVersion: 1,
-    node: { source: 'unconfigured' },
-    uv: { source: 'unconfigured' }
-  }
-}
 
 export function emptyPersistedToolchainState(): ToolchainPersistedState {
   return { schemaVersion: 1 }

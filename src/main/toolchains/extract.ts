@@ -1,17 +1,25 @@
-import { spawnSync, type SpawnSyncOptions } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { ToolchainDownloadError } from './errors'
 import { probeNodeRoot, probeUvRoot } from './probe'
 
-export type ArchiveExtractor = (archivePath: string, destDir: string) => Promise<void>
+export type ArchiveExtractor = (
+  archivePath: string,
+  destDir: string,
+  signal?: AbortSignal
+) => Promise<void>
 
-export async function extractArchive(archivePath: string, destDir: string): Promise<void> {
+export async function extractArchive(
+  archivePath: string,
+  destDir: string,
+  signal?: AbortSignal
+): Promise<void> {
   mkdirSync(destDir, { recursive: true })
-  const options: SpawnSyncOptions = { encoding: 'utf8', windowsHide: true }
-  const result = archivePath.endsWith('.zip')
-    ? extractZip(archivePath, destDir, options)
-    : spawnSync('tar', ['-xzf', archivePath, '-C', destDir], options)
+  const job = archivePath.endsWith('.zip')
+    ? zipExtractCommand(archivePath, destDir)
+    : { command: 'tar', args: ['-xzf', archivePath, '-C', destDir] }
+  const result = await runExtract(job, signal)
 
   if (result.error) {
     throw new ToolchainDownloadError('disk', 'Failed to start archive extraction', {
@@ -81,23 +89,54 @@ export function replaceDirectory(sourceDir: string, destDir: string): void {
   }
 }
 
-function extractZip(
+function zipExtractCommand(
   archivePath: string,
-  destDir: string,
-  options: SpawnSyncOptions
-): ReturnType<typeof spawnSync> {
+  destDir: string
+): { command: string; args: string[] } {
   if (process.platform === 'win32') {
-    return spawnSync(
-      'powershell',
-      [
+    return {
+      command: 'powershell',
+      args: [
         '-NoProfile',
         '-Command',
         `Expand-Archive -LiteralPath '${escapePowerShell(archivePath)}' -DestinationPath '${escapePowerShell(destDir)}' -Force`
-      ],
-      options
-    )
+      ]
+    }
   }
-  return spawnSync('unzip', ['-q', archivePath, '-d', destDir], options)
+  return { command: 'unzip', args: ['-q', archivePath, '-d', destDir] }
+}
+
+function runExtract(
+  job: { command: string; args: string[] },
+  signal?: AbortSignal
+): Promise<{ status: number | null; stderr: string; error?: Error }> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new ToolchainDownloadError('cancelled', 'Toolchain install cancelled'))
+      return
+    }
+    const child = spawn(job.command, job.args, { windowsHide: true })
+    let stderr = ''
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    const onAbort = () => {
+      child.kill()
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    child.once('error', (error) => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve({ status: null, stderr, error })
+    })
+    child.once('close', (status) => {
+      signal?.removeEventListener('abort', onAbort)
+      if (signal?.aborted) {
+        reject(new ToolchainDownloadError('cancelled', 'Toolchain install cancelled'))
+        return
+      }
+      resolve({ status, stderr })
+    })
+  })
 }
 
 function archivePreviousTree(prevDir: string): boolean {
