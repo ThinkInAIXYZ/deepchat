@@ -18,6 +18,7 @@ import type {
   ToolchainState,
   ToolchainStatusSnapshot
 } from '@shared/types/toolchains'
+import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import {
   catalogVersionFor,
   isNodeVersionInCompatRange,
@@ -302,21 +303,13 @@ export class ToolchainService {
     }
     if (binDirs.length === 0) return { ...env }
 
-    const separator = this.platform === 'win32' ? ';' : ':'
     const next = { ...env }
-    const existing = next.PATH || next.Path || this.env.PATH || this.env.Path || this.env.path || ''
-    const merged = [...binDirs, ...existing.split(separator).filter(Boolean)]
-    const seen = new Set<string>()
-    const value = merged
-      .filter((entry) => {
-        const normalized = this.platform === 'win32' ? entry.toLowerCase() : entry
-        if (seen.has(normalized)) return false
-        seen.add(normalized)
-        return true
-      })
-      .join(separator)
-    next.PATH = value
-    if (this.platform === 'win32') next.Path = value
+    const existing = next.PATH || next.Path || next.path ? next : this.env
+    setPathEntriesOnEnv(
+      next,
+      [binDirs, getPathEntriesFromEnv(existing, { platform: this.platform })],
+      { includeDefaultPaths: false, platform: this.platform }
+    )
     return next
   }
 

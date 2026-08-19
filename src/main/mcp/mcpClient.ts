@@ -36,6 +36,7 @@ import { app } from 'electron'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
+import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
@@ -589,11 +590,9 @@ export class McpClient {
                 const stringValue = String(value ?? '')
                 // 如果是PATH相关变量，合并到主PATH中
                 if (['PATH', 'Path', 'path'].includes(key)) {
-                  const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-                  const separator = process.platform === 'win32' ? ';' : ':'
-                  env[currentPathKey] = env[currentPathKey]
-                    ? `${stringValue}${separator}${env[currentPathKey]}`
-                    : stringValue
+                  setPathEntriesOnEnv(env, [stringValue, getPathEntriesFromEnv(env)], {
+                    includeDefaultPaths: false
+                  })
                 } else {
                   env[key] = stringValue
                 }

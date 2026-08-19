@@ -32,6 +32,7 @@ function seedUvTree(rootDir: string): void {
 function createService(options?: {
   appPath?: string
   userDataDir?: string
+  platform?: NodeJS.Platform
   env?: NodeJS.ProcessEnv
   onMissing?: (missing: { kind: string; reason: string }[]) => void
   inspectNode?: () => { version: string; modules: number } | null
@@ -41,7 +42,7 @@ function createService(options?: {
   const service = new ToolchainService({
     appPath,
     userDataDir,
-    platform: 'darwin',
+    platform: options?.platform ?? 'darwin',
     env: options?.env ?? { PATH: '' },
     inspectNode:
       options?.inspectNode ?? (() => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })),
@@ -458,5 +459,20 @@ describe('ToolchainService', () => {
     service.gcUnreachableTrees()
     expect(existsSync(previous)).toBe(false)
     expect(existsSync(pin)).toBe(true)
+  })
+
+  it('writes the same Windows PATH value to both casings and drops leftover path', () => {
+    const { service, appPath } = createService({ platform: 'win32' })
+    const uvRoot = path.join(appPath, 'runtime', 'uv')
+    writeExecutable(path.join(uvRoot, 'uv.exe'))
+    writeExecutable(path.join(uvRoot, 'uvx.exe'))
+    const env = service.prependResolvedToEnv({
+      Path: 'C:\\user\\bin',
+      path: 'C:\\legacy\\bin'
+    })
+    expect(env.PATH).toBe(env.Path)
+    expect(env.path).toBeUndefined()
+    expect(env.Path?.split(';')[0]).toBe(uvRoot)
+    expect(env.Path).toContain('C:\\user\\bin')
   })
 })

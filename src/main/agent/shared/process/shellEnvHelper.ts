@@ -36,12 +36,16 @@ let cachedShellEnv: Record<string, string> | null = null
 
 const TIMEOUT_MS = 8000
 
-function getPathSeparator(): string {
-  return process.platform === 'win32' ? ';' : ':'
+function resolvePathPlatform(platform?: NodeJS.Platform): NodeJS.Platform {
+  return platform ?? process.platform
 }
 
-function getPrimaryPathKey(): 'PATH' | 'Path' {
-  return process.platform === 'win32' ? 'Path' : 'PATH'
+function getPathSeparator(platform?: NodeJS.Platform): string {
+  return resolvePathPlatform(platform) === 'win32' ? ';' : ':'
+}
+
+function getPrimaryPathKey(platform?: NodeJS.Platform): 'PATH' | 'Path' {
+  return resolvePathPlatform(platform) === 'win32' ? 'Path' : 'PATH'
 }
 
 function toStringEnvEntries(
@@ -100,10 +104,11 @@ function getDefaultPathEntries(): string[] {
 }
 
 export function getPathEntriesFromEnv(
-  input: NodeJS.ProcessEnv | Record<string, string> | undefined
+  input: NodeJS.ProcessEnv | Record<string, string> | undefined,
+  options: { platform?: NodeJS.Platform } = {}
 ): string[] {
   const env = toStringEnvEntries(input)
-  const separator = getPathSeparator()
+  const separator = getPathSeparator(options.platform)
   const entries: string[] = []
 
   for (const key of PATH_ENV_KEYS) {
@@ -122,10 +127,11 @@ export function mergePathEntries(
   options: {
     includeDefaultPaths?: boolean
     defaultPaths?: string[]
+    platform?: NodeJS.Platform
   } = {}
 ): { key: 'PATH' | 'Path'; value: string; entries: string[] } {
   const entries: string[] = []
-  const separator = getPathSeparator()
+  const separator = getPathSeparator(options.platform)
   const includeDefaultPaths = options.includeDefaultPaths !== false
 
   for (const source of pathSources) {
@@ -146,11 +152,12 @@ export function mergePathEntries(
   }
 
   const seen = new Set<string>()
+  const platform = resolvePathPlatform(options.platform)
   const deduped = entries
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
     .filter((entry) => {
-      const normalized = process.platform === 'win32' ? entry.toLowerCase() : entry
+      const normalized = platform === 'win32' ? entry.toLowerCase() : entry
       if (seen.has(normalized)) {
         return false
       }
@@ -159,7 +166,7 @@ export function mergePathEntries(
     })
 
   return {
-    key: getPrimaryPathKey(),
+    key: getPrimaryPathKey(options.platform),
     value: deduped.join(separator),
     entries: deduped
   }
@@ -171,6 +178,7 @@ export function setPathEntriesOnEnv(
   options: {
     includeDefaultPaths?: boolean
     defaultPaths?: string[]
+    platform?: NodeJS.Platform
   } = {}
 ): Record<string, string> {
   const normalized = mergePathEntries(pathSources, options)
@@ -181,7 +189,7 @@ export function setPathEntriesOnEnv(
 
   if (normalized.value.length > 0) {
     env[normalized.key] = normalized.value
-    if (process.platform === 'win32') {
+    if (resolvePathPlatform(options.platform) === 'win32') {
       env.PATH = normalized.value
       env.Path = normalized.value
     }
