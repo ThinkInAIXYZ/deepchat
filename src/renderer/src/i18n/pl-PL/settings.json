@@ -1599,7 +1599,15 @@
       "connect": "Połącz i wczytaj modele",
       "validating": "Weryfikacja połączenia...",
       "loadingModels": "Wczytywanie modeli...",
-      "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie."
+      "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie.",
+      "successTitle": "{name} jest połączony",
+      "successDescription": "Wczytano {count} modeli i wstępnie wybrano {selected}. Wybór można dostosować poniżej.",
+      "startChatting": "Rozpocznij czat",
+      "viewModels": "Zobacz modele"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Aktualizacja nie została zastosowana",
+      "failedDescription": "Nowa konfiguracja nie przeszła weryfikacji; zachowano poprzednią działającą konfigurację."
     }
   },
   "knowledgeBase": {

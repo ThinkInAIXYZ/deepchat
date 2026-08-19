@@ -1168,7 +1168,15 @@
       "connect": "Forbind og indlæs modeller",
       "validating": "Verificerer forbindelsen...",
       "loadingModels": "Indlæser modeller...",
-      "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen."
+      "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen.",
+      "successTitle": "{name} er forbundet",
+      "successDescription": "Indlæste {count} modeller og forudvalgte {selected}. Du kan justere valget nedenfor.",
+      "startChatting": "Begynd at chatte",
+      "viewModels": "Se modeller"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Opdatering ikke anvendt",
+      "failedDescription": "Den nye konfiguration bestod ikke verifikationen; den tidligere fungerende konfiguration blev bevaret."
     }
   },
   "knowledgeBase": {

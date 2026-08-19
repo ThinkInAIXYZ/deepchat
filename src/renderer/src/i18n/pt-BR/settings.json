@@ -1235,7 +1235,15 @@
       "connect": "Conectar e carregar modelos",
       "validating": "Verificando a conexão...",
       "loadingModels": "Carregando modelos...",
-      "failed": "Falha na conexão. Verifique a configuração e tente novamente."
+      "failed": "Falha na conexão. Verifique a configuração e tente novamente.",
+      "successTitle": "{name} está conectado",
+      "successDescription": "{count} modelos carregados e {selected} pré-selecionados. Ajuste a seleção abaixo.",
+      "startChatting": "Começar a conversar",
+      "viewModels": "Ver modelos"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Atualização não aplicada",
+      "failedDescription": "A nova configuração falhou na verificação; a configuração anterior em funcionamento foi mantida."
     }
   },
   "knowledgeBase": {

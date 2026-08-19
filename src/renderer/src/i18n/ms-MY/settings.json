@@ -1599,7 +1599,15 @@
       "connect": "Sambung dan muatkan model",
       "validating": "Mengesahkan sambungan...",
       "loadingModels": "Memuatkan model...",
-      "failed": "Sambungan gagal. Semak konfigurasi dan cuba lagi."
+      "failed": "Sambungan gagal. Semak konfigurasi dan cuba lagi.",
+      "successTitle": "{name} disambungkan",
+      "successDescription": "Memuatkan {count} model dan prapilih {selected}. Anda boleh melaraskannya di bawah.",
+      "startChatting": "Mula bersembang",
+      "viewModels": "Lihat model"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Kemas kini tidak digunakan",
+      "failedDescription": "Konfigurasi baharu gagal pengesahan; konfigurasi berfungsi sebelumnya dikekalkan."
     }
   },
   "knowledgeBase": {

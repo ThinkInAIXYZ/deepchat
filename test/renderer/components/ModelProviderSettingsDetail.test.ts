@@ -37,8 +37,13 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_PROVIDER }) {
+async function setup(options?: {
+  provider?: LLM_PROVIDER
+  updatedProvider?: LLM_PROVIDER
+  stageResult?: { isOk: boolean; errorMsg: string | null }
+}) {
   vi.resetModules()
+  const notifyRendererMock = vi.fn()
 
   const provider = options?.provider ?? createProvider()
   const providerStore = {
@@ -63,7 +68,10 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     getAzureApiVersion: vi.fn().mockResolvedValue('2024-02-01'),
     getGeminiSafety: vi.fn().mockResolvedValue('BLOCK_MEDIUM_AND_ABOVE'),
     removeProvider: vi.fn().mockResolvedValue(undefined),
-    getProviderHealth: vi.fn(() => ({ status: 'not_checked' }))
+    getProviderHealth: vi.fn(() => ({ status: 'not_checked' })),
+    stageProviderApiChange: vi
+      .fn()
+      .mockResolvedValue(options?.stageResult ?? { isOk: true, errorMsg: null })
   }
 
   const modelStore = {
@@ -81,6 +89,9 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
   }))
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => providerStore
+  }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer: notifyRendererMock
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
@@ -147,7 +158,8 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
 
   return {
     wrapper,
-    providerStore
+    providerStore,
+    notifyRendererMock
   }
 }
 
@@ -156,8 +168,10 @@ describe('ModelProviderSettingsDetail', () => {
     vi.clearAllMocks()
   })
 
-  it('emits provider-configured after saving credentials for an enabled provider', async () => {
-    const { wrapper, providerStore } = await setup()
+  it('emits provider-configured after saving first-time credentials for an enabled provider', async () => {
+    const { wrapper, providerStore } = await setup({
+      provider: createProvider({ apiKey: '' })
+    })
 
     await wrapper.get('[data-testid="save-api-key"]').trigger('click')
     await flushPromises()
@@ -167,7 +181,34 @@ describe('ModelProviderSettingsDetail', () => {
       'updated-key',
       undefined
     )
+    expect(providerStore.stageProviderApiChange).not.toHaveBeenCalled()
     expect(wrapper.emitted('provider-configured')).toHaveLength(1)
+  })
+
+  it('stages a key replacement for an already configured provider', async () => {
+    const { wrapper, providerStore } = await setup()
+
+    await wrapper.get('[data-testid="save-api-key"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.stageProviderApiChange).toHaveBeenCalledWith('anthropic', {
+      apiKey: 'updated-key'
+    })
+    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
+  })
+
+  it('keeps the previous configuration and reports when staged verification fails', async () => {
+    const { wrapper, providerStore, notifyRendererMock } = await setup({
+      stageResult: { isOk: false, errorMsg: 'bad key' }
+    })
+
+    await wrapper.get('[data-testid="save-api-key"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
+    expect(notifyRendererMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'error', description: 'bad key' })
+    )
   })
 
   it('does not emit provider-configured while the provider stays disabled', async () => {

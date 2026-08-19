@@ -1599,7 +1599,15 @@
       "connect": "Kết nối và tải mô hình",
       "validating": "Đang xác minh kết nối...",
       "loadingModels": "Đang tải mô hình...",
-      "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại."
+      "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại.",
+      "successTitle": "Đã kết nối {name}",
+      "successDescription": "Đã tải {count} mô hình và chọn sẵn {selected}. Bạn có thể điều chỉnh bên dưới.",
+      "startChatting": "Bắt đầu trò chuyện",
+      "viewModels": "Xem mô hình"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Cập nhật chưa được áp dụng",
+      "failedDescription": "Cấu hình mới không vượt qua bước xác minh; cấu hình hoạt động trước đó đã được giữ lại."
     }
   },
   "knowledgeBase": {

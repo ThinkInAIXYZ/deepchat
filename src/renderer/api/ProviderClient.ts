@@ -86,8 +86,11 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     return result.provider
   }
 
-  async function validateDraftProvider(provider: LLM_PROVIDER) {
-    return await bridge.invoke(providersValidateDraftRoute.name, { provider })
+  async function validateDraftProvider(provider: LLM_PROVIDER, options?: { loadModels?: boolean }) {
+    return await bridge.invoke(providersValidateDraftRoute.name, {
+      provider,
+      ...(options?.loadModels === undefined ? {} : { loadModels: options.loadModels })
+    })
   }
 
   async function removeProviderAtomic(providerId: string) {

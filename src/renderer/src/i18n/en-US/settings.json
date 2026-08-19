@@ -1599,7 +1599,15 @@
       "connect": "Connect and load models",
       "validating": "Verifying connection...",
       "loadingModels": "Loading models...",
-      "failed": "Connection failed. Check the configuration and try again."
+      "failed": "Connection failed. Check the configuration and try again.",
+      "successTitle": "{name} is connected",
+      "successDescription": "Loaded {count} models and preselected {selected}. You can adjust the selection below.",
+      "startChatting": "Start chatting",
+      "viewModels": "View models"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Update not applied",
+      "failedDescription": "The new configuration failed verification, so the previous working configuration was kept."
     }
   },
   "knowledgeBase": {

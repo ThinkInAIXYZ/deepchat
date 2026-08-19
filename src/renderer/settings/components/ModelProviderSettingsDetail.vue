@@ -102,6 +102,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 interface ProviderWebsites {
   official: string
@@ -339,12 +340,50 @@ watch(
   { immediate: true }
 )
 
+// A provider with a working credential gets staged verification: the edited
+// configuration must verify before it atomically replaces the stored one. The
+// first-time setup path keeps the immediate save so onboarding stays fluid.
+const shouldStageApiChanges = computed(() => Boolean(props.provider.apiKey?.trim()))
+
+const applyStagedApiChange = async (updates: { apiKey?: string; baseUrl?: string }) => {
+  try {
+    const result = await providerStore.stageProviderApiChange(props.provider.id, updates)
+    if (!result.isOk) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.provider.stagedUpdateFailed',
+        title: t('settings.provider.stagedUpdate.failedTitle'),
+        description: result.errorMsg || t('settings.provider.stagedUpdate.failedDescription')
+      })
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Failed to stage provider api change:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.stagedUpdateFailed',
+      title: t('settings.provider.stagedUpdate.failedTitle'),
+      description: t('settings.provider.stagedUpdate.failedDescription')
+    })
+    return false
+  }
+}
+
 const handleApiKeyChange = async (value: string) => {
+  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.apiKey) {
+    await applyStagedApiChange({ apiKey: value })
+    return
+  }
   const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
   maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }
 
 const handleApiHostChange = async (value: string) => {
+  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.baseUrl) {
+    await applyStagedApiChange({ baseUrl: value })
+    return
+  }
   const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
   maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }

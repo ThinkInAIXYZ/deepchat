@@ -454,8 +454,8 @@ export const useProviderStore = defineStore('provider', () => {
   // Runs "Connect and load models" against a draft configuration. Nothing is
   // persisted and no enable flag is toggled; the typed main-process boundary
   // validates the draft with a transient provider instance.
-  const validateDraftProvider = async (draft: LLM_PROVIDER) => {
-    return await providerClient.validateDraftProvider(draft)
+  const validateDraftProvider = async (draft: LLM_PROVIDER, options?: { loadModels?: boolean }) => {
+    return await providerClient.validateDraftProvider(draft, options)
   }
 
   // Persists a successfully validated draft as a configured, available provider
@@ -465,6 +465,32 @@ export const useProviderStore = defineStore('provider', () => {
     await addCustomProvider(provider)
     await markProviderConfigured(provider.id)
     await recordProviderHealth(provider.id, computeHealthFingerprint(provider), true)
+  }
+
+  // Stages a credential/endpoint change for an existing provider: the edited
+  // configuration is verified through the draft boundary first, and only a
+  // successful verification atomically replaces the last working configuration.
+  const stageProviderApiChange = async (
+    providerId: string,
+    updates: { apiKey?: string; baseUrl?: string }
+  ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
+    const current = providers.value.find((item) => item.id === providerId)
+    if (!current) {
+      throw new Error(`Provider ${providerId} not found`)
+    }
+    const staged: LLM_PROVIDER = { ...current, ...updates }
+    checkingProviderIds.value.add(providerId)
+    try {
+      const result = await validateDraftProvider(staged, { loadModels: false })
+      if (!result.isOk) {
+        return { isOk: false, errorMsg: result.errorMsg }
+      }
+      await updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
+      await recordProviderHealth(providerId, computeHealthFingerprint(staged), true)
+      return { isOk: true, errorMsg: null }
+    } finally {
+      checkingProviderIds.value.delete(providerId)
+    }
   }
 
   const removeProvider = async (providerId: string) => {
@@ -675,6 +701,7 @@ export const useProviderStore = defineStore('provider', () => {
     addCustomProvider,
     validateDraftProvider,
     commitValidatedDraft,
+    stageProviderApiChange,
     removeProvider,
     updateAwsBedrockProviderConfig,
     updateVertexProviderConfig,

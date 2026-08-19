@@ -1599,7 +1599,15 @@
       "connect": "Conectar y cargar modelos",
       "validating": "Verificando la conexión...",
       "loadingModels": "Cargando modelos...",
-      "failed": "Error de conexión. Revisa la configuración e inténtalo de nuevo."
+      "failed": "Error de conexión. Revisa la configuración e inténtalo de nuevo.",
+      "successTitle": "{name} está conectado",
+      "successDescription": "Se cargaron {count} modelos y se preseleccionaron {selected}. Puedes ajustar la selección abajo.",
+      "startChatting": "Empezar a chatear",
+      "viewModels": "Ver modelos"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Actualización no aplicada",
+      "failedDescription": "La nueva configuración no superó la verificación; se conservó la configuración anterior que funcionaba."
     }
   },
   "knowledgeBase": {

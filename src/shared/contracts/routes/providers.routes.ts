@@ -261,7 +261,10 @@ export const providersAddRoute = defineRouteContract({
 export const providersValidateDraftRoute = defineRouteContract({
   name: 'providers.validateDraft',
   input: z.object({
-    provider: LlmProviderSchema
+    provider: LlmProviderSchema,
+    // false = staged verification of an existing provider's edited config:
+    // connection check only, without touching its persisted model catalog.
+    loadModels: z.boolean().optional()
   }),
   output: z.object({
     isOk: z.boolean(),

@@ -1235,7 +1235,15 @@
       "connect": "Connecter et charger les modèles",
       "validating": "Vérification de la connexion...",
       "loadingModels": "Chargement des modèles...",
-      "failed": "Échec de la connexion. Vérifiez la configuration et réessayez."
+      "failed": "Échec de la connexion. Vérifiez la configuration et réessayez.",
+      "successTitle": "{name} est connecté",
+      "successDescription": "{count} modèles chargés et {selected} présélectionnés. Vous pouvez ajuster la sélection ci-dessous.",
+      "startChatting": "Commencer à discuter",
+      "viewModels": "Voir les modèles"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Mise à jour non appliquée",
+      "failedDescription": "La nouvelle configuration a échoué à la vérification ; la configuration précédente a été conservée."
     }
   },
   "knowledgeBase": {

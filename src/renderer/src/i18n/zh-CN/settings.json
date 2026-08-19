@@ -1599,7 +1599,15 @@
       "connect": "连接并加载模型",
       "validating": "正在验证连接...",
       "loadingModels": "正在加载模型...",
-      "failed": "连接失败，请检查配置后重试。"
+      "failed": "连接失败，请检查配置后重试。",
+      "successTitle": "{name} 已连接",
+      "successDescription": "已加载 {count} 个模型，预选 {selected} 个，可在下方继续调整。",
+      "startChatting": "开始聊天",
+      "viewModels": "查看模型"
+    },
+    "stagedUpdate": {
+      "failedTitle": "更新未生效",
+      "failedDescription": "新配置未通过验证，已保留之前可用的配置。"
     }
   },
   "knowledgeBase": {

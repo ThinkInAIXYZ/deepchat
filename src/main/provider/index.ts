@@ -925,13 +925,19 @@ export class ProviderRuntime
   /**
    * Validates a draft provider configuration and loads its model catalog in one
    * operation, without persisting the provider or toggling any enable flag.
-   * Used by the add-provider "Connect and load models" flow.
+   * Used by the add-provider "Connect and load models" flow; with
+   * `loadModels: false` it performs the staged verification of an existing
+   * provider's edited configuration without touching its persisted catalog.
    */
-  async validateDraft(draft: LLM_PROVIDER): Promise<{
+  async validateDraft(
+    draft: LLM_PROVIDER,
+    options?: { loadModels?: boolean }
+  ): Promise<{
     isOk: boolean
     errorMsg: string | null
     models: MODEL_META[]
   }> {
+    const loadModels = options?.loadModels ?? true
     let instance: BaseLLMProvider | undefined
     try {
       // enable:false keeps the base-provider constructor from kicking off its
@@ -949,6 +955,10 @@ export class ProviderRuntime
       const checkResult = await instance.check()
       if (!checkResult.isOk) {
         return { ...checkResult, models: [] }
+      }
+
+      if (!loadModels) {
+        return { isOk: true, errorMsg: null, models: [] }
       }
 
       const models = await instance.fetchModels({ suppressErrors: false })

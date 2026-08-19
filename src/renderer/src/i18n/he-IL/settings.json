@@ -1235,7 +1235,15 @@
       "connect": "התחברות וטעינת מודלים",
       "validating": "מאמת את החיבור...",
       "loadingModels": "טוען מודלים...",
-      "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב."
+      "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב.",
+      "successTitle": "{name} מחובר",
+      "successDescription": "נטענו {count} מודלים ונבחרו מראש {selected}. ניתן להתאים את הבחירה למטה.",
+      "startChatting": "להתחיל לשוחח",
+      "viewModels": "הצגת מודלים"
+    },
+    "stagedUpdate": {
+      "failedTitle": "העדכון לא הוחל",
+      "failedDescription": "התצורה החדשה נכשלה באימות; התצורה הקודמת שפעלה נשמרה."
     }
   },
   "knowledgeBase": {

@@ -1599,7 +1599,15 @@
       "connect": "Verbinden und Modelle laden",
       "validating": "Verbindung wird geprüft...",
       "loadingModels": "Modelle werden geladen...",
-      "failed": "Verbindung fehlgeschlagen. Konfiguration prüfen und erneut versuchen."
+      "failed": "Verbindung fehlgeschlagen. Konfiguration prüfen und erneut versuchen.",
+      "successTitle": "{name} ist verbunden",
+      "successDescription": "{count} Modelle geladen und {selected} vorausgewählt. Die Auswahl kann unten angepasst werden.",
+      "startChatting": "Chat starten",
+      "viewModels": "Modelle anzeigen"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Aktualisierung nicht übernommen",
+      "failedDescription": "Die neue Konfiguration hat die Prüfung nicht bestanden; die vorherige funktionierende Konfiguration wurde beibehalten."
     }
   },
   "knowledgeBase": {

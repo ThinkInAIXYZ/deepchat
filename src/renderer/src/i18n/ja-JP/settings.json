@@ -1235,7 +1235,15 @@
       "connect": "接続してモデルを読み込む",
       "validating": "接続を検証中...",
       "loadingModels": "モデルを読み込み中...",
-      "failed": "接続に失敗しました。設定を確認して再試行してください。"
+      "failed": "接続に失敗しました。設定を確認して再試行してください。",
+      "successTitle": "{name} が接続されました",
+      "successDescription": "{count} 個のモデルを読み込み、{selected} 個を事前選択しました。下で調整できます。",
+      "startChatting": "チャットを開始",
+      "viewModels": "モデルを表示"
+    },
+    "stagedUpdate": {
+      "failedTitle": "更新は適用されませんでした",
+      "failedDescription": "新しい設定が検証に失敗したため、以前の有効な設定を保持しました。"
     }
   },
   "knowledgeBase": {

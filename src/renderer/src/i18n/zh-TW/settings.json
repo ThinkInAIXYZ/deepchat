@@ -1235,7 +1235,15 @@
       "connect": "連線並載入模型",
       "validating": "正在驗證連線...",
       "loadingModels": "正在載入模型...",
-      "failed": "連線失敗，請檢查設定後重試。"
+      "failed": "連線失敗，請檢查設定後重試。",
+      "successTitle": "{name} 已連線",
+      "successDescription": "已載入 {count} 個模型，預選 {selected} 個，可在下方繼續調整。",
+      "startChatting": "開始聊天",
+      "viewModels": "檢視模型"
+    },
+    "stagedUpdate": {
+      "failedTitle": "更新未生效",
+      "failedDescription": "新設定未通過驗證，已保留先前可用的設定。"
     }
   },
   "knowledgeBase": {

@@ -1599,7 +1599,15 @@
       "connect": "Hubungkan dan muat model",
       "validating": "Memverifikasi koneksi...",
       "loadingModels": "Memuat model...",
-      "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi."
+      "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi.",
+      "successTitle": "{name} terhubung",
+      "successDescription": "Memuat {count} model dan memilih {selected} di awal. Anda dapat menyesuaikannya di bawah.",
+      "startChatting": "Mulai mengobrol",
+      "viewModels": "Lihat model"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Pembaruan tidak diterapkan",
+      "failedDescription": "Konfigurasi baru gagal diverifikasi; konfigurasi sebelumnya yang berfungsi tetap dipertahankan."
     }
   },
   "knowledgeBase": {

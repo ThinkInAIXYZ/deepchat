@@ -42,7 +42,11 @@ async function setup(options?: {
   }
 
   const modelStore = {
-    applyInitialModelRecommendations: vi.fn().mockResolvedValue(undefined)
+    applyInitialModelRecommendations: vi.fn().mockResolvedValue(2)
+  }
+
+  const windowClient = {
+    focusMainWindow: vi.fn().mockResolvedValue(true)
   }
 
   vi.doMock('vue-i18n', () => ({
@@ -55,6 +59,9 @@ async function setup(options?: {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
+  }))
+  vi.doMock('@api/WindowClient', () => ({
+    createWindowClient: () => windowClient
   }))
 
   const AddProviderFlow = (
@@ -96,7 +103,7 @@ async function setup(options?: {
     await wrapper.get('[data-testid="add-provider-api-key"]').setValue('sk-test')
   }
 
-  return { wrapper, providerStore, modelStore, fillForm }
+  return { wrapper, providerStore, modelStore, windowClient, fillForm }
 }
 
 describe('AddProviderFlow', () => {
@@ -120,8 +127,8 @@ describe('AddProviderFlow', () => {
     ).toBe('My Provider')
   })
 
-  it('commits the draft and applies first-setup recommendations on success', async () => {
-    const { wrapper, providerStore, modelStore, fillForm } = await setup()
+  it('commits the draft, applies recommendations, and offers Start chatting', async () => {
+    const { wrapper, providerStore, modelStore, windowClient, fillForm } = await setup()
 
     await fillForm()
     await wrapper.get('[data-testid="add-provider-connect"]').trigger('click')
@@ -131,6 +138,14 @@ describe('AddProviderFlow', () => {
     const committed = providerStore.commitValidatedDraft.mock.calls[0][0]
     expect(committed.custom).toBe(true)
     expect(modelStore.applyInitialModelRecommendations).toHaveBeenCalledWith(committed.id)
+
+    expect(wrapper.emitted('created')).toBeUndefined()
+    expect(wrapper.find('[data-testid="add-provider-success"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="add-provider-start-chatting"]').trigger('click')
+    await flushPromises()
+
+    expect(windowClient.focusMainWindow).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('created')).toHaveLength(1)
   })
 })

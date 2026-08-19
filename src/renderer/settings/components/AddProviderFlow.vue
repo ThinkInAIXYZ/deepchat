@@ -22,7 +22,41 @@
           </div>
         </div>
 
-        <div class="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
+        <div
+          v-if="phase === 'success'"
+          data-testid="add-provider-success"
+          class="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6"
+        >
+          <div class="flex items-center gap-2">
+            <Icon icon="lucide:circle-check" class="h-5 w-5 text-emerald-500" />
+            <h3 class="text-base font-semibold">
+              {{ t('settings.provider.addFlow.successTitle', { name: form.name }) }}
+            </h3>
+          </div>
+          <p class="text-sm text-muted-foreground">
+            {{
+              t('settings.provider.addFlow.successDescription', {
+                count: loadedModelCount,
+                selected: selectedModelCount
+              })
+            }}
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <DcButton data-testid="add-provider-start-chatting" @click="startChatting">
+              <Icon icon="lucide:message-circle" class="h-4 w-4" data-icon="inline-start" />
+              {{ t('settings.provider.addFlow.startChatting') }}
+            </DcButton>
+            <DcButton
+              data-testid="add-provider-view-models"
+              variant="outline"
+              @click="finishToDetail"
+            >
+              {{ t('settings.provider.addFlow.viewModels') }}
+            </DcButton>
+          </div>
+        </div>
+
+        <div v-else class="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
           <div class="flex flex-col gap-2">
             <Label for="add-provider-name">
               {{ t('settings.provider.dialog.addCustomProvider.name') }}
@@ -138,6 +172,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
+import { createWindowClient } from '@api/WindowClient'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const emit = defineEmits<{
@@ -148,6 +183,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
+const windowClient = createWindowClient()
 
 // One draft id per form session so retries and the final commit share the same
 // provider id, and a cancelled attempt never leaves a second half-created id.
@@ -160,14 +196,17 @@ const form = ref({
   baseUrl: ''
 })
 
-const phase = ref<'idle' | 'validating' | 'committing'>('idle')
+const phase = ref<'idle' | 'validating' | 'committing' | 'success'>('idle')
 const connectError = ref('')
 // Monotonic attempt counter: a cancelled or superseded attempt's result is
 // ignored instead of committing a stale draft.
 let attemptCounter = 0
 let activeAttempt = 0
 
-const isBusy = computed(() => phase.value !== 'idle')
+const isBusy = computed(() => phase.value === 'validating' || phase.value === 'committing')
+const loadedModelCount = ref(0)
+const selectedModelCount = ref(0)
+let committedProvider: LLM_PROVIDER | null = null
 const normalizedBaseUrl = computed(() => form.value.baseUrl.trim().replace(/\/+$/, ''))
 const apiEndpointSuffix = computed(() => {
   if (!normalizedBaseUrl.value) return ''
@@ -218,7 +257,22 @@ const buildDraft = (): LLM_PROVIDER => ({
 })
 
 const applyInitialRecommendations = async (providerId: string) => {
-  await modelStore.applyInitialModelRecommendations(providerId)
+  return await modelStore.applyInitialModelRecommendations(providerId)
+}
+
+const finishToDetail = () => {
+  if (committedProvider) {
+    emit('created', committedProvider)
+  }
+}
+
+const startChatting = async () => {
+  try {
+    await windowClient.focusMainWindow()
+  } catch (error) {
+    console.error('Failed to focus the main window:', error)
+  }
+  finishToDetail()
 }
 
 const cancelAttempt = () => {
@@ -255,12 +309,14 @@ const connectAndLoad = async () => {
 
     phase.value = 'committing'
     await providerStore.commitValidatedDraft(draft)
-    await applyInitialRecommendations(draft.id)
+    const selectedCount = await applyInitialRecommendations(draft.id)
     if (activeAttempt !== attempt) {
       return
     }
-    phase.value = 'idle'
-    emit('created', { ...draft, enable: true })
+    loadedModelCount.value = result.models.length
+    selectedModelCount.value = selectedCount
+    committedProvider = { ...draft, enable: true }
+    phase.value = 'success'
   } catch (error) {
     if (activeAttempt !== attempt) {
       return
