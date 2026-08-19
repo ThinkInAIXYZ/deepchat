@@ -408,6 +408,13 @@ fi
       fs.rmSync(temporaryDirectory, { recursive: true, force: true })
     }
   })
+
+  it('resolves a single node executable for the Windows Light OCR firewall rule', () => {
+    const source = readWorkflowSource(reusableWorkflows.windows.name)
+    expect(source).toContain('Get-Command node -CommandType Application | Select-Object -First 1')
+    expect(source).toContain('$nodePath = [string]$nodeCommand.Source')
+    expect(source).not.toContain('(Get-Command node -CommandType Application).Source')
+  })
 })
 
 describe('Build Application caller', () => {
