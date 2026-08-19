@@ -34,8 +34,8 @@ export const toolchainsMissingEvent = defineEventContract({
   })
 })
 
-export const toolchainsReadyEvent = defineEventContract({
-  name: 'toolchains.ready',
+export const toolchainsChangedEvent = defineEventContract({
+  name: 'toolchains.changed',
   payload: z.object({
     version: TimestampMsSchema
   })

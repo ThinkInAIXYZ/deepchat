@@ -1223,10 +1223,10 @@ export async function createMainProcessControl(dependencies: {
     onMissing: (missing) =>
       publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() }),
     onStateChanged: () => {
-      publishDeepchatEvent('toolchains.ready', { version: Date.now() })
+      publishDeepchatEvent('toolchains.changed', { version: Date.now() })
       ocrRuntimeService?.refreshAvailability()
-      const state = ToolchainService.getInstance().getState()
-      if (state.node.source === 'unconfigured' && state.uv.source === 'unconfigured') {
+      const status = ToolchainService.getInstance().getStatus()
+      if (status.node.availability !== 'ready' && status.uv.availability !== 'ready') {
         return
       }
       void mcpService.retryUnstartedEnabledServers().catch((error) => {

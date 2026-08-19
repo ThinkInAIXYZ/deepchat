@@ -47,25 +47,30 @@ const { t } = useI18n()
 const client = createToolchainClient()
 const snapshot = ref<ToolchainStatusSnapshot | null>(null)
 const busyKind = ref<ToolchainKind | null>(null)
-const stopProgress = ref<(() => void) | null>(null)
+const stopListeners = ref<Array<() => void>>([])
 
 onMounted(async () => {
   await refresh()
-  stopProgress.value = client.onProgress((progress) => {
-    const current = snapshot.value
-    if (!current) return
-    current[progress.kind].install = {
-      kind: progress.kind,
-      phase: progress.phase as never,
-      receivedBytes: progress.receivedBytes,
-      totalBytes: progress.totalBytes,
-      error: progress.error as never
-    }
-  })
+  stopListeners.value = [
+    client.onChanged(() => {
+      void refresh()
+    }),
+    client.onProgress((progress) => {
+      const current = snapshot.value
+      if (!current) return
+      current[progress.kind].install = {
+        kind: progress.kind,
+        phase: progress.phase,
+        receivedBytes: progress.receivedBytes,
+        totalBytes: progress.totalBytes,
+        error: progress.error
+      }
+    })
+  ]
 })
 
 onBeforeUnmount(() => {
-  stopProgress.value?.()
+  for (const stop of stopListeners.value) stop()
 })
 
 async function refresh(): Promise<void> {
@@ -118,11 +123,8 @@ async function runCancel(kind: ToolchainKind): Promise<void> {
 }
 
 function isCancelledToolchainError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const record = error as { reason?: unknown; message?: unknown }
-  return (
-    record.reason === 'cancelled' ||
-    (typeof record.message === 'string' && /cancell?ed/i.test(record.message))
+  return Boolean(
+    error && typeof error === 'object' && 'reason' in error && error.reason === 'cancelled'
   )
 }
 

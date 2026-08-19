@@ -100,9 +100,9 @@ import {
 } from './events/settings.events'
 import { startupWorkloadChangedEvent } from './events/startup.events'
 import {
+  toolchainsChangedEvent,
   toolchainsMissingEvent,
-  toolchainsProgressEvent,
-  toolchainsReadyEvent
+  toolchainsProgressEvent
 } from './events/toolchains.events'
 import {
   sessionsAcpCommandsReadyEvent,
@@ -297,7 +297,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [dialogRequestedEvent.name]: dialogRequestedEvent,
   [toolchainsProgressEvent.name]: toolchainsProgressEvent,
   [toolchainsMissingEvent.name]: toolchainsMissingEvent,
-  [toolchainsReadyEvent.name]: toolchainsReadyEvent
+  [toolchainsChangedEvent.name]: toolchainsChangedEvent
 } satisfies Record<string, EventContract>
 
 export type DeepchatEventCatalog = typeof DEEPCHAT_EVENT_CATALOG
