@@ -15,6 +15,7 @@ import { parse, stringify } from 'yaml'
 
 import { assembleRelease } from '../../../scripts/ci/assemble-release.mjs'
 import {
+  createDefaultPackageSizePolicy,
   getMeasuredRoles,
   getUpdaterPayloadRole,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
@@ -598,6 +599,7 @@ async function createOnePackageArtifact(
 
   const sizeName = `package-size-${definition.id}.json`
   const sizePath = path.join(reportsDirectory, sizeName)
+  const sizePolicy = createDefaultPackageSizePolicy()
   await writeFile(
     sizePath,
     JSON.stringify({
@@ -606,6 +608,7 @@ async function createOnePackageArtifact(
       candidateCommit: sourceSha,
       comparisons: getMeasuredRoles(definition).map(({ name: role }) => {
         const file = fileRecords.find((candidate) => candidate.role === role)!
+        const limits = sizePolicy.targets[definition.id][role]
         return {
           role,
           baseline: {
@@ -619,8 +622,8 @@ async function createOnePackageArtifact(
             sha256: file.sha256
           },
           deltaBytes: 0,
-          maxGrowthBytes: 1,
-          maxShrinkBytes: 1,
+          maxGrowthBytes: limits.maxGrowthBytes,
+          maxShrinkBytes: limits.maxShrinkBytes,
           withinPolicy: true
         }
       }),
