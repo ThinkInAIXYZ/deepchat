@@ -66,6 +66,40 @@ describe('OcrRuntimeService', () => {
     await service.close()
   })
 
+  it('drops cached availability so a later resolve can pick a new Node', async () => {
+    const resolve = vi.spyOn(OcrRuntimeAssetResolver.prototype, 'resolve')
+    resolve
+      .mockResolvedValueOnce({
+        status: 'available',
+        assets: { nodeExecutable: '/old/node' }
+      } as never)
+      .mockResolvedValueOnce({
+        status: 'available',
+        assets: { nodeExecutable: '/new/node' }
+      } as never)
+
+    const service = new OcrRuntimeService({
+      appPath: '/application',
+      isPackaged: true,
+      nodeRuntimePath: null,
+      tempBaseDir: '/tmp',
+      userDataDir: '/user-data',
+      platform: 'darwin',
+      arch: 'arm64'
+    })
+
+    await expect(service.getAvailability()).resolves.toMatchObject({
+      assets: { nodeExecutable: '/old/node' }
+    })
+    service.refreshAvailability()
+    await expect(service.getAvailability()).resolves.toMatchObject({
+      assets: { nodeExecutable: '/new/node' }
+    })
+    expect(resolve).toHaveBeenCalledTimes(2)
+    resolve.mockRestore()
+    await service.close()
+  })
+
   it('reports the pinned identity after shutdown instead of a fabricated version', async () => {
     const service = createUnsupportedService()
     await service.close()

@@ -58,6 +58,7 @@ export class OcrRuntimeService {
   private readonly resolver: OcrRuntimeAssetResolver
   private availabilityPromise: Promise<OcrRuntimeAvailability> | null = null
   private resourcesPromise: Promise<RuntimeResources> | null = null
+  private closingResources: Promise<void> = Promise.resolve()
   private closed = false
 
   constructor(private readonly options: OcrRuntimeServiceOptions) {
@@ -73,6 +74,13 @@ export class OcrRuntimeService {
 
   refreshAvailability(): void {
     this.availabilityPromise = null
+    const existing = this.resourcesPromise
+    this.resourcesPromise = null
+    if (!existing) return
+    this.closingResources = this.closingResources.then(async () => {
+      const resources = await existing.catch(() => null)
+      if (resources) await this.disposeResources(resources)
+    })
   }
 
   async getAvailability(): Promise<OcrRuntimeAvailability> {
@@ -134,16 +142,18 @@ export class OcrRuntimeService {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    const resources = await this.resourcesPromise?.catch(() => null)
+    this.availabilityPromise = null
+    const existing = this.resourcesPromise
+    this.resourcesPromise = null
+    await this.closingResources
+    const resources = existing ? await existing.catch(() => null) : null
     if (!resources) return
-    resources.extraction.close()
-    resources.documentExtraction.close()
-    resources.scheduler.close()
-    await resources.host.close()
-    await resources.store.close()
+    await this.disposeResources(resources)
   }
 
   private async getResources(): Promise<RuntimeResources> {
+    if (this.closed) throw new Error('OCR runtime service is closed')
+    await this.closingResources
     if (this.closed) throw new Error('OCR runtime service is closed')
     this.resourcesPromise ??= this.createResources()
     try {
@@ -214,5 +224,12 @@ export class OcrRuntimeService {
       await Promise.allSettled([host?.close(), store?.close()])
       throw error
     }
+  }
+
+  private async disposeResources(resources: RuntimeResources): Promise<void> {
+    resources.extraction.close()
+    resources.documentExtraction.close()
+    resources.scheduler.close()
+    await Promise.allSettled([resources.host.close(), resources.store.close()])
   }
 }
