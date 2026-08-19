@@ -359,6 +359,70 @@ describe('ServerManager notifications and plugin isolation', () => {
     expect(clientMocks.connect).toHaveBeenCalledTimes(1)
   })
 
+  it('clears in-flight tracking when stopServer runs before a client exists', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    providerSettings.getMcpServers.mockImplementation(async () => {
+      await blocked
+      return {
+        regular: {
+          command: 'regular-command',
+          args: [],
+          env: {},
+          type: 'stdio'
+        }
+      }
+    })
+    const manager = createManager(providerSettings)
+    const first = manager.startServer('regular')
+    await Promise.resolve()
+    expect(manager.isServerActive('regular')).toBe(true)
+    await manager.stopServer('regular')
+    expect(manager.isServerActive('regular')).toBe(false)
+    release()
+    await first
+  })
+
+  it('upgrades an in-flight soft-timeout start when a later caller waits', async () => {
+    let releaseConnect!: (result: 'soft-timeout-released' | 'connected') => void
+    clientMocks.connect.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseConnect = resolve
+        })
+    )
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    const manager = createManager(providerSettings)
+    const first = manager.startServer('regular')
+    await Promise.resolve()
+    const second = manager.startServer('regular', { waitForConnection: true })
+    releaseConnect('soft-timeout-released')
+    await expect(first).resolves.toBe('soft-timeout-released')
+    releaseConnect('connected')
+    await expect(second).resolves.toBe('connected')
+    expect(clientMocks.connect).toHaveBeenLastCalledWith({
+      phase: 'startup',
+      waitForConnection: true
+    })
+  })
+
   it('does not reuse an in-flight configOverride start', async () => {
     let release!: () => void
     const blocked = new Promise<void>((resolve) => {

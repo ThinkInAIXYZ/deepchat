@@ -31,6 +31,7 @@ import type {
 } from '@modelcontextprotocol/client'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
@@ -538,10 +539,7 @@ export class McpClient {
         command = processedCommand.command
         args = processedCommand.args
 
-        // Determine if it's Node.js/UV related command
-        const isNodeCommand = ['node', 'npm', 'npx', 'uv', 'uvx'].some(
-          (cmd) => command.includes(cmd) || args.some((arg) => arg.includes(cmd))
-        )
+        const isNodeCommand = isToolchainStdioCommand(command, process.platform)
 
         if (this.serverConfig.inheritEnv === 'minimal') {
           Object.assign(env, createMinimalProcessEnvironment(process.env, process.platform))
@@ -1874,4 +1872,13 @@ export class McpClient {
       updatedAt: Date.now()
     }
   }
+}
+
+const TOOLCHAIN_STDIO_COMMANDS = new Set(['node', 'npm', 'npx', 'corepack', 'uv', 'uvx'])
+
+function isToolchainStdioCommand(command: string, platform: NodeJS.Platform): boolean {
+  const basename = path.basename(command.trim())
+  const normalized =
+    platform === 'win32' ? basename.toLowerCase().replace(/\.(exe|cmd|bat)$/i, '') : basename
+  return TOOLCHAIN_STDIO_COMMANDS.has(normalized)
 }

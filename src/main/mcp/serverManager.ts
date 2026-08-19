@@ -254,7 +254,14 @@ export class ServerManager {
   async startServer(name: string, options: StartServerOptions = {}): Promise<McpConnectResult> {
     const inflight = this.starting.get(name)
     if (inflight && !options.configOverride) {
-      return inflight
+      const result = await inflight
+      if (options.waitForConnection && result === 'soft-timeout-released') {
+        const client = this.clients.get(name)
+        if (client) {
+          return client.connect({ phase: 'startup', waitForConnection: true })
+        }
+      }
+      return result
     }
     const task = this.connectServer(name, options)
     if (!options.configOverride) {
@@ -392,6 +399,7 @@ export class ServerManager {
 
     connectionCompletion
       .then(() => {
+        if (this.clients.get(name) !== client) return
         this.clearServerLastError(name)
         this.recoverConnectionNotification(name)
         options.onBackgroundConnected?.()
@@ -433,6 +441,7 @@ export class ServerManager {
   }
 
   async stopServer(name: string): Promise<void> {
+    this.starting.delete(name)
     const client = this.clients.get(name)
 
     if (!client) {

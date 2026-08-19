@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import { createConfigClient } from '../../api/ConfigClient'
@@ -1106,65 +1106,65 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // ==================== 事件监听 ====================
-  // 初始化事件监听
+  const eventCleanups: Array<() => void> = []
+  let eventsBound = false
+
   const initEvents = () => {
-    mcpClient.onServerStarted(({ serverName }) => {
-      console.log(`MCP server started: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server starts to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server started:', error)
-          })
-        }
-      })
-    })
-
-    mcpClient.onServerStopped(({ serverName }) => {
-      console.log(`MCP server stopped: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server stops to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server stopped:', error)
-          })
-        }
-      })
-    })
-
-    mcpClient.onConfigChanged((payload) => {
-      console.log('MCP config changed', payload)
-      syncConfigFromQuery(payload)
-      updateAllServerStatuses().catch((error) => {
-        console.error('Failed to update server statuses after config change:', error)
-      })
-    })
-
-    mcpClient.onServerStatusChanged((payload) => {
-      console.log(`MCP server ${payload.serverName} lifecycle changed: ${payload.lifecycleStatus}`)
-      applyServerStatusEvent(payload)
-    })
-
-    mcpClient.onServerAuthChanged(({ serverName, status }) => {
-      serverAuthStatuses.value[serverName] = status
-      if (status.authenticated) {
-        void refreshAfterAuthenticated(serverName).catch((error) => {
-          console.error('Failed to refresh MCP after authentication:', error)
+    if (eventsBound) return
+    eventsBound = true
+    eventCleanups.push(
+      mcpClient.onServerStarted(({ serverName }) => {
+        console.log(`MCP server started: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server started:', error)
+            })
+          }
         })
-      }
-    })
-
-    mcpClient.onToolCallResult((result) => {
-      console.log(`MCP tool call result:`, result.functionName)
-      if (result && result.functionName) {
-        toolResults.value[result.functionName] = result.content
-      }
-    })
-
-    configClient.onCustomPromptsChanged(() => {
-      console.log('Custom prompts changed, reloading prompts list')
-      void loadPrompts()
-    })
+      }),
+      mcpClient.onServerStopped(({ serverName }) => {
+        console.log(`MCP server stopped: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server stopped:', error)
+            })
+          }
+        })
+      }),
+      mcpClient.onConfigChanged((payload) => {
+        console.log('MCP config changed', payload)
+        syncConfigFromQuery(payload)
+        updateAllServerStatuses().catch((error) => {
+          console.error('Failed to update server statuses after config change:', error)
+        })
+      }),
+      mcpClient.onServerStatusChanged((payload) => {
+        console.log(
+          `MCP server ${payload.serverName} lifecycle changed: ${payload.lifecycleStatus}`
+        )
+        applyServerStatusEvent(payload)
+      }),
+      mcpClient.onServerAuthChanged(({ serverName, status }) => {
+        serverAuthStatuses.value[serverName] = status
+        if (status.authenticated) {
+          void refreshAfterAuthenticated(serverName).catch((error) => {
+            console.error('Failed to refresh MCP after authentication:', error)
+          })
+        }
+      }),
+      mcpClient.onToolCallResult((result) => {
+        console.log(`MCP tool call result:`, result.functionName)
+        if (result && result.functionName) {
+          toolResults.value[result.functionName] = result.content
+        }
+      }),
+      configClient.onCustomPromptsChanged(() => {
+        console.log('Custom prompts changed, reloading prompts list')
+        void loadPrompts()
+      })
+    )
   }
 
   // 初始化
@@ -1186,6 +1186,13 @@ export const useMcpStore = defineStore('mcp', () => {
   // 立即初始化
   onMounted(async () => {
     await init()
+  })
+
+  onUnmounted(() => {
+    while (eventCleanups.length > 0) {
+      eventCleanups.pop()?.()
+    }
+    eventsBound = false
   })
 
   // 获取NPM Registry状态
