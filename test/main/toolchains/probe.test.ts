@@ -8,7 +8,7 @@ vi.unmock('node:fs')
 vi.unmock('path')
 vi.unmock('node:path')
 
-import { probeSystemNode } from '../../../src/main/toolchains/probe'
+import { probeCustomNode, probeSystemNode } from '../../../src/main/toolchains/probe'
 
 function writeExecutable(filePath: string): void {
   mkdirSync(path.dirname(filePath), { recursive: true })
@@ -29,5 +29,23 @@ describe('toolchain probe', () => {
     expect(probed.toolchain.node).toBe(path.join(root, 'node.exe'))
     expect(probed.toolchain.npm).toBe(path.join(root, 'npm.cmd'))
     expect(probed.toolchain.npx).toBe(path.join(root, 'npx.cmd'))
+  })
+
+  it('accepts a custom Node executable when npm and npx sit beside it', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'dc-custom-node-'))
+    const node = path.join(root, 'node')
+    const npm = path.join(root, 'npm')
+    const npx = path.join(root, 'npx')
+    writeExecutable(node)
+    writeExecutable(npm)
+    writeExecutable(npx)
+
+    const probed = probeCustomNode(node, 'darwin')
+    expect(probed.status).toBe('complete')
+    if (probed.status !== 'complete') return
+    expect(probed.toolchain.node).toBe(node)
+    expect(probed.toolchain.npm).toBe(npm)
+    expect(probed.toolchain.npx).toBe(npx)
+    expect(probed.toolchain.binDir).toBe(root)
   })
 })

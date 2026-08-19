@@ -109,7 +109,7 @@ describe('OcrRuntimeService', () => {
       } as never)
       .mockResolvedValueOnce({
         status: 'available',
-        assets: { nodeExecutable: '/same/node' }
+        assets: { nodeExecutable: '/old/node' }
       } as never)
 
     const service = new OcrRuntimeService({
@@ -127,7 +127,7 @@ describe('OcrRuntimeService', () => {
     })
     service.refreshAvailability('uv')
     await expect(service.getAvailability()).resolves.toMatchObject({
-      assets: { nodeExecutable: '/same/node' }
+      assets: { nodeExecutable: '/old/node' }
     })
     expect(resolve).toHaveBeenCalledTimes(2)
     resolve.mockRestore()

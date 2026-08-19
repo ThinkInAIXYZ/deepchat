@@ -14,7 +14,7 @@ import type {
   ToolchainSource
 } from '@shared/types/toolchains'
 import { TOOLCHAIN_SOURCES } from '@shared/types/toolchains'
-import { stateFilePath } from './layout'
+import { assertSafeToolchainVersion, stateFilePath } from './layout'
 
 const SOURCE_SET = new Set<string>(TOOLCHAIN_SOURCES)
 
@@ -93,8 +93,11 @@ function parseSelection(value: unknown, label: string): ToolchainSelection {
   if (record.explicit === true) {
     selection.explicit = true
   }
-  if (source === 'managed' && !selection.version) {
-    throw new Error(`Toolchain ${label} managed source is missing a version`)
+  if (source === 'managed') {
+    if (!selection.version) {
+      throw new Error(`Toolchain ${label} managed source is missing a version`)
+    }
+    assertSafeToolchainVersion(selection.version)
   }
   if (source === 'custom' && !selection.customPath) {
     throw new Error(`Toolchain ${label} custom source is missing a path`)

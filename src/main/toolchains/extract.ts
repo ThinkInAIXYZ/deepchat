@@ -129,6 +129,10 @@ function runExtract(
     signal?.addEventListener('abort', onAbort, { once: true })
     child.once('error', (error) => {
       signal?.removeEventListener('abort', onAbort)
+      if (signal?.aborted) {
+        reject(new ToolchainDownloadError('cancelled', 'Toolchain install cancelled'))
+        return
+      }
       resolve({ status: null, stderr, error })
     })
     child.once('close', (status) => {

@@ -303,6 +303,30 @@ describe('ToolchainService', () => {
     expect(readFileSync(`${statePath}.corrupt`, 'utf8')).toBe('{not-json')
   })
 
+  it('quarantines a managed selection whose version is unsafe', () => {
+    const { userDataDir } = createService()
+    const statePath = path.join(userDataDir, 'toolchains', 'state.json')
+    mkdirSync(path.dirname(statePath), { recursive: true })
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        schemaVersion: 1,
+        node: { source: 'managed', version: '../escape' }
+      })
+    )
+
+    const reloaded = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+
+    expect(reloaded.getState().node.source).toBe('unconfigured')
+    expect(readFileSync(`${statePath}.corrupt`, 'utf8')).toContain('../escape')
+  })
+
   it('does not re-inspect a failed system Node until persist', () => {
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)

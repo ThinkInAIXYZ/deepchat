@@ -103,6 +103,10 @@ export function probeSystemUv(env: NodeJS.ProcessEnv, platform: NodeJS.Platform)
 }
 
 export function probeCustomNode(customPath: string, platform: NodeJS.Platform): NodeProbeResult {
+  if (!path.isAbsolute(customPath) || customPath.includes('\0')) return { status: 'missing' }
+  if (isExistingFile(customPath)) {
+    return locateCustomNodeSiblings(customPath, platform)
+  }
   const rootDir = resolveCustomRoot(customPath, platform, 'node')
   if (!rootDir) return { status: 'missing' }
   return probeNodeRoot(rootDir, platform, false)
@@ -134,6 +138,35 @@ export function findOnPath(
     }
   }
   return null
+}
+
+function locateCustomNodeSiblings(
+  nodeExecutable: string,
+  platform: NodeJS.Platform
+): NodeProbeResult {
+  const binDir = path.dirname(nodeExecutable)
+  const npmName = platform === 'win32' ? 'npm.cmd' : 'npm'
+  const npxName = platform === 'win32' ? 'npx.cmd' : 'npx'
+  const corepackName = platform === 'win32' ? 'corepack.cmd' : 'corepack'
+  const npm = fileIfExists(path.join(binDir, npmName))
+  const npx = fileIfExists(path.join(binDir, npxName))
+  if (!npm || !npx) {
+    return { status: 'incomplete', rootDir: inferNodeRootFromExecutable(nodeExecutable, platform) }
+  }
+  return {
+    status: 'complete',
+    toolchain: {
+      kind: 'node',
+      version: null,
+      nodeModuleVersion: null,
+      rootDir: inferNodeRootFromExecutable(nodeExecutable, platform),
+      binDir,
+      node: nodeExecutable,
+      npm,
+      npx,
+      corepack: fileIfExists(path.join(binDir, corepackName))
+    }
+  }
 }
 
 function locateSystemNodeSiblings(

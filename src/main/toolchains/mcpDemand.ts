@@ -10,6 +10,7 @@ function mcpServerIsDemandCandidate(
   if (config.enabled === false) return false
   if (config.source === 'plugin' || config.ownerPluginId) return false
   if (config.type && config.type !== 'stdio') return false
+  if (typeof config.command !== 'string') return false
   return true
 }
 

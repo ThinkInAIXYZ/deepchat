@@ -22,6 +22,12 @@ describe('mcp Node demand', () => {
     expect(mcpServerNeedsNode({ command: 'npx', type: 'stdio', source: 'plugin' })).toBe(false)
     expect(mcpServerNeedsNode({ command: 'npx', type: 'stdio', ownerPluginId: 'p1' })).toBe(false)
     expect(mcpServerNeedsNode({ command: 'npx', type: 'stdio', enabled: false })).toBe(false)
+    expect(
+      mcpServerNeedsNode({ command: undefined as never, type: undefined as never, enabled: true })
+    ).toBe(false)
+    expect(
+      mcpServerNeedsUv({ command: undefined as never, type: undefined as never, enabled: true })
+    ).toBe(false)
   })
 
   it('notes Node demand only when MCP is on and an enabled stdio server needs it', async () => {
