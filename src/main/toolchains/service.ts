@@ -81,7 +81,7 @@ export type ToolchainServiceOptions = {
   mirrorUrl?: string
   onProgress?: (progress: ToolchainInstallProgress) => void
   onMissing?: (missing: ToolchainMissingNotice[]) => void
-  onReady?: () => void
+  onStateChanged?: () => void
 }
 
 export type ResolveOptions = {
@@ -138,7 +138,7 @@ export class ToolchainService {
   updateDetectionEnv(env: NodeJS.ProcessEnv): void {
     this.env = env
     this.invalidateAndReevaluate()
-    this.options.onReady?.()
+    this.options.onStateChanged?.()
   }
 
   gcUnreachableTrees(): void {
@@ -578,7 +578,7 @@ export class ToolchainService {
     this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
-    this.options.onReady?.()
+    this.options.onStateChanged?.()
   }
 
   private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {

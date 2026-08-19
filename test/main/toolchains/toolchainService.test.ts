@@ -35,7 +35,7 @@ function createService(options?: {
   platform?: NodeJS.Platform
   env?: NodeJS.ProcessEnv
   onMissing?: (missing: { kind: string; reason: string }[]) => void
-  onReady?: () => void
+  onStateChanged?: () => void
   inspectNode?: () => { version: string; modules: number } | null
 }): { service: ToolchainService; appPath: string; userDataDir: string } {
   const appPath = options?.appPath ?? mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
@@ -45,7 +45,7 @@ function createService(options?: {
     userDataDir,
     platform: options?.platform ?? 'darwin',
     env: options?.env ?? { PATH: '' },
-    onReady: options?.onReady,
+    onStateChanged: options?.onStateChanged,
     inspectNode:
       options?.inspectNode ?? (() => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })),
     onMissing: options?.onMissing
@@ -478,15 +478,15 @@ describe('ToolchainService', () => {
     expect(env.Path).toContain('C:\\user\\bin')
   })
 
-  it('notifies readiness after an explicit source change', () => {
-    let ready = 0
+  it('notifies a state change after an explicit source change', () => {
+    let changed = 0
     const { service, appPath } = createService({
-      onReady: () => {
-        ready += 1
+      onStateChanged: () => {
+        changed += 1
       }
     })
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     service.setSource('node', { source: 'bundled' })
-    expect(ready).toBe(1)
+    expect(changed).toBe(1)
   })
 })
