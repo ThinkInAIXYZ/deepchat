@@ -22,11 +22,13 @@ describe('detectionEnv', () => {
 
   it('adds existing nvm version bins from the home directory', () => {
     const homeDir = mkdtempSync(path.join(os.tmpdir(), 'dc-nvm-'))
-    const versionBin = path.join(homeDir, '.nvm', 'versions', 'node', 'v24.18.0', 'bin')
-    mkdirSync(versionBin, { recursive: true })
+    const newestBin = path.join(homeDir, '.nvm', 'versions', 'node', 'v24.18.0', 'bin')
+    const oldestBin = path.join(homeDir, '.nvm', 'versions', 'node', 'v9.0.0', 'bin')
+    mkdirSync(newestBin, { recursive: true })
+    mkdirSync(oldestBin, { recursive: true })
     const paths = defaultDetectionPaths(homeDir, 'darwin')
     expect(paths).toContain(path.join(homeDir, '.nvm', 'current', 'bin'))
-    expect(paths).toContain(versionBin)
+    expect(paths.indexOf(newestBin)).toBeLessThan(paths.indexOf(oldestBin))
   })
 
   it('adds Windows Node and npm locations', () => {

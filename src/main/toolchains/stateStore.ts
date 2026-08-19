@@ -90,6 +90,9 @@ function parseSelection(value: unknown, label: string): ToolchainSelection {
   if (typeof record.customPath === 'string' && record.customPath.length > 0) {
     selection.customPath = record.customPath
   }
+  if (record.explicit === true) {
+    selection.explicit = true
+  }
   if (source === 'managed' && !selection.version) {
     throw new Error(`Toolchain ${label} managed source is missing a version`)
   }

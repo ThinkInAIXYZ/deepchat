@@ -191,7 +191,7 @@ export class ToolchainService {
   }
 
   clearSource(kind: ToolchainKind): ToolchainState {
-    this.writeSelection(kind, { source: 'unconfigured' })
+    this.writeSelection(kind, { source: 'unconfigured', explicit: true })
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
     if (this.demanded.has(kind)) {
@@ -507,8 +507,8 @@ export class ToolchainService {
   private ensureState(): ToolchainState {
     return {
       schemaVersion: 1,
-      node: this.selectionFor('node').selection,
-      uv: this.selectionFor('uv').selection
+      node: publicSelection(this.selectionFor('node').selection),
+      uv: publicSelection(this.selectionFor('uv').selection)
     }
   }
 
@@ -517,8 +517,8 @@ export class ToolchainService {
     derived: boolean
   } {
     this.ensureFirstRunPersisted()
-    const explicit = this.loadPersisted()[kind]
-    if (explicit) return { selection: explicit, derived: false }
+    const persisted = this.loadPersisted()[kind]
+    if (persisted) return { selection: persisted, derived: false }
     return { selection: this.deriveSelection(kind), derived: true }
   }
 
@@ -580,7 +580,8 @@ export class ToolchainService {
     }
     let changed = false
     for (const kind of ['node', 'uv'] as const) {
-      if (current[kind]?.source !== 'unconfigured') continue
+      const selection = current[kind]
+      if (selection?.source !== 'unconfigured' || selection.explicit) continue
       const detected = this.deriveSelection(kind)
       if (detected.source !== 'system') continue
       next[kind] = detected
@@ -795,7 +796,7 @@ export class ToolchainService {
 
     return {
       kind,
-      selection,
+      selection: publicSelection(selection),
       derived,
       availability,
       reason,
@@ -986,6 +987,12 @@ export function inspectNodeExecutableResult(
   } catch {
     return { inspection: null, retryable: false }
   }
+}
+
+function publicSelection(selection: ToolchainSelection): ToolchainSelection {
+  if (selection.explicit == null) return selection
+  const { explicit: _explicit, ...rest } = selection
+  return rest
 }
 
 function managedTreeForCustomPath(

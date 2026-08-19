@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted design. Implementation in progress.
+Accepted design. First-run persist and the ToolchainService resolver are
+implemented. RuntimeHelper still owns RTK only; leftover Node/uv getters are
+inert.
 
 Related: [GitHub issue #2153](https://github.com/ThinkInAIXYZ/deepchat/issues/2153).
 
@@ -101,10 +103,12 @@ If `{userData}/toolchains/state.json` is missing:
 
 This records what the machine already had. It is not a per-resolve fallback.
 After this write, source changes only when the user (or Repair / Revert)
-changes it, with one exception: if login-shell PATH arrives later and a kind
-is still persisted `unconfigured`, persist `system` once for that kind.
+changes it, with one exception: a first-run `unconfigured` (no `explicit`
+mark) may be promoted to `system` once per userData when login-shell PATH
+arrives, including after a restart that happened before PATH was ready.
 Never rememoize `bundled` → `system`. Clearing a source persists
-`unconfigured` explicitly; do not omit the key and re-derive.
+`{ source: 'unconfigured', explicit: true }`. That choice survives restart
+and is never promoted.
 
 Upgrade after Node is removed from the installer: if the persisted source is
 `bundled` and the bundled tree is gone, keep `bundled` and fail with `missing`.
@@ -285,8 +289,9 @@ writer.
 
 1. MCP, ACP, Skill, and OCR resolve Node/uv only through `ToolchainService`.
 2. After first-run persist, Settings (plus Repair/Revert) is the only way a
-   later resolve uses a different source, except one-shot
-   `unconfigured` → `system` when login-shell PATH arrives.
+   later resolve uses a different source, except one-shot first-run
+   `unconfigured` → `system` when login-shell PATH arrives. A user-chosen
+   `unconfigured` is never promoted.
 3. A failed or interrupted Node download leaves the previous working version
    active.
 4. OCR helper handshake accepts the activated official pin and rejects

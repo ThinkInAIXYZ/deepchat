@@ -23,6 +23,7 @@ export interface ToolchainSelection {
   source: ToolchainSource
   version?: string
   customPath?: string
+  explicit?: boolean
 }
 
 export interface ToolchainState {

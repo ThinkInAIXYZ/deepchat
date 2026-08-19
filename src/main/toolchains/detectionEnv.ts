@@ -72,8 +72,28 @@ function listVersionDirs(root: string): string[] {
   return readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && /^v?\d/.test(entry.name))
     .map((entry) => entry.name)
-    .sort()
-    .reverse()
+    .sort(compareNvmVersionNames)
+}
+
+function compareNvmVersionNames(left: string, right: string): number {
+  const leftParts = parseNvmVersion(left)
+  const rightParts = parseNvmVersion(right)
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const delta = (rightParts[index] ?? 0) - (leftParts[index] ?? 0)
+    if (delta !== 0) return delta
+  }
+  return 0
+}
+
+function parseNvmVersion(name: string): number[] {
+  return name
+    .replace(/^v/i, '')
+    .split('.')
+    .map((part) => {
+      const value = Number.parseInt(part, 10)
+      return Number.isFinite(value) ? value : 0
+    })
 }
 
 export function mergeDetectionEnv(

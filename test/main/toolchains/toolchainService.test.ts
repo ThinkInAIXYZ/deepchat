@@ -107,7 +107,7 @@ describe('ToolchainService', () => {
     const persisted = JSON.parse(
       readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')
     )
-    expect(persisted.node).toEqual({ source: 'unconfigured' })
+    expect(persisted.node).toEqual({ source: 'unconfigured', explicit: true })
     expect(service.getState().node).toEqual({ source: 'unconfigured' })
     expect(service.getStatus().node.derived).toBe(false)
     expect(() => service.resolve('node')).toThrow(/not configured/)
@@ -381,6 +381,50 @@ describe('ToolchainService', () => {
     })
     expect(service.getState().node.source).toBe('bundled')
     expect(service.getState().uv.source).toBe('system')
+  })
+
+  it('does not promote a user-chosen unconfigured after PATH arrives', () => {
+    const { service, userDataDir } = createService({ env: { PATH: '' } })
+    service.setSource('node', { source: 'unconfigured' })
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
+    ).toEqual({ source: 'unconfigured', explicit: true })
+
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    service.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    expect(service.getState().node).toEqual({ source: 'unconfigured' })
+    expect(service.getStatus().node.selection).toEqual({ source: 'unconfigured' })
+
+    const reloaded = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    reloaded.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    expect(reloaded.getState().node).toEqual({ source: 'unconfigured' })
+  })
+
+  it('still promotes first-run unconfigured after a restart before PATH arrives', () => {
+    const { service, userDataDir } = createService({ env: { PATH: '' } })
+    expect(service.getState().node).toEqual({ source: 'unconfigured' })
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
+    ).toEqual({ source: 'unconfigured' })
+
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const reloaded = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    reloaded.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    expect(reloaded.getState().node).toEqual({ source: 'system' })
   })
 
   it('ignores a provisional state file and treats kinds independently', () => {

@@ -135,7 +135,7 @@ describe('ToolchainService lifecycle', () => {
     expect(service.getStatus().node.derived).toBe(false)
     expect(
       JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
-    ).toEqual({ source: 'unconfigured' })
+    ).toEqual({ source: 'unconfigured', explicit: true })
 
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
     const reloaded = new ToolchainService({
