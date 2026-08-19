@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { NODE_PIN, resolveToolchainArtifact, UV_PIN } from '../../../src/main/toolchains/catalog'
+import {
+  defaultNodeMirrorUrl,
+  NODE_PIN,
+  resolveToolchainArtifact,
+  UV_PIN
+} from '../../../src/main/toolchains/catalog'
 
 const NODE_TARGETS = [
   ['darwin', 'arm64'],
@@ -19,6 +24,16 @@ describe('toolchain catalog', () => {
       expect(artifact.filename).toContain(NODE_PIN)
       expect(artifact.officialUrl).toContain(`${NODE_PIN}/${artifact.filename}`)
     }
+  })
+
+  it('maps official Node dist URLs onto the default mirror', () => {
+    const artifact = resolveToolchainArtifact('node', 'darwin', 'arm64')
+    expect(defaultNodeMirrorUrl(artifact.officialUrl)).toBe(
+      `https://npmmirror.com/mirrors/node/${NODE_PIN}/${artifact.filename}`
+    )
+    expect(defaultNodeMirrorUrl('https://github.com/astral-sh/uv/releases/download/x/y')).toBe(
+      undefined
+    )
   })
 
   it('keeps uv artifacts on the catalog pin', () => {

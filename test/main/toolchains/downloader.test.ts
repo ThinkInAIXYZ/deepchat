@@ -104,6 +104,17 @@ describe('toolchain downloader', () => {
     expect(() => readFileSync(destPath)).toThrow()
   })
 
+  it('uses the official URL without probing when allowProbe is false', async () => {
+    const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
+    const fetchImpl = vi.fn()
+    const url = await selectDownloadUrl(official, fetchImpl, {
+      mirrorUrl: 'https://npmmirror.com/mirrors/node/v24.18.0/node.tar.gz',
+      allowProbe: false
+    })
+    expect(url).toBe(official)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('uses official URL when a failed mirror probe is not cached as success', async () => {
     const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
     const mirror = 'https://mirror.example/node.tar.gz'

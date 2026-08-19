@@ -62,7 +62,7 @@ import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { mergeDetectionEnv, ToolchainService } from '@/toolchains'
+import { mergeDetectionEnv, noteNodeDemandFromMcp, ToolchainService } from '@/toolchains'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
@@ -1217,6 +1217,7 @@ export async function createMainProcessControl(dependencies: {
     appPath: app.getAppPath(),
     userDataDir: app.getPath('userData'),
     env: mergeDetectionEnv(process.env, toolchainHomeDir, process.platform),
+    allowProbe: () => !dependencies.privacySettings.isEnabled(),
     onProgress: (progress) =>
       publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
     onMissing: (missing) =>
@@ -1377,6 +1378,9 @@ export async function createMainProcessControl(dependencies: {
     },
     () => reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
   )
+  await noteNodeDemandFromMcp(dependencies.mcpSettings, toolchainService).catch((error) => {
+    logger.warn('[ToolchainService] Failed to note MCP Node demand', error)
+  })
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
     config: providerSettings,

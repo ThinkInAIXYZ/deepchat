@@ -352,6 +352,66 @@ describe('ToolchainService lifecycle', () => {
     expect(service.getStatus().node.install).toBeNull()
   })
 
+  it('skips the default Node mirror when probing is disabled', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const payload = Buffer.from('privacy-node-archive')
+    const urls: string[] = []
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      allowProbe: () => false,
+      fetch: async (url, init) => {
+        urls.push(url)
+        return createFetch(payload)(url, init)
+      },
+      extractArchive: async (_archive, destDir) => {
+        seedNodeTree(destDir, true)
+      }
+    })
+
+    await service.install('node')
+    expect(urls.some((url) => url.includes('npmmirror.com'))).toBe(false)
+    expect(urls.some((url) => url.includes('nodejs.org/dist'))).toBe(true)
+  })
+
+  it('probes the default Node mirror when probing is allowed', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const payload = Buffer.from('mirrored-node-archive')
+    const urls: string[] = []
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: async (url, init) => {
+        urls.push(url)
+        return createFetch(payload)(url, init)
+      },
+      extractArchive: async (_archive, destDir) => {
+        seedNodeTree(destDir, true)
+      }
+    })
+
+    await service.install('node')
+    expect(urls.some((url) => url.includes('npmmirror.com/mirrors/node'))).toBe(true)
+  })
+
   it('surfaces a missing notice when resolve fails', () => {
     const service = new ToolchainService({
       appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),

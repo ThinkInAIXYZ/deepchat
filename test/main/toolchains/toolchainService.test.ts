@@ -190,6 +190,29 @@ describe('ToolchainService', () => {
     expect(service.getStatus().missing).toEqual([])
   })
 
+  it('keeps unconfigured Node off the banner until something needs it', () => {
+    const { service } = createService()
+    expect(service.getStatus().node.availability).toBe('unconfigured')
+    expect(service.getStatus().missing).toEqual([])
+  })
+
+  it('surfaces unconfigured Node after MCP demand is noted', () => {
+    const notices: Array<Array<{ kind: string; reason: string }>> = []
+    const { service } = createService({
+      onMissing: (missing) => notices.push(missing)
+    })
+    service.noteDemand('node')
+    expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+    expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+  })
+
+  it('surfaces a broken explicit source without waiting for resolve', () => {
+    const { service } = createService()
+    service.setSource('node', { source: 'bundled' })
+    expect(service.getStatus().node.availability).toBe('missing')
+    expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'missing' }])
+  })
+
   it('clears the missing banner after a later successful resolve', () => {
     const notices: Array<Array<{ kind: string; reason: string }>> = []
     const { service, appPath } = createService({

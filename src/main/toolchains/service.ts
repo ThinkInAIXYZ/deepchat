@@ -21,6 +21,7 @@ import type {
 import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import {
   catalogVersionFor,
+  defaultNodeMirrorUrl,
   isNodeVersionInCompatRange,
   NODE_MODULE_VERSION,
   NODE_PIN,
@@ -79,6 +80,7 @@ export type ToolchainServiceOptions = {
   extractArchive?: ArchiveExtractor
   removeTree?: (directory: string) => void
   mirrorUrl?: string
+  allowProbe?: () => boolean
   onProgress?: (progress: ToolchainInstallProgress) => void
   onMissing?: (missing: ToolchainMissingNotice[]) => void
   onStateChanged?: () => void
@@ -107,6 +109,7 @@ export class ToolchainService {
   private readonly inspectionCache = new Map<string, NodeInspection | null>()
   private readonly inspectTransientUntil = new Map<string, number>()
   private readonly missing = new Map<string, ToolchainResolveReason>()
+  private readonly demanded = new Set<ToolchainKind>()
   private readonly progress = new Map<ToolchainKind, ToolchainInstallProgress>()
   private readonly inflight = new Map<ToolchainKind, Promise<void>>()
   private readonly controllers = new Map<ToolchainKind, AbortController>()
@@ -186,6 +189,7 @@ export class ToolchainService {
     })
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
+    this.emitMissing()
     return this.getState()
   }
 
@@ -204,11 +208,19 @@ export class ToolchainService {
   }
 
   getStatus(): ToolchainStatusSnapshot {
+    const node = this.inspectKind('node')
+    const uv = this.inspectKind('uv')
     return {
-      node: this.inspectKind('node'),
-      uv: this.inspectKind('uv'),
-      missing: this.collectMissing()
+      node,
+      uv,
+      missing: this.mergeMissingNotices(node, uv)
     }
+  }
+
+  noteDemand(kind: ToolchainKind): void {
+    if (this.demanded.has(kind)) return
+    this.demanded.add(kind)
+    this.emitMissing()
   }
 
   async install(kind: ToolchainKind): Promise<ToolchainState> {
@@ -624,9 +636,11 @@ export class ToolchainService {
     try {
       this.setProgress(kind, 'probing')
       const url = await selectDownloadUrl(artifact.officialUrl, this.fetchImpl, {
-        mirrorUrl: this.options.mirrorUrl,
+        mirrorUrl:
+          this.options.mirrorUrl ??
+          (kind === 'node' ? defaultNodeMirrorUrl(artifact.officialUrl) : undefined),
         signal: controller.signal,
-        allowProbe: true
+        allowProbe: this.options.allowProbe?.() ?? true
       })
 
       this.setProgress(kind, 'downloading')
@@ -831,6 +845,13 @@ export class ToolchainService {
   }
 
   private collectMissing(): ToolchainMissingNotice[] {
+    return this.mergeMissingNotices(this.inspectKind('node'), this.inspectKind('uv'))
+  }
+
+  private mergeMissingNotices(
+    node: ToolchainKindStatus,
+    uv: ToolchainKindStatus
+  ): ToolchainMissingNotice[] {
     const rank: Record<ToolchainResolveReason, number> = {
       transient: 0,
       unconfigured: 1,
@@ -847,6 +868,18 @@ export class ToolchainService {
       const current = byKind.get(kind)
       if (!current || rank[reason] > rank[current]) {
         byKind.set(kind, reason)
+      }
+    }
+    for (const status of [node, uv]) {
+      if (status.availability === 'ready') continue
+      const reason: ToolchainResolveReason = status.reason ?? 'unconfigured'
+      if (reason === 'transient') continue
+      if (status.availability === 'unconfigured' && !this.demanded.has(status.kind)) {
+        continue
+      }
+      const current = byKind.get(status.kind)
+      if (!current || rank[reason] > rank[current]) {
+        byKind.set(status.kind, reason)
       }
     }
     return [...byKind.entries()].map(([kind, reason]) => ({ kind, reason }))

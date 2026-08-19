@@ -19,6 +19,14 @@ export type ToolchainArtifact = {
   sha256: string
 }
 
+const NODE_OFFICIAL_DIST = 'https://nodejs.org/dist/'
+const NODE_DEFAULT_MIRROR_DIST = 'https://npmmirror.com/mirrors/node/'
+
+export function defaultNodeMirrorUrl(officialUrl: string): string | undefined {
+  if (!officialUrl.startsWith(NODE_OFFICIAL_DIST)) return undefined
+  return `${NODE_DEFAULT_MIRROR_DIST}${officialUrl.slice(NODE_OFFICIAL_DIST.length)}`
+}
+
 const NODE_ARCHIVES: Record<string, { filename: string; sha256: string }> = {
   'darwin-arm64': {
     filename: 'node-v24.18.0-darwin-arm64.tar.gz',
@@ -118,7 +126,7 @@ export function resolveToolchainArtifact(
   const version = catalogVersionFor(kind)
   const officialUrl =
     kind === 'node'
-      ? `https://nodejs.org/dist/${NODE_PIN}/${archive.filename}`
+      ? `${NODE_OFFICIAL_DIST}${NODE_PIN}/${archive.filename}`
       : `https://github.com/astral-sh/uv/releases/download/${UV_PIN}/${archive.filename}`
 
   return {
