@@ -150,7 +150,8 @@
       "assets_missing": "当前安装缺少必要的离线 OCR 资产。",
       "runtime_manifest_invalid": "内置 OCR 运行时清单无效。",
       "service_closed": "OCR 服务正在关闭。",
-      "unsupported_platform": "当前平台与架构暂不支持 OCR。"
+      "unsupported_platform": "当前平台与架构暂不支持 OCR。",
+      "toolchain_unavailable": "OCR 需要可用的 Node.js。请到设置 → 工具链安装或选择运行时。"
     },
     "processStates": {
       "idle": "空闲",

@@ -2605,7 +2605,8 @@
       "assets_missing": "Nødvendige offline OCR-aktiver mangler i denne installation.",
       "runtime_manifest_invalid": "Manifestet for den indbyggede OCR-runtime er ugyldigt.",
       "service_closed": "OCR-tjenesten lukker ned.",
-      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur."
+      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Inaktiv",

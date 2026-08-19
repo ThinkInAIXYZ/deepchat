@@ -150,7 +150,8 @@
       "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
-      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này."
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Không hoạt động",

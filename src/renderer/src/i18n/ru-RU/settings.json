@@ -2605,7 +2605,8 @@
       "assets_missing": "В этой установке отсутствуют необходимые автономные ресурсы OCR.",
       "runtime_manifest_invalid": "Манифест встроенной среды OCR недействителен.",
       "service_closed": "Служба OCR завершает работу.",
-      "unsupported_platform": "OCR недоступен для этой платформы и архитектуры."
+      "unsupported_platform": "OCR недоступен для этой платформы и архитектуры.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Ожидание",

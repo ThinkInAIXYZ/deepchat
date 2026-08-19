@@ -150,7 +150,8 @@
       "assets_missing": "Aset OCR luring yang diperlukan tidak ada dalam instalasi ini.",
       "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
       "service_closed": "Layanan OCR sedang dihentikan.",
-      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini."
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Tidak aktif",

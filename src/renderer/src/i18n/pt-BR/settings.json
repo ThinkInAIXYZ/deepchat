@@ -2605,7 +2605,8 @@
       "assets_missing": "Recursos de OCR offline necessários estão ausentes nesta instalação.",
       "runtime_manifest_invalid": "O manifesto do runtime de OCR integrado é inválido.",
       "service_closed": "O serviço de OCR está sendo encerrado.",
-      "unsupported_platform": "O OCR não está disponível para esta plataforma e arquitetura."
+      "unsupported_platform": "O OCR não está disponível para esta plataforma e arquitetura.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Ocioso",

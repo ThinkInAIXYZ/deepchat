@@ -2605,7 +2605,8 @@
       "assets_missing": "בהתקנה זו חסרים משאבי OCR לא מקוונים נדרשים.",
       "runtime_manifest_invalid": "מניפסט סביבת ה-OCR המובנית אינו תקין.",
       "service_closed": "שירות ה-OCR נמצא בתהליך סגירה.",
-      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה."
+      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "לא פעיל",

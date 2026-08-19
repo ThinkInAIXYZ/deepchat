@@ -150,7 +150,8 @@
       "assets_missing": "W tej instalacji brakuje wymaganych zasobów OCR offline.",
       "runtime_manifest_invalid": "Manifest wbudowanego środowiska OCR jest nieprawidłowy.",
       "service_closed": "Usługa OCR jest zamykana.",
-      "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury."
+      "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Bezczynny",

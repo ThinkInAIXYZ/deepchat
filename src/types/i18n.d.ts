@@ -2246,6 +2246,7 @@ declare module 'vue-i18n' {
         runtime_manifest_invalid: string
         service_closed: string
         unsupported_platform: string
+        toolchain_unavailable: string
       }
       processStates: {
         idle: string

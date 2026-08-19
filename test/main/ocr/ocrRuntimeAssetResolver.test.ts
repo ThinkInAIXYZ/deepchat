@@ -7,6 +7,7 @@ import {
   isPackagedRuntimeManifest,
   OcrRuntimeAssetResolver
 } from '../../../src/main/ocr/ocrRuntimeAssetResolver'
+import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
 
 const lightOcrVersion = '0.5.7'
 const runtimeVersion = '0.1.7'
@@ -301,6 +302,51 @@ describe('OcrRuntimeAssetResolver', () => {
         bundlePath: path.join(modelDir, 'bundle')
       }
     })
+  })
+
+  it('does not flatten toolchain resolution errors to assets_missing', async () => {
+    const appPath = path.join(tempDir, 'resources', 'app.asar')
+    const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
+    const { facadeDir, runtimeDir, modelDir, nativeDir } = await seedAssetIdentity(unpackedRoot)
+    await writeText(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'))
+    await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
+      schemaVersion: 3,
+      supported: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      facadeVersion: lightOcrVersion,
+      runtimeVersion,
+      modelVersion,
+      nativeVersion,
+      pdfSupport: true,
+      bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
+      nativePackage,
+      nativeArtifactInventory,
+      paths: {
+        helper: 'out/main/lightOcrHelper.js',
+        facade: path.relative(unpackedRoot, facadeDir),
+        runtime: path.relative(unpackedRoot, runtimeDir),
+        bundle: path.relative(unpackedRoot, path.join(modelDir, 'bundle')),
+        native: path.relative(unpackedRoot, nativeDir)
+      }
+    })
+
+    await expect(
+      new OcrRuntimeAssetResolver({
+        appPath,
+        isPackaged: true,
+        platform: 'darwin',
+        arch: 'arm64',
+        resolveNode: () => {
+          throw new ToolchainResolutionError(
+            'node',
+            'unconfigured',
+            'node toolchain is not configured'
+          )
+        }
+      }).resolve()
+    ).resolves.toMatchObject({ status: 'unavailable', reason: 'toolchain_unavailable' })
   })
 
   it('classifies malformed manifest shapes as invalid instead of missing assets', async () => {

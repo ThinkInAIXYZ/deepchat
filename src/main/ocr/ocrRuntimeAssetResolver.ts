@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import runtimeVersions from '../../../resources/runtime-versions.json'
+import { isToolchainResolutionError } from '@/toolchains/errors'
 import { resolveBundledNodeExecutable } from './lightOcrProcessHost'
 import {
   classifyLightOcrArtifact,
@@ -18,6 +19,7 @@ export type OcrRuntimeUnavailableReason =
   | 'runtime_manifest_invalid'
   | 'service_closed'
   | 'unsupported_platform'
+  | 'toolchain_unavailable'
 
 export interface OcrRuntimeAssets {
   nodeExecutable: string
@@ -237,8 +239,15 @@ export class OcrRuntimeAssetResolver {
     nodeVersion?: string
   } {
     if (this.options.resolveNode) {
-      const resolved = this.options.resolveNode()
-      return { nodeExecutable: resolved.executable, nodeVersion: resolved.version }
+      try {
+        const resolved = this.options.resolveNode()
+        return { nodeExecutable: resolved.executable, nodeVersion: resolved.version }
+      } catch (error) {
+        if (isToolchainResolutionError(error)) {
+          throw new RuntimeAssetError('toolchain_unavailable', error.message, { cause: error })
+        }
+        throw error
+      }
     }
     if (fallbackExecutable) {
       return { nodeExecutable: fallbackExecutable }

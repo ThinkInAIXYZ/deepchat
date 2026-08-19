@@ -2605,7 +2605,8 @@
       "assets_missing": "このインストールには必要なオフライン OCR アセットがありません。",
       "runtime_manifest_invalid": "内蔵 OCR ランタイムのマニフェストが無効です。",
       "service_closed": "OCR サービスを終了しています。",
-      "unsupported_platform": "このプラットフォームとアーキテクチャでは OCR を利用できません。"
+      "unsupported_platform": "このプラットフォームとアーキテクチャでは OCR を利用できません。",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "アイドル",

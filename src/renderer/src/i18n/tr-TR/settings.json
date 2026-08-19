@@ -150,7 +150,8 @@
       "assets_missing": "Bu kurulumda gerekli çevrimdışı OCR varlıkları eksik.",
       "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
       "service_closed": "OCR hizmeti kapatılıyor.",
-      "unsupported_platform": "OCR bu platform ve mimari için kullanılamıyor."
+      "unsupported_platform": "OCR bu platform ve mimari için kullanılamıyor.",
+      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
     },
     "processStates": {
       "idle": "Boşta",
