@@ -908,7 +908,7 @@ export class McpService implements McpServicePort {
       const serverConfig = servers[serverName]
       if (
         !serverConfig ||
-        this.serverManager.isServerRunning(serverName) ||
+        this.serverManager.isServerActive(serverName) ||
         this.isPluginOwnedServerConfig(serverConfig) ||
         this.pluginRuntimeSupervisor.ownsServer(serverName)
       ) {
