@@ -672,6 +672,7 @@ export class ToolchainService {
         'idle',
         classified.reason === 'cancelled' ? undefined : { error: classified.reason }
       )
+      this.removeTreeBestEffort(extractDir, kind)
       throw classified
     }
     this.removeTreeBestEffort(stagingDir, kind)

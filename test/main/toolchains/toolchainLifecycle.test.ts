@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -81,6 +81,13 @@ describe('ToolchainService lifecycle', () => {
     await expect(service.install('node')).rejects.toBeInstanceOf(ToolchainDownloadError)
     expect(service.getState().node.source).toBe('bundled')
     expect(service.resolve('node').source).toBe('bundled')
+    const stagingDir = path.join(userDataDir, 'toolchains', 'download', `node-${NODE_PIN}`)
+    expect(existsSync(path.join(stagingDir, 'extract'))).toBe(false)
+    expect(
+      existsSync(
+        path.join(stagingDir, catalog.resolveToolchainArtifact('node', 'darwin', 'arm64').filename)
+      )
+    ).toBe(true)
   })
 
   it('activates the official Node pin after a complete download', async () => {
@@ -312,6 +319,9 @@ describe('ToolchainService lifecycle', () => {
     expect(service.getState().node.source).toBe('bundled')
     expect(service.getStatus().node.install).toBeNull()
     expect(service.cancelInstall('node')).toBe(false)
+    expect(
+      existsSync(path.join(userDataDir, 'toolchains', 'download', `node-${NODE_PIN}`, 'extract'))
+    ).toBe(false)
   })
 
   it('clears a failed install error after the source changes', async () => {
