@@ -154,11 +154,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $nodeCommand = Get-Command node -CommandType Application | Select-Object -First 1
-          if (-not $nodeCommand -or [string]::IsNullOrWhiteSpace([string]$nodeCommand.Source)) {
-            throw 'Unable to resolve a single node executable for the Light OCR firewall rule.'
+          $nodePath = [string](node -p 'process.execPath')
+          if ([string]::IsNullOrWhiteSpace($nodePath)) {
+            throw 'Unable to resolve process.execPath for the Light OCR firewall rule.'
           }
-          $nodePath = [string]$nodeCommand.Source
+          $nodeVersion = [string](& $nodePath --version).Trim()
+          if ($nodeVersion -ne 'v24.18.0') {
+            throw "Light OCR smoke must run on Node v24.18.0, got ${nodeVersion} at ${nodePath}."
+          }
           $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
           New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
           try {

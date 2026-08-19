@@ -409,11 +409,11 @@ fi
     }
   })
 
-  it('resolves a single node executable for the Windows Light OCR firewall rule', () => {
+  it('firewalls the same Node binary the Light OCR smoke actually uses', () => {
     const source = readWorkflowSource(reusableWorkflows.windows.name)
-    expect(source).toContain('Get-Command node -CommandType Application | Select-Object -First 1')
-    expect(source).toContain('$nodePath = [string]$nodeCommand.Source')
-    expect(source).not.toContain('(Get-Command node -CommandType Application).Source')
+    expect(source).toContain("$nodePath = [string](node -p 'process.execPath')")
+    expect(source).toContain("if ($nodeVersion -ne 'v24.18.0')")
+    expect(source).not.toContain('Get-Command node')
   })
 })
 

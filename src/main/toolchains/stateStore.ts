@@ -35,8 +35,9 @@ export function loadToolchainState(userDataDir: string): ToolchainPersistedState
 
 export function quarantineCorruptState(userDataDir: string): void {
   const filePath = stateFilePath(userDataDir)
+  const quarantinePath = `${filePath}.corrupt.${Date.now()}`
   try {
-    renameSync(filePath, `${filePath}.corrupt`)
+    renameSync(filePath, quarantinePath)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }

@@ -43,4 +43,16 @@ describe('toolchain catalog', () => {
       expect(artifact.officialUrl).toContain(`/${UV_PIN}/`)
     }
   })
+
+  it('resolves a unique sha256 for every current pin target', () => {
+    const hashes = new Set<string>()
+    for (const kind of ['node', 'uv'] as const) {
+      for (const [platform, arch] of NODE_TARGETS) {
+        const artifact = resolveToolchainArtifact(kind, platform, arch)
+        expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
+        expect(hashes.has(artifact.sha256)).toBe(false)
+        hashes.add(artifact.sha256)
+      }
+    }
+  })
 })

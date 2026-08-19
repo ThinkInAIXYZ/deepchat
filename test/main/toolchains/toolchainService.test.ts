@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync
+} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -300,7 +308,13 @@ describe('ToolchainService', () => {
     })
 
     expect(reloaded.getState().node.source).toBe('unconfigured')
-    expect(readFileSync(`${statePath}.corrupt`, 'utf8')).toBe('{not-json')
+    const quarantined = readdirSync(path.dirname(statePath)).filter((name) =>
+      name.startsWith('state.json.corrupt.')
+    )
+    expect(quarantined).toHaveLength(1)
+    expect(readFileSync(path.join(path.dirname(statePath), quarantined[0]!), 'utf8')).toBe(
+      '{not-json'
+    )
   })
 
   it('quarantines a managed selection whose version is unsafe', () => {
@@ -324,7 +338,42 @@ describe('ToolchainService', () => {
     })
 
     expect(reloaded.getState().node.source).toBe('unconfigured')
-    expect(readFileSync(`${statePath}.corrupt`, 'utf8')).toContain('../escape')
+    const quarantined = readdirSync(path.dirname(statePath)).filter((name) =>
+      name.startsWith('state.json.corrupt.')
+    )
+    expect(quarantined).toHaveLength(1)
+    expect(readFileSync(path.join(path.dirname(statePath), quarantined[0]!), 'utf8')).toContain(
+      '../escape'
+    )
+  })
+
+  it('quarantines a second corrupt state without colliding with the previous file', () => {
+    const { userDataDir } = createService()
+    const statePath = path.join(userDataDir, 'toolchains', 'state.json')
+    mkdirSync(path.dirname(statePath), { recursive: true })
+    writeFileSync(statePath, '{first-corrupt')
+    const first = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    expect(first.getState().node.source).toBe('unconfigured')
+
+    writeFileSync(statePath, '{second-corrupt')
+    const second = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-empty-')),
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    expect(second.getState().node.source).toBe('unconfigured')
+    const quarantined = readdirSync(path.dirname(statePath)).filter((name) =>
+      name.startsWith('state.json.corrupt.')
+    )
+    expect(quarantined.length).toBeGreaterThanOrEqual(2)
   })
 
   it('does not re-inspect a failed system Node until persist', () => {
