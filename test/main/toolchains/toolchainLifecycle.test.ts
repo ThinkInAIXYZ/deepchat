@@ -273,6 +273,47 @@ describe('ToolchainService lifecycle', () => {
     })
   })
 
+  it('does not activate a cancelled install after download', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    const payload = Buffer.from('cancel-after-download')
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    let releaseExtract: (() => void) | undefined
+    let markExtractStarted: () => void = () => undefined
+    const started = new Promise<void>((resolve) => {
+      markExtractStarted = resolve
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: createFetch(payload),
+      extractArchive: async (_archive, destDir) => {
+        markExtractStarted()
+        await new Promise<void>((resolve) => {
+          releaseExtract = resolve
+        })
+        seedNodeTree(destDir, true)
+      }
+    })
+
+    const installPromise = service.install('node')
+    await started
+    expect(service.cancelInstall('node')).toBe(true)
+    releaseExtract?.()
+    await expect(installPromise).rejects.toMatchObject({ reason: 'cancelled' })
+    expect(service.getState().node.source).toBe('bundled')
+    expect(service.getStatus().node.install).toBeNull()
+    expect(service.cancelInstall('node')).toBe(false)
+  })
+
   it('clears a failed install error after the source changes', async () => {
     const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
     const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))

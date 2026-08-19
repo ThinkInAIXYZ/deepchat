@@ -51,8 +51,9 @@ export function createToolchainRoutes(deps: {
       toolchainsCancelInstallRoute.name,
       async (rawInput) => {
         const input = toolchainsCancelInstallRoute.input.parse(rawInput)
-        deps.service.cancelInstall(input.kind)
-        return toolchainsCancelInstallRoute.output.parse({ cancelled: true })
+        return toolchainsCancelInstallRoute.output.parse({
+          cancelled: deps.service.cancelInstall(input.kind)
+        })
       }
     ],
     [

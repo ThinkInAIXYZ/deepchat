@@ -241,8 +241,11 @@ export class ToolchainService {
     return this.clearSource(kind)
   }
 
-  cancelInstall(kind: ToolchainKind): void {
-    this.controllers.get(kind)?.abort()
+  cancelInstall(kind: ToolchainKind): boolean {
+    const controller = this.controllers.get(kind)
+    if (!controller) return false
+    controller.abort()
+    return true
   }
 
   resolve(kind: 'node', options?: ResolveOptions): ResolvedNodeToolchain
@@ -634,11 +637,14 @@ export class ToolchainService {
           })
       })
 
+      this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'verifying')
       rmSync(extractDir, { recursive: true, force: true })
+      this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'extracting')
       await this.extract(archivePath, extractDir)
 
+      this.throwIfInstallCancelled(controller.signal)
       const payloadRoot = takeExtractedRoot(extractDir, this.platform)
       const complete =
         kind === 'node'
@@ -651,14 +657,20 @@ export class ToolchainService {
         )
       }
 
+      this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'activating')
       replaceDirectory(payloadRoot, managedDir)
+      this.throwIfInstallCancelled(controller.signal)
       this.setSource(kind, { source: 'managed', version: artifact.version })
       this.setProgress(kind, 'idle')
     } catch (error) {
       const classified = isToolchainDownloadError(error) ? error : classifyDownloadError(error)
       logger.warn('[ToolchainService] Install failed', { kind, reason: classified.reason })
-      this.setProgress(kind, 'idle', { error: classified.reason })
+      this.setProgress(
+        kind,
+        'idle',
+        classified.reason === 'cancelled' ? undefined : { error: classified.reason }
+      )
       throw classified
     }
     this.removeTreeBestEffort(stagingDir, kind)
@@ -739,6 +751,11 @@ export class ToolchainService {
         : null,
       install: this.progress.get(kind) ?? null
     }
+  }
+
+  private throwIfInstallCancelled(signal: AbortSignal): void {
+    if (!signal.aborted) return
+    throw new ToolchainDownloadError('cancelled', 'Toolchain install cancelled')
   }
 
   private setProgress(
