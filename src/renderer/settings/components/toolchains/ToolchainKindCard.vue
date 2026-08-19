@@ -24,7 +24,7 @@
           @update:model-value="onSourceChange"
         >
           <SelectTrigger :id="`toolchain-source-${kind}`" :data-testid="`toolchain-source-${kind}`">
-            <SelectValue />
+            <span class="truncate">{{ sourceDisplayLabel }}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem
@@ -121,13 +121,7 @@ import { useI18n } from 'vue-i18n'
 import type { AcceptableValue } from 'reka-ui'
 import type { ToolchainKind, ToolchainKindStatus, ToolchainSource } from '@shared/types/toolchains'
 import { DcButton } from '@dc-ui/components/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@shadcn/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@shadcn/components/ui/select'
 import SettingsSectionCard from '../control-center/SettingsSectionCard.vue'
 
 const props = defineProps<{
@@ -153,6 +147,14 @@ const title = computed(() =>
 const availabilityLabel = computed(() => {
   const availability = props.status?.availability ?? 'unconfigured'
   return t(`settings.toolchains.availability.${availability}`)
+})
+const sourceDisplayLabel = computed(() => {
+  const source = props.status?.selection.source ?? 'unconfigured'
+  const name = t(`settings.toolchains.sources.${source}`)
+  if (props.status?.derived && source !== 'unconfigured') {
+    return t('settings.toolchains.sources.autoNamed', { source: name })
+  }
+  return name
 })
 const installing = computed(() => {
   const phase = props.status?.install?.phase

@@ -81,12 +81,20 @@ describe('ToolchainService', () => {
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
   })
 
-  it('keeps an explicit unconfigured source after a bundled tree appears', () => {
-    const { service, appPath } = createService()
-    expect(service.getState().node.source).toBe('unconfigured')
-    service.setSource('node', { source: 'unconfigured' })
+  it('clears a source back to derived defaults', () => {
+    const { service, appPath, userDataDir } = createService()
     seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
-    expect(() => service.resolve('node')).toThrow(/not configured/)
+    service.setSource('node', { source: 'bundled' })
+    expect(service.getStatus().node.derived).toBe(false)
+
+    service.setSource('node', { source: 'unconfigured' })
+    const persisted = JSON.parse(
+      readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')
+    )
+    expect(persisted.node).toBeUndefined()
+    expect(service.getState().node).toEqual({ source: 'bundled' })
+    expect(service.getStatus().node.derived).toBe(true)
+    expect(service.resolve('node').source).toBe('bundled')
   })
 
   it('rejects a half-installed bundled Node instead of rewriting to a missing npx', () => {
@@ -329,22 +337,34 @@ describe('ToolchainService', () => {
     })
   })
 
-  it('keeps a missing notice when the user selects unconfigured', () => {
+  it('keeps a missing notice when clearing leaves no derived source', () => {
     const notices: Array<Array<{ kind: string; reason: string }>> = []
-    const { service, appPath } = createService({
+    const { service } = createService({
       onMissing: (missing) => notices.push(missing)
     })
-    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
-    service.setSource('node', { source: 'bundled' })
-    expect(service.resolve('node').source).toBe('bundled')
-    expect(service.getStatus().missing).toEqual([])
-
     service.setSource('node', { source: 'unconfigured' })
     expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
     expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'unconfigured' }])
+    expect(service.getStatus().node.derived).toBe(true)
   })
 
-  it('does not cache a timed-out Node inspection', () => {
+  it('rememoizes a derived source after PATH refresh', () => {
+    const { service } = createService({ env: { PATH: '' } })
+    expect(service.getStatus().node).toMatchObject({
+      selection: { source: 'unconfigured' },
+      derived: true
+    })
+
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    service.updateDetectionEnv({ PATH: path.join(systemRoot, 'bin') })
+    expect(service.getStatus().node).toMatchObject({
+      selection: { source: 'system' },
+      derived: true
+    })
+  })
+
+  it('reuses a timed-out Node inspection within the TTL', () => {
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
     seedNodeTree(systemRoot, false)
     let inspections = 0
@@ -381,7 +401,7 @@ describe('ToolchainService', () => {
     } catch (error) {
       expect(error).toMatchObject({ reason: 'transient' })
     }
-    expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'transient' }])
+    expect(service.getStatus().missing).toEqual([])
   })
 
   it.skipIf(process.platform === 'win32')('treats a hung inspect spawn as retryable', () => {
@@ -404,5 +424,39 @@ describe('ToolchainService', () => {
     const resolved = service.resolve('node')
     expect(resolved.source).toBe('managed')
     expect(resolved.corepack).toBe(path.join(managedRoot, 'bin', 'corepack'))
+  })
+
+  it('keeps a custom path that points inside a managed tree', () => {
+    const { service, userDataDir } = createService()
+    const pin = path.join(userDataDir, 'toolchains', 'node', 'v24.18.0')
+    const previous = path.join(userDataDir, 'toolchains', 'node', 'v22.14.0')
+    seedNodeTree(pin)
+    seedNodeTree(previous)
+    service.setSource('node', {
+      source: 'custom',
+      customPath: path.join(previous, 'bin', 'node')
+    })
+
+    service.gcUnreachableTrees()
+    expect(existsSync(previous)).toBe(true)
+    expect(existsSync(pin)).toBe(true)
+  })
+
+  it('still collects an unused managed version when custom path is outside', () => {
+    const { service, userDataDir } = createService()
+    const pin = path.join(userDataDir, 'toolchains', 'node', 'v24.18.0')
+    const previous = path.join(userDataDir, 'toolchains', 'node', 'v22.14.0')
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'dc-custom-'))
+    seedNodeTree(pin)
+    seedNodeTree(previous)
+    seedNodeTree(outside, false)
+    service.setSource('node', {
+      source: 'custom',
+      customPath: path.join(outside, 'bin', 'node')
+    })
+
+    service.gcUnreachableTrees()
+    expect(existsSync(previous)).toBe(false)
+    expect(existsSync(pin)).toBe(true)
   })
 })

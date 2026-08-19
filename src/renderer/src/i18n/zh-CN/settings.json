@@ -3244,7 +3244,8 @@
       "managed": "由 DeepChat 安装",
       "system": "系统已有安装",
       "custom": "自定义路径",
-      "unconfigured": "未配置"
+      "unconfigured": "未配置",
+      "autoNamed": "自动（{source}）"
     },
     "systemDetected": "检测到系统二进制：{path}",
     "systemDetectedHint": "已有可用安装时优先用它，不用再下载一份。",

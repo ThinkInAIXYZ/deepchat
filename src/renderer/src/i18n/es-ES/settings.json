@@ -3244,7 +3244,8 @@
       "managed": "Installed by DeepChat",
       "system": "System installation",
       "custom": "Custom path",
-      "unconfigured": "Not configured"
+      "unconfigured": "Not configured",
+      "autoNamed": "Automatic ({source})"
     },
     "systemDetected": "System binary found: {path}",
     "systemDetectedHint": "Use this if you already have a working install. It does not download anything.",

@@ -3244,7 +3244,8 @@
       "managed": "由 DeepChat 安裝",
       "system": "系統既有安裝",
       "custom": "自定義路徑",
-      "unconfigured": "未設定"
+      "unconfigured": "未設定",
+      "autoNamed": "自動（{source}）"
     },
     "systemDetected": "檢測到系統二進位檔：{path}",
     "systemDetectedHint": "已有可用安裝時優先使用，不必再下載一份。",

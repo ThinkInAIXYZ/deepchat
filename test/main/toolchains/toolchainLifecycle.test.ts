@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -125,6 +125,21 @@ describe('ToolchainService lifecycle', () => {
     service.setSource('uv', { source: 'managed', version: '0.9.18' })
     expect(service.revert('uv').uv.source).toBe('bundled')
     expect(service.revert('node').node.source).toBe('unconfigured')
+    expect(service.getStatus().node.derived).toBe(true)
+    expect(
+      JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8')).node
+    ).toBeUndefined()
+
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    const reloaded = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    expect(reloaded.getState().node.source).toBe('bundled')
+    expect(reloaded.getStatus().node.derived).toBe(true)
   })
 
   it('shares one in-flight install per kind', async () => {

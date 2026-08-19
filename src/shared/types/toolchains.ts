@@ -101,6 +101,7 @@ export interface ToolchainSystemPresence {
 export interface ToolchainKindStatus {
   kind: ToolchainKind
   selection: ToolchainSelection
+  derived: boolean
   availability: 'ready' | 'missing' | 'incomplete' | 'unconfigured'
   reason: ToolchainResolveReason | null
   resolvedVersion: string | null

@@ -44,7 +44,8 @@ import {
   bundledKindRoot,
   downloadStagingDir,
   gcUnreachableToolchainTrees,
-  managedKindRoot
+  managedKindRoot,
+  managedRootDir
 } from './layout'
 import {
   probeCustomNode,
@@ -100,6 +101,7 @@ export class ToolchainService {
   private readonly fetchImpl: FetchLike
   private readonly extract: ArchiveExtractor
   private persisted: ToolchainPersistedState | null = null
+  private readonly derivedCache = new Map<ToolchainKind, ToolchainSelection>()
   private readonly resolvedCache = new Map<string, ResolvedToolchain>()
   private readonly inspectionCache = new Map<string, NodeInspection | null>()
   private readonly inspectTransientUntil = new Map<string, number>()
@@ -146,6 +148,8 @@ export class ToolchainService {
       if (selection?.source === 'managed' && selection.version) {
         roots.push(managedKindRoot(this.options.userDataDir, kind, selection.version))
       }
+      const customTree = managedTreeForCustomPath(this.options.userDataDir, kind, selection)
+      if (customTree) roots.push(customTree)
       return roots
     })
     gcUnreachableToolchainTrees(this.options.userDataDir, keep, {
@@ -167,6 +171,9 @@ export class ToolchainService {
   }
 
   setSource(kind: ToolchainKind, selection: ToolchainSelection): ToolchainState {
+    if (selection.source === 'unconfigured') {
+      return this.clearSource(kind)
+    }
     const next = this.normalizeSelection(kind, selection)
     this.assertSelection(kind, next)
     const current = this.loadPersisted()
@@ -176,11 +183,19 @@ export class ToolchainService {
       ...(current.uv ? { uv: { ...current.uv } } : {}),
       [kind]: { ...next }
     })
-    if (next.source === 'unconfigured') {
-      this.clearAllMissing(kind)
+    this.clearAllMissing(kind)
+    return this.getState()
+  }
+
+  clearSource(kind: ToolchainKind): ToolchainState {
+    const current = this.loadPersisted()
+    const next: ToolchainPersistedState = { schemaVersion: 1 }
+    if (kind !== 'node' && current.node) next.node = current.node
+    if (kind !== 'uv' && current.uv) next.uv = current.uv
+    this.persist(next)
+    this.clearAllMissing(kind)
+    if (this.selectionFor(kind).selection.source === 'unconfigured') {
       this.recordMissing(kind, undefined, 'unconfigured')
-    } else {
-      this.clearAllMissing(kind)
     }
     return this.getState()
   }
@@ -220,7 +235,7 @@ export class ToolchainService {
     if (bundled.status === 'complete') {
       return this.setSource(kind, { source: 'bundled' })
     }
-    return this.setSource(kind, { source: 'unconfigured' })
+    return this.clearSource(kind)
   }
 
   cancelInstall(kind: ToolchainKind): void {
@@ -260,7 +275,9 @@ export class ToolchainService {
           purpose: options.purpose ?? 'generic',
           reason: error.reason
         })
-        this.recordMissing(kind, options.purpose, error.reason)
+        if (error.reason !== 'transient') {
+          this.recordMissing(kind, options.purpose, error.reason)
+        }
       }
       throw error
     }
@@ -481,13 +498,23 @@ export class ToolchainService {
   private ensureState(): ToolchainState {
     return {
       schemaVersion: 1,
-      node: this.selectionFor('node'),
-      uv: this.selectionFor('uv')
+      node: this.selectionFor('node').selection,
+      uv: this.selectionFor('uv').selection
     }
   }
 
-  private selectionFor(kind: ToolchainKind): ToolchainSelection {
-    return this.loadPersisted()[kind] ?? this.deriveSelection(kind)
+  private selectionFor(kind: ToolchainKind): {
+    selection: ToolchainSelection
+    derived: boolean
+  } {
+    const explicit = this.loadPersisted()[kind]
+    if (explicit) return { selection: explicit, derived: false }
+    let derived = this.derivedCache.get(kind)
+    if (!derived) {
+      derived = this.deriveSelection(kind)
+      this.derivedCache.set(kind, derived)
+    }
+    return { selection: derived, derived: true }
   }
 
   private deriveSelection(kind: ToolchainKind): ToolchainSelection {
@@ -525,6 +552,7 @@ export class ToolchainService {
   }
 
   private invalidateAndReevaluate(): void {
+    this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
     this.recomputeMissing()
@@ -549,6 +577,7 @@ export class ToolchainService {
   private persist(state: ToolchainPersistedState): void {
     saveToolchainState(this.options.userDataDir, state)
     this.persisted = state
+    this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
   }
@@ -650,7 +679,7 @@ export class ToolchainService {
   }
 
   private inspectKind(kind: ToolchainKind): ToolchainKindStatus {
-    const selection = this.ensureState()[kind]
+    const { selection, derived } = this.selectionFor(kind)
     const bundled =
       kind === 'node'
         ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
@@ -700,6 +729,7 @@ export class ToolchainService {
     return {
       kind,
       selection,
+      derived,
       availability,
       reason,
       resolvedVersion,
@@ -852,6 +882,24 @@ export function inspectNodeExecutableResult(
     return { inspection: { version: parsed.v, modules: parsed.m }, retryable: false }
   } catch {
     return { inspection: null, retryable: false }
+  }
+}
+
+function managedTreeForCustomPath(
+  userDataDir: string,
+  kind: ToolchainKind,
+  selection: ToolchainSelection | undefined
+): string | null {
+  if (selection?.source !== 'custom' || !selection.customPath) return null
+  const kindRoot = path.resolve(path.join(managedRootDir(userDataDir), kind))
+  const relative = path.relative(kindRoot, path.resolve(selection.customPath))
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null
+  const version = relative.split(path.sep)[0]
+  if (!version) return null
+  try {
+    return managedKindRoot(userDataDir, kind, version)
+  } catch {
+    return null
   }
 }
 

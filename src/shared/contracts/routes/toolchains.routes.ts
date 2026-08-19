@@ -36,6 +36,7 @@ const ToolchainKindStatusSchema = z
   .object({
     kind: ToolchainKindSchema,
     selection: ToolchainSelectionSchema,
+    derived: z.boolean(),
     availability: z.enum(['ready', 'missing', 'incomplete', 'unconfigured']),
     reason: ToolchainResolveReasonSchema.nullable(),
     resolvedVersion: z.string().nullable(),
