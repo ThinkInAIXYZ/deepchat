@@ -4,6 +4,7 @@ const serverManagerMocks = vi.hoisted(() => ({
   startServer: vi.fn(),
   stopServer: vi.fn(),
   isServerRunning: vi.fn(),
+  isServerActive: vi.fn(),
   getClient: vi.fn(),
   getServerLastError: vi.fn(),
   getRunningClients: vi.fn().mockResolvedValue([]),
@@ -35,6 +36,7 @@ vi.mock('../../../src/main/mcp/serverManager', () => ({
     startServer: serverManagerMocks.startServer,
     stopServer: serverManagerMocks.stopServer,
     isServerRunning: serverManagerMocks.isServerRunning,
+    isServerActive: serverManagerMocks.isServerActive,
     getClient: serverManagerMocks.getClient,
     getServerLastError: serverManagerMocks.getServerLastError,
     getRunningClients: serverManagerMocks.getRunningClients,
@@ -122,6 +124,7 @@ describe('McpService', () => {
     serverManagerMocks.startServer.mockResolvedValue(undefined)
     serverManagerMocks.stopServer.mockResolvedValue(undefined)
     serverManagerMocks.isServerRunning.mockReturnValue(false)
+    serverManagerMocks.isServerActive.mockReturnValue(false)
     serverManagerMocks.getClient.mockReturnValue(undefined)
     serverManagerMocks.getServerLastError.mockReturnValue(undefined)
     serverManagerMocks.getRunningClients.mockResolvedValue([])
@@ -538,6 +541,7 @@ describe('McpService', () => {
     const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
+      isServerActive: serverManagerMocks.isServerActive,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
       getNpmRegistry: serverManagerMocks.getNpmRegistry,
       updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
@@ -561,11 +565,13 @@ describe('McpService', () => {
     const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
+      isServerActive: serverManagerMocks.isServerActive,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
       getNpmRegistry: serverManagerMocks.getNpmRegistry,
       updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
     }
     serverManagerMocks.startServer.mockImplementation(() => new Promise(() => {}))
+    serverManagerMocks.isServerActive.mockReturnValue(true)
 
     const result = Promise.race([
       presenter.initialize().then(() => 'initialized'),
@@ -631,6 +637,7 @@ describe('McpService', () => {
 
     expect(onInitializationFailed).toHaveBeenCalledOnce()
     expect(onInitializationFailed).toHaveBeenCalledWith()
+    expect(serverManagerMocks.startServer).not.toHaveBeenCalled()
   })
 
   it('does not start plugin-owned servers when enabling the global MCP switch', async () => {

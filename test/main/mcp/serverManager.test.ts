@@ -324,4 +324,38 @@ describe('ServerManager notifications and plugin isolation', () => {
       env: persistedEnvironment
     })
   })
+
+  it('reuses an in-flight start instead of creating a second client', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    providerSettings.getMcpServers.mockImplementation(async () => {
+      await blocked
+      return {
+        regular: {
+          command: 'regular-command',
+          args: [],
+          env: {},
+          type: 'stdio'
+        }
+      }
+    })
+    const manager = createManager(providerSettings)
+    const first = manager.startServer('regular')
+    const second = manager.startServer('regular')
+    expect(manager.isServerActive('regular')).toBe(true)
+    release()
+    await expect(Promise.all([first, second])).resolves.toEqual(['connected', 'connected'])
+    expect(McpClient).toHaveBeenCalledTimes(1)
+    expect(clientMocks.connect).toHaveBeenCalledTimes(1)
+  })
 })

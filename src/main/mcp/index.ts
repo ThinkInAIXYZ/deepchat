@@ -401,7 +401,6 @@ export class McpService implements McpServicePort {
       } catch {
         // Diagnostics must not alter MCP initialization compatibility.
       }
-      void this.retryUnstartedEnabledServers()
     }
   }
 

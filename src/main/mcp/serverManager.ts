@@ -21,8 +21,15 @@ const NPM_REGISTRY_LIST = [
   'https://r.cnpmjs.org/'
 ]
 
+type StartServerOptions = {
+  onBackgroundConnected?: () => void
+  configOverride?: Partial<MCPServerConfig>
+  waitForConnection?: boolean
+}
+
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
+  private readonly starting = new Map<string, Promise<McpConnectResult>>()
   private serverLastErrors: Map<string, string> = new Map()
   private readonly mcpSettings: McpSettings
   private npmRegistry: string | null = null
@@ -244,13 +251,25 @@ export class ServerManager {
     return Array.from(this.clients.values()).filter((client) => client.isActive())
   }
 
-  async startServer(
+  async startServer(name: string, options: StartServerOptions = {}): Promise<McpConnectResult> {
+    const inflight = this.starting.get(name)
+    if (inflight && !options.configOverride) {
+      return inflight
+    }
+    const task = this.connectServer(name, options)
+    this.starting.set(name, task)
+    try {
+      return await task
+    } finally {
+      if (this.starting.get(name) === task) {
+        this.starting.delete(name)
+      }
+    }
+  }
+
+  private async connectServer(
     name: string,
-    options: {
-      onBackgroundConnected?: () => void
-      configOverride?: Partial<MCPServerConfig>
-      waitForConnection?: boolean
-    } = {}
+    options: StartServerOptions
   ): Promise<McpConnectResult> {
     const existingClient = this.clients.get(name)
     if (existingClient?.isServerRunning()) {
@@ -445,7 +464,7 @@ export class ServerManager {
   }
 
   isServerActive(name: string): boolean {
-    return this.clients.get(name)?.isActive() ?? false
+    return this.starting.has(name) || (this.clients.get(name)?.isActive() ?? false)
   }
 
   /**
