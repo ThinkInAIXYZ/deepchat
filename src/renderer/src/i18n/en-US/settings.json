@@ -151,7 +151,9 @@
       "runtime_manifest_invalid": "The bundled OCR runtime manifest is invalid.",
       "service_closed": "The OCR service is shutting down.",
       "unsupported_platform": "OCR is not available for this platform and architecture.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR needs official Node.js v24.18.0. Open Settings → Toolchains and install the official runtime.",
+      "version_mismatch": "OCR needs Node.js v24.18.0. This Node is outside the pin. Open Settings → Toolchains and install the official runtime.",
+      "abi_mismatch": "OCR needs Node.js ABI 137 (v24.18.0). Open Settings → Toolchains and install the official runtime."
     },
     "processStates": {
       "idle": "Idle",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR needs official Node v24.18.0 (ABI 137). This runtime is ready for chat and MCP, but not for OCR. Install the official runtime."
   }
 }

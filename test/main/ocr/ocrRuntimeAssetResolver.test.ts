@@ -347,6 +347,22 @@ describe('OcrRuntimeAssetResolver', () => {
         }
       }).resolve()
     ).resolves.toMatchObject({ status: 'unavailable', reason: 'toolchain_unavailable' })
+
+    await expect(
+      new OcrRuntimeAssetResolver({
+        appPath,
+        isPackaged: true,
+        platform: 'darwin',
+        arch: 'arm64',
+        resolveNode: () => {
+          throw new ToolchainResolutionError(
+            'node',
+            'version_mismatch',
+            'Node version is outside the OCR compatibility range'
+          )
+        }
+      }).resolve()
+    ).resolves.toMatchObject({ status: 'unavailable', reason: 'version_mismatch' })
   })
 
   it('classifies malformed manifest shapes as invalid instead of missing assets', async () => {

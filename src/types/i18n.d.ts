@@ -2166,6 +2166,7 @@ declare module 'vue-i18n' {
         system: string
         custom: string
         unconfigured: string
+        autoNamed: string
       }
       systemDetected: string
       systemDetectedHint: string
@@ -2176,6 +2177,7 @@ declare module 'vue-i18n' {
       installing: string
       version: string
       path: string
+      ocrPinHint: string
       bannerTitle: string
       bannerDescription: string
       bannerAction: string
@@ -2247,6 +2249,8 @@ declare module 'vue-i18n' {
         service_closed: string
         unsupported_platform: string
         toolchain_unavailable: string
+        version_mismatch: string
+        abi_mismatch: string
       }
       processStates: {
         idle: string

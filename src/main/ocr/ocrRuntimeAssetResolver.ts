@@ -20,6 +20,8 @@ export type OcrRuntimeUnavailableReason =
   | 'service_closed'
   | 'unsupported_platform'
   | 'toolchain_unavailable'
+  | 'version_mismatch'
+  | 'abi_mismatch'
 
 export interface OcrRuntimeAssets {
   nodeExecutable: string
@@ -244,7 +246,11 @@ export class OcrRuntimeAssetResolver {
         return { nodeExecutable: resolved.executable, nodeVersion: resolved.version }
       } catch (error) {
         if (isToolchainResolutionError(error)) {
-          throw new RuntimeAssetError('toolchain_unavailable', error.message, { cause: error })
+          const reason =
+            error.reason === 'version_mismatch' || error.reason === 'abi_mismatch'
+              ? error.reason
+              : 'toolchain_unavailable'
+          throw new RuntimeAssetError(reason, error.message, { cause: error })
         }
         throw error
       }

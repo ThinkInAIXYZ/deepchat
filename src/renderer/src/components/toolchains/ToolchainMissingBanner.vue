@@ -32,11 +32,11 @@ const missing = ref<Array<{ kind: ToolchainKind; reason: string }>>([])
 let stopMissing: (() => void) | null = null
 
 onMounted(async () => {
-  const status = await toolchainClient.getStatus().catch(() => null)
-  missing.value = status?.missing ?? []
   stopMissing = toolchainClient.onMissing((payload) => {
     missing.value = payload.missing
   })
+  const status = await toolchainClient.getStatus().catch(() => null)
+  missing.value = status?.missing ?? []
 })
 
 onBeforeUnmount(() => {

@@ -151,7 +151,9 @@
       "runtime_manifest_invalid": "Manifes runtime OCR terbina dalam tidak sah.",
       "service_closed": "Perkhidmatan OCR sedang ditutup.",
       "unsupported_platform": "OCR tidak tersedia untuk platform dan seni bina ini.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR memerlukan Node.js rasmi v24.18.0. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
+      "version_mismatch": "OCR memerlukan Node.js v24.18.0. Versi ini di luar julat. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
+      "abi_mismatch": "OCR memerlukan Node.js ABI 137 (v24.18.0). Buka Tetapan → Rantaian alat dan pasang runtime rasmi."
     },
     "processStates": {
       "idle": "Melahu",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR memerlukan Node rasmi v24.18.0 (ABI 137). Runtime ini sedia untuk sembang dan MCP, tetapi bukan OCR. Pasang runtime rasmi."
   }
 }

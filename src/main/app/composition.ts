@@ -32,6 +32,7 @@ import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import type { FileServicePort } from '@shared/types/file'
+import type { ToolchainKind } from '@shared/types/toolchains'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
@@ -63,6 +64,7 @@ import { FileService } from '../file'
 import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { mergeDetectionEnv, noteNodeDemandFromMcp, ToolchainService } from '@/toolchains'
+import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
@@ -1222,11 +1224,11 @@ export async function createMainProcessControl(dependencies: {
       publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
     onMissing: (missing) =>
       publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() }),
-    onStateChanged: () => {
+    onStateChanged: (kind?: ToolchainKind) => {
       publishDeepchatEvent('toolchains.changed', { version: Date.now() })
-      ocrRuntimeService?.refreshAvailability()
-      const status = ToolchainService.getInstance().getStatus()
-      if (status.node.availability !== 'ready' && status.uv.availability !== 'ready') {
+      ocrRuntimeService?.refreshAvailability(kind)
+      const state = ToolchainService.getInstance().getState()
+      if (state.node.source === 'unconfigured' && state.uv.source === 'unconfigured') {
         return
       }
       void mcpService.retryUnstartedEnabledServers().catch((error) => {
@@ -1252,7 +1254,11 @@ export async function createMainProcessControl(dependencies: {
     resolveNode: () => {
       const resolved = toolchainService.resolve('node', { purpose: 'ocr' })
       if (!resolved.version) {
-        throw new Error('OCR Node version is unavailable')
+        throw new ToolchainResolutionError(
+          'node',
+          'version_mismatch',
+          'OCR Node version is unavailable'
+        )
       }
       return { executable: resolved.node, version: resolved.version }
     },

@@ -151,7 +151,9 @@
       "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
       "service_closed": "OCR hizmeti kapatılıyor.",
       "unsupported_platform": "OCR bu platform ve mimari için kullanılamıyor.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR resmi Node.js v24.18.0 gerektirir. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin.",
+      "version_mismatch": "OCR Node.js v24.18.0 gerektirir. Bu sürüm aralık dışında. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin.",
+      "abi_mismatch": "OCR Node.js ABI 137 (v24.18.0) gerektirir. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin."
     },
     "processStates": {
       "idle": "Boşta",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR resmi Node v24.18.0 (ABI 137) gerektirir. Bu çalışma zamanı sohbet ve MCP için hazırdır, OCR için değildir. Resmi çalışma zamanını yükleyin."
   }
 }

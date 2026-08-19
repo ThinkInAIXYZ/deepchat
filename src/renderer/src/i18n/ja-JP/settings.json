@@ -2606,7 +2606,9 @@
       "runtime_manifest_invalid": "内蔵 OCR ランタイムのマニフェストが無効です。",
       "service_closed": "OCR サービスを終了しています。",
       "unsupported_platform": "このプラットフォームとアーキテクチャでは OCR を利用できません。",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR には公式 Node.js v24.18.0 が必要です。設定 → ツールチェーンから公式ランタイムをインストールしてください。",
+      "version_mismatch": "OCR には Node.js v24.18.0 が必要です。現在の Node はこの範囲外です。設定 → ツールチェーンから公式ランタイムをインストールしてください。",
+      "abi_mismatch": "OCR には Node.js ABI 137（v24.18.0）が必要です。設定 → ツールチェーンから公式ランタイムをインストールしてください。"
     },
     "processStates": {
       "idle": "アイドル",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR には公式 Node v24.18.0（ABI 137）が必要です。このランタイムはチャットと MCP では利用できますが、OCR では使えません。公式ランタイムをインストールしてください。"
   }
 }

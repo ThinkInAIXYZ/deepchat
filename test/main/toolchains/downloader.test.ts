@@ -152,4 +152,46 @@ describe('toolchain downloader', () => {
     )
     expect(url).toBe(official)
   })
+
+  it('picks the faster successful probe instead of mirror-first order', async () => {
+    const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
+    const mirror = 'https://npmmirror.com/mirrors/node/v24.18.0/node.tar.gz'
+    const url = await selectDownloadUrl(
+      official,
+      async (candidate) => {
+        if (candidate === mirror) {
+          await new Promise((resolve) => setTimeout(resolve, 40))
+        }
+        return new Response(Buffer.from('x'), { status: 206 })
+      },
+      { mirrorUrl: mirror, allowProbe: true }
+    )
+    expect(url).toBe(official)
+  })
+
+  it('does not wait for a hung official probe past the probe timeout', async () => {
+    const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
+    const mirror = 'https://npmmirror.com/mirrors/node/v24.18.0/node.tar.gz'
+    const started = Date.now()
+    const url = await selectDownloadUrl(
+      official,
+      async (candidate, init) => {
+        if (candidate === mirror) return new Response(Buffer.from('x'), { status: 206 })
+        return await new Promise((_, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      },
+      { mirrorUrl: mirror, allowProbe: true, probeTimeoutMs: 40 }
+    )
+    expect(url).toBe(mirror)
+    expect(Date.now() - started).toBeLessThan(1000)
+  })
 })

@@ -103,7 +103,7 @@ function zipExtractCommand(
       ]
     }
   }
-  return { command: 'unzip', args: ['-q', archivePath, '-d', destDir] }
+  return { command: 'unzip', args: ['-qo', archivePath, '-d', destDir] }
 }
 
 function runExtract(
@@ -115,7 +115,10 @@ function runExtract(
       reject(new ToolchainDownloadError('cancelled', 'Toolchain install cancelled'))
       return
     }
-    const child = spawn(job.command, job.args, { windowsHide: true })
+    const child = spawn(job.command, job.args, {
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe']
+    })
     let stderr = ''
     child.stderr?.on('data', (chunk) => {
       stderr += String(chunk)

@@ -49,7 +49,8 @@ const ToolchainKindStatusSchema = z
         version: z.string().nullable()
       })
       .nullable(),
-    install: ToolchainInstallProgressSchema.nullable()
+    install: ToolchainInstallProgressSchema.nullable(),
+    ocrCompatible: z.boolean().nullable()
   })
   .strict()
 
@@ -76,6 +77,22 @@ const ToolchainStateSchema = z
   })
   .strict()
 
+const ToolchainMutationResultSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('ok'),
+      state: ToolchainStateSchema
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('cancelled'),
+      reason: z.literal('cancelled'),
+      state: ToolchainStateSchema
+    })
+    .strict()
+])
+
 export const toolchainsGetStatusRoute = defineRouteContract({
   name: 'toolchains.getStatus',
   input: z.object({}).default({}),
@@ -96,7 +113,7 @@ export const toolchainsSetSourceRoute = defineRouteContract({
 export const toolchainsInstallRoute = defineRouteContract({
   name: 'toolchains.install',
   input: z.object({ kind: ToolchainKindSchema }).strict(),
-  output: ToolchainStateSchema
+  output: ToolchainMutationResultSchema
 })
 
 export const toolchainsCancelInstallRoute = defineRouteContract({
@@ -108,7 +125,7 @@ export const toolchainsCancelInstallRoute = defineRouteContract({
 export const toolchainsRepairRoute = defineRouteContract({
   name: 'toolchains.repair',
   input: z.object({ kind: ToolchainKindSchema }).strict(),
-  output: ToolchainStateSchema
+  output: ToolchainMutationResultSchema
 })
 
 export const toolchainsRevertRoute = defineRouteContract({

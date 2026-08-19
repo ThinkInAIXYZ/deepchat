@@ -383,15 +383,41 @@ describe('ToolchainService', () => {
     })
   })
 
-  it('keeps a missing notice when clearing leaves no derived source', () => {
+  it('does not banner unconfigured after clear unless the kind is demanded', () => {
     const notices: Array<Array<{ kind: string; reason: string }>> = []
     const { service } = createService({
       onMissing: (missing) => notices.push(missing)
     })
     service.setSource('node', { source: 'unconfigured' })
+    expect(notices.at(-1) ?? []).toEqual([])
+    expect(service.getStatus().missing).toEqual([])
+    expect(service.getStatus().node.derived).toBe(true)
+  })
+
+  it('keeps a missing notice when demand exists and clearing leaves no derived source', () => {
+    const notices: Array<Array<{ kind: string; reason: string }>> = []
+    const { service } = createService({
+      onMissing: (missing) => notices.push(missing)
+    })
+    service.noteDemand('node')
+    service.setSource('node', { source: 'unconfigured' })
     expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
     expect(service.getStatus().missing).toEqual([{ kind: 'node', reason: 'unconfigured' }])
-    expect(service.getStatus().node.derived).toBe(true)
+  })
+
+  it('marks a ready system Node outside the OCR pin as incompatible', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const { service } = createService({
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => ({ version: 'v22.14.0', modules: 127 })
+    })
+    service.setSource('node', { source: 'system' })
+    expect(service.getStatus().node).toMatchObject({
+      availability: 'ready',
+      ocrCompatible: false
+    })
+    expect(service.getStatus().uv.ocrCompatible).toBeNull()
   })
 
   it('rememoizes a derived source after PATH refresh', () => {

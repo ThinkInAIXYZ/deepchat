@@ -151,7 +151,9 @@
       "runtime_manifest_invalid": "Manifest wbudowanego środowiska OCR jest nieprawidłowy.",
       "service_closed": "Usługa OCR jest zamykana.",
       "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR wymaga oficjalnego Node.js v24.18.0. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
+      "version_mismatch": "OCR wymaga Node.js v24.18.0. Ta wersja jest poza zakresem. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
+      "abi_mismatch": "OCR wymaga Node.js ABI 137 (v24.18.0). Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko."
     },
     "processStates": {
       "idle": "Bezczynny",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR wymaga oficjalnego Node v24.18.0 (ABI 137). To środowisko nadaje się do czatu i MCP, ale nie do OCR. Zainstaluj oficjalne środowisko."
   }
 }

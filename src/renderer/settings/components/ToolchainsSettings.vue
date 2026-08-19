@@ -50,7 +50,6 @@ const busyKind = ref<ToolchainKind | null>(null)
 const stopListeners = ref<Array<() => void>>([])
 
 onMounted(async () => {
-  await refresh()
   stopListeners.value = [
     client.onChanged(() => {
       void refresh()
@@ -67,10 +66,12 @@ onMounted(async () => {
       }
     })
   ]
+  await refresh()
 })
 
 onBeforeUnmount(() => {
   for (const stop of stopListeners.value) stop()
+  stopListeners.value = []
 })
 
 async function refresh(): Promise<void> {
@@ -122,26 +123,18 @@ async function runCancel(kind: ToolchainKind): Promise<void> {
   }
 }
 
-function isCancelledToolchainError(error: unknown): boolean {
-  return Boolean(
-    error && typeof error === 'object' && 'reason' in error && error.reason === 'cancelled'
-  )
-}
-
 async function run(kind: ToolchainKind, operation: () => Promise<unknown>): Promise<void> {
   if (busyKind.value) return
   busyKind.value = kind
   try {
     await operation()
     await refresh()
-  } catch (error) {
-    if (!isCancelledToolchainError(error)) {
-      notifyRenderer({
-        kind: 'error',
-        code: 'settings.toolchains.operationFailed',
-        title: t('common.error.operationFailed')
-      })
-    }
+  } catch {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.toolchains.operationFailed',
+      title: t('common.error.operationFailed')
+    })
     await refresh()
   } finally {
     busyKind.value = null

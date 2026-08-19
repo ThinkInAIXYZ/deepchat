@@ -2606,7 +2606,9 @@
       "runtime_manifest_invalid": "مانیفست محیط اجرای OCR داخلی نامعتبر است.",
       "service_closed": "سرویس OCR در حال خاموش‌شدن است.",
       "unsupported_platform": "OCR برای این پلتفرم و معماری در دسترس نیست.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR به Node.js رسمی v24.18.0 نیاز دارد. تنظیمات → زنجیره ابزار را باز کنید و زمان‌اجرای رسمی را نصب کنید.",
+      "version_mismatch": "OCR به Node.js v24.18.0 نیاز دارد. این نسخه خارج از محدوده است. تنظیمات → زنجیره ابزار را باز کنید و زمان‌اجرای رسمی را نصب کنید.",
+      "abi_mismatch": "OCR به Node.js ABI 137 (v24.18.0) نیاز دارد. تنظیمات → زنجیره ابزار را باز کنید و زمان‌اجرای رسمی را نصب کنید."
     },
     "processStates": {
       "idle": "بیکار",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR به Node رسمی v24.18.0 (ABI 137) نیاز دارد. این زمان‌اجرا برای گفتگو و MCP آماده است، اما برای OCR نیست. زمان‌اجرای رسمی را نصب کنید."
   }
 }

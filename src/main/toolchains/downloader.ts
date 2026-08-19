@@ -56,23 +56,39 @@ export function resolveDownloadUrl(officialUrl: string, mirrorUrl?: string): str
 export async function selectDownloadUrl(
   officialUrl: string,
   fetchImpl: FetchLike,
-  options?: { mirrorUrl?: string; signal?: AbortSignal; allowProbe?: boolean }
+  options?: {
+    mirrorUrl?: string
+    signal?: AbortSignal
+    allowProbe?: boolean
+    probeTimeoutMs?: number
+  }
 ): Promise<string> {
   const mirrorUrl = options?.mirrorUrl
   if (!options?.allowProbe) return officialUrl
 
+  const timeoutMs = options.probeTimeoutMs ?? PROBE_TIMEOUT_MS
   const candidates = [mirrorUrl, officialUrl].filter((url): url is string => Boolean(url))
   const results = await Promise.all(
-    candidates.map(async (url) => ({
-      url,
-      ok: await probeArtifactUrl(url, fetchImpl, options.signal)
-    }))
+    candidates.map(async (url) => {
+      const started = Date.now()
+      const probeSignal = options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
+        : AbortSignal.timeout(timeoutMs)
+      return {
+        url,
+        ok: await probeArtifactUrl(url, fetchImpl, probeSignal),
+        elapsedMs: Date.now() - started
+      }
+    })
   )
-  const success = results.find((result) => result.ok)
+  const success = results
+    .filter((result) => result.ok)
+    .sort((left, right) => left.elapsedMs - right.elapsedMs)[0]
   return success?.url ?? officialUrl
 }
 
-const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
+const PROBE_TIMEOUT_MS = 4_000
+const STALL_TIMEOUT_MS = 60_000
 const PROGRESS_THROTTLE_MS = 150
 
 export async function downloadVerifiedFile(options: {
@@ -88,90 +104,87 @@ export async function downloadVerifiedFile(options: {
   mkdirSync(path.dirname(options.destPath), { recursive: true })
   const destPath = options.destPath
   const partialPath = `${destPath}.partial`
-  const timeout = AbortSignal.timeout(options.timeoutMs ?? DOWNLOAD_TIMEOUT_MS)
-  let timedOut = false
-  timeout.addEventListener(
-    'abort',
-    () => {
-      timedOut = true
-    },
-    { once: true }
-  )
-  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+  const stall = createStallWatchdog(options.timeoutMs ?? STALL_TIMEOUT_MS)
+  const signal = options.signal ? AbortSignal.any([options.signal, stall.signal]) : stall.signal
   const emitProgress = createThrottledProgress(options.onProgress)
 
-  if (existingSize(destPath) > 0) {
-    const actual = await sha256File(destPath)
-    if (actual === options.sha256) return
-    rmSync(destPath, { force: true })
-  }
-
-  let existing = existingSize(partialPath)
-  let response: Response
   try {
-    response = await requestDownload(fetchImpl, options.url, existing, signal)
-  } catch (error) {
-    throw timedOutDownloadError(error, timedOut)
-  }
-
-  if (response.status === 416) {
-    rmSync(partialPath, { force: true })
-    existing = 0
-    try {
-      response = await requestDownload(fetchImpl, options.url, 0, signal)
-    } catch (error) {
-      throw timedOutDownloadError(error, timedOut)
+    if (existingSize(destPath) > 0) {
+      const actual = await sha256File(destPath)
+      if (actual === options.sha256) return
+      rmSync(destPath, { force: true })
     }
-  }
 
-  if (response.status !== 200 && response.status !== 206) {
-    throw new ToolchainDownloadError(
-      'http',
-      `Toolchain download failed with HTTP ${response.status}`
-    )
-  }
+    let existing = existingSize(partialPath)
+    let response: Response
+    try {
+      response = await requestDownload(fetchImpl, options.url, existing, signal)
+    } catch (error) {
+      throw timedOutDownloadError(error, stall.timedOut())
+    }
 
-  const restart = response.status === 200
-  if (restart) {
-    rmSync(partialPath, { force: true })
-    existing = 0
-  }
-  const append = response.status === 206 && existing > 0
-  const receivedStart = append ? existing : 0
-  const totalBytes = readTotalBytes(response, receivedStart)
+    if (response.status === 416) {
+      rmSync(partialPath, { force: true })
+      existing = 0
+      try {
+        response = await requestDownload(fetchImpl, options.url, 0, signal)
+      } catch (error) {
+        throw timedOutDownloadError(error, stall.timedOut())
+      }
+    }
 
-  if (!response.body) {
-    throw new ToolchainDownloadError('http', 'Toolchain download returned an empty body')
-  }
+    if (response.status !== 200 && response.status !== 206) {
+      throw new ToolchainDownloadError(
+        'http',
+        `Toolchain download failed with HTTP ${response.status}`
+      )
+    }
 
-  let receivedBytes = receivedStart
-  emitProgress({ receivedBytes, totalBytes })
+    const restart = response.status === 200
+    if (restart) {
+      rmSync(partialPath, { force: true })
+      existing = 0
+    }
+    const append = response.status === 206 && existing > 0
+    const receivedStart = append ? existing : 0
+    const totalBytes = readTotalBytes(response, receivedStart)
 
-  const file = createWriteStream(partialPath, { flags: append ? 'a' : 'w' })
-  const reader = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream)
-  reader.on('data', (chunk: Buffer) => {
-    receivedBytes += chunk.length
+    if (!response.body) {
+      throw new ToolchainDownloadError('http', 'Toolchain download returned an empty body')
+    }
+
+    let receivedBytes = receivedStart
     emitProgress({ receivedBytes, totalBytes })
-  })
 
-  try {
-    await pipeline(reader, file)
-  } catch (error) {
-    throw timedOutDownloadError(error, timedOut)
+    const file = createWriteStream(partialPath, { flags: append ? 'a' : 'w' })
+    const reader = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream)
+    reader.on('data', (chunk: Buffer) => {
+      receivedBytes += chunk.length
+      stall.bump()
+      emitProgress({ receivedBytes, totalBytes })
+    })
+
+    try {
+      await pipeline(reader, file)
+    } catch (error) {
+      throw timedOutDownloadError(error, stall.timedOut())
+    }
+    emitProgress({ receivedBytes, totalBytes }, true)
+
+    const actual = await sha256File(partialPath)
+    if (actual !== options.sha256) {
+      rmSync(partialPath, { force: true })
+      throw new ToolchainDownloadError(
+        'checksum_mismatch',
+        'Downloaded toolchain archive failed sha256 verification'
+      )
+    }
+
+    rmSync(destPath, { force: true })
+    renameSync(partialPath, destPath)
+  } finally {
+    stall.dispose()
   }
-  emitProgress({ receivedBytes, totalBytes }, true)
-
-  const actual = await sha256File(partialPath)
-  if (actual !== options.sha256) {
-    rmSync(partialPath, { force: true })
-    throw new ToolchainDownloadError(
-      'checksum_mismatch',
-      'Downloaded toolchain archive failed sha256 verification'
-    )
-  }
-
-  rmSync(destPath, { force: true })
-  renameSync(partialPath, destPath)
 }
 
 export async function sha256File(filePath: string): Promise<string> {
@@ -213,6 +226,36 @@ function createThrottledProgress(
     if (!force && lastEmit !== 0 && now - lastEmit < PROGRESS_THROTTLE_MS) return
     lastEmit = now
     onProgress?.(progress)
+  }
+}
+
+function createStallWatchdog(stallMs: number): {
+  signal: AbortSignal
+  bump: () => void
+  dispose: () => void
+  timedOut: () => boolean
+} {
+  const controller = new AbortController()
+  let timedOut = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const arm = (): void => {
+    timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, stallMs)
+  }
+  arm()
+  return {
+    signal: controller.signal,
+    bump() {
+      if (controller.signal.aborted) return
+      if (timer) clearTimeout(timer)
+      arm()
+    },
+    dispose() {
+      if (timer) clearTimeout(timer)
+    },
+    timedOut: () => timedOut
   }
 }
 

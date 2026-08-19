@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import type { ToolchainKind } from '@shared/types/toolchains'
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import {
   DocumentTextExtractionService,
@@ -60,6 +61,7 @@ export class OcrRuntimeService {
   private resourcesPromise: Promise<RuntimeResources> | null = null
   private closingResources: Promise<void> = Promise.resolve()
   private closed = false
+  private resourcesStale = false
 
   constructor(private readonly options: OcrRuntimeServiceOptions) {
     this.resolver = new OcrRuntimeAssetResolver({
@@ -72,14 +74,24 @@ export class OcrRuntimeService {
     })
   }
 
-  refreshAvailability(): void {
+  refreshAvailability(kind?: ToolchainKind): void {
     this.availabilityPromise = null
+    if (kind === 'uv') return
     const existing = this.resourcesPromise
-    this.resourcesPromise = null
     if (!existing) return
     this.closingResources = this.closingResources.then(async () => {
       const resources = await existing.catch(() => null)
-      if (resources) await this.disposeResources(resources)
+      if (!resources) {
+        if (this.resourcesPromise === existing) this.resourcesPromise = null
+        return
+      }
+      if (this.isResourcesBusy(resources)) {
+        this.resourcesStale = true
+        return
+      }
+      if (this.resourcesPromise === existing) this.resourcesPromise = null
+      this.resourcesStale = false
+      await this.disposeResources(resources)
     })
   }
 
@@ -125,15 +137,7 @@ export class OcrRuntimeService {
 
   async clearCache(): Promise<void> {
     const resources = await this.getResources()
-    const processStatus = resources.host.getStatus()
-    if (
-      resources.extraction.hasActiveExtractions() ||
-      resources.documentExtraction.hasActiveExtractions() ||
-      processStatus.queuedRequests > 0 ||
-      processStatus.state === 'starting' ||
-      processStatus.state === 'busy' ||
-      processStatus.state === 'stopping'
-    ) {
+    if (this.isResourcesBusy(resources)) {
       throw new OcrRuntimeBusyError()
     }
     await resources.store.clear()
@@ -155,6 +159,15 @@ export class OcrRuntimeService {
     if (this.closed) throw new Error('OCR runtime service is closed')
     await this.closingResources
     if (this.closed) throw new Error('OCR runtime service is closed')
+    if (this.resourcesStale && this.resourcesPromise) {
+      const resources = await this.resourcesPromise.catch(() => null)
+      if (resources && !this.isResourcesBusy(resources)) {
+        this.resourcesPromise = null
+        this.resourcesStale = false
+        this.closingResources = this.closingResources.then(() => this.disposeResources(resources))
+        await this.closingResources
+      }
+    }
     this.resourcesPromise ??= this.createResources()
     try {
       return await this.resourcesPromise
@@ -224,6 +237,18 @@ export class OcrRuntimeService {
       await Promise.allSettled([host?.close(), store?.close()])
       throw error
     }
+  }
+
+  private isResourcesBusy(resources: RuntimeResources): boolean {
+    const processStatus = resources.host.getStatus()
+    return (
+      resources.extraction.hasActiveExtractions() ||
+      resources.documentExtraction.hasActiveExtractions() ||
+      processStatus.queuedRequests > 0 ||
+      processStatus.state === 'starting' ||
+      processStatus.state === 'busy' ||
+      processStatus.state === 'stopping'
+    )
   }
 
   private async disposeResources(resources: RuntimeResources): Promise<void> {

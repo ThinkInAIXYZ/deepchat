@@ -110,6 +110,7 @@ export interface ToolchainKindStatus {
   managedAvailable: boolean
   system: ToolchainSystemPresence | null
   install: ToolchainInstallProgress | null
+  ocrCompatible: boolean | null
 }
 
 export interface ToolchainMissingNotice {

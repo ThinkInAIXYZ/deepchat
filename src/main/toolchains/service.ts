@@ -83,7 +83,7 @@ export type ToolchainServiceOptions = {
   allowProbe?: () => boolean
   onProgress?: (progress: ToolchainInstallProgress) => void
   onMissing?: (missing: ToolchainMissingNotice[]) => void
-  onStateChanged?: () => void
+  onStateChanged?: (kind?: ToolchainKind) => void
 }
 
 export type ResolveOptions = {
@@ -181,12 +181,15 @@ export class ToolchainService {
     const next = this.normalizeSelection(kind, selection)
     this.assertSelection(kind, next)
     const current = this.loadPersisted()
-    this.persist({
-      schemaVersion: 1,
-      ...(current.node ? { node: { ...current.node } } : {}),
-      ...(current.uv ? { uv: { ...current.uv } } : {}),
-      [kind]: { ...next }
-    })
+    this.persist(
+      {
+        schemaVersion: 1,
+        ...(current.node ? { node: { ...current.node } } : {}),
+        ...(current.uv ? { uv: { ...current.uv } } : {}),
+        [kind]: { ...next }
+      },
+      kind
+    )
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
     this.emitMissing()
@@ -198,10 +201,10 @@ export class ToolchainService {
     const next: ToolchainPersistedState = { schemaVersion: 1 }
     if (kind !== 'node' && current.node) next.node = current.node
     if (kind !== 'uv' && current.uv) next.uv = current.uv
-    this.persist(next)
+    this.persist(next, kind)
     this.clearAllMissing(kind)
     this.setProgress(kind, 'idle')
-    if (this.selectionFor(kind).selection.source === 'unconfigured') {
+    if (this.selectionFor(kind).selection.source === 'unconfigured' && this.demanded.has(kind)) {
       this.recordMissing(kind, undefined, 'unconfigured')
     }
     return this.getState()
@@ -590,13 +593,13 @@ export class ToolchainService {
     this.emitMissing()
   }
 
-  private persist(state: ToolchainPersistedState): void {
+  private persist(state: ToolchainPersistedState, kind?: ToolchainKind): void {
     saveToolchainState(this.options.userDataDir, state)
     this.persisted = state
     this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
-    this.options.onStateChanged?.()
+    this.options.onStateChanged?.(kind)
   }
 
   private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {
@@ -731,6 +734,7 @@ export class ToolchainService {
     let reason: ToolchainResolveReason | null = null
     let resolvedVersion: string | null = null
     let resolvedPath: string | null = null
+    let ocrCompatible: boolean | null = kind === 'node' ? false : null
 
     if (selection.source !== 'unconfigured') {
       const probed =
@@ -745,6 +749,10 @@ export class ToolchainService {
           this.fillNodeIdentity(resolved, selection)
           resolvedVersion = resolved.version
           resolvedPath = resolved.node
+          ocrCompatible =
+            resolved.version != null &&
+            isNodeVersionInCompatRange(resolved.version) &&
+            resolved.nodeModuleVersion === NODE_MODULE_VERSION
         } else if (probed.toolchain.kind === 'uv') {
           resolvedVersion = selection.version ?? probed.toolchain.version
           resolvedPath = probed.toolchain.uv
@@ -771,7 +779,8 @@ export class ToolchainService {
             version: system.kind === 'node' ? this.peekNodeVersion(system) : system.version
           }
         : null,
-      install: this.progress.get(kind) ?? null
+      install: this.progress.get(kind) ?? null,
+      ocrCompatible
     }
   }
 

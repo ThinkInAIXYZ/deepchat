@@ -41,9 +41,14 @@ export function createToolchainRoutes(deps: {
       async (rawInput) => {
         const input = toolchainsInstallRoute.input.parse(rawInput)
         try {
-          return toolchainsInstallRoute.output.parse(await deps.service.install(input.kind))
+          return toolchainsInstallRoute.output.parse({
+            status: 'ok',
+            state: await deps.service.install(input.kind)
+          })
         } catch (error) {
-          throw toRouteError(error)
+          return toolchainsInstallRoute.output.parse(
+            cancelledOrThrow(error, deps.service.getState())
+          )
         }
       }
     ],
@@ -61,9 +66,14 @@ export function createToolchainRoutes(deps: {
       async (rawInput) => {
         const input = toolchainsRepairRoute.input.parse(rawInput)
         try {
-          return toolchainsRepairRoute.output.parse(await deps.service.repair(input.kind))
+          return toolchainsRepairRoute.output.parse({
+            status: 'ok',
+            state: await deps.service.repair(input.kind)
+          })
         } catch (error) {
-          throw toRouteError(error)
+          return toolchainsRepairRoute.output.parse(
+            cancelledOrThrow(error, deps.service.getState())
+          )
         }
       }
     ],
@@ -95,6 +105,16 @@ export function createToolchainRoutes(deps: {
       }
     ]
   ])
+}
+
+function cancelledOrThrow(
+  error: unknown,
+  state: ReturnType<ToolchainService['getState']>
+): { status: 'cancelled'; reason: 'cancelled'; state: ReturnType<ToolchainService['getState']> } {
+  if (isToolchainDownloadError(error) && error.reason === 'cancelled') {
+    return { status: 'cancelled', reason: 'cancelled', state }
+  }
+  throw toRouteError(error)
 }
 
 function toRouteError(error: unknown): Error {

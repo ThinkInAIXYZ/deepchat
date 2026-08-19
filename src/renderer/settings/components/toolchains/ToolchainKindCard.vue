@@ -76,6 +76,14 @@
         </div>
       </div>
 
+      <p
+        v-if="kind === 'node' && status?.availability === 'ready' && status.ocrCompatible === false"
+        class="text-sm text-muted-foreground"
+        data-testid="toolchain-ocr-pin-hint"
+      >
+        {{ t('settings.toolchains.ocrPinHint') }}
+      </p>
+
       <p v-if="status?.install?.error" class="text-sm text-destructive">
         {{ t(`settings.toolchains.downloadReasons.${status.install.error}`) }}
       </p>

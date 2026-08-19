@@ -19,7 +19,9 @@ export const OcrRuntimeUnavailableReasonSchema = z.enum([
   'runtime_manifest_invalid',
   'service_closed',
   'unsupported_platform',
-  'toolchain_unavailable'
+  'toolchain_unavailable',
+  'version_mismatch',
+  'abi_mismatch'
 ])
 
 const OcrAvailabilitySchema = z.discriminatedUnion('status', [

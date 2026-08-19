@@ -2606,7 +2606,9 @@
       "runtime_manifest_invalid": "מניפסט סביבת ה-OCR המובנית אינו תקין.",
       "service_closed": "שירות ה-OCR נמצא בתהליך סגירה.",
       "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR דורש Node.js רשמי v24.18.0. פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית.",
+      "version_mismatch": "OCR דורש Node.js v24.18.0. גרסה זו מחוץ לטווח. פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית.",
+      "abi_mismatch": "OCR דורש Node.js ABI 137 (v24.18.0). פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית."
     },
     "processStates": {
       "idle": "לא פעיל",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR דורש Node רשמי v24.18.0 (ABI 137). סביבה זו מתאימה לצ׳אט ול-MCP, אך לא ל-OCR. התקינו את סביבת הריצה הרשמית."
   }
 }

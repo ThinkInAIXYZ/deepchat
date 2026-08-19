@@ -2606,7 +2606,9 @@
       "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
       "service_closed": "OCR 服務正在關閉。",
       "unsupported_platform": "目前平台與架構暫不支援 OCR。",
-      "toolchain_unavailable": "OCR 需要可用的 Node.js。請到設定 → 工具鏈安裝或選擇執行階段。"
+      "toolchain_unavailable": "OCR 需要官方 Node.js v24.18.0。請到設定 → 工具鏈安裝官方執行階段。",
+      "version_mismatch": "OCR 需要 Node.js v24.18.0，目前版本不在此範圍。請到設定 → 工具鏈安裝官方執行階段。",
+      "abi_mismatch": "OCR 需要 Node.js ABI 137（v24.18.0）。請到設定 → 工具鏈安裝官方執行階段。"
     },
     "processStates": {
       "idle": "閒置",
@@ -3276,6 +3278,7 @@
       "cancelled": "下載已取消。",
       "activation_failed": "無法啟用該執行環境。",
       "unsupported_platform": "目前平台沒有官方執行環境建置。"
-    }
+    },
+    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。目前執行階段可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行階段。"
   }
 }

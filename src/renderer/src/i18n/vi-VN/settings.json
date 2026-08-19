@@ -151,7 +151,9 @@
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
       "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này.",
-      "toolchain_unavailable": "Node.js is not ready for OCR. Open Settings → Toolchains to install or choose a runtime."
+      "toolchain_unavailable": "OCR cần Node.js chính thức v24.18.0. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "version_mismatch": "OCR cần Node.js v24.18.0. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.18.0). Mở Cài đặt → Toolchain và cài runtime chính thức."
     },
     "processStates": {
       "idle": "Không hoạt động",
@@ -3276,6 +3278,7 @@
       "cancelled": "The download was cancelled.",
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
-    }
+    },
+    "ocrPinHint": "OCR cần Node chính thức v24.18.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức."
   }
 }
