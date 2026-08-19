@@ -739,6 +739,44 @@ describe('package-size contract', () => {
       )
     ).toThrow(/invalid limits/)
   })
+
+  it('rejects installer-size report limits that do not match policy', () => {
+    const definition = getTargetDefinition('win32-x64')
+    const policy = createDefaultPackageSizePolicy()
+    const limits = policy.targets[definition.id].installer
+    expect(() =>
+      validateInstallerSizeReport(
+        {
+          schemaVersion: 1,
+          target: definition.id,
+          candidateCommit: sourceSha,
+          withinPolicy: true,
+          comparisons: [
+            {
+              role: 'installer',
+              baseline: {
+                name: 'baseline.exe',
+                bytes: 10,
+                sha256: '0'.repeat(64)
+              },
+              candidate: {
+                name: 'candidate.exe',
+                bytes: 10,
+                sha256: '1'.repeat(64)
+              },
+              deltaBytes: 0,
+              maxGrowthBytes: limits.maxGrowthBytes,
+              maxShrinkBytes: 10 * 1024 * 1024 * 1024,
+              withinPolicy: true
+            }
+          ]
+        },
+        definition.id,
+        sourceSha,
+        policy
+      )
+    ).toThrow(/does not match policy/)
+  })
 })
 
 describe('package manifest staging', () => {
@@ -770,6 +808,7 @@ describe('package manifest staging', () => {
   async function prepareWindowsPackage() {
     const installerName = `DeepChat-${version}-windows-x64.exe`
     const installer = Buffer.from('installer')
+    const installerLimits = createDefaultPackageSizePolicy().targets['win32-x64'].installer
     const blockmapName = `${installerName}.blockmap`
     const smokePath = path.join(distDirectory, 'light-ocr-smoke-win32-x64.json')
     const sizePath = path.join(distDirectory, 'package-size-win32-x64.json')
@@ -822,8 +861,8 @@ describe('package manifest staging', () => {
                 sha256: sha256(installer)
               },
               deltaBytes: 0,
-              maxGrowthBytes: 1,
-              maxShrinkBytes: 1,
+              maxGrowthBytes: installerLimits.maxGrowthBytes,
+              maxShrinkBytes: installerLimits.maxShrinkBytes,
               withinPolicy: true
             }
           ],

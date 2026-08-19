@@ -525,18 +525,28 @@ export function validateInstallerSizeReport(
         `Installer-size report expectedDelta does not match policy for ${expectedTarget}/${comparison.role}`
       )
     }
+    const policyLimits = policy.targets?.[expectedTarget]?.[comparison.role]
+    if (
+      !policyLimits ||
+      comparison.maxGrowthBytes !== policyLimits.maxGrowthBytes ||
+      comparison.maxShrinkBytes !== policyLimits.maxShrinkBytes
+    ) {
+      throw new Error(
+        `Installer-size report does not match policy for ${expectedTarget}/${comparison.role}`
+      )
+    }
     const adjustedDeltaBytes = comparison.deltaBytes - expectedDeltaBytes
     if (
       !Number.isSafeInteger(comparison.deltaBytes) ||
       comparison.deltaBytes !== comparison.candidate.bytes - comparison.baseline.bytes ||
-      !Number.isSafeInteger(comparison.maxGrowthBytes) ||
-      comparison.maxGrowthBytes < 0 ||
-      !Number.isSafeInteger(comparison.maxShrinkBytes) ||
-      comparison.maxShrinkBytes < 0 ||
+      !Number.isSafeInteger(policyLimits.maxGrowthBytes) ||
+      policyLimits.maxGrowthBytes < 0 ||
+      !Number.isSafeInteger(policyLimits.maxShrinkBytes) ||
+      policyLimits.maxShrinkBytes < 0 ||
       (comparison.adjustedDeltaBytes !== undefined &&
         comparison.adjustedDeltaBytes !== adjustedDeltaBytes) ||
-      adjustedDeltaBytes > comparison.maxGrowthBytes ||
-      adjustedDeltaBytes < -comparison.maxShrinkBytes
+      adjustedDeltaBytes > policyLimits.maxGrowthBytes ||
+      adjustedDeltaBytes < -policyLimits.maxShrinkBytes
     ) {
       throw new Error(
         `Installer-size report has invalid limits for ${expectedTarget}/${comparison.role}`
