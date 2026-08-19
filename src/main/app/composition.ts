@@ -1223,6 +1223,7 @@ export async function createMainProcessControl(dependencies: {
       publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() }),
     onReady: () => {
       publishDeepchatEvent('toolchains.ready', { version: Date.now() })
+      ocrRuntimeService?.refreshAvailability()
       void mcpService.retryUnstartedEnabledServers().catch((error) => {
         logger.warn('[ToolchainService] Failed to retry MCP servers after PATH refresh', error)
       })

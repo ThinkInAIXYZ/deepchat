@@ -391,6 +391,7 @@ export class McpService implements McpServicePort {
       logger.info('[MCP] Initialization completed')
 
       this.scheduleBackgroundRegistryUpdate()
+      void this.retryUnstartedEnabledServers()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // Mark as complete even if initialization fails to avoid system stuck in uninitialized state
@@ -400,6 +401,7 @@ export class McpService implements McpServicePort {
       } catch {
         // Diagnostics must not alter MCP initialization compatibility.
       }
+      void this.retryUnstartedEnabledServers()
     }
   }
 

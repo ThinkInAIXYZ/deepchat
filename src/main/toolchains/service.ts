@@ -578,6 +578,7 @@ export class ToolchainService {
     this.derivedCache.clear()
     this.resolvedCache.clear()
     this.inspectionCache.clear()
+    this.options.onReady?.()
   }
 
   private async runExclusive(kind: ToolchainKind, operation: () => Promise<void>): Promise<void> {

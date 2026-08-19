@@ -71,6 +71,10 @@ export class OcrRuntimeService {
     })
   }
 
+  refreshAvailability(): void {
+    this.availabilityPromise = null
+  }
+
   async getAvailability(): Promise<OcrRuntimeAvailability> {
     if (this.closed) {
       return {
