@@ -425,19 +425,6 @@ export class RuntimeHelper {
   }
 
   /**
-   * Normalize PATH environment variable
-   * @param paths Array of paths to merge
-   * @returns Normalized PATH key-value pair
-   */
-  public normalizePathEnv(paths: string[]): { key: string; value: string } {
-    const isWindows = process.platform === 'win32'
-    const separator = isWindows ? ';' : ':'
-    const pathKey = isWindows ? 'Path' : 'PATH'
-    const pathValue = paths.filter(Boolean).join(separator)
-    return { key: pathKey, value: pathValue }
-  }
-
-  /**
    * Get system-specific default paths
    * @param homeDir User home directory
    * @returns Array of default system paths

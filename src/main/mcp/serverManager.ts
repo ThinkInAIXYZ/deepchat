@@ -257,7 +257,9 @@ export class ServerManager {
       return inflight
     }
     const task = this.connectServer(name, options)
-    this.starting.set(name, task)
+    if (!options.configOverride) {
+      this.starting.set(name, task)
+    }
     try {
       return await task
     } finally {

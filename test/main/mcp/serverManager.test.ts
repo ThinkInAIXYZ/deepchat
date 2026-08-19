@@ -358,4 +358,40 @@ describe('ServerManager notifications and plugin isolation', () => {
     expect(McpClient).toHaveBeenCalledTimes(1)
     expect(clientMocks.connect).toHaveBeenCalledTimes(1)
   })
+
+  it('does not reuse an in-flight configOverride start', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    providerSettings.getMcpServers.mockImplementation(async () => {
+      await blocked
+      return {
+        regular: {
+          command: 'regular-command',
+          args: [],
+          env: {},
+          type: 'stdio'
+        }
+      }
+    })
+    const manager = createManager(providerSettings)
+    const overridden = manager.startServer('regular', {
+      configOverride: { command: 'plugin-command' }
+    })
+    const regular = manager.startServer('regular')
+    release()
+    await expect(Promise.all([overridden, regular])).resolves.toEqual(['connected', 'connected'])
+    expect(McpClient).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(McpClient).mock.calls[0][1]).toMatchObject({ command: 'plugin-command' })
+    expect(vi.mocked(McpClient).mock.calls[1][1]).toMatchObject({ command: 'regular-command' })
+  })
 })
