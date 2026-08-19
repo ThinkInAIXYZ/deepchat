@@ -387,12 +387,34 @@ describe('ServerManager notifications and plugin isolation', () => {
     const first = manager.startServer('regular')
     await Promise.resolve()
     expect(manager.isServerActive('regular')).toBe(true)
-    const stopped = manager.stopServer('regular')
-    release()
-    await first
-    await stopped
+    const started = Date.now()
+    await manager.stopServer('regular')
+    expect(Date.now() - started).toBeLessThan(1000)
     expect(manager.isServerActive('regular')).toBe(false)
-    expect(clientMocks.disconnect).toHaveBeenCalledOnce()
+    release()
+    await expect(first).resolves.toBe('stopped')
+  })
+
+  it('returns from stop while an in-flight connect is hung', async () => {
+    clientMocks.connect.mockImplementation(() => new Promise(() => {}))
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    const manager = createManager(providerSettings)
+    void manager.startServer('regular')
+    await vi.waitFor(() => {
+      expect(clientMocks.connect).toHaveBeenCalled()
+    })
+    const started = Date.now()
+    await manager.stopServer('regular')
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(clientMocks.disconnect).toHaveBeenCalled()
+    expect(manager.isServerActive('regular')).toBe(false)
   })
 
   it('does not leave a second client when stop races a pre-client start', async () => {
@@ -425,11 +447,10 @@ describe('ServerManager notifications and plugin isolation', () => {
     const stopped = manager.stopServer('regular')
     const second = manager.startServer('regular')
     release()
-    await first
+    await expect(first).resolves.toBe('stopped')
     await stopped
-    await second
-    expect(McpClient).toHaveBeenCalledTimes(2)
-    expect(clientMocks.disconnect).toHaveBeenCalledOnce()
+    await expect(second).resolves.toBe('connected')
+    expect(McpClient).toHaveBeenCalledTimes(1)
   })
 
   it('upgrades an in-flight soft-timeout start when a later caller waits', async () => {

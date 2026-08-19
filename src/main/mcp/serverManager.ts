@@ -27,10 +27,13 @@ type StartServerOptions = {
   waitForConnection?: boolean
 }
 
+const STOP_DRAIN_MS = 250
+
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
   private readonly starting = new Map<string, Promise<McpConnectResult>>()
   private readonly stopping = new Map<string, Promise<void>>()
+  private readonly startEpoch = new Map<string, number>()
   private serverLastErrors: Map<string, string> = new Map()
   private readonly mcpSettings: McpSettings
   private npmRegistry: string | null = null
@@ -271,7 +274,8 @@ export class ServerManager {
         return result
       }
     }
-    const task = this.connectServer(name, options)
+    const epoch = this.startEpoch.get(name) ?? 0
+    const task = this.connectServer(name, options, epoch)
     if (!options.configOverride) {
       this.starting.set(name, task)
     }
@@ -284,12 +288,20 @@ export class ServerManager {
     }
   }
 
+  private isStaleStart(name: string, epoch: number): boolean {
+    return (this.startEpoch.get(name) ?? 0) !== epoch
+  }
+
   private async connectServer(
     name: string,
-    options: StartServerOptions
+    options: StartServerOptions,
+    epoch: number
   ): Promise<McpConnectResult> {
     const existingClient = this.clients.get(name)
     if (existingClient?.isServerRunning()) {
+      if (this.isStaleStart(name, epoch)) {
+        return 'stopped'
+      }
       console.info(`MCP server ${name} is already running`)
       this.recoverConnectionNotification(name)
       return 'connected'
@@ -305,6 +317,9 @@ export class ServerManager {
       const persistedServerConfig = servers[name]
       if (!persistedServerConfig) {
         throw new Error(`MCP server ${name} not found`)
+      }
+      if (this.isStaleStart(name, epoch)) {
+        return 'stopped'
       }
       // Runtime adapters own every field they override. In particular, replacing env preserves the
       // minimal child-process boundary instead of merging stale persisted variables back into it.
@@ -340,6 +355,13 @@ export class ServerManager {
           this.publishEvent
         )
         this.clients.set(name, client)
+      }
+      if (this.isStaleStart(name, epoch)) {
+        await client.disconnect()
+        if (this.clients.get(name) === client) {
+          this.clients.delete(name)
+        }
+        return 'stopped'
       }
 
       this.clearServerLastError(name)
@@ -464,30 +486,55 @@ export class ServerManager {
   }
 
   private async stopServerOnce(name: string): Promise<void> {
-    const inflight = this.starting.get(name)
-    if (inflight) {
-      await inflight.catch(() => {})
-    }
-    if (this.starting.get(name) === inflight) {
-      this.starting.delete(name)
-    }
-
-    const client = this.clients.get(name)
-    if (!client) {
-      this.recoverConnectionNotification(name)
-      return
-    }
-
-    try {
-      await client.disconnect()
-      this.clients.delete(name)
+    this.startEpoch.set(name, (this.startEpoch.get(name) ?? 0) + 1)
+    const live = this.clients.get(name)
+    if (live) {
+      try {
+        await live.disconnect()
+      } catch (error) {
+        console.error(`Failed to stop MCP server ${name}:`, error)
+        throw error
+      }
+      if (this.clients.get(name) === live) {
+        this.clients.delete(name)
+      }
       this.clearServerLastError(name)
       this.recoverConnectionNotification(name)
       console.info(`MCP server ${name} has been stopped`)
       this.onRegistryChanged()
-    } catch (error) {
-      console.error(`Failed to stop MCP server ${name}:`, error)
-      throw error
+    }
+
+    const inflight = this.starting.get(name)
+    if (this.starting.get(name) === inflight) {
+      this.starting.delete(name)
+    }
+    if (inflight) {
+      await Promise.race([
+        inflight.catch(() => {}),
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, STOP_DRAIN_MS)
+        })
+      ])
+    }
+
+    const leftover = this.clients.get(name)
+    if (leftover && leftover !== live) {
+      try {
+        await leftover.disconnect()
+      } catch (error) {
+        console.error(`Failed to stop MCP server ${name}:`, error)
+        throw error
+      }
+      if (this.clients.get(name) === leftover) {
+        this.clients.delete(name)
+      }
+      this.clearServerLastError(name)
+      this.recoverConnectionNotification(name)
+      this.onRegistryChanged()
+      return
+    }
+    if (!live) {
+      this.recoverConnectionNotification(name)
     }
   }
 
