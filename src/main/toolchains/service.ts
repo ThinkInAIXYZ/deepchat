@@ -185,6 +185,7 @@ export class ToolchainService {
       [kind]: { ...next }
     })
     this.clearAllMissing(kind)
+    this.setProgress(kind, 'idle')
     return this.getState()
   }
 
@@ -195,6 +196,7 @@ export class ToolchainService {
     if (kind !== 'uv' && current.uv) next.uv = current.uv
     this.persist(next)
     this.clearAllMissing(kind)
+    this.setProgress(kind, 'idle')
     if (this.selectionFor(kind).selection.source === 'unconfigured') {
       this.recordMissing(kind, undefined, 'unconfigured')
     }
@@ -744,6 +746,17 @@ export class ToolchainService {
     phase: ToolchainInstallProgress['phase'],
     extras?: Partial<Pick<ToolchainInstallProgress, 'receivedBytes' | 'totalBytes' | 'error'>>
   ): void {
+    if (phase === 'idle' && extras?.error == null) {
+      this.progress.delete(kind)
+      this.options.onProgress?.({
+        kind,
+        phase: 'idle',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: null
+      })
+      return
+    }
     const current = this.progress.get(kind)
     const next: ToolchainInstallProgress = {
       kind,

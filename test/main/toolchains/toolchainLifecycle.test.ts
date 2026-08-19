@@ -273,6 +273,34 @@ describe('ToolchainService lifecycle', () => {
     })
   })
 
+  it('clears a failed install error after the source changes', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    seedNodeTree(path.join(appPath, 'runtime', 'node'), false)
+    const payload = Buffer.from('failed-install-progress')
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('node', 'darwin', 'arm64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'darwin',
+      arch: 'arm64',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION }),
+      fetch: createFetch(payload),
+      extractArchive: async () => {
+        throw new Error('extract exploded')
+      }
+    })
+
+    await expect(service.install('node')).rejects.toBeInstanceOf(ToolchainDownloadError)
+    expect(service.getStatus().node.install?.error).toBeTruthy()
+    service.setSource('node', { source: 'bundled' })
+    expect(service.getStatus().node.install).toBeNull()
+  })
+
   it('surfaces a missing notice when resolve fails', () => {
     const service = new ToolchainService({
       appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),
