@@ -456,6 +456,19 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const pathEnv =
         transportOptions.env.PATH ?? transportOptions.env.Path ?? transportOptions.env.path
       expect(pathEnv).toContain('/custom/bin')
+      expect(transportOptions.env.path).toBeUndefined()
+    })
+
+    it('drops a leftover lowercase path key when merging runtime bins', () => {
+      const client = createMcpClient('test', { type: 'stdio' })
+      const env = {
+        Path: 'C:\\user\\bin',
+        path: 'C:\\legacy\\bin',
+        PATH: 'C:\\user\\bin'
+      }
+      ;(client as any).addRuntimePathsToEnvironment(env, '/mock/home')
+      expect(env.path).toBeUndefined()
+      expect(env.PATH ?? env.Path).toContain('C:\\user\\bin')
     })
 
     it('uses the minimal inherited environment only when explicitly requested', async () => {

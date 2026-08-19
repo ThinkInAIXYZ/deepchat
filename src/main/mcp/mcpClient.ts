@@ -347,10 +347,15 @@ export class McpClient {
       Boolean(value)
     )
   ): void {
-    const allPaths = [...inheritedPaths, ...this.runtimeHelper.getDefaultPaths(homeDir)]
-    const { key, value } = this.runtimeHelper.normalizePathEnv(allPaths)
-    env[key] = value
-    Object.assign(env, this.toolchainService.prependResolvedToEnv(env))
+    setPathEntriesOnEnv(
+      env,
+      [
+        getPathEntriesFromEnv(this.toolchainService.prependResolvedToEnv({})),
+        inheritedPaths,
+        this.runtimeHelper.getDefaultPaths(homeDir)
+      ],
+      { includeDefaultPaths: false }
+    )
   }
 
   // Connect to MCP server
