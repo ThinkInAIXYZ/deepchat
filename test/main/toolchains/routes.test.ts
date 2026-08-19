@@ -72,4 +72,46 @@ describe('toolchain routes', () => {
       }
     })
   })
+
+  it('resolves a cancelled repair instead of rejecting', async () => {
+    const service = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),
+      userDataDir: mkdtempSync(path.join(os.tmpdir(), 'dc-data-')),
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    vi.spyOn(service, 'repair').mockRejectedValue(
+      new ToolchainDownloadError('cancelled', 'Toolchain install cancelled')
+    )
+    const routes = createToolchainRoutes({
+      service,
+      pickPath: async () => ({ canceled: true, filePaths: [] })
+    })
+
+    await expect(
+      routes.get('toolchains.repair')?.({ kind: 'node' }, createRendererRouteContext(1, null))
+    ).resolves.toMatchObject({ status: 'cancelled', reason: 'cancelled' })
+  })
+
+  it('still throws non-cancel install failures', async () => {
+    const service = new ToolchainService({
+      appPath: mkdtempSync(path.join(os.tmpdir(), 'dc-app-')),
+      userDataDir: mkdtempSync(path.join(os.tmpdir(), 'dc-data-')),
+      platform: 'darwin',
+      env: { PATH: '' },
+      inspectNode: () => ({ version: NODE_PIN, modules: NODE_MODULE_VERSION })
+    })
+    vi.spyOn(service, 'install').mockRejectedValue(
+      new ToolchainDownloadError('timeout', 'Toolchain download timed out')
+    )
+    const routes = createToolchainRoutes({
+      service,
+      pickPath: async () => ({ canceled: true, filePaths: [] })
+    })
+
+    await expect(
+      routes.get('toolchains.install')?.({ kind: 'node' }, createRendererRouteContext(1, null))
+    ).rejects.toMatchObject({ reason: 'timeout' })
+  })
 })

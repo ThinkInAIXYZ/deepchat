@@ -30,12 +30,16 @@ const toolchainClient = createToolchainClient()
 const settingsClient = createSettingsClient()
 const missing = ref<Array<{ kind: ToolchainKind; reason: string }>>([])
 let stopMissing: (() => void) | null = null
+let seenMissingVersion = 0
 
 onMounted(async () => {
   stopMissing = toolchainClient.onMissing((payload) => {
+    if (payload.version < seenMissingVersion) return
+    seenMissingVersion = payload.version
     missing.value = payload.missing
   })
   const status = await toolchainClient.getStatus().catch(() => null)
+  if (seenMissingVersion > 0) return
   missing.value = status?.missing ?? []
 })
 

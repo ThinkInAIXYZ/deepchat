@@ -48,11 +48,15 @@ const client = createToolchainClient()
 const snapshot = ref<ToolchainStatusSnapshot | null>(null)
 const busyKind = ref<ToolchainKind | null>(null)
 const stopListeners = ref<Array<() => void>>([])
+let seenChangedVersion = 0
+let hydrated = false
 
 onMounted(async () => {
   stopListeners.value = [
-    client.onChanged(() => {
-      void refresh()
+    client.onChanged((payload) => {
+      if (payload.version < seenChangedVersion) return
+      seenChangedVersion = payload.version
+      void refresh({ fromVersion: payload.version })
     }),
     client.onProgress((progress) => {
       const current = snapshot.value
@@ -67,6 +71,7 @@ onMounted(async () => {
     })
   ]
   await refresh()
+  hydrated = true
 })
 
 onBeforeUnmount(() => {
@@ -74,8 +79,11 @@ onBeforeUnmount(() => {
   stopListeners.value = []
 })
 
-async function refresh(): Promise<void> {
-  snapshot.value = await client.getStatus()
+async function refresh(options?: { fromVersion?: number }): Promise<void> {
+  const status = await client.getStatus()
+  if (options?.fromVersion != null && options.fromVersion < seenChangedVersion) return
+  if (!hydrated && options?.fromVersion == null && seenChangedVersion > 0) return
+  snapshot.value = status
 }
 
 async function changeSource(

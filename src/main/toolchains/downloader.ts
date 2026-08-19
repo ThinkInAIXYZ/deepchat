@@ -97,14 +97,14 @@ export async function downloadVerifiedFile(options: {
   sha256: string
   fetch?: FetchLike
   signal?: AbortSignal
-  timeoutMs?: number
+  stallTimeoutMs?: number
   onProgress?: (progress: DownloadProgress) => void
 }): Promise<void> {
   const fetchImpl = options.fetch ?? fetch
   mkdirSync(path.dirname(options.destPath), { recursive: true })
   const destPath = options.destPath
   const partialPath = `${destPath}.partial`
-  const stall = createStallWatchdog(options.timeoutMs ?? STALL_TIMEOUT_MS)
+  const stall = createStallWatchdog(options.stallTimeoutMs ?? STALL_TIMEOUT_MS)
   const signal = options.signal ? AbortSignal.any([options.signal, stall.signal]) : stall.signal
   const emitProgress = createThrottledProgress(options.onProgress)
 

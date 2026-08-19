@@ -111,7 +111,7 @@ describe('toolchain downloader', () => {
         url: 'https://example.test/node.tar.gz',
         destPath,
         sha256: '0'.repeat(64),
-        timeoutMs: 20,
+        stallTimeoutMs: 20,
         fetch: (_url, init) =>
           new Promise((_, reject) => {
             init?.signal?.addEventListener(
@@ -193,5 +193,35 @@ describe('toolchain downloader', () => {
     )
     expect(url).toBe(mirror)
     expect(Date.now() - started).toBeLessThan(1000)
+  })
+
+  it('does not treat a slow but progressing download as stalled', async () => {
+    const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')
+    const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
+    await downloadVerifiedFile({
+      url: 'https://example.test/node.tar.gz',
+      destPath,
+      sha256: sha256(payload),
+      stallTimeoutMs: 40,
+      fetch: async () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            let offset = 0
+            const tick = (): void => {
+              if (offset >= payload.length) {
+                controller.close()
+                return
+              }
+              controller.enqueue(Uint8Array.from(payload.subarray(offset, offset + 4)))
+              offset += 4
+              setTimeout(tick, 15)
+            }
+            tick()
+          }
+        })
+        return new Response(stream, { status: 200 })
+      }
+    })
+    expect(readFileSync(destPath)).toEqual(payload)
   })
 })

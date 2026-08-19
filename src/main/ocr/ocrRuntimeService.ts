@@ -79,20 +79,22 @@ export class OcrRuntimeService {
     if (kind === 'uv') return
     const existing = this.resourcesPromise
     if (!existing) return
-    this.closingResources = this.closingResources.then(async () => {
-      const resources = await existing.catch(() => null)
-      if (!resources) {
+    this.closingResources = this.closingResources
+      .then(async () => {
+        const resources = await existing.catch(() => null)
+        if (!resources) {
+          if (this.resourcesPromise === existing) this.resourcesPromise = null
+          return
+        }
+        if (this.isResourcesBusy(resources)) {
+          this.resourcesStale = true
+          return
+        }
         if (this.resourcesPromise === existing) this.resourcesPromise = null
-        return
-      }
-      if (this.isResourcesBusy(resources)) {
-        this.resourcesStale = true
-        return
-      }
-      if (this.resourcesPromise === existing) this.resourcesPromise = null
-      this.resourcesStale = false
-      await this.disposeResources(resources)
-    })
+        this.resourcesStale = false
+        await this.disposeResources(resources)
+      })
+      .catch(() => {})
   }
 
   async getAvailability(): Promise<OcrRuntimeAvailability> {
@@ -164,7 +166,9 @@ export class OcrRuntimeService {
       if (resources && !this.isResourcesBusy(resources)) {
         this.resourcesPromise = null
         this.resourcesStale = false
-        this.closingResources = this.closingResources.then(() => this.disposeResources(resources))
+        this.closingResources = this.closingResources
+          .then(() => this.disposeResources(resources))
+          .catch(() => {})
         await this.closingResources
       }
     }

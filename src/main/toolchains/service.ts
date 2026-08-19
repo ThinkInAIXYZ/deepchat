@@ -746,13 +746,15 @@ export class ToolchainService {
             ...probed.toolchain,
             source: selection.source
           } as ResolvedNodeToolchain
-          this.fillNodeIdentity(resolved, selection)
+          const identity = this.fillNodeIdentity(resolved, selection)
           resolvedVersion = resolved.version
           resolvedPath = resolved.node
           ocrCompatible =
-            resolved.version != null &&
-            isNodeVersionInCompatRange(resolved.version) &&
-            resolved.nodeModuleVersion === NODE_MODULE_VERSION
+            identity === 'transient'
+              ? null
+              : resolved.version != null &&
+                isNodeVersionInCompatRange(resolved.version) &&
+                resolved.nodeModuleVersion === NODE_MODULE_VERSION
         } else if (probed.toolchain.kind === 'uv') {
           resolvedVersion = selection.version ?? probed.toolchain.version
           resolvedPath = probed.toolchain.uv

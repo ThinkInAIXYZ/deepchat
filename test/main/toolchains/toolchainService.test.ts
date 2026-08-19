@@ -37,7 +37,7 @@ function createService(options?: {
   env?: NodeJS.ProcessEnv
   onMissing?: (missing: { kind: string; reason: string }[]) => void
   onStateChanged?: () => void
-  inspectNode?: () => { version: string; modules: number } | null
+  inspectNode?: () => { version: string; modules: number } | null | undefined
 }): { service: ToolchainService; appPath: string; userDataDir: string } {
   const appPath = options?.appPath ?? mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
   const userDataDir = options?.userDataDir ?? mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
@@ -418,6 +418,20 @@ describe('ToolchainService', () => {
       ocrCompatible: false
     })
     expect(service.getStatus().uv.ocrCompatible).toBeNull()
+  })
+
+  it('does not show an OCR pin hint while Node inspection is transient', () => {
+    const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
+    seedNodeTree(systemRoot, false)
+    const { service } = createService({
+      env: { PATH: path.join(systemRoot, 'bin') },
+      inspectNode: () => undefined
+    })
+    service.setSource('node', { source: 'system' })
+    expect(service.getStatus().node).toMatchObject({
+      availability: 'ready',
+      ocrCompatible: null
+    })
   })
 
   it('rememoizes a derived source after PATH refresh', () => {
