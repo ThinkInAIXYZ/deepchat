@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.1-beta.3 (2026-08-20)
+- Added managed Node.js and uv toolchains with automatic detection, installation, repair, and recovery
+- Added terminal authentication for ACP agents
+- Added verified staged provider credential edits, API key copying, and a Start chatting action after provider setup
+- Upgraded Markstream rendering with a managed stream-diffs worker pool
+- Improved CLI, MCP, and OCR reliability around runtime discovery and toolchain changes
+- 新增托管式 Node.js 与 uv 工具链，支持自动检测、安装、修复与恢复
+- 新增 ACP Agent 终端身份验证
+- 新增经验证的 Provider 凭据暂存编辑、API Key 复制，以及 Provider 配置完成后的“开始聊天”操作
+- 升级 Markstream 渲染，引入受控的 stream-diffs Worker 池
+- 改进 CLI、MCP 与 OCR 在运行时发现和工具链变更场景下的可靠性
+
 ## v1.1.1-beta.2 (2026-08-18)
 - Redesigned the Settings provider sidebar and configured-provider page
 - Honored provider model-configured timeouts instead of the default 300s undici header timeout
