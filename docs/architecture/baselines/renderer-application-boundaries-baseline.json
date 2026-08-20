@@ -137,6 +137,10 @@
     },
     {
       "file": "src/renderer/settings/components/AcpSettings.vue",
+      "specifier": "@/components/acp/AcpAuthDialog.vue"
+    },
+    {
+      "file": "src/renderer/settings/components/AcpSettings.vue",
       "specifier": "@/components/agent/AgentTransferDialog.vue"
     },
     {
@@ -552,5 +556,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 125
+  "settingsToChatAppImportCount": 126
 }

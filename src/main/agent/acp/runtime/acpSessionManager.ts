@@ -23,6 +23,11 @@ import {
   updateAcpConfigStateValue
 } from './acpConfigState'
 import type { McpSettings } from '@/mcp/settings'
+import {
+  AcpAuthenticationRequiredError,
+  isAcpAuthenticationRequiredError,
+  isAcpAuthRequiredRpcError
+} from './acpAuthentication'
 
 interface AcpSessionManagerOptions {
   providerId: string
@@ -411,7 +416,6 @@ export class AcpSessionManager {
         signal
       )
       this.throwIfInitializationAborted(signal)
-      this.processManager.bindProcess(agent.id, conversationId, workdir)
 
       session = await this.initializeSession(
         handle,
@@ -422,6 +426,7 @@ export class AcpSessionManager {
         signal
       )
       this.throwIfInitializationAborted(signal)
+      this.processManager.bindProcess(agent.id, conversationId, workdir)
 
       let configState =
         session.configState ?? handle.configState ?? createEmptyAcpConfigState('legacy')
@@ -501,7 +506,7 @@ export class AcpSessionManager {
         this.disposeSessionHandlers(session)
         this.processManager.clearSession(session.sessionId)
       }
-      if (handle) {
+      if (handle && !isAcpAuthenticationRequiredError(error)) {
         try {
           await this.processManager.unbindProcess(agent.id, conversationId, handle)
         } catch (cleanupError) {
@@ -730,6 +735,9 @@ export class AcpSessionManager {
           detachHandlers = undefined
           this.processManager.clearSession(persistedSessionId)
           this.throwIfInitializationAborted(signal)
+          if (isAcpAuthRequiredRpcError(error)) {
+            throw this.createAuthenticationRequiredError(handle, conversationId)
+          }
           console.warn(
             `[ACP] Failed to resume persisted session ${persistedSessionId} for conversation ${conversationId}; trying load/new fallback.`,
             error
@@ -812,6 +820,9 @@ export class AcpSessionManager {
           detachHandlers = undefined
           this.processManager.clearSession(persistedSessionId)
           this.throwIfInitializationAborted(signal)
+          if (isAcpAuthRequiredRpcError(error)) {
+            throw this.createAuthenticationRequiredError(handle, conversationId)
+          }
           console.warn(
             `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
             error
@@ -949,15 +960,35 @@ export class AcpSessionManager {
         }
       })
       if (activeSessionId) this.processManager.clearSession(activeSessionId)
-      console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)
+      const reportedError = isAcpAuthenticationRequiredError(error)
+        ? error
+        : isAcpAuthRequiredRpcError(error)
+          ? this.createAuthenticationRequiredError(handle, conversationId)
+          : error
+      console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, reportedError)
       this.processManager.appendDebugEvent?.(agent.id, {
         kind: 'error',
         action: 'session/initialize',
-        message: error instanceof Error ? error.message : String(error),
-        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+        message: reportedError instanceof Error ? reportedError.message : String(reportedError),
+        payload:
+          reportedError instanceof Error
+            ? { name: reportedError.name, stack: reportedError.stack }
+            : reportedError
       })
-      throw error
+      throw reportedError
     }
+  }
+
+  private createAuthenticationRequiredError(
+    handle: AcpProcessHandle,
+    conversationId: string
+  ): AcpAuthenticationRequiredError {
+    return new AcpAuthenticationRequiredError(
+      this.processManager.createAuthChallenge(handle, {
+        origin: 'draft_session',
+        sessionId: conversationId
+      })
+    )
   }
 
   async resolveMcpServersForAgent(

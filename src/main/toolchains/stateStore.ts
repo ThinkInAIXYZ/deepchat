@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   closeSync,
   fsyncSync,
@@ -35,7 +36,7 @@ export function loadToolchainState(userDataDir: string): ToolchainPersistedState
 
 export function quarantineCorruptState(userDataDir: string): void {
   const filePath = stateFilePath(userDataDir)
-  const quarantinePath = `${filePath}.corrupt.${Date.now()}`
+  const quarantinePath = `${filePath}.corrupt.${Date.now()}.${randomUUID()}`
   try {
     renameSync(filePath, quarantinePath)
   } catch (error) {

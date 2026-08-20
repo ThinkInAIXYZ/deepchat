@@ -119,6 +119,7 @@ type SetupOptions = {
   registryAgents?: AcpRegistryAgent[]
   manualAgents?: AcpManualAgent[]
   config?: Record<string, unknown>
+  inspectAuthentication?: ReturnType<typeof vi.fn>
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -171,12 +172,36 @@ async function setup(options: SetupOptions = {}) {
     deleteAgentSessions: vi.fn().mockResolvedValue(undefined),
     moveAgentSessions: vi.fn().mockResolvedValue(undefined)
   }
+  const acpAuthClient = {
+    inspect:
+      options.inspectAuthentication ??
+      vi.fn().mockResolvedValue({
+        challenge: {
+          id: 'challenge-1',
+          agentId: 'codex-acp',
+          agentName: 'Codex ACP',
+          workdir: '/tmp',
+          origin: 'settings_probe',
+          methods: [
+            {
+              id: 'browser-login',
+              name: 'Browser login',
+              type: 'terminal',
+              supported: true
+            }
+          ]
+        }
+      })
+  }
 
   vi.doMock('@api/ConfigClient', () => ({
     createConfigClient: () => configService
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: () => sessionClient
+  }))
+  vi.doMock('@api/AcpAuthClient', () => ({
+    createAcpAuthClient: () => acpAuthClient
   }))
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
@@ -230,6 +255,11 @@ async function setup(options: SetupOptions = {}) {
         DialogHeader: passthrough('DialogHeader'),
         DialogTitle: passthrough('DialogTitle'),
         AgentTransferDialog: AgentTransferDialogStub,
+        AcpAuthDialog: defineComponent({
+          name: 'AcpAuthDialog',
+          props: ['open', 'challenge'],
+          template: '<div v-if="open" data-testid="acp-auth-dialog">{{ challenge?.id }}</div>'
+        }),
         AcpDebugDialog: passthrough('AcpDebugDialog'),
         AgentMcpSelector: AgentMcpSelectorStub,
         AcpAgentIcon: passthrough('AcpAgentIcon'),
@@ -243,6 +273,7 @@ async function setup(options: SetupOptions = {}) {
     wrapper,
     configService,
     sessionClient,
+    acpAuthClient,
     notifyRenderer,
     discardSharedMcpRetryIntent,
     settingsLeaveGuard
@@ -254,6 +285,19 @@ afterEach(() => {
 })
 
 describe('AcpSettings', () => {
+  it('opens the shared authentication dialog for an installed registry agent', async () => {
+    const { wrapper, acpAuthClient } = await setup({ registryAgents: [installedAgent()] })
+    const authButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.acp.auth.checkSignIn')
+
+    await authButton!.trigger('click')
+    await flushPromises()
+
+    expect(acpAuthClient.inspect).toHaveBeenCalledWith('codex-acp')
+    expect(wrapper.get('[data-testid="acp-auth-dialog"]').text()).toBe('challenge-1')
+  })
+
   it('removes an uninstalled registry agent locally without a redundant success toast', async () => {
     const { wrapper, configService, sessionClient, notifyRenderer } = await setup({
       registryAgents: [installedAgent()]

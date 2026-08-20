@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
 import { SessionDeletionGate } from '@/session/deletionGate'
+import { AcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -801,7 +802,10 @@ describe('SessionLifecycle', () => {
         projectDir: '/repo',
         permissionMode: 'full_access'
       })
-    ).resolves.toMatchObject({ id: 'draft-1', isDraft: true, providerId: 'acp' })
+    ).resolves.toMatchObject({
+      status: 'ready',
+      session: { id: 'draft-1', isDraft: true, providerId: 'acp' }
+    })
 
     expect(harness.sessions.create).not.toHaveBeenCalled()
     expect(runtime.setPermissionMode).toHaveBeenCalledWith('full_access')
@@ -835,7 +839,10 @@ describe('SessionLifecycle', () => {
         agentId: 'acp-coder',
         projectDir: '/repo'
       })
-    ).resolves.toMatchObject({ id: 'session-1', isDraft: true })
+    ).resolves.toMatchObject({
+      status: 'ready',
+      session: { id: 'session-1', isDraft: true }
+    })
 
     expect(harness.sessions.create).toHaveBeenCalledOnce()
     expect(harness.workdir.prepareDirectAcpSession).toHaveBeenCalledWith('session-1')
@@ -845,6 +852,39 @@ describe('SessionLifecycle', () => {
     })
     expect(warn).toHaveBeenCalledOnce()
     warn.mockRestore()
+  })
+
+  it('preserves a reusable local draft when ACP preparation requires authentication', async () => {
+    const harness = createHarness()
+    const challenge = {
+      id: 'challenge-1',
+      agentId: 'acp-coder',
+      agentName: 'ACP Coder',
+      workdir: '/repo',
+      methods: [{ id: 'browser-login', name: 'Browser login', type: 'terminal' as const }],
+      origin: 'draft_session' as const,
+      sessionId: 'session-1'
+    }
+    harness.workdir.prepareDirectAcpSession.mockRejectedValueOnce(
+      new AcpAuthenticationRequiredError(challenge)
+    )
+
+    await expect(
+      harness.coordinator.ensureAcpDraftSession({
+        agentId: 'acp-coder',
+        projectDir: '/repo'
+      })
+    ).resolves.toMatchObject({
+      status: 'auth_required',
+      session: { id: 'session-1', isDraft: true },
+      challenge: { id: 'challenge-1' }
+    })
+
+    expect(harness.sessions.delete).not.toHaveBeenCalled()
+    expect(harness.projection.notify).toHaveBeenCalledWith({
+      sessionIds: ['session-1'],
+      reason: 'created'
+    })
   })
 
   it('deletes a failed fork row and preserves the transcript error when close fails', async () => {

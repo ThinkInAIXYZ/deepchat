@@ -7,7 +7,13 @@ import {
   artifactsReadRoute
 } from './routes/artifacts.routes'
 import { audioTranscribeArtifactRoute, audioTranscribeUploadRoute } from './routes/audio.routes'
-import { acpTerminalInputRoute, acpTerminalKillRoute } from './routes/acp-terminal.routes'
+import {
+  acpAuthCancelRoute,
+  acpAuthInputRoute,
+  acpAuthInspectRoute,
+  acpAuthStartRoute,
+  acpAuthStatusRoute
+} from './routes/acp-auth.routes'
 import {
   browserAttachCurrentWindowRoute,
   browserApplyImportRoute,
@@ -634,7 +640,7 @@ export * from './routes/approvals.routes'
 export * from './routes/artifacts.routes'
 export * from './routes/audio.routes'
 export * from './routes/computerUse.routes'
-export * from './routes/acp-terminal.routes'
+export * from './routes/acp-auth.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
 export * from './routes/database-security.routes'
@@ -681,8 +687,11 @@ export * from './routes/orchestration.routes'
 // 既绕过上限又保留逐路由精确的输入/输出类型。新增路由追加到任意一块即可，保持各块体量适中。
 const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [approvalsResolveRoute.name]: approvalsResolveRoute,
-  [acpTerminalInputRoute.name]: acpTerminalInputRoute,
-  [acpTerminalKillRoute.name]: acpTerminalKillRoute,
+  [acpAuthInspectRoute.name]: acpAuthInspectRoute,
+  [acpAuthStartRoute.name]: acpAuthStartRoute,
+  [acpAuthInputRoute.name]: acpAuthInputRoute,
+  [acpAuthCancelRoute.name]: acpAuthCancelRoute,
+  [acpAuthStatusRoute.name]: acpAuthStatusRoute,
   [shortcutRegisterRoute.name]: shortcutRegisterRoute,
   [shortcutUnregisterRoute.name]: shortcutUnregisterRoute,
   [shortcutDestroyRoute.name]: shortcutDestroyRoute,

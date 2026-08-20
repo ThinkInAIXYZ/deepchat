@@ -2241,6 +2241,25 @@
       "cannotDeleteDesc": "内置 Agent 至少需要一套配置。",
       "noAgent": "请选择要管理的 Agent。"
     },
+    "auth": {
+      "title": "登录 {name}",
+      "description": "选择认证方式。凭据仅由 Agent 进程处理。",
+      "requiredTitle": "{name} 需要登录",
+      "requiredDescription": "开始聊天前请先完成认证。",
+      "checkSignIn": "检查登录",
+      "openTerminal": "打开终端",
+      "cancelSignIn": "取消登录",
+      "unsupported": "DeepChat 暂不支持此认证方式，请手动配置所需环境变量。",
+      "noMethods": "Agent 没有提供 DeepChat 可用的认证方式。",
+      "status": {
+        "required": "需要认证",
+        "running": "正在登录",
+        "reconnecting": "正在重新连接",
+        "succeeded": "已就绪",
+        "cancelled": "已取消",
+        "failed": "失败"
+      }
+    },
     "terminal": {
       "title": "初始化终端",
       "waiting": "等待初始化开始...",

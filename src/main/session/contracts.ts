@@ -49,6 +49,7 @@ import type {
 import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpAuthChallenge } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { CommandShellProfile } from '@shared/commandShell'
 import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
@@ -597,7 +598,7 @@ export interface SessionLifecyclePort {
     agentId: string
     projectDir: string
     permissionMode?: PermissionMode
-  }): Promise<SessionWithState>
+  }): Promise<EnsureAcpDraftResult>
   forkSession(
     sourceSessionId: string,
     targetMessageId: string,
@@ -605,6 +606,10 @@ export interface SessionLifecyclePort {
   ): Promise<SessionWithState>
   deleteSession(sessionId: string): Promise<void>
 }
+
+export type EnsureAcpDraftResult =
+  | { status: 'ready'; session: SessionWithState }
+  | { status: 'auth_required'; session: SessionWithState; challenge: AcpAuthChallenge }
 
 export interface SessionAgentAssignmentPort {
   linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>

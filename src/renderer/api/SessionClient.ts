@@ -172,7 +172,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     permissionMode?: PermissionMode
   }) {
     const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
-    return result.session
+    return result
   }
 
   async function listPendingInputs(sessionId: string) {

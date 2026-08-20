@@ -1761,6 +1761,25 @@
       "cannotDeleteDesc": "Indbyggede agenter kræver mindst én konfiguration.",
       "noAgent": "Vælg en agent for at administrere dens profiler."
     },
+    "auth": {
+      "title": "Log ind på {name}",
+      "description": "Vælg en godkendelsesmetode. Legitimationsoplysningerne forbliver hos agentprocessen.",
+      "requiredTitle": "{name} kræver login",
+      "requiredDescription": "Godkend, før du starter denne chat.",
+      "checkSignIn": "Kontrollér login",
+      "openTerminal": "Åbn terminal",
+      "cancelSignIn": "Annuller login",
+      "unsupported": "Denne godkendelsesmetode understøttes ikke. Konfigurer dens miljøvariabler manuelt.",
+      "noMethods": "Agenten angav ikke en godkendelsesmetode, som DeepChat kan bruge.",
+      "status": {
+        "required": "Godkendelse påkrævet",
+        "running": "Logger ind",
+        "reconnecting": "Opretter forbindelse igen",
+        "succeeded": "Klar",
+        "cancelled": "Annulleret",
+        "failed": "Mislykket"
+      }
+    },
     "terminal": {
       "title": "Initialiseringsterminal",
       "waiting": "Venter på start...",

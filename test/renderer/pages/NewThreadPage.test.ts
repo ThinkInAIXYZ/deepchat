@@ -240,6 +240,7 @@ const setup = async (
         DcButton: {
           template: '<button type="button" v-bind="$attrs"><slot /></button>'
         },
+        AcpAuthDialog: true,
         ChatInputToolbar: true,
         ChatStatusBar: true,
         ChatInputBox: {

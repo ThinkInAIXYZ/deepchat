@@ -60,6 +60,7 @@ import {
 import type { RouteContract } from '../common'
 import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
 import { PROGRAMMATIC_TOOL_BATCH_MAX_STEPS } from './tools.routes'
+import { AcpAuthChallengeSchema } from './acp-auth.routes'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
@@ -452,9 +453,17 @@ export const sessionsEnsureAcpDraftRoute = defineRouteContract({
     projectDir: z.string().min(1),
     permissionMode: PermissionModeSchema.optional()
   }),
-  output: z.object({
-    session: SessionWithStateSchema
-  })
+  output: z.discriminatedUnion('status', [
+    z.object({
+      status: z.literal('ready'),
+      session: SessionWithStateSchema
+    }),
+    z.object({
+      status: z.literal('auth_required'),
+      session: SessionWithStateSchema,
+      challenge: AcpAuthChallengeSchema
+    })
+  ])
 })
 
 export const sessionsListPendingInputsRoute = defineRouteContract({

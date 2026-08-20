@@ -225,6 +225,43 @@ export interface AcpResolvedLaunchSpec {
   installDir?: string | null
 }
 
+export type AcpAuthMethodType = 'agent' | 'terminal' | 'unsupported'
+
+export interface AcpAuthMethodView {
+  id: string
+  name: string
+  description?: string
+  type: AcpAuthMethodType
+}
+
+export type AcpAuthChallengeOrigin = 'draft_session' | 'session_prepare' | 'settings_probe'
+
+export interface AcpAuthChallenge {
+  id: string
+  agentId: string
+  agentName: string
+  workdir: string
+  methods: AcpAuthMethodView[]
+  origin: AcpAuthChallengeOrigin
+  sessionId?: string
+}
+
+export type AcpAuthRunState =
+  | 'required'
+  | 'running'
+  | 'reconnecting'
+  | 'succeeded'
+  | 'cancelled'
+  | 'failed'
+
+export interface AcpAuthRunStatus {
+  challengeId: string
+  runId?: string
+  state: AcpAuthRunState
+  error?: string
+  version: number
+}
+
 export interface AcpSessionEntity {
   id: number
   conversationId: string

@@ -1828,6 +1828,25 @@
       "cannotDeleteDesc": "סוכנים מובנים דורשים לפחות תצורה אחת.",
       "noAgent": "בחר סוכן כדי לנהל את הפרופילים שלו."
     },
+    "auth": {
+      "title": "כניסה אל {name}",
+      "description": "בחר שיטת אימות. פרטי הגישה נשארים בתהליך הסוכן.",
+      "requiredTitle": "{name} דורש כניסה",
+      "requiredDescription": "יש לבצע אימות לפני תחילת הצ׳אט.",
+      "checkSignIn": "בדיקת כניסה",
+      "openTerminal": "פתיחת מסוף",
+      "cancelSignIn": "ביטול כניסה",
+      "unsupported": "שיטת אימות זו אינה נתמכת. יש להגדיר את משתני הסביבה שלה באופן ידני.",
+      "noMethods": "הסוכן לא סיפק שיטת אימות שבה DeepChat יכול להשתמש.",
+      "status": {
+        "required": "נדרש אימות",
+        "running": "מתבצעת כניסה",
+        "reconnecting": "מתבצע חיבור מחדש",
+        "succeeded": "מוכן",
+        "cancelled": "בוטל",
+        "failed": "נכשל"
+      }
+    },
     "terminal": {
       "title": "טרמינל אתחול",
       "waiting": "ממתין לתחילת האתחול...",

@@ -8,6 +8,8 @@ import {
 } from '@/agent/acp/runtime/acpProcessManager'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
 import { AcpSessionPersistence } from '@/agent/acp/runtime/acpSessionPersistence'
+import { RequestError } from '@agentclientprotocol/sdk'
+import { AcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
 
 vi.mock('electron', () => ({
   app: {
@@ -27,6 +29,9 @@ interface HarnessOptions {
   throwingDetach?: boolean
   exitOnRegistration?: boolean
   handles?: AcpProcessHandle[]
+  resumeError?: Error
+  loadError?: Error
+  newError?: Error
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -43,16 +48,19 @@ function createHarness(options: HarnessOptions = {}) {
   const connection = {
     unstable_resumeSession: vi.fn(async () => {
       calls.push('resume')
+      if (options.resumeError) throw options.resumeError
       if (options.resumeRejects) throw new Error('resume failed')
       return {} as schema.ResumeSessionResponse
     }),
     loadSession: vi.fn(async () => {
       calls.push('load')
+      if (options.loadError) throw options.loadError
       if (options.loadRejects) throw new Error('load failed')
       return {} as schema.LoadSessionResponse
     }),
     newSession: vi.fn(async () => {
       calls.push('new')
+      if (options.newError) throw options.newError
       return { sessionId: 'new-session' } as schema.NewSessionResponse
     })
   }
@@ -102,7 +110,16 @@ function createHarness(options: HarnessOptions = {}) {
         return dispose
       }
     ),
-    clearSession: vi.fn((sessionId: string) => exitHandlers.delete(sessionId))
+    clearSession: vi.fn((sessionId: string) => exitHandlers.delete(sessionId)),
+    createAuthChallenge: vi.fn(() => ({
+      id: 'challenge-1',
+      agentId: 'agent1',
+      agentName: 'Agent 1',
+      workdir: '/tmp',
+      methods: [{ id: 'login', name: 'Login', type: 'agent' }],
+      origin: 'draft_session',
+      sessionId: 'conv1'
+    }))
   } as unknown as AcpProcessManager
   const sessionPersistence = {
     resolveWorkdir: (workdir?: string | null) => workdir?.trim() || '/tmp',
@@ -157,6 +174,39 @@ function createHarness(options: HarnessOptions = {}) {
 }
 
 describe('AcpSessionManager public error handling', () => {
+  it.each([
+    {
+      name: 'resume',
+      persisted: true,
+      resumeError: RequestError.authRequired(),
+      expectedCalls: ['resume']
+    },
+    {
+      name: 'load',
+      persisted: true,
+      resumeError: new Error('resume failed'),
+      loadError: RequestError.authRequired(),
+      expectedCalls: ['resume', 'load']
+    },
+    {
+      name: 'new',
+      persisted: false,
+      newError: RequestError.authRequired(),
+      expectedCalls: ['new']
+    }
+  ])('stops fallback when $name returns auth_required', async (options) => {
+    const harness = createHarness(options)
+
+    await expect(
+      harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')
+    ).rejects.toMatchObject<AcpAuthenticationRequiredError>({
+      code: -32000,
+      challenge: expect.objectContaining({ id: 'challenge-1' })
+    })
+    expect(harness.calls).toEqual(options.expectedCalls)
+    expect(harness.unbindProcess).not.toHaveBeenCalled()
+  })
+
   it('throws explicit shutdown error when process manager is shutting down', async () => {
     const { manager } = createHarness({
       getConnectionError: new Error(

@@ -214,6 +214,15 @@
                     <DcButton
                       size="sm"
                       variant="outline"
+                      :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
+                      @click="openAuthentication(agent.id)"
+                    >
+                      <Spinner v-if="authInspectingAgentId === agent.id" data-icon="inline-start" />
+                      {{ t('settings.acp.auth.checkSignIn') }}
+                    </DcButton>
+                    <DcButton
+                      size="sm"
+                      variant="outline"
                       :disabled="isAnyMutationPending"
                       @click="openInspector(agent.id, agent.name)"
                     >
@@ -316,6 +325,15 @@
                       @click="confirmAndDeleteManualAgent(agent)"
                     >
                       {{ t('common.delete') }}
+                    </DcButton>
+                    <DcButton
+                      size="sm"
+                      variant="outline"
+                      :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
+                      @click="openAuthentication(agent.id)"
+                    >
+                      <Spinner v-if="authInspectingAgentId === agent.id" data-icon="inline-start" />
+                      {{ t('settings.acp.auth.checkSignIn') }}
                     </DcButton>
                     <DcButton
                       size="sm"
@@ -587,6 +605,12 @@
       @update:open="(value) => (debugDialog.open = value)"
     />
 
+    <AcpAuthDialog
+      v-model:open="authDialogOpen"
+      :challenge="authChallenge"
+      @succeeded="authDialogOpen = false"
+    />
+
     <AgentTransferDialog
       :open="transferDialogOpen"
       mode="delete-agent"
@@ -606,7 +630,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import type { AcpManualAgent } from '@shared/types/acp'
+import type { AcpAuthChallenge, AcpManualAgent } from '@shared/types/acp'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
@@ -639,6 +663,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import AcpDebugDialog from './AcpDebugDialog.vue'
+import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
@@ -648,9 +673,11 @@ import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
 import type { DcFormSubmitStatus } from '@dc-ui/components/form'
 import { settingsLeaveGuard, type SettingsLeaveRisk } from '../services/settingsLeaveGuard'
+import { createAcpAuthClient } from '@api/AcpAuthClient'
 
 const { t } = useI18n()
 const configClient = createConfigClient()
+const acpAuthClient = createAcpAuthClient()
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
 type PendingDeleteAgent = {
@@ -740,6 +767,9 @@ const debugDialog = reactive({
   agentId: '',
   agentName: ''
 })
+const authChallenge = ref<AcpAuthChallenge | null>(null)
+const authDialogOpen = ref(false)
+const authInspectingAgentId = ref<string | null>(null)
 
 const manualDialog = reactive({
   open: false,
@@ -1192,6 +1222,26 @@ const openInspector = (agentId: string, agentName: string) => {
   debugDialog.agentId = agentId
   debugDialog.agentName = agentName
   debugDialog.open = true
+}
+
+const openAuthentication = async (agentId: string) => {
+  if (authInspectingAgentId.value) return
+  authInspectingAgentId.value = agentId
+  try {
+    const result = await acpAuthClient.inspect(agentId)
+    authChallenge.value = result.challenge
+    authDialogOpen.value = true
+  } catch (error) {
+    console.error('[ACP] Failed to inspect authentication methods:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.acp.auth.inspectFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  } finally {
+    authInspectingAgentId.value = null
+  }
 }
 
 const clearManualDialogError = () => {

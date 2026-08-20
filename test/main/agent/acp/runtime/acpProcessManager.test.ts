@@ -80,7 +80,8 @@ describe('AcpProcessManager config cache fallback', () => {
         command: 'agent',
         args: [],
         env: {}
-      })
+      }),
+      terminalAuthAvailable: true
     })
 
   const createConfigState = (model = 'gpt-5', mode = 'code') => ({
@@ -132,6 +133,12 @@ describe('AcpProcessManager config cache fallback', () => {
       boundConversationId: state === 'bound' ? 'conv-1' : undefined,
       workdir: '/tmp/workspace',
       configState: createConfigState(),
+      materializedLaunch: {
+        command: '/usr/local/bin/agent',
+        args: ['--acp'],
+        env: { PATH: '/runtime/bin', TOKEN: 'base' },
+        cwd: '/tmp/workspace'
+      },
       launchSignature: JSON.stringify({
         command: 'agent',
         args: [],
@@ -139,10 +146,228 @@ describe('AcpProcessManager config cache fallback', () => {
         cwd: null,
         distributionType: 'manual',
         version: null,
-        installDir: null
+        installDir: null,
+        userEnvOverride: {}
       })
     }
   }
+
+  it('builds terminal authentication from the immutable launch snapshot', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      {
+        id: 'browser-login',
+        name: 'Browser login',
+        type: 'terminal',
+        args: ['auth', '--browser'],
+        env: { TOKEN: 'method', AUTH_MODE: 'browser' }
+      }
+    ]
+
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+    const prepared = await manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+
+    expect(prepared.launch).toEqual({
+      command: '/usr/local/bin/agent',
+      args: ['--acp', 'auth', '--browser'],
+      env: { PATH: '/runtime/bin', TOKEN: 'method', AUTH_MODE: 'browser' },
+      cwd: '/tmp/workspace'
+    })
+
+    handle.materializedLaunch.args.push('--mutated')
+    handle.materializedLaunch.env.TOKEN = 'mutated'
+    expect(prepared.launch.args).toEqual(['--acp', 'auth', '--browser'])
+    expect(prepared.launch.env.TOKEN).toBe('method')
+  })
+
+  it('rejects terminal authentication after launch configuration changes', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+
+    ;(manager as any).resolveLaunchSpec.mockResolvedValue({
+      agentId: 'agent-1',
+      source: 'manual',
+      distributionType: 'manual',
+      command: 'agent',
+      args: ['--changed'],
+      env: {}
+    })
+
+    await expect(
+      manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    ).rejects.toThrow('challenge is stale')
+  })
+
+  it('serializes authentication runs for the same agent and workdir', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    const first = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+    const second = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+
+    await manager.prepareTerminalAuthentication(first.id, 'browser-login')
+    await expect(
+      manager.prepareTerminalAuthentication(second.id, 'browser-login')
+    ).rejects.toThrow('already running for this agent and workdir')
+
+    manager.abandonAuthentication(first.id)
+    await expect(
+      manager.prepareTerminalAuthentication(second.id, 'browser-login')
+    ).resolves.toMatchObject({ challenge: { id: second.id } })
+  })
+
+  it('reserves a challenge before asynchronous launch validation', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+    let resolveLaunch!: (value: {
+      agentId: string
+      source: 'manual'
+      distributionType: 'manual'
+      command: string
+      args: string[]
+      env: Record<string, string>
+    }) => void
+    ;(manager as any).resolveLaunchSpec.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLaunch = resolve
+      })
+    )
+
+    const firstStart = manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    await vi.waitFor(() => expect((manager as any).resolveLaunchSpec).toHaveBeenCalledOnce())
+    await expect(
+      manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    ).rejects.toThrow('already running')
+
+    resolveLaunch({
+      agentId: 'agent-1',
+      source: 'manual',
+      distributionType: 'manual',
+      command: 'agent',
+      args: [],
+      env: {}
+    })
+    await expect(firstStart).resolves.toMatchObject({ challenge: { id: challenge.id } })
+  })
+
+  it('does not bind a warmup handle while authentication owns it', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    ;(manager as any).handles.set('agent-1::/tmp/workspace', handle)
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+
+    await manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    manager.bindProcess('agent-1', 'conv-1')
+
+    expect(handle.state).toBe('warmup')
+    expect(manager.getBoundProcess('conv-1')).toBeNull()
+
+    manager.abandonAuthentication(challenge.id)
+    manager.bindProcess('agent-1', 'conv-1')
+    expect(manager.getBoundProcess('conv-1')).toBe(handle)
+  })
+
+  it('consumes a terminal challenge before reconnecting', async () => {
+    const manager = createManager()
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+    await manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    vi.spyOn(manager, 'getConnection').mockRejectedValue(new Error('reconnect failed'))
+
+    await expect(manager.completeTerminalAuthentication(challenge.id)).rejects.toThrow(
+      'reconnect failed'
+    )
+
+    expect(() => manager.getAuthChallenge(challenge.id)).toThrow('unavailable or expired')
+    expect((manager as any).activeAuthScopes.size).toBe(0)
+  })
+
+  it('bounds agent-owned authentication when the ACP request never settles', async () => {
+    vi.useFakeTimers()
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    const handle = createProcessHandle(child)
+    handle.authMethods = [{ id: 'oauth', name: 'OAuth' }]
+    handle.connection = {
+      authenticate: vi.fn(() => new Promise(() => {})),
+      closed: new Promise(() => {})
+    } as any
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+    try {
+      const authentication = manager.authenticateAgent(challenge.id, 'oauth')
+      const rejection = expect(authentication).rejects.toThrow('timed out')
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+      await rejection
+
+      expect(child.kill).toHaveBeenCalledOnce()
+      expect((manager as any).activeAuthScopes.size).toBe(0)
+      expect(() => manager.getAuthChallenge(challenge.id)).toThrow('unavailable or expired')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not expose terminal methods as supported when the capability is disabled', () => {
+    const manager = new AcpProcessManager({
+      publishEvent: publishDeepchatEventMock,
+      providerId: 'acp',
+      resolveLaunchSpec: vi.fn().mockResolvedValue({
+        agentId: 'agent-1',
+        source: 'manual',
+        distributionType: 'manual',
+        command: 'agent',
+        args: [],
+        env: {}
+      }),
+      terminalAuthAvailable: false
+    })
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+
+    expect(challenge.methods).toEqual([
+      { id: 'browser-login', name: 'Browser login', type: 'unsupported' }
+    ])
+  })
+
+  it('rejects terminal authentication when the capability is disabled', async () => {
+    const manager = new AcpProcessManager({
+      publishEvent: publishDeepchatEventMock,
+      providerId: 'acp',
+      resolveLaunchSpec: vi.fn(),
+      terminalAuthAvailable: false
+    })
+    const handle = createProcessHandle(new MockSpawnedChild())
+    handle.authMethods = [
+      { id: 'browser-login', name: 'Browser login', type: 'terminal', args: ['auth'] }
+    ]
+    const challenge = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
+
+    await expect(
+      manager.prepareTerminalAuthentication(challenge.id, 'browser-login')
+    ).rejects.toThrow('Terminal ACP authentication is unavailable')
+  })
 
   it('falls back to the latest agent config when no scoped handle matches', () => {
     const manager = createManager()
@@ -474,8 +699,6 @@ describe('AcpProcessManager config cache fallback', () => {
         })
       })
 
-      const child = new MockSpawnedChild()
-      vi.mocked(spawn).mockReturnValue(child as never)
       vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
         PATH: '/shell/bin'
       })
@@ -504,25 +727,28 @@ describe('AcpProcessManager config cache fallback', () => {
         isDirectory: () => true
       } as fs.Stats)
 
-      await (manager as any).spawnAgentProcess(
+      const launch = await (manager as any).materializeAgentLaunch(
         {
           id: 'agent-1',
           name: 'Agent One',
           command: 'agent'
         },
         '/tmp/workspace',
-        launchSpec
+        launchSpec,
+        {
+          envOverride: {
+            PATH: '/user/bin',
+            USER_ONLY: '1'
+          }
+        }
       )
 
-      expect(spawn).toHaveBeenCalled()
-      const spawnArgs = vi.mocked(spawn).mock.calls[0]
-      const spawnOptions = spawnArgs?.[2]
-      const env = spawnOptions?.env as Record<string, string>
+      const env = launch.env as Record<string, string>
       const pathValue = normalizePathValue((env.PATH || env.Path || '').replace(/;/g, ':'))
 
-      expect(spawnArgs?.[0]).toBe('agent')
-      expect(spawnArgs?.[1]).toEqual([])
-      expect(spawnOptions?.cwd).toBe('/tmp/workspace')
+      expect(launch.command).toBe('agent')
+      expect(launch.args).toEqual([])
+      expect(launch.cwd).toBe('/tmp/workspace')
       expect(env.LAUNCH_ONLY).toBe('1')
       expect(env.USER_ONLY).toBe('1')
       expect(env.ACP_IDE).toBe('deepchat')
@@ -565,17 +791,17 @@ describe('AcpProcessManager config cache fallback', () => {
 
     try {
       await expect(
-        (manager as any).spawnAgentProcess(
+        (manager as any).materializeAgentLaunch(
           {
             id: 'agent-1',
             name: 'Agent One',
             command: 'agent'
           },
           '/tmp/missing-workspace',
-          launchSpec
+          launchSpec,
+          undefined
         )
       ).rejects.toThrow('[ACP] workdir "/tmp/missing-workspace" does not exist for agent agent-1')
-      expect(spawn).not.toHaveBeenCalled()
     } finally {
       existsSpy.mockRestore()
     }

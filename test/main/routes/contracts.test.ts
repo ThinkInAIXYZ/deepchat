@@ -144,8 +144,11 @@ describe('main kernel contracts', () => {
 
     expect(routeKeys).toEqual(
       expect.arrayContaining([
-        'acpTerminal.input',
-        'acpTerminal.kill',
+        'acpAuth.cancel',
+        'acpAuth.input',
+        'acpAuth.inspect',
+        'acpAuth.start',
+        'acpAuth.status',
         'browser.attachCurrentWindow',
         'browser.clearSandboxData',
         'browser.dismissPreview',
@@ -2026,11 +2029,8 @@ describe('main kernel contracts', () => {
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([
-        'acpTerminal.error',
-        'acpTerminal.exited',
-        'acpTerminal.externalDependenciesRequired',
-        'acpTerminal.output',
-        'acpTerminal.started',
+        'acpAuth.output',
+        'acpAuth.stateChanged',
         'appRuntime.guidedOnboardingResumeRequested',
         'appRuntime.guidedOnboardingStartRequested',
         'appRuntime.mcpInstallRequested',

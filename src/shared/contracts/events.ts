@@ -1,12 +1,6 @@
 import type { z } from 'zod'
 import type { EventContract } from './common'
-import {
-  acpTerminalErrorEvent,
-  acpTerminalExitedEvent,
-  acpTerminalExternalDependenciesRequiredEvent,
-  acpTerminalOutputEvent,
-  acpTerminalStartedEvent
-} from './events/acp-terminal.events'
+import { acpAuthOutputEvent, acpAuthStateChangedEvent } from './events/acp-auth.events'
 import { approvalClosedEvent, approvalRequestedEvent } from './events/approvals.events'
 import {
   appRuntimeGuidedOnboardingResumeRequestedEvent,
@@ -152,7 +146,7 @@ import {
 
 export * from './events/browser.events'
 export * from './events/computerUse.events'
-export * from './events/acp-terminal.events'
+export * from './events/acp-auth.events'
 export * from './events/approvals.events'
 export * from './events/app-runtime.events'
 export * from './events/chat.events'
@@ -202,11 +196,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
   [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,
   [semanticNotificationEvent.name]: semanticNotificationEvent,
-  [acpTerminalStartedEvent.name]: acpTerminalStartedEvent,
-  [acpTerminalOutputEvent.name]: acpTerminalOutputEvent,
-  [acpTerminalExitedEvent.name]: acpTerminalExitedEvent,
-  [acpTerminalErrorEvent.name]: acpTerminalErrorEvent,
-  [acpTerminalExternalDependenciesRequiredEvent.name]: acpTerminalExternalDependenciesRequiredEvent,
+  [acpAuthOutputEvent.name]: acpAuthOutputEvent,
+  [acpAuthStateChangedEvent.name]: acpAuthStateChangedEvent,
   [appRuntimeStartDeeplinkRequestedEvent.name]: appRuntimeStartDeeplinkRequestedEvent,
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:

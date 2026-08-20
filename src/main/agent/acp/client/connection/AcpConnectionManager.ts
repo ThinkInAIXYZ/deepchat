@@ -21,7 +21,8 @@ export class AcpConnectionManager {
       resolveLaunchSpec: (agentId, workdir) => agentSettings.resolveAcpLaunchSpec(agentId, workdir),
       getAgentState: (agentId) => agentSettings.getAcpAgentState(agentId),
       getNpmRegistry: async () => registry.getNpmRegistry(),
-      getUvRegistry: async () => registry.getUvRegistry()
+      getUvRegistry: async () => registry.getUvRegistry(),
+      terminalAuthAvailable: true
     })
   }
 

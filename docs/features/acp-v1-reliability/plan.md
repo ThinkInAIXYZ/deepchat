@@ -126,7 +126,9 @@ interface AcpCapabilitySnapshot {
 ```
 
 - `buildClientCapabilities` 只声明 DeepChat 已真实支持的能力。
-- 首轮实现中，`fs`、`terminal` 继续声明；`auth.terminal` 只能在 terminal auth flow 完成后声明。
+- `fs`、`terminal` 继续声明；`auth.terminal` 只在交互 runner、typed route/event 和 renderer
+  surface 已实现且可用时随 `initialize` 声明。Terminal auth 的规范以
+  `docs/features/acp-terminal-auth/spec.md` 为准。
 - 初始化失败分三类展示：protocol version mismatch、process exited、timeout。
 - 初始化返回的 `models`、`modes`、`configOptions` 统一走 `normalizeAcpConfigState`，并发布 ready event。
 
@@ -143,8 +145,8 @@ interface AcpCapabilitySnapshot {
 | Auth type | 对接方式 |
 | --- | --- |
 | `agent` 或默认类型 | 直接调用 `connection.authenticate({ methodId })`，成功后刷新 status；失败保留错误详情 |
-| `env_var` | 在 agent settings 中标出必需 env var；缺失时不启动 prompt；设置后重启 agent 并重新 initialize |
-| `terminal` | 在 DeepChat 控制的 terminal/auth runner 中执行 agent 指定流程；完成后重新 initialize；只有该能力完成后才声明 `auth.terminal=true` |
+| legacy `env_var` | 首轮不新增凭证表单；显示为 unsupported，并引导使用现有 manual env override |
+| `terminal` | 直接运行当前连接的同一 materialized command/base args，加上 method args/env；exit 0 后重连并重新 initialize；不得把 terminal method ID 传给 `authenticate` |
 
 `logout` 只在 `agentCapabilities.auth.logout` 存在时启用。logout 成功后关闭或失效当前 ACP session handle，避免继续使用旧认证上下文。
 

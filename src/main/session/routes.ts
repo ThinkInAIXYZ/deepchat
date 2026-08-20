@@ -256,9 +256,9 @@ export function createSessionRoutes(deps: {
       sessionsEnsureAcpDraftRoute.name,
       async (rawInput) => {
         const input = sessionsEnsureAcpDraftRoute.input.parse(rawInput)
-        return sessionsEnsureAcpDraftRoute.output.parse({
-          session: await deps.lifecycle.ensureAcpDraftSession(input)
-        })
+        return sessionsEnsureAcpDraftRoute.output.parse(
+          await deps.lifecycle.ensureAcpDraftSession(input)
+        )
       }
     ],
     [

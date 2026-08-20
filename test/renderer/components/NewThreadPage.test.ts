@@ -64,7 +64,31 @@ const setup = async (options?: {
     agentId: string
     projectDir: string
     permissionMode?: string
-  }) => Promise<{ id: string; providerId?: string; modelId?: string } | null>
+  }) => Promise<
+    | {
+        status: 'ready'
+        session: { id: string; providerId?: string; modelId?: string }
+      }
+    | {
+        status: 'auth_required'
+        session: { id: string; providerId?: string; modelId?: string }
+        challenge: {
+          id: string
+          agentId: string
+          agentName: string
+          workdir: string
+          origin: 'draft_session'
+          sessionId: string
+          methods: Array<{
+            id: string
+            name: string
+            type: 'agent' | 'terminal' | 'env_var' | 'unsupported'
+            supported: boolean
+          }>
+        }
+      }
+    | null
+  >
   selectedProject?: {
     path: string
     name: string
@@ -243,7 +267,7 @@ const setup = async (options?: {
     ensureAcpDraftSession: vi.fn().mockImplementation(
       options?.ensureAcpDraftSession ??
         (() => {
-          return Promise.resolve({ id: 'draft-1' })
+          return Promise.resolve({ status: 'ready', session: { id: 'draft-1' } })
         })
     )
   }
@@ -358,6 +382,7 @@ const setup = async (options?: {
         DropdownMenuLabel: passthrough('DropdownMenuLabel'),
         DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
         Icon: true,
+        AcpAuthDialog: true,
         ChatInputToolbar: true
       }
     }
@@ -906,9 +931,12 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     const { wrapper, sessionStore, modelClient } = await setup({
       ensureAcpDraftSession: () =>
         Promise.resolve({
-          id: 'draft-1',
-          providerId: 'acp',
-          modelId: 'runtime-agent'
+          status: 'ready',
+          session: {
+            id: 'draft-1',
+            providerId: 'acp',
+            modelId: 'runtime-agent'
+          }
         }),
       modelCapabilities: {
         'acp:runtime-agent': { supportsAudioInput: false }
@@ -1315,12 +1343,13 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {
-    let resolveOld: ((value: { id: string }) => void) | null = null
-    let resolveNew: ((value: { id: string }) => void) | null = null
-    const oldPromise = new Promise<{ id: string }>((resolve) => {
+    const ready = (id: string) => ({ status: 'ready' as const, session: { id } })
+    let resolveOld: ((value: ReturnType<typeof ready>) => void) | null = null
+    let resolveNew: ((value: ReturnType<typeof ready>) => void) | null = null
+    const oldPromise = new Promise<ReturnType<typeof ready>>((resolve) => {
       resolveOld = resolve
     })
-    const newPromise = new Promise<{ id: string }>((resolve) => {
+    const newPromise = new Promise<ReturnType<typeof ready>>((resolve) => {
       resolveNew = resolve
     })
 
@@ -1332,7 +1361,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         if (agentId === 'acp-agent-2' && projectDir === '/tmp/workspace-2') {
           return newPromise
         }
-        return Promise.resolve({ id: 'unexpected' })
+        return Promise.resolve(ready('unexpected'))
       }
     })
 
@@ -1346,13 +1375,60 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     projectStore.selectedProject = { path: '/tmp/workspace-2', name: 'workspace-2' }
     await flushPromises()
 
-    resolveOld?.({ id: 'draft-old' })
+    resolveOld?.(ready('draft-old'))
     await flushPromises()
     expect((wrapper.vm as any).acpDraftSessionId).not.toBe('draft-old')
 
-    resolveNew?.({ id: 'draft-new' })
+    resolveNew?.(ready('draft-new'))
     await flushPromises()
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-new')
+  })
+
+  it('preserves the local draft and retries setup after authentication succeeds', async () => {
+    let callCount = 0
+    const ensureAcpDraftSession = vi.fn(async () => {
+      callCount += 1
+      if (callCount === 1) {
+        return {
+          status: 'auth_required' as const,
+          session: { id: 'draft-auth', providerId: 'acp', modelId: 'acp-agent' },
+          challenge: {
+            id: 'challenge-1',
+            agentId: 'acp-agent',
+            agentName: 'ACP Agent',
+            workdir: '/tmp/workspace',
+            origin: 'draft_session' as const,
+            sessionId: 'draft-auth',
+            methods: [
+              {
+                id: 'browser-login',
+                name: 'Browser login',
+                type: 'terminal' as const,
+                supported: true
+              }
+            ]
+          }
+        }
+      }
+      return { status: 'ready' as const, session: { id: 'draft-auth' } }
+    })
+    const { wrapper } = await setup({ ensureAcpDraftSession })
+
+    expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-auth')
+    expect((wrapper.vm as any).acpAuthChallenge?.id).toBe('challenge-1')
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+
+    await (wrapper.vm as any).handleAcpAuthSucceeded()
+    await flushPromises()
+
+    expect(ensureAcpDraftSession).toHaveBeenCalledTimes(2)
+    expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-auth')
+    expect((wrapper.vm as any).acpAuthChallenge).toBeNull()
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
   })
 
   it('handles null ensureAcpDraftSession result without throwing', async () => {

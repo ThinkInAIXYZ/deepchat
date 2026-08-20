@@ -60,12 +60,6 @@ import { createPlatformRoutes } from '@/platform/routes'
 import { createHookRoutes } from '@/hook/routes'
 import { createAppSettingsRoutes } from '@/app/settingsRoutes'
 import { createAppRoutes } from '@/app/routes'
-import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
-
-vi.mock('@/agent/acp/launch/acpInitHelper', () => ({
-  writeToTerminal: vi.fn(),
-  killTerminal: vi.fn()
-}))
 
 type MockWindow = {
   id: number
@@ -398,7 +392,10 @@ function createRuntime() {
     createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' }),
     createDetachedSession: vi.fn().mockResolvedValue(sessionSnapshot),
     createSubagentSession: vi.fn().mockResolvedValue(sessionSnapshot),
-    ensureAcpDraftSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    ensureAcpDraftSession: vi.fn().mockResolvedValue({
+      status: 'ready',
+      session: sessionSnapshot
+    }),
     forkSession: vi.fn().mockResolvedValue(sessionSnapshot),
     deleteSession: vi.fn().mockResolvedValue(undefined)
   }
@@ -1736,7 +1733,23 @@ function createRuntime() {
       void sqlitePresenter.recordSettingsActivity(input)
     }
   })
-  const acpRoutes = createAcpRoutes()
+  const acpAuth = {
+    inspect: vi.fn().mockResolvedValue({
+      id: 'challenge-1',
+      agentId: 'agent-1',
+      agentName: 'Agent One',
+      workdir: '/tmp',
+      methods: [],
+      origin: 'settings_probe'
+    }),
+    start: vi.fn().mockResolvedValue({ challengeId: 'challenge-1', state: 'running', version: 1 }),
+    write: vi.fn(),
+    cancel: vi.fn().mockReturnValue(true),
+    getStatus: vi
+      .fn()
+      .mockReturnValue({ challengeId: 'challenge-1', state: 'required', version: 1 })
+  }
+  const acpRoutes = createAcpRoutes({ auth: acpAuth as never })
   const deviceRoutes = createDeviceRoutes({
     device: deviceService,
     resetDataByType: appDataReset.resetDataByType,
@@ -1816,6 +1829,7 @@ function createRuntime() {
 
   return {
     settings,
+    acpAuth,
     runtime: (() => {
       const runtime = createRouteDispatcher({
         appDatabaseMaintenance,
@@ -3209,22 +3223,29 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches ACP terminal command routes through the terminal helper', async () => {
-    const { runtime } = createRuntime()
+  it('dispatches caller-scoped ACP authentication terminal routes', async () => {
+    const { runtime, acpAuth } = createRuntime()
     const context = createRendererRouteContext(42, 7)
 
+    await dispatchDeepchatRoute(runtime, 'acpAuth.inspect', { agentId: 'agent-1' }, context)
     const inputResult = await dispatchDeepchatRoute(
       runtime,
-      'acpTerminal.input',
-      { data: 'hello\n' },
+      'acpAuth.input',
+      { runId: 'run-1', data: 'hello\n' },
       context
     )
-    const killResult = await dispatchDeepchatRoute(runtime, 'acpTerminal.kill', {}, context)
+    const cancelResult = await dispatchDeepchatRoute(
+      runtime,
+      'acpAuth.cancel',
+      { runId: 'run-1' },
+      context
+    )
 
-    expect(writeToTerminal).toHaveBeenCalledWith('hello\n')
-    expect(killTerminal).toHaveBeenCalledTimes(1)
+    expect(acpAuth.inspect).toHaveBeenCalledWith('agent-1', undefined, 42)
+    expect(acpAuth.write).toHaveBeenCalledWith('run-1', 42, 'hello\n')
+    expect(acpAuth.cancel).toHaveBeenCalledWith('run-1', 42)
     expect(inputResult).toEqual({ sent: true })
-    expect(killResult).toEqual({ killed: true })
+    expect(cancelResult).toEqual({ cancelled: true })
   })
 
   it('dispatches shortcut routes through ShortcutPresenter', async () => {

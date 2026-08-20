@@ -1,4 +1,4 @@
-export * from './AcpTerminalClient'
+export * from './AcpAuthClient'
 export * from './AppRuntimeClient'
 export * from './BrowserClient'
 export * from './ConfigClient'

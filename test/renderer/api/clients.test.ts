@@ -1,7 +1,7 @@
 import { isReactive, reactive } from 'vue'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
-import { createAcpTerminalClient } from '../../../src/renderer/api/AcpTerminalClient'
+import { createAcpAuthClient } from '../../../src/renderer/api/AcpAuthClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
 import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
 import { createComputerUseClient } from '../../../src/renderer/api/ComputerUseClient'
@@ -36,10 +36,29 @@ describe('renderer api clients', () => {
         .fn()
         .mockImplementation(async (routeName: string, payload?: Record<string, unknown>) => {
           switch (routeName) {
-            case 'acpTerminal.input':
+            case 'acpAuth.inspect':
+              return {
+                challenge: {
+                  id: 'challenge-1',
+                  agentId: 'agent-1',
+                  agentName: 'Agent One',
+                  workdir: '/tmp',
+                  methods: [],
+                  origin: 'settings_probe'
+                }
+              }
+            case 'acpAuth.start':
+            case 'acpAuth.status':
+              return {
+                challengeId: 'challenge-1',
+                runId: 'run-1',
+                state: 'running',
+                version: 1
+              }
+            case 'acpAuth.input':
               return { sent: true }
-            case 'acpTerminal.kill':
-              return { killed: true }
+            case 'acpAuth.cancel':
+              return { cancelled: true }
             case 'shortcut.register':
               return { registered: true }
             case 'shortcut.unregister':
@@ -1158,30 +1177,37 @@ describe('renderer api clients', () => {
     }
   }
 
-  it('routes ACP terminal commands and events through the shared registry names', async () => {
+  it('routes ACP authentication commands and events through the shared registry names', async () => {
     const bridge = createBridge()
-    const client = createAcpTerminalClient(bridge)
+    const client = createAcpAuthClient(bridge)
     const listener = vi.fn()
 
-    await client.sendInput('hello\n')
-    await client.kill()
-    client.onStarted(listener)
+    await client.inspect('agent-1', '/tmp')
+    await client.start('challenge-1', 'terminal')
+    await client.sendInput('run-1', 'hello\n')
+    await client.cancel('run-1')
+    await client.getStatus('challenge-1')
     client.onOutput(listener)
-    client.onExited(listener)
-    client.onError(listener)
-    client.onExternalDependenciesRequired(listener)
+    client.onStateChanged(listener)
 
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'acpTerminal.input', { data: 'hello\n' })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'acpTerminal.kill', {})
-    expect(bridge.on).toHaveBeenNthCalledWith(1, 'acpTerminal.started', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(2, 'acpTerminal.output', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(3, 'acpTerminal.exited', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'acpTerminal.error', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(
-      5,
-      'acpTerminal.externalDependenciesRequired',
-      listener
-    )
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'acpAuth.inspect', {
+      agentId: 'agent-1',
+      workdir: '/tmp'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'acpAuth.start', {
+      challengeId: 'challenge-1',
+      methodId: 'terminal'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'acpAuth.input', {
+      runId: 'run-1',
+      data: 'hello\n'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'acpAuth.cancel', { runId: 'run-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'acpAuth.status', {
+      challengeId: 'challenge-1'
+    })
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'acpAuth.output', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'acpAuth.stateChanged', listener)
   })
 
   it('routes context menu events through the shared registry names', () => {

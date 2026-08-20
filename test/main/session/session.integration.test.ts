@@ -2614,7 +2614,7 @@ describe('Session application coordinators', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await lifecycle.ensureAcpDraftSession({
+      const result = await lifecycle.ensureAcpDraftSession({
         agentId: 'acp-coder',
         projectDir: '/tmp/workspace'
       })
@@ -2631,8 +2631,10 @@ describe('Session application coordinators', () => {
       )
       expect(directAcpControl.prepare).toHaveBeenCalledOnce()
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
-      expect(session.isDraft).toBe(true)
-      expect(session.providerId).toBe('acp')
+      expect(result.status).toBe('ready')
+      if (result.status !== 'ready') throw new Error('Expected ready ACP draft session')
+      expect(result.session.isDraft).toBe(true)
+      expect(result.session.providerId).toBe('acp')
     })
 
     it('reuses existing empty draft session for same agent and project', async () => {
@@ -2660,15 +2662,17 @@ describe('Session application coordinators', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await lifecycle.ensureAcpDraftSession({
+      const result = await lifecycle.ensureAcpDraftSession({
         agentId: 'acp-coder',
         projectDir: '/tmp/workspace'
       })
 
       expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
       expect(directAcpControl.prepare).toHaveBeenCalledOnce()
-      expect(session.id).toBe('draft-1')
-      expect(session.isDraft).toBe(true)
+      expect(result.status).toBe('ready')
+      if (result.status !== 'ready') throw new Error('Expected ready ACP draft session')
+      expect(result.session.id).toBe('draft-1')
+      expect(result.session.isDraft).toBe(true)
     })
   })
 

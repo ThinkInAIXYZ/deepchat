@@ -10,6 +10,7 @@ import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'
 import type { AcpAgentSnapshot, AcpInstanceScope } from './ports'
+import { isAcpAuthenticationRequiredError } from '../runtime/acpAuthentication'
 
 export interface AcpAgentRuntimeSessionInput {
   sessionId: AppSessionId
@@ -148,6 +149,7 @@ export class AcpAgentRuntime {
         }
         return instance
       } catch (error) {
+        if (isAcpAuthenticationRequiredError(error)) throw error
         try {
           await instance.close()
         } catch (closeError) {

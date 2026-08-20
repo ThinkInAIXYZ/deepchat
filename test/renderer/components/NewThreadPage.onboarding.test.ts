@@ -222,6 +222,7 @@ const setup = async () => {
     attachTo: document.body,
     global: {
       stubs: {
+        AcpAuthDialog: true,
         TooltipProvider: passthrough('TooltipProvider'),
         DcButton: {
           template: '<button type="button" v-bind="$attrs"><slot /></button>'

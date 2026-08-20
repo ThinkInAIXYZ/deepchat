@@ -33,6 +33,7 @@
 | --- | --- |
 | [architecture/local-control-plane/](./architecture/local-control-plane/) | CLI V1 已实现；全量测试与生产构建通过，当前平台 unpack 受发布 runtime 下载网络阻塞 |
 | [features/acp-v1-reliability/](./features/acp-v1-reliability/) | ACP capability、auth、session lifecycle 与 diagnostics 待实施 |
+| [features/acp-terminal-auth/](./features/acp-terminal-auth/) | Issue #2144；ACP v1 Preview terminal auth、交互终端、重连与一次性 session retry 已实现 |
 | [features/cua-cross-platform-computer-use/](./features/cua-cross-platform-computer-use/) | 已实现主体，等待 CI platform matrix 验证 |
 | [features/mcp-oauth-authentication/](./features/mcp-oauth-authentication/) | 已实现主体，等待真实 OAuth smoke |
 | [architecture/mcp-v2-protocol/](./architecture/mcp-v2-protocol/) | v2 与 legacy wire 已落地，等待外部互操作验证及兼容窗口结束 |

@@ -28,6 +28,8 @@ import type {
   ResolvedSessionAssignment,
   ResolvedSubagentAssignment
 } from './contracts'
+import { isAcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
+import type { EnsureAcpDraftResult } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import { LiveDelegationSubagentContextSchema } from '@shared/orchestration/liveDelegation'
 import {
@@ -401,7 +403,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     agentId: string
     projectDir: string
     permissionMode?: PermissionMode
-  }): Promise<SessionWithState> {
+  }): Promise<EnsureAcpDraftResult> {
     const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('ACP draft session requires an agentId.')
 
@@ -444,7 +446,25 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
     }
 
-    await this.dependencies.workdir.prepareDirectAcpSession(record.id)
+    try {
+      await this.dependencies.workdir.prepareDirectAcpSession(record.id)
+    } catch (error) {
+      if (!isAcpAuthenticationRequiredError(error)) throw error
+      this.dependencies.projection.notify({
+        sessionIds: [record.id],
+        reason: createdDraftSession ? 'created' : 'updated'
+      })
+      return {
+        status: 'auth_required',
+        session: {
+          ...record,
+          status: 'error',
+          providerId: 'acp',
+          modelId: canonicalAgentId
+        },
+        challenge: error.challenge
+      }
+    }
     this.dependencies.projection.notify({
       sessionIds: [record.id],
       reason: createdDraftSession ? 'created' : 'updated'
@@ -453,10 +473,13 @@ export class SessionLifecycle implements SessionLifecyclePort {
       .resolveSession(toAppSessionId(record.id))
       .snapshot()
     return {
-      ...record,
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? 'acp',
-      modelId: state?.modelId ?? canonicalAgentId
+      status: 'ready',
+      session: {
+        ...record,
+        status: state?.status ?? 'idle',
+        providerId: state?.providerId ?? 'acp',
+        modelId: state?.modelId ?? canonicalAgentId
+      }
     }
   }
 

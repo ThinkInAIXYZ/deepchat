@@ -278,7 +278,7 @@ import {
 } from '@/cli'
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
-import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
+import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
@@ -1048,6 +1048,24 @@ export async function createMainProcessControl(dependencies: {
     registry: {
       getNpmRegistry: () => mcpService.getNpmRegistry(),
       getUvRegistry: () => mcpService.getUvRegistry()
+    }
+  })
+  const acpAuthService = new AcpAuthService({
+    owner: acpRuntimeOwner,
+    agentSettings,
+    sendToRenderer: (webContentsId, name, payload) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) return
+      target.send(DEEPCHAT_EVENT_CHANNEL, createDeepchatEventEnvelope(name, payload))
+    },
+    onRendererDestroyed: (webContentsId, callback) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(callback)
+        return () => {}
+      }
+      target.once('destroyed', callback)
+      return () => target.removeListener('destroyed', callback)
     }
   })
   providerRuntime = new ProviderRuntime(
@@ -2879,7 +2897,7 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
-    const acpRoutes = createAcpRoutes()
+    const acpRoutes = createAcpRoutes({ auth: acpAuthService })
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
       restartApplication,
@@ -3261,7 +3279,7 @@ export async function createMainProcessControl(dependencies: {
       appLifecycleState = 'stopping'
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
-      await runDestroyStep('acpInitTerminal.kill', () => killTerminal())
+      await runDestroyStep('acpAuth.shutdown', () => acpAuthService.shutdown())
       try {
         await destroy()
       } finally {

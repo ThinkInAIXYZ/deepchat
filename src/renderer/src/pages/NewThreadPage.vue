@@ -107,7 +107,7 @@
             :is-acp-session="isAcpSelectedAgent"
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
-            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
+            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput || isAcpAuthRequired"
             :is-attachment-preparation-pending="isPreparingAttachments"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
@@ -124,7 +124,12 @@
                 :show-search="isSearchAvailable"
                 :search-enabled="isSearchEnabled"
                 :has-input="hasDraftInput"
-                :send-disabled="isAcpWorkdirUnavailable || isSubmittingInput || !hasDraftInput"
+                :send-disabled="
+                  isAcpWorkdirUnavailable ||
+                  isSubmittingInput ||
+                  isAcpAuthRequired ||
+                  !hasDraftInput
+                "
                 :is-preparing-attachments="isPreparingAttachments"
                 @attach="onAttach"
                 @toggle-search="toggleSearch"
@@ -134,6 +139,23 @@
               />
             </template>
           </ChatInputBox>
+        </div>
+
+        <div
+          v-if="acpAuthChallenge"
+          class="mt-3 w-full max-w-4xl flex items-center justify-between gap-4 rounded-lg border px-3 py-2"
+        >
+          <div class="min-w-0">
+            <div class="text-sm font-medium">
+              {{ t('settings.acp.auth.requiredTitle', { name: acpAuthChallenge.agentName }) }}
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{ t('settings.acp.auth.requiredDescription') }}
+            </div>
+          </div>
+          <DcButton size="sm" class="shrink-0" @click="acpAuthDialogOpen = true">
+            {{ t('settings.mcp.authenticate') }}
+          </DcButton>
         </div>
 
         <!-- Status bar -->
@@ -161,6 +183,12 @@
         @expert="handleActiveChatGuideExpert"
         @primary="handleActiveChatGuidePrimary"
       />
+
+      <AcpAuthDialog
+        v-model:open="acpAuthDialogOpen"
+        :challenge="acpAuthChallenge"
+        @succeeded="handleAcpAuthSucceeded"
+      />
     </div>
   </TooltipProvider>
 </template>
@@ -186,6 +214,7 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
 import {
   openChatStatusBarModelPicker,
   switchAttachmentToVisionModel,
@@ -214,6 +243,7 @@ import type {
   UserMessageInlineItem,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type { AcpAuthChallenge } from '@shared/types/acp'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import {
   resolveChatModelByQuery,
@@ -258,6 +288,9 @@ const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
 const isSubmittingInput = ref(false)
 const isPreparingAttachments = ref(false)
+const acpAuthChallenge = ref<AcpAuthChallenge | null>(null)
+const acpAuthDialogOpen = ref(false)
+const isAcpAuthRequired = computed(() => Boolean(acpAuthChallenge.value))
 const activeSubmission = ref<ActiveNewThreadSubmission | null>(null)
 const guideRootRef = ref<HTMLElement | null>(null)
 const agentGuideTargetRef = ref<HTMLElement | null>(null)
@@ -1338,7 +1371,11 @@ async function handleOpenFolderPicker() {
   }
 }
 
-const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
+const ensureAcpDraftSession = async (
+  agentId: string,
+  projectPath: string,
+  openAuthDialog = true
+) => {
   const projectDir = projectPath.trim()
   if (!projectDir) return
 
@@ -1355,7 +1392,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await sessionClient.ensureAcpDraftSession({
+    const result = await sessionClient.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode
@@ -1368,6 +1405,15 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
       return
     }
+    if (result.status === 'auth_required') {
+      acpDraftSessionId.value = result.session.id
+      acpDraftModelSelection.value = { providerId: 'acp', modelId: agentId }
+      acpAuthChallenge.value = result.challenge
+      acpAuthDialogOpen.value = openAuthDialog
+      lastAcpDraftKey.value = null
+      return
+    }
+    const session = result.session
     const sessionId = typeof session?.id === 'string' ? session.id.trim() : ''
     if (!sessionId) {
       console.warn('[NewThreadPage] ensureAcpDraftSession returned invalid session:', session)
@@ -1384,6 +1430,8 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
       session.modelId.trim()
         ? { providerId: session.providerId.trim(), modelId: session.modelId.trim() }
         : { providerId: 'acp', modelId: agentId }
+    acpAuthChallenge.value = null
+    acpAuthDialogOpen.value = false
     lastAcpDraftKey.value = draftKey
   } catch (error) {
     if (requestSeq !== acpDraftRequestSeq.value) {
@@ -1443,6 +1491,8 @@ watch(
       acpDraftSessionId.value = null
       acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
+      acpAuthChallenge.value = null
+      acpAuthDialogOpen.value = false
       return
     }
     cancelEnsureDraftTask = scheduleStartupDeferredTask(async () => {
@@ -1451,6 +1501,15 @@ watch(
   },
   { immediate: true }
 )
+
+async function handleAcpAuthSucceeded() {
+  const agentId = agentStore.selectedAgentId
+  const projectPath = projectStore.selectedProject?.path?.trim()
+  acpAuthDialogOpen.value = false
+  acpAuthChallenge.value = null
+  if (!agentId || !projectPath) return
+  await ensureAcpDraftSession(agentId, projectPath, false)
+}
 
 watch(
   [
