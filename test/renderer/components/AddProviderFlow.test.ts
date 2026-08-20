@@ -148,12 +148,30 @@ describe('AddProviderFlow', () => {
 
     expect(wrapper.emitted('created')).toBeUndefined()
     expect(wrapper.find('[data-testid="add-provider-success"]').exists()).toBe(true)
+    // No models loaded → the fallback copy renders instead of "Loaded 0...".
+    expect(wrapper.get('[data-testid="add-provider-success-description"]').text()).toBe(
+      'settings.provider.addFlow.successNoModels'
+    )
 
     await wrapper.get('[data-testid="add-provider-start-chatting"]').trigger('click')
     await flushPromises()
 
     expect(windowClient.focusMainWindow).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('created')).toHaveLength(1)
+  })
+
+  it('shows the loaded-model summary when models are available', async () => {
+    const { wrapper, fillForm } = await setup({
+      validateResult: { isOk: true, errorMsg: null, models: [{ id: 'm1' }] }
+    })
+
+    await fillForm()
+    await wrapper.get('[data-testid="add-provider-connect"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="add-provider-success-description"]').text()).toBe(
+      'settings.provider.addFlow.successDescription'
+    )
   })
 
   it('still completes the success flow when model recommendations fail', async () => {

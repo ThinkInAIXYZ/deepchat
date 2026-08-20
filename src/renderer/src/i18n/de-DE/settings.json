@@ -1602,6 +1602,7 @@
       "failed": "Verbindung fehlgeschlagen. Konfiguration prüfen und erneut versuchen.",
       "successTitle": "{name} ist verbunden",
       "successDescription": "{count} Modelle geladen und {selected} vorausgewählt. Die Auswahl kann unten angepasst werden.",
+      "successNoModels": "Verbunden. Noch keine Modelle verfügbar.",
       "startChatting": "Chat starten",
       "viewModels": "Modelle anzeigen"
     },

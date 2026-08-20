@@ -1602,6 +1602,7 @@
       "failed": "Bağlantı başarısız. Yapılandırmayı kontrol edip yeniden deneyin.",
       "successTitle": "{name} bağlandı",
       "successDescription": "{count} model yüklendi ve {selected} tanesi önceden seçildi. Seçimi aşağıdan ayarlayabilirsiniz.",
+      "successNoModels": "Bağlandı. Henüz kullanılabilir model yok.",
       "startChatting": "Sohbete başla",
       "viewModels": "Modelleri görüntüle"
     },

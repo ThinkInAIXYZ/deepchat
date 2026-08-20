@@ -1602,6 +1602,7 @@
       "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại.",
       "successTitle": "Đã kết nối {name}",
       "successDescription": "Đã tải {count} mô hình và chọn sẵn {selected}. Bạn có thể điều chỉnh bên dưới.",
+      "successNoModels": "Đã kết nối. Chưa có mô hình nào khả dụng.",
       "startChatting": "Bắt đầu trò chuyện",
       "viewModels": "Xem mô hình"
     },

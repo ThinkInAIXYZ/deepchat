@@ -1238,6 +1238,7 @@
       "failed": "接続に失敗しました。設定を確認して再試行してください。",
       "successTitle": "{name} が接続されました",
       "successDescription": "{count} 個のモデルを読み込み、{selected} 個を事前選択しました。下で調整できます。",
+      "successNoModels": "接続しました。利用可能なモデルはまだありません。",
       "startChatting": "チャットを開始",
       "viewModels": "モデルを表示"
     },

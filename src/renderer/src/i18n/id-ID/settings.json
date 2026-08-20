@@ -1602,6 +1602,7 @@
       "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi.",
       "successTitle": "{name} terhubung",
       "successDescription": "Memuat {count} model dan memilih {selected} di awal. Anda dapat menyesuaikannya di bawah.",
+      "successNoModels": "Terhubung. Belum ada model yang tersedia.",
       "startChatting": "Mulai mengobrol",
       "viewModels": "Lihat model"
     },

@@ -1238,6 +1238,7 @@
       "failed": "Échec de la connexion. Vérifiez la configuration et réessayez.",
       "successTitle": "{name} est connecté",
       "successDescription": "{count} modèles chargés et {selected} présélectionnés. Vous pouvez ajuster la sélection ci-dessous.",
+      "successNoModels": "Connecté. Aucun modèle disponible pour le moment.",
       "startChatting": "Commencer à discuter",
       "viewModels": "Voir les modèles"
     },

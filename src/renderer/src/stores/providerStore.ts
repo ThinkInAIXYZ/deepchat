@@ -514,6 +514,7 @@ export const useProviderStore = defineStore('provider', () => {
     await saveProviderOrder()
     await unmarkProviderConfigured(providerId)
     await clearProviderHealth(providerId)
+    stagedApiChangeQueues.delete(providerId)
     await refreshProviders()
   }
 

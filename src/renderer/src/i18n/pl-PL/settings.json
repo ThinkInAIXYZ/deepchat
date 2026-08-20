@@ -1602,6 +1602,7 @@
       "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie.",
       "successTitle": "{name} jest połączony",
       "successDescription": "Wczytano {count} modeli i wstępnie wybrano {selected}. Wybór można dostosować poniżej.",
+      "successNoModels": "Połączono. Brak dostępnych modeli.",
       "startChatting": "Rozpocznij czat",
       "viewModels": "Zobacz modele"
     },

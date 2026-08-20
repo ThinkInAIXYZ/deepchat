@@ -1602,6 +1602,7 @@
       "failed": "连接失败，请检查配置后重试。",
       "successTitle": "{name} 已连接",
       "successDescription": "已加载 {count} 个模型，预选 {selected} 个，可在下方继续调整。",
+      "successNoModels": "已连接，暂无可用的模型。",
       "startChatting": "开始聊天",
       "viewModels": "查看模型"
     },

@@ -1238,6 +1238,7 @@
       "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב.",
       "successTitle": "{name} מחובר",
       "successDescription": "נטענו {count} מודלים ונבחרו מראש {selected}. ניתן להתאים את הבחירה למטה.",
+      "successNoModels": "מחובר. אין מודלים זמינים עדיין.",
       "startChatting": "להתחיל לשוחח",
       "viewModels": "הצגת מודלים"
     },

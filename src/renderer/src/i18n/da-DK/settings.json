@@ -1171,6 +1171,7 @@
       "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen.",
       "successTitle": "{name} er forbundet",
       "successDescription": "Indlæste {count} modeller og forudvalgte {selected}. Du kan justere valget nedenfor.",
+      "successNoModels": "Forbundet. Ingen modeller tilgængelige endnu.",
       "startChatting": "Begynd at chatte",
       "viewModels": "Se modeller"
     },

@@ -1602,6 +1602,7 @@
       "failed": "Error de conexión. Revisa la configuración e inténtalo de nuevo.",
       "successTitle": "{name} está conectado",
       "successDescription": "Se cargaron {count} modelos y se preseleccionaron {selected}. Puedes ajustar la selección abajo.",
+      "successNoModels": "Conectado. Aún no hay modelos disponibles.",
       "startChatting": "Empezar a chatear",
       "viewModels": "Ver modelos"
     },

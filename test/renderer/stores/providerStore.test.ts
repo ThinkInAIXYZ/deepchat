@@ -136,4 +136,42 @@ describe('providerStore.stageProviderApiChange', () => {
       baseUrl: 'U1'
     })
   })
+
+  it('keeps the previous configuration when the first queued edit fails validation', async () => {
+    const { store, providerClient } = await setupStore()
+
+    const deferreds: ReturnType<typeof createDeferred<{ isOk: boolean }>>[] = []
+    const stagedDrafts: Array<Record<string, unknown>> = []
+
+    providerClient.validateDraftProvider.mockImplementation(
+      async (draft: Record<string, unknown>) => {
+        stagedDrafts.push(draft)
+        const deferred = createDeferred<{ isOk: boolean }>()
+        deferreds.push(deferred)
+        return deferred.promise
+      }
+    )
+
+    const keyEdit = store.stageProviderApiChange('p1', { apiKey: 'K1' })
+    const baseEdit = store.stageProviderApiChange('p1', { baseUrl: 'U1' })
+    await flushMicrotasks()
+
+    // The queued key edit fails verification before the endpoint edit runs.
+    deferreds[0].resolve({ isOk: false })
+    await keyEdit
+    await flushMicrotasks()
+
+    // The endpoint edit then validates against the unchanged key.
+    expect(deferreds).toHaveLength(2)
+    expect(stagedDrafts[1]).toMatchObject({ apiKey: '', baseUrl: 'U1' })
+
+    deferreds[1].resolve({ isOk: true })
+    await baseEdit
+
+    // Only the valid endpoint edit is persisted; the rejected key is not.
+    expect(providerClient.updateProviderAtomic).toHaveBeenCalledTimes(1)
+    expect(providerClient.updateProviderAtomic).toHaveBeenNthCalledWith(1, 'p1', {
+      baseUrl: 'U1'
+    })
+  })
 })

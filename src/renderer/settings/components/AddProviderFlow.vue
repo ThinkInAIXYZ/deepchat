@@ -33,12 +33,14 @@
               {{ t('settings.provider.addFlow.successTitle', { name: form.name }) }}
             </h3>
           </div>
-          <p class="text-sm text-muted-foreground">
+          <p data-testid="add-provider-success-description" class="text-sm text-muted-foreground">
             {{
-              t('settings.provider.addFlow.successDescription', {
-                count: loadedModelCount,
-                selected: selectedModelCount
-              })
+              loadedModelCount === 0
+                ? t('settings.provider.addFlow.successNoModels')
+                : t('settings.provider.addFlow.successDescription', {
+                    count: loadedModelCount,
+                    selected: selectedModelCount
+                  })
             }}
           </p>
           <div class="flex items-center gap-2 pt-1">
