@@ -114,21 +114,6 @@
                 >
                   {{ t('settings.provider.sidebar.disabledTag') }}
                 </span>
-                <TooltipProvider :delay-duration="200">
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <span
-                        :data-testid="`provider-health-${provider.id}`"
-                        class="flex h-4 w-4 shrink-0 items-center justify-center"
-                        :aria-label="healthLabel(provider.id)"
-                        role="img"
-                      >
-                        <span :class="['h-2 w-2 rounded-full', healthDotClass(provider.id)]" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>{{ healthTooltip(provider.id) }}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <DcButton
@@ -355,12 +340,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -374,7 +353,7 @@ import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSet
 
 const route = useRoute()
 const router = useRouter()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const windowClient = createWindowClient()
 const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
@@ -627,51 +606,6 @@ const showProviderSkeleton = computed(
       startupWorkloadStore?.isTaskRunning('settings.providers.summary')) &&
     providerStore.sortedProviders.length === 0
 )
-
-// Compute each provider's health once per render instead of invoking the
-// store lookup repeatedly in healthLabel/healthTooltip/healthDotClass.
-const providerHealthMap = computed(() => {
-  const map: Record<string, { status: string; checkedAt?: number }> = {}
-  for (const provider of providerStore.configuredProviders) {
-    map[provider.id] = providerStore.getProviderHealth(provider.id)
-  }
-  return map
-})
-
-const getHealth = (providerId: string) =>
-  providerHealthMap.value[providerId] ?? { status: 'not_checked' }
-
-const healthLabel = (providerId: string) => {
-  const health = getHealth(providerId)
-  switch (health.status) {
-    case 'verified':
-      return t('settings.provider.health.verified')
-    case 'needs_attention':
-      return t('settings.provider.health.needsAttention')
-    default:
-      return t('settings.provider.health.notChecked')
-  }
-}
-
-const healthTooltip = (providerId: string) => {
-  const health = getHealth(providerId)
-  if (health.checkedAt) {
-    return `${healthLabel(providerId)} · ${new Date(health.checkedAt).toLocaleString(locale.value)}`
-  }
-  return healthLabel(providerId)
-}
-
-const healthDotClass = (providerId: string) => {
-  const health = getHealth(providerId)
-  switch (health.status) {
-    case 'verified':
-      return 'bg-emerald-500'
-    case 'needs_attention':
-      return 'bg-amber-500'
-    default:
-      return 'bg-muted-foreground/40'
-  }
-}
 
 let guideTargetSyncPending = false
 let providerDetailMutationObserver: MutationObserver | null = null
