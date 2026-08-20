@@ -215,6 +215,9 @@ importers:
       '@lucide/vue':
         specifier: ^1.24.0
         version: 1.26.0(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
+      '@pierre/diffs':
+        specifier: 1.2.12
+        version: 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@pinia/colada':
         specifier: ^0.20.0
         version: 0.20.0(pinia@3.0.4(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
@@ -315,8 +318,8 @@ importers:
         specifier: ^0.16.47
         version: 0.16.47
       markstream-vue:
-        specifier: 2.0.0-beta.2
-        version: 2.0.0-beta.2(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
+        specifier: 2.0.1-beta.1
+        version: 2.0.1-beta.1(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
       mermaid:
         specifier: ^11.16.1
         version: 11.16.1
@@ -4600,10 +4603,6 @@ packages:
     resolution: {integrity: sha512-w8ZNZr2mKIc7qeNaQ9AVPT1+iFaI+Avd4xudVOvdDJ8VytREi1Ft5Ih7hd9jjehod8vAM5GMsfQ/TpPf4EyoEA==}
     engines: {node: '>=14.14'}
 
-  fs-extra@11.4.0:
-    resolution: {integrity: sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==}
-    engines: {node: '>=14.14'}
-
   fs-extra@7.0.1:
     resolution: {integrity: sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==}
     engines: {node: '>=6 <7 || >=8'}
@@ -5331,11 +5330,11 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  markstream-core@1.1.0-beta.2:
-    resolution: {integrity: sha512-aylQdwVOT9DP5zhl5+YfO4ZDaflaZaPUIwbxAYNuFNHcqTDiGJ9c9anqD5y6JU/bj8P7SWbxLBfshSH/0hH8/w==}
+  markstream-core@2.0.0:
+    resolution: {integrity: sha512-9SXYsUiZfV7CUC41c6hEkxFD6VbQKMk+RjGOvfr6iKTAtv/aPAnA2IuQYrpwkvbrrZUgYVjgL1I30yg6y/mtIw==}
 
-  markstream-vue@2.0.0-beta.2:
-    resolution: {integrity: sha512-Hc65EsJUiuZfAIxGRGYYB6wWzLQwb7Jur807WHeHWa7T8Q0fu8ZIyS8MuL6CWisIae/mXV3LRC+kqRSG4DieLQ==}
+  markstream-vue@2.0.1-beta.1:
+    resolution: {integrity: sha512-Yq4/fbT9AzRjEv/FqL3QbM2no2rgTt7Xt0R6G37dpcXiJauXL/FBWtM6/VP3APJVkWJ1EMQg1Ryut4PIS+zawg==}
     peerDependencies:
       '@antv/infographic': ^0.2.3
       '@terrastruct/d2': '>=0.1.33'
@@ -6383,8 +6382,8 @@ packages:
       vue:
         optional: true
 
-  stream-markdown-parser@1.2.6-beta.1:
-    resolution: {integrity: sha512-ist3dgeqxFAtxD83N2/i42F8U6Z7pZOuVuQ44oLasN1Me0ju5SyJRpptP1B32x/bo7GyJEMe8jgquExjhSIoww==}
+  stream-markdown-parser@1.2.8:
+    resolution: {integrity: sha512-9owCFbTxBLWMWh0cXEkYq1OS2EsYpUX7WFCcZ4RRmevWDHxLJvCeI8glU0aw70GtFhGuNgNjL9cUkoleVcIzfg==}
 
   stream-monaco@0.0.49:
     resolution: {integrity: sha512-ksZYJXw45NralnpgWqcptqrgDdbGZaTyYmvATvhlK8eY0tyeTxs0iuQzMTF4cpGf5OlIgkNJOfbFh4M97OozSw==}
@@ -7983,7 +7982,7 @@ snapshots:
     dependencies:
       cross-dirname: 0.1.0
       debug: 4.4.3
-      fs-extra: 11.4.0
+      fs-extra: 11.3.6
       minimist: 1.2.8
       postject: 1.0.0-alpha.6
     transitivePeerDependencies:
@@ -11452,13 +11451,6 @@ snapshots:
       jsonfile: 6.2.1
       universalify: 2.0.1
 
-  fs-extra@11.4.0:
-    dependencies:
-      graceful-fs: 4.2.11
-      jsonfile: 6.2.1
-      universalify: 2.0.1
-    optional: true
-
   fs-extra@7.0.1:
     dependencies:
       graceful-fs: 4.2.11
@@ -12206,14 +12198,14 @@ snapshots:
 
   marked@16.4.2: {}
 
-  markstream-core@1.1.0-beta.2: {}
+  markstream-core@2.0.0: {}
 
-  markstream-vue@2.0.0-beta.2(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)):
+  markstream-vue@2.0.1-beta.1(@antv/infographic@0.2.19)(katex@0.16.47)(mermaid@11.16.1)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue-i18n@11.4.7(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)))(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)):
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@floating-ui/dom': 1.8.0
-      markstream-core: 1.1.0-beta.2
-      stream-markdown-parser: 1.2.6-beta.1
+      markstream-core: 2.0.0
+      stream-markdown-parser: 1.2.8
       vue: 3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2)
     optionalDependencies:
       '@antv/infographic': 0.2.19
@@ -13383,7 +13375,7 @@ snapshots:
       - react
       - react-dom
 
-  stream-markdown-parser@1.2.6-beta.1:
+  stream-markdown-parser@1.2.8:
     dependencies:
       markdown-it-container: 4.0.0
       markdown-it-footnote: 4.0.0

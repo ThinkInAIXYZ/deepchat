@@ -4,7 +4,7 @@
 
 PR #2000 已把高频流式消息从稳定历史列表中拆出，并为消息窗口增加 append-only tail
 快路径、批量测量和显式行级 streaming 状态。与此同时，聊天正文仍经过 DeepChat 自己的
-内容防抖，再交给当前精确锁定的 `markstream-vue@2.0.0-beta.2` 的 smooth streaming、解析合并、
+内容防抖，再交给当前精确锁定的 `markstream-vue@2.0.1-beta.1` 的 smooth streaming、解析合并、
 节点批量挂载和重节点延迟机制。增强代码块使用其 `stream-diffs@0.0.2` peer。
 
 当前端到端链路如下：
