@@ -174,7 +174,7 @@
     "@lucide/vue": "^1.24.0",
     "@pinia/colada": "^0.20.0",
     "@playwright/test": "^1.60.0",
-    "@pierre/diffs": "1.2.12",
+    "@pierre/diffs": "^1.2.12",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.3.0",
     "@tiptap/core": "^2.27.2",

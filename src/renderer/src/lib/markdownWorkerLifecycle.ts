@@ -27,6 +27,8 @@ let DiffsWorkerConstructor: (new () => Worker) | null = null
 let diffsWorkerPool: StreamDiffsWorkerPoolLike | null = null
 
 // Keep the highlight pool small; the worker itself does the heavy Shiki work.
+// Four workers cover the typical concurrent code blocks in a streaming chat
+// without excessive memory.
 const STREAM_DIFFS_POOL_SIZE = 4
 
 // Matches the renderer's code-block `themes` prop in MarkdownRenderer.
@@ -60,6 +62,10 @@ function cleanupMarkdownWorkers(): void {
   clearMermaidWorker()
   terminateWorker()
   terminateStreamDiffsWorkerPool()
+  // markstream-vue's terminate calls pool.terminate(), which resets the
+  // @pierre/diffs WorkerPoolManager (initialized=false, workers/caches
+  // cleared), so the cached singleton is safely re-initialized on the next
+  // mount rather than reused in a dead state.
   diffsWorkerPool = null
   initialized = false
 }
@@ -169,10 +175,20 @@ async function ensureStreamDiffsWorkerPool(): Promise<void> {
       }
     })
 
-    diffsWorkerPool = pool
+    // Register with markstream before caching locally so a registration
+    // failure leaves diffsWorkerPool null and the next call retries.
     setStreamDiffsWorkerPool(pool)
+    diffsWorkerPool = pool
   } catch (error) {
     console.error('Failed to initialize stream-diffs worker pool:', error)
+    // If the @pierre/diffs singleton was already created, clear it so the next
+    // call builds a fresh pool instead of reusing a half-initialized one.
+    try {
+      const { terminateWorkerPoolSingleton } = await import('@pierre/diffs/worker')
+      terminateWorkerPoolSingleton()
+    } catch {
+      // Teardown failure is non-fatal; the pool is retried on next mount.
+    }
   }
 }
 
@@ -223,6 +239,10 @@ export async function ensureMarkdownWorkers(): Promise<void> {
     registerCleanup()
   } catch (error) {
     console.error('Failed to initialize markdown workers:', error)
+    // Tear down the already-injected stream-diffs pool so a failed lifecycle
+    // leaves no half-initialized state and the next call retries from scratch.
+    terminateStreamDiffsWorkerPool()
+    diffsWorkerPool = null
     throw error
   }
 }

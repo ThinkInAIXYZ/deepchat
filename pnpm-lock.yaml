@@ -216,7 +216,7 @@ importers:
         specifier: ^1.24.0
         version: 1.26.0(vue@3.5.40(typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2))
       '@pierre/diffs':
-        specifier: 1.2.12
+        specifier: ^1.2.12
         version: 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@pinia/colada':
         specifier: ^0.20.0
