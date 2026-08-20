@@ -122,9 +122,18 @@
         <div v-if="showKeySummary" class="flex w-full items-center gap-2">
           <div
             data-testid="provider-api-key-summary"
-            class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+            class="group flex h-9 flex-1 items-center gap-1 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
           >
-            <span class="truncate font-mono">{{ maskedApiKey }}</span>
+            <span class="min-w-0 flex-1 truncate font-mono">{{ maskedApiKey }}</span>
+            <DcCopyButton
+              data-testid="provider-copy-key-button"
+              :copy-text="provider.apiKey"
+              variant="ghost"
+              size="icon-xs"
+              :tooltip="t('common.copy')"
+              class="shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+              @copied="handleKeyCopied"
+            />
           </div>
           <DcButton
             data-testid="provider-update-key-button"
@@ -243,7 +252,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { DcButton } from '@dc-ui/components/button'
+import { DcButton, DcCopyButton } from '@dc-ui/components/button'
 import {
   Tooltip,
   TooltipContent,
@@ -368,6 +377,14 @@ const startEditingKey = () => {
   isEditingKey.value = true
   apiKey.value = ''
   showApiKey.value = false
+}
+
+const handleKeyCopied = () => {
+  notifyRenderer({
+    kind: 'success',
+    code: 'settings.provider.keyCopied',
+    title: t('common.copySuccess')
+  })
 }
 
 const handleApiKeyChange = (value: string) => {

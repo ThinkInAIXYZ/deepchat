@@ -41,6 +41,19 @@ const buttonStub = defineComponent({
   template: '<button v-bind="$attrs" type="button" @click="$emit(\'click\')"><slot /></button>'
 })
 
+const copyButtonStub = defineComponent({
+  name: 'CopyButton',
+  inheritAttrs: false,
+  emits: ['copied', 'error'],
+  props: {
+    copyText: {
+      type: String,
+      default: ''
+    }
+  },
+  template: '<button v-bind="$attrs" type="button" @click="$emit(\'copied\')"><slot /></button>'
+})
+
 const labelStub = defineComponent({
   name: 'Label',
   inheritAttrs: false,
@@ -114,7 +127,8 @@ async function setup(options?: {
     Input: createInputStub()
   }))
   vi.doMock('@dc-ui/components/button', () => ({
-    DcButton: buttonStub
+    DcButton: buttonStub,
+    DcCopyButton: copyButtonStub
   }))
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: labelStub
@@ -416,6 +430,30 @@ describe('ProviderApiConfig', () => {
     expect((input.element as HTMLInputElement).value).toBe('')
   })
 
+  it('renders a hover-revealed copy button in the masked key summary and copies on click', async () => {
+    const { wrapper, notifyRenderer } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
+    const copyButton = wrapper.get('[data-testid="provider-copy-key-button"]')
+
+    // The button lives inside the summary and is hidden until the row is hovered.
+    expect(summary.find('[data-testid="provider-copy-key-button"]').exists()).toBe(true)
+    expect(copyButton.classes()).toContain('opacity-0')
+    expect(copyButton.classes()).toContain('group-hover:opacity-100')
+    expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('sk-1234567890abcd')
+
+    await copyButton.trigger('click')
+
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        title: 'common.copySuccess'
+      })
+    )
+  })
+
   it('keeps the stored key when the Update key editor is left empty', async () => {
     const { wrapper } = await setup({
       provider: createProvider({ apiKey: 'sk-1234567890abcd' })
@@ -504,7 +542,10 @@ describe('ProviderApiConfig', () => {
       useModelCheckStore: () => ({ openDialog: vi.fn() })
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
-    vi.doMock('@dc-ui/components/button', () => ({ DcButton: buttonStub }))
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub,
+      DcCopyButton: copyButtonStub
+    }))
     vi.doMock('@shadcn/components/ui/label', () => ({ Label: labelStub }))
     vi.doMock('@shadcn/components/ui/tooltip', () => ({
       Tooltip: passthrough('Tooltip'),
