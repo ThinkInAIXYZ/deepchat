@@ -122,9 +122,17 @@
         <div v-if="showKeySummary" class="flex w-full items-center gap-2">
           <div
             data-testid="provider-api-key-summary"
-            class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+            class="group flex h-9 flex-1 items-center gap-1 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
           >
-            <span class="truncate font-mono">{{ maskedApiKey }}</span>
+            <span class="min-w-0 flex-1 truncate font-mono">{{ maskedApiKey }}</span>
+            <DcCopyButton
+              data-testid="provider-copy-key-button"
+              :copy-text="provider.apiKey"
+              variant="ghost"
+              size="icon-xs"
+              :tooltip="t('common.copy')"
+              class="shrink-0 opacity-0 pointer-events-none transition-opacity duration-[var(--dc-motion-fast)] focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover:opacity-100 group-hover:pointer-events-auto"
+            />
           </div>
           <DcButton
             data-testid="provider-update-key-button"
@@ -243,7 +251,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { DcButton } from '@dc-ui/components/button'
+import { DcButton, DcCopyButton } from '@dc-ui/components/button'
 import {
   Tooltip,
   TooltipContent,
@@ -308,6 +316,8 @@ const isEditingKey = ref(false)
 const baseUrlUnlocked = ref(false)
 // After setup the stored key renders as a masked summary; the full secret is
 // never shown again — replacing it goes through the explicit Update key action.
+// The copy button writes the plaintext key to the clipboard as an explicit
+// user action without ever displaying it on screen.
 const showKeySummary = computed(() => !isEditingKey.value && Boolean(props.provider.apiKey?.trim()))
 const maskedApiKey = computed(() => {
   const key = props.provider.apiKey?.trim() ?? ''
