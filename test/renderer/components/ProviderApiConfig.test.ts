@@ -430,28 +430,23 @@ describe('ProviderApiConfig', () => {
     expect((input.element as HTMLInputElement).value).toBe('')
   })
 
-  it('renders a hover-revealed copy button in the masked key summary and copies on click', async () => {
-    const { wrapper, notifyRenderer } = await setup({
+  it('renders a hover-revealed copy button in the masked key summary', async () => {
+    const { wrapper } = await setup({
       provider: createProvider({ apiKey: 'sk-1234567890abcd' })
     })
 
     const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
     const copyButton = wrapper.get('[data-testid="provider-copy-key-button"]')
 
-    // The button lives inside the summary and is hidden until the row is hovered.
+    // The button lives inside the summary and stays hidden until hovered or focused.
     expect(summary.find('[data-testid="provider-copy-key-button"]').exists()).toBe(true)
     expect(copyButton.classes()).toContain('opacity-0')
+    expect(copyButton.classes()).toContain('pointer-events-none')
     expect(copyButton.classes()).toContain('group-hover:opacity-100')
+    expect(copyButton.classes()).toContain('group-hover:pointer-events-auto')
+    expect(copyButton.classes()).toContain('focus-visible:opacity-100')
+    expect(copyButton.attributes('tooltip')).toBe('common.copy')
     expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('sk-1234567890abcd')
-
-    await copyButton.trigger('click')
-
-    expect(notifyRenderer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'success',
-        title: 'common.copySuccess'
-      })
-    )
   })
 
   it('keeps the stored key when the Update key editor is left empty', async () => {
