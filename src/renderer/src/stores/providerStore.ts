@@ -499,18 +499,13 @@ export const useProviderStore = defineStore('provider', () => {
       throw new Error(`Provider ${providerId} not found`)
     }
     const staged: LLM_PROVIDER = { ...current, ...updates }
-    checkingProviderIds.value.add(providerId)
-    try {
-      const result = await validateDraftProvider(staged, { loadModels: false })
-      if (!result.isOk) {
-        return { isOk: false, errorMsg: result.errorMsg }
-      }
-      await updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
-      await recordProviderHealth(providerId, computeHealthFingerprint(staged), true)
-      return { isOk: true, errorMsg: null }
-    } finally {
-      checkingProviderIds.value.delete(providerId)
+    const result = await validateDraftProvider(staged, { loadModels: false })
+    if (!result.isOk) {
+      return { isOk: false, errorMsg: result.errorMsg }
     }
+    await updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
+    await recordProviderHealth(providerId, computeHealthFingerprint(staged), true)
+    return { isOk: true, errorMsg: null }
   }
 
   const removeProvider = async (providerId: string) => {
