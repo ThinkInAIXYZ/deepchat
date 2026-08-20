@@ -646,8 +646,6 @@ const healthLabel = (providerId: string) => {
   switch (health.status) {
     case 'verified':
       return t('settings.provider.health.verified')
-    case 'checking':
-      return t('settings.provider.health.checking')
     case 'needs_attention':
       return t('settings.provider.health.needsAttention')
     default:
@@ -668,8 +666,6 @@ const healthDotClass = (providerId: string) => {
   switch (health.status) {
     case 'verified':
       return 'bg-emerald-500'
-    case 'checking':
-      return 'bg-primary animate-pulse'
     case 'needs_attention':
       return 'bg-amber-500'
     default:
