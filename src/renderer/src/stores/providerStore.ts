@@ -467,10 +467,30 @@ export const useProviderStore = defineStore('provider', () => {
     await recordProviderHealth(provider.id, computeHealthFingerprint(provider), true)
   }
 
-  // Stages a credential/endpoint change for an existing provider: the edited
-  // configuration is verified through the draft boundary first, and only a
-  // successful verification atomically replaces the last working configuration.
-  const stageProviderApiChange = async (
+  // Serializes staged changes per provider so overlapping credential/endpoint
+  // edits cannot interleave read → validate → persist → health recording: each
+  // edit validates against the latest committed state and only ever persists a
+  // configuration that was actually verified.
+  const stagedApiChangeQueues = new Map<string, Promise<unknown>>()
+
+  const stageProviderApiChange = (
+    providerId: string,
+    updates: { apiKey?: string; baseUrl?: string }
+  ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
+    const previous = stagedApiChangeQueues.get(providerId) ?? Promise.resolve()
+    const run = previous.then(
+      () => performStageApiChange(providerId, updates),
+      () => performStageApiChange(providerId, updates)
+    )
+    // Keep the queue alive for the next edit regardless of this one's outcome.
+    stagedApiChangeQueues.set(
+      providerId,
+      run.catch(() => undefined)
+    )
+    return run
+  }
+
+  const performStageApiChange = async (
     providerId: string,
     updates: { apiKey?: string; baseUrl?: string }
   ): Promise<{ isOk: boolean; errorMsg: string | null }> => {

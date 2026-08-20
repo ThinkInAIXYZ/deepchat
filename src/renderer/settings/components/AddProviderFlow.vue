@@ -305,7 +305,14 @@ const connectAndLoad = async () => {
 
     phase.value = 'committing'
     await providerStore.commitValidatedDraft(draft)
-    const selectedCount = await modelStore.applyInitialModelRecommendations(draft.id)
+    let selectedCount = 0
+    try {
+      selectedCount = await modelStore.applyInitialModelRecommendations(draft.id)
+    } catch (error) {
+      // The provider is already persisted and available; a recommendation
+      // failure must not roll the flow back to an error state.
+      console.error('Failed to apply initial model recommendations:', error)
+    }
     if (activeAttempt !== attempt) {
       return
     }

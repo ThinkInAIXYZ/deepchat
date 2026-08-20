@@ -1469,10 +1469,16 @@ export const useModelStore = defineStore('model', () => {
     const recommended = models
       .filter((model) => (model.type ?? ModelType.Chat) === ModelType.Chat)
       .slice(0, 3)
+    let appliedCount = 0
     for (const model of recommended) {
       await updateModelStatus(providerId, model.id, true)
+      // updateModelStatus swallows IPC failures and rolls back the local state,
+      // so only count models whose activation actually landed.
+      if (getLocalModelEnabledState(providerId, model.id) === true) {
+        appliedCount += 1
+      }
     }
-    return recommended.length
+    return appliedCount
   }
 
   const addCustomModelMutation = useIpcMutation({

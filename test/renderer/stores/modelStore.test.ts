@@ -1085,13 +1085,34 @@ describe('modelStore.applyInitialModelRecommendations', () => {
       }
     })
 
-    await store.applyInitialModelRecommendations('openai')
+    const applied = await store.applyInitialModelRecommendations('openai')
 
     expect(modelClient.updateModelStatus.mock.calls.map((call: unknown[]) => call[1])).toEqual([
       'chat-1',
       'chat-2',
       'chat-3'
     ])
+    expect(applied).toBe(3)
+  })
+
+  it('counts only models whose activation actually succeeds', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, false]))
+        ),
+        updateModelStatus: vi.fn(async (_providerId: string, modelId: string) => {
+          if (modelId === 'chat-2') {
+            throw new Error('ipc failed')
+          }
+        })
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(applied).toBe(2)
   })
 
   it('never overwrites an existing selection', async () => {

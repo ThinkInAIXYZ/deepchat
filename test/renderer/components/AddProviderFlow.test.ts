@@ -27,6 +27,7 @@ async function setup(options?: {
     errorMsg: string | null
     models: Array<Record<string, unknown>>
   }
+  recommendationError?: boolean
 }) {
   vi.resetModules()
 
@@ -42,7 +43,13 @@ async function setup(options?: {
   }
 
   const modelStore = {
-    applyInitialModelRecommendations: vi.fn().mockResolvedValue(2)
+    applyInitialModelRecommendations: vi
+      .fn()
+      .mockImplementation(
+        options?.recommendationError
+          ? () => Promise.reject(new Error('recommendations failed'))
+          : () => Promise.resolve(2)
+      )
   }
 
   const windowClient = {
@@ -147,5 +154,22 @@ describe('AddProviderFlow', () => {
 
     expect(windowClient.focusMainWindow).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('created')).toHaveLength(1)
+  })
+
+  it('still completes the success flow when model recommendations fail', async () => {
+    const { wrapper, providerStore, modelStore, fillForm } = await setup({
+      recommendationError: true
+    })
+
+    await fillForm()
+    await wrapper.get('[data-testid="add-provider-connect"]').trigger('click')
+    await flushPromises()
+
+    // The provider was already persisted, so a recommendation failure must not
+    // roll the flow back to an error state.
+    expect(providerStore.commitValidatedDraft).toHaveBeenCalledTimes(1)
+    expect(modelStore.applyInitialModelRecommendations).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="add-provider-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="add-provider-success"]').exists()).toBe(true)
   })
 })
