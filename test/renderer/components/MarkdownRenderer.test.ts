@@ -592,6 +592,29 @@ describe('MarkdownRenderer', () => {
     expect(renderers[0].attributes('data-content')).toBe(fencedContent)
   })
 
+  it('does not split when mixed fence markers are unbalanced', async () => {
+    // One unclosed ``` fence and one unclosed ~~~ fence: combined parity looks
+    // even, but each marker type must be balanced independently.
+    const mixedContent =
+      '```\n' + 'a'.repeat(2000) + '\n\n~~~\n' + 'b'.repeat(2000) + '\n\n' + 'c'.repeat(2000)
+    const { wrapper } = await setup({ streaming: true, content: mixedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(mixedContent)
+  })
+
+  it('does not split mid-paragraph when no blank-line boundary exists', async () => {
+    const noBlankContent = 'word '.repeat(2500)
+    const { wrapper } = await setup({ streaming: true, content: noBlankContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(noBlankContent)
+  })
+
   it('resets the split when a stream shrinks and restarts', async () => {
     const longContent = Array.from(
       { length: 400 },

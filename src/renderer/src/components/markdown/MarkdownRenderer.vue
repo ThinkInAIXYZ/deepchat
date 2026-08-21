@@ -280,28 +280,42 @@ const parseCoalesceMs = computed(() => {
 // a single static document.
 const committedLength = ref(0)
 
-const fenceLineStarts = (s: string): number[] => {
-  const out: number[] = []
+const fenceLineStarts = (s: string): { backtick: number[]; tilde: number[] } => {
+  const backtick: number[] = []
+  const tilde: number[] = []
   const re = /^(`{3,}|~{3,})/gm
   let match: RegExpExecArray | null
-  while ((match = re.exec(s)) !== null) out.push(match.index)
-  return out
+  while ((match = re.exec(s)) !== null) {
+    if (match[1].startsWith('`')) {
+      backtick.push(match.index)
+    } else {
+      tilde.push(match.index)
+    }
+  }
+  return { backtick, tilde }
 }
 
 const findSafeSplit = (content: string, preferred: number, current: number): number => {
   const minSplit = Math.max(0, content.length - STREAM_TAIL_CAP_CHARS)
   const maxSplit = Math.min(content.length, Math.max(0, preferred))
-  // Prefer a blank-line boundary so blocks aren't chopped mid-way.
+  // Prefer a blank-line boundary so blocks/paragraphs aren't chopped mid-way.
   const blankLine = content.lastIndexOf('\n\n', maxSplit)
   let split = blankLine >= minSplit ? Math.min(maxSplit, blankLine + 2) : maxSplit
-  // If the committed prefix ends inside an unclosed code fence, move the split
-  // back before that fence opener so the whole fence stays in the streaming tail.
-  const fenceCount = fenceLineStarts(content.slice(0, split)).length
-  if (fenceCount % 2 === 1) {
-    let opener = -1
-    for (const position of fenceLineStarts(content)) {
-      if (position < split) opener = position
-    }
+  // No blank-line boundary in the window: advancing would chop a long
+  // paragraph/list mid-way. Keep the current split (no advance) until a safe
+  // boundary appears instead of rendering a half-paragraph in the prefix.
+  if (blankLine < minSplit) return current
+  // Fences must be balanced per marker type (` vs ~): an odd count of either
+  // means the committed prefix ends inside an unclosed fence.
+  const fenceStarts = fenceLineStarts(content.slice(0, split))
+  const unbalanced =
+    fenceStarts.backtick.length % 2 === 1
+      ? fenceStarts.backtick
+      : fenceStarts.tilde.length % 2 === 1
+        ? fenceStarts.tilde
+        : null
+  if (unbalanced) {
+    const opener = unbalanced[unbalanced.length - 1]
     const beforeFence = opener >= 0 ? content.lastIndexOf('\n\n', opener) : -1
     // A single fenced block can be larger than the tail cap; committing a piece
     // of it would leave an unterminated code block in the static prefix. Keep
