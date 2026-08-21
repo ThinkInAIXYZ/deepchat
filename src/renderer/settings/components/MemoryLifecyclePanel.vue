@@ -151,6 +151,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
 import type { MemoryLifecycle } from '@shared/contracts/routes'
+import { useMemoryNumberFormatters } from '../lib/useMemoryNumberFormatters'
 
 const props = defineProps<{
   lifecycle: MemoryLifecycle | null
@@ -159,21 +160,7 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-
-const decimalFormatter = computed(
-  () =>
-    new Intl.NumberFormat(locale.value || undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 3
-    })
-)
-const dayFormatter = computed(
-  () =>
-    new Intl.NumberFormat(locale.value || undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1
-    })
-)
+const { formatDecimal: formatScore, formatDays } = useMemoryNumberFormatters()
 const dateFormatter = computed(
   () =>
     new Intl.DateTimeFormat(locale.value || undefined, {
@@ -254,18 +241,10 @@ const archiveConditions = computed(() => {
   ]
 })
 
-function formatScore(value: number): string {
-  return decimalFormatter.value.format(value)
-}
-
 function formatOptionalScore(value: number | null): string {
   return value === null
     ? t('settings.deepchatAgents.memoryManager.lifecycle.forget.notRefreshed')
     : formatScore(value)
-}
-
-function formatDays(value: number): string {
-  return dayFormatter.value.format(value)
 }
 
 function formatTime(value: number): string {

@@ -164,6 +164,7 @@
         </DcSectionCard>
 
         <DcSectionCard
+          data-testid="archive-candidates"
           :title="t('settings.memory.redesign.archiveCandidatesTitle')"
           :description="t('settings.memory.redesign.archiveCandidatesDescription')"
         >
@@ -195,12 +196,12 @@
               <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                 <span>
                   {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.ageDays') }}:
-                  {{ formatNumber(lifecycle.forget.ageDays) }}
+                  {{ formatDays(lifecycle.forget.ageDays) }}
                 </span>
                 <span>
                   {{
                     t('settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore')
-                  }}: {{ formatNumber(lifecycle.forget.decayScore) }}
+                  }}: {{ formatDecimal(lifecycle.forget.decayScore) }}
                 </span>
               </div>
             </li>
@@ -332,6 +333,7 @@ import type {
 import { auditSentenceKey, formatRelativeTime } from './memoryRedesignUtils'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { useMemoryNumberFormatters } from '../lib/useMemoryNumberFormatters'
 
 const props = defineProps<{
   agentId: string
@@ -340,6 +342,8 @@ const props = defineProps<{
 }>()
 
 const { t, te, locale } = useI18n()
+const { formatDecimal, formatDays } = useMemoryNumberFormatters()
+
 const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel')
 const feedback = panelFeedback.feedback
@@ -384,8 +388,12 @@ const reindexFailureReason = computed(() => {
   return t('settings.memory.redesign.reindexInternalReason')
 })
 const recallDiagnostics = computed(() => health.value?.runtime.agent.retrieval.recall)
-const recallLatencyP50 = computed(() => recallDiagnostics.value?.latencyMs.total.p50 ?? '—')
-const recallLatencyP95 = computed(() => recallDiagnostics.value?.latencyMs.total.p95 ?? '—')
+const recallLatencyP50 = computed(() =>
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p50)
+)
+const recallLatencyP95 = computed(() =>
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p95)
+)
 const fallbackCount = computed(() => {
   const counts = recallDiagnostics.value?.degradationCounts
   if (!counts) return 0
@@ -461,8 +469,8 @@ function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 4)}…${id.slice(-6)}` : id
 }
 
-function formatNumber(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(value >= 10 ? 0 : 2) : String(value)
+function formatOptionalDecimal(value: number | null | undefined): string {
+  return value == null ? '—' : formatDecimal(value)
 }
 
 function eventLabel(eventType: string): string {

@@ -180,13 +180,13 @@ describe('MemoryDiagnosticsPanel', () => {
     expect(clearCopy.clearConfirmBody).toContain('Standing directives are kept')
   })
 
-  it('renders Agent recall and process-wide pipeline pressure', async () => {
+  it('renders formatted diagnostics and process-wide pipeline pressure', async () => {
     const health: MemoryHealthDto = structuredClone(baseHealth)
     health.runtime.agent.retrieval.recall.latencyMs.total = {
       samples: 4,
-      p50: 12,
-      p95: 48,
-      max: 50
+      p50: 685.7158329999074,
+      p95: Number.POSITIVE_INFINITY,
+      max: 804
     }
     health.runtime.agent.retrieval.recall.degradationCounts.vectorCold = 3
     health.runtime.process.extractionQueue.depth = 2
@@ -199,18 +199,44 @@ describe('MemoryDiagnosticsPanel', () => {
     health.runtime.process.providerAdmission.admissionDecisions.rateLimited = 2
     const providerPressureSummary =
       'Rate limit {rateLimited} · Capacity {capacityRejected} · Deadline {deadline} · Aborted {aborted} · Late settle {lateSettled}'
-    const { wrapper, t } = await setup(baseStatus, {
+    const { wrapper, memoryClient, t } = await setup(baseStatus, {
       health,
       messages: { 'settings.memory.redesign.providerPressureSummary': providerPressureSummary }
     })
+    memoryClient.getArchiveCandidateLifecyclePreview.mockResolvedValueOnce({
+      ...basePreview,
+      lifecycles: [
+        {
+          memoryId: 'memory-with-floating-point-diagnostics',
+          decayTier: 'archive_candidate',
+          forget: {
+            ageDays: 12.3456,
+            decayScore: 0.123456
+          }
+        }
+      ]
+    })
+    await refreshButton(wrapper).trigger('click')
+    await flushPromises()
 
     const pipeline = wrapper.get('[data-testid="runtime-pipeline"]')
-    expect(pipeline.text()).toContain('12')
-    expect(pipeline.text()).toContain('48')
+    const archiveCandidates = wrapper.get('[data-testid="archive-candidates"]')
+    const pipelineValues = pipeline.findAll('.tabular-nums').map((node) => node.text())
+    const archiveCandidateMetrics = archiveCandidates
+      .findAll('.text-muted-foreground > span')
+      .map((node) => node.text())
+    expect(pipelineValues).toContain('685.716')
+    expect(pipelineValues).toContain('Infinity')
     expect(pipeline.text()).toContain('1250')
     expect(pipeline.text()).toContain('7')
     expect(pipeline.text()).toContain('Rate limit 2')
     expect(pipeline.text()).toContain('Deadline 1')
+    expect(archiveCandidateMetrics).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.ageDays: 12.3'
+    )
+    expect(archiveCandidateMetrics).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore: 0.123'
+    )
     expect(t).toHaveBeenCalledWith('settings.memory.redesign.providerPressureSummary', {
       rateLimited: 2,
       capacityRejected: 0,
