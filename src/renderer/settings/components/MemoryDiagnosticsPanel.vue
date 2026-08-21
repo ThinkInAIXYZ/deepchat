@@ -201,7 +201,7 @@
                 <span>
                   {{
                     t('settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore')
-                  }}: {{ formatScore(lifecycle.forget.decayScore) }}
+                  }}: {{ formatDecimal(lifecycle.forget.decayScore) }}
                 </span>
               </div>
             </li>
@@ -333,6 +333,7 @@ import type {
 import { auditSentenceKey, formatRelativeTime } from './memoryRedesignUtils'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { useMemoryNumberFormatters } from '../lib/useMemoryNumberFormatters'
 
 const props = defineProps<{
   agentId: string
@@ -341,21 +342,7 @@ const props = defineProps<{
 }>()
 
 const { t, te, locale } = useI18n()
-
-const decimalFormatter = computed(
-  () =>
-    new Intl.NumberFormat(locale.value || undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 3
-    })
-)
-const dayFormatter = computed(
-  () =>
-    new Intl.NumberFormat(locale.value || undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1
-    })
-)
+const { formatDecimal, formatDays } = useMemoryNumberFormatters()
 
 const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel')
@@ -402,10 +389,10 @@ const reindexFailureReason = computed(() => {
 })
 const recallDiagnostics = computed(() => health.value?.runtime.agent.retrieval.recall)
 const recallLatencyP50 = computed(() =>
-  formatOptionalMilliseconds(recallDiagnostics.value?.latencyMs.total.p50)
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p50)
 )
 const recallLatencyP95 = computed(() =>
-  formatOptionalMilliseconds(recallDiagnostics.value?.latencyMs.total.p95)
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p95)
 )
 const fallbackCount = computed(() => {
   const counts = recallDiagnostics.value?.degradationCounts
@@ -482,16 +469,8 @@ function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 4)}…${id.slice(-6)}` : id
 }
 
-function formatOptionalMilliseconds(value: number | null | undefined): string {
-  return value == null ? '—' : decimalFormatter.value.format(value)
-}
-
-function formatScore(value: number): string {
-  return decimalFormatter.value.format(value)
-}
-
-function formatDays(value: number): string {
-  return dayFormatter.value.format(value)
+function formatOptionalDecimal(value: number | null | undefined): string {
+  return value == null ? '—' : formatDecimal(value)
 }
 
 function eventLabel(eventType: string): string {

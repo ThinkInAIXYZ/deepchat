@@ -185,7 +185,7 @@ describe('MemoryDiagnosticsPanel', () => {
     health.runtime.agent.retrieval.recall.latencyMs.total = {
       samples: 4,
       p50: 685.7158329999074,
-      p95: 803.200750003092,
+      p95: Number.POSITIVE_INFINITY,
       max: 804
     }
     health.runtime.agent.retrieval.recall.degradationCounts.vectorCold = 3
@@ -226,7 +226,7 @@ describe('MemoryDiagnosticsPanel', () => {
       .findAll('.text-muted-foreground > span')
       .map((node) => node.text())
     expect(pipelineValues).toContain('685.716')
-    expect(pipelineValues).toContain('803.201')
+    expect(pipelineValues).toContain('Infinity')
     expect(pipeline.text()).toContain('1250')
     expect(pipeline.text()).toContain('7')
     expect(pipeline.text()).toContain('Rate limit 2')
