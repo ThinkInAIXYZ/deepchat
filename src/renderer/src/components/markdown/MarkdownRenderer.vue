@@ -4,32 +4,34 @@
     @keydown="handleRendererKeydown"
   >
     <NodeRenderer
-      :content="renderContent"
-      :custom-id="customRendererId"
+      v-for="segment in renderSegments"
+      :key="segment.key"
+      :content="segment.content"
+      :custom-id="segment.customId"
       :isDark="themeStore.isDark"
       :mode="props.mode"
-      :final="resolvedFinal"
-      :smooth-streaming="resolvedSmoothStreaming"
-      :typewriter="resolvedTypewriter"
-      :code-block-stream="isStreaming"
+      :final="segment.final"
+      :smooth-streaming="segment.smoothStreaming"
+      :typewriter="segment.typewriter"
+      :code-block-stream="segment.codeBlockStream"
       :themes="codeBlockThemes"
       :code-block-options="codeBlockOptions"
       :mermaid-props="mermaidProps"
       :fade="false"
       :batch-rendering="true"
-      :initial-render-batch-size="initialRenderBatchSize"
-      :render-batch-size="renderBatchSize"
-      :render-batch-delay="renderBatchDelay"
-      :render-batch-budget-ms="renderBatchBudgetMs"
-      :render-batch-idle-timeout-ms="renderBatchIdleTimeoutMs"
-      :parse-coalesce-ms="parseCoalesceMs"
+      :initial-render-batch-size="segment.initialBatch"
+      :render-batch-size="segment.batchSize"
+      :render-batch-delay="segment.batchDelay"
+      :render-batch-budget-ms="segment.batchBudget"
+      :render-batch-idle-timeout-ms="segment.batchIdle"
+      :parse-coalesce-ms="segment.parseCoalesce"
       :parse-options="parseOptions"
       html-policy="safe"
-      :defer-nodes-until-visible="shouldUseViewportPriority"
-      :viewport-priority="shouldUseViewportPriority"
-      :node-virtual="resolvedNodeVirtual"
-      :max-live-nodes="maxLiveNodes"
-      :live-node-buffer="liveNodeBuffer"
+      :defer-nodes-until-visible="props.virtualizeNodes"
+      :viewport-priority="props.virtualizeNodes"
+      :node-virtual="segment.nodeVirtual"
+      :max-live-nodes="segment.maxLiveNodes"
+      :live-node-buffer="segment.liveNodeBuffer"
       @copy="$emit('copy', $event)"
       @handle-artifact-click="handleArtifactClick"
       @click="handleRendererClick"
@@ -209,7 +211,31 @@ const STREAM_RENDER_BATCH_SIZE = 14
 const STREAM_RENDER_BATCH_DELAY_MS = 8
 const STREAM_RENDER_BATCH_BUDGET_MS = 3
 const STREAM_RENDER_BATCH_IDLE_TIMEOUT_MS = 24
-const STREAM_PARSE_COALESCE_MS = 12
+// Content-update coalescing scales with the accumulated document length.
+// Streaming updates bypass these debouncers entirely (they commit immediately
+// via commitImmediately: main already coalesces renderer snapshots and Markstream
+// owns visible pacing); the length-adaptive levels feed `parseCoalesceMs` during
+// streaming and keep the remaining content-update path debounced (profile:
+// 19-33fps, 1.8s main thread stalls on long streams).
+const CONTENT_UPDATE_COALESCE_LEVELS = [
+  { maxLength: 8_000, debounceMs: 32, maxWaitMs: 64, parseCoalesceMs: 12 },
+  { maxLength: 32_000, debounceMs: 64, maxWaitMs: 128, parseCoalesceMs: 28 },
+  {
+    maxLength: Number.POSITIVE_INFINITY,
+    debounceMs: 120,
+    maxWaitMs: 220,
+    parseCoalesceMs: 48
+  }
+] as const
+
+const contentUpdateCoalesceLevel = (length: number) =>
+  CONTENT_UPDATE_COALESCE_LEVELS.find((level) => length <= level.maxLength) ??
+  CONTENT_UPDATE_COALESCE_LEVELS[CONTENT_UPDATE_COALESCE_LEVELS.length - 1]
+// Streaming render is split into a static committed prefix + a small live tail
+// (see findSafeSplit / renderSegments below). The tail must stay small so each
+// token only re-renders a bounded chunk instead of the whole document.
+const STREAM_TAIL_CAP_CHARS = 6000
+const STREAM_MIN_TAIL_CHARS = 2000
 const STATIC_INITIAL_RENDER_BATCH_SIZE = 96
 const STATIC_RENDER_BATCH_SIZE = 80
 const STATIC_RENDER_BATCH_DELAY_MS = 0
@@ -220,7 +246,6 @@ const STATIC_MAX_LIVE_NODES = 260
 const STATIC_LIVE_NODE_BUFFER = 80
 
 const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
-const shouldUseViewportPriority = computed(() => props.virtualizeNodes)
 const resolvedNodeVirtual = computed(() =>
   shouldVirtualizeNodes.value ? ('auto' as const) : false
 )
@@ -241,9 +266,170 @@ const renderBatchBudgetMs = computed(() =>
 const renderBatchIdleTimeoutMs = computed(() =>
   isStreaming.value ? STREAM_RENDER_BATCH_IDLE_TIMEOUT_MS : STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS
 )
-const parseCoalesceMs = computed(() =>
-  isStreaming.value ? STREAM_PARSE_COALESCE_MS : STATIC_PARSE_COALESCE_MS
+const parseCoalesceMs = computed(() => {
+  if (!isStreaming.value) return STATIC_PARSE_COALESCE_MS
+  return contentUpdateCoalesceLevel(renderContent.value.length).parseCoalesceMs
+})
+
+// --- Streaming split-render (committed prefix + live tail) ---
+// Each token currently makes Markstream re-render the whole document, so long
+// streams stall the renderer. Instead, once the stream passes the tail cap we
+// render a static committed prefix (only re-rendered when the split advances,
+// with node virtualization limiting the cost) plus a small streaming tail that
+// is cheap to re-render per token. On completion everything re-renders once as
+// a single static document.
+const committedLength = ref(0)
+
+const fenceLineStarts = (s: string): number[] => {
+  const out: number[] = []
+  const re = /^(`{3,}|~{3,})/gm
+  let match: RegExpExecArray | null
+  while ((match = re.exec(s)) !== null) out.push(match.index)
+  return out
+}
+
+const findSafeSplit = (content: string, preferred: number, current: number): number => {
+  const minSplit = Math.max(0, content.length - STREAM_TAIL_CAP_CHARS)
+  const maxSplit = Math.min(content.length, Math.max(0, preferred))
+  // Prefer a blank-line boundary so blocks aren't chopped mid-way.
+  const blankLine = content.lastIndexOf('\n\n', maxSplit)
+  let split = blankLine >= minSplit ? Math.min(maxSplit, blankLine + 2) : maxSplit
+  // If the committed prefix ends inside an unclosed code fence, move the split
+  // back before that fence opener so the whole fence stays in the streaming tail.
+  const fenceCount = fenceLineStarts(content.slice(0, split)).length
+  if (fenceCount % 2 === 1) {
+    let opener = -1
+    for (const position of fenceLineStarts(content)) {
+      if (position < split) opener = position
+    }
+    const beforeFence = opener >= 0 ? content.lastIndexOf('\n\n', opener) : -1
+    // A single fenced block can be larger than the tail cap; committing a piece
+    // of it would leave an unterminated code block in the static prefix. Keep
+    // the current split (no advance) until the fence closes.
+    if (beforeFence < minSplit || beforeFence < 0) return current
+    split = Math.min(maxSplit, beforeFence + 2)
+  }
+  return split
+}
+
+// Split only once a committed prefix actually exists: a stream that cannot be
+// split safely (e.g. a single fenced block larger than the tail cap) keeps
+// `committedLength` at 0 and renders as a single streaming document.
+const usingSplitRender = computed(() => isStreaming.value && committedLength.value > 0)
+const committedContent = computed(() =>
+  usingSplitRender.value ? renderContent.value.slice(0, committedLength.value) : ''
 )
+const tailContent = computed(() =>
+  usingSplitRender.value ? renderContent.value.slice(committedLength.value) : renderContent.value
+)
+
+watch(
+  renderContent,
+  (content) => {
+    if (!isStreaming.value) return
+    // A regenerated/interrupted stream can shrink below an already-advanced
+    // split; reset so the split restarts from scratch instead of keeping a
+    // stale prefix (which would eat the whole content into the prefix).
+    if (content.length < committedLength.value) {
+      committedLength.value = 0
+    }
+    if (content.length - committedLength.value > STREAM_TAIL_CAP_CHARS) {
+      committedLength.value = findSafeSplit(
+        content,
+        content.length - STREAM_MIN_TAIL_CHARS,
+        committedLength.value
+      )
+    }
+  },
+  { immediate: true }
+)
+
+watch(isStreaming, (streaming, wasStreaming) => {
+  if (wasStreaming && !streaming) committedLength.value = 0
+})
+
+type RenderSegment = {
+  key: string
+  content: string
+  final: boolean
+  codeBlockStream: boolean
+  smoothStreaming: boolean | 'auto'
+  typewriter: boolean | 'simple'
+  nodeVirtual: boolean | 'auto'
+  maxLiveNodes: number
+  liveNodeBuffer: number
+  initialBatch: number
+  batchSize: number
+  batchDelay: number
+  batchBudget: number
+  batchIdle: number
+  parseCoalesce: number
+  customId: string
+}
+
+const renderSegments = computed<RenderSegment[]>(() => {
+  if (!usingSplitRender.value) {
+    return [
+      {
+        key: 'full',
+        content: renderContent.value,
+        final: resolvedFinal.value,
+        codeBlockStream: isStreaming.value,
+        smoothStreaming: resolvedSmoothStreaming.value,
+        typewriter: resolvedTypewriter.value,
+        nodeVirtual: resolvedNodeVirtual.value,
+        maxLiveNodes: maxLiveNodes.value,
+        liveNodeBuffer: liveNodeBuffer.value,
+        initialBatch: initialRenderBatchSize.value,
+        batchSize: renderBatchSize.value,
+        batchDelay: renderBatchDelay.value,
+        batchBudget: renderBatchBudgetMs.value,
+        batchIdle: renderBatchIdleTimeoutMs.value,
+        parseCoalesce: parseCoalesceMs.value,
+        customId: customRendererId.value
+      }
+    ]
+  }
+  return [
+    {
+      key: 'prefix',
+      content: committedContent.value,
+      final: true,
+      codeBlockStream: false,
+      smoothStreaming: false,
+      typewriter: false,
+      nodeVirtual: 'auto',
+      maxLiveNodes: STATIC_MAX_LIVE_NODES,
+      liveNodeBuffer: STATIC_LIVE_NODE_BUFFER,
+      initialBatch: STATIC_INITIAL_RENDER_BATCH_SIZE,
+      batchSize: STATIC_RENDER_BATCH_SIZE,
+      batchDelay: STATIC_RENDER_BATCH_DELAY_MS,
+      batchBudget: STATIC_RENDER_BATCH_BUDGET_MS,
+      batchIdle: STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS,
+      parseCoalesce: STATIC_PARSE_COALESCE_MS,
+      customId: `${customRendererId.value}::prefix`
+    },
+    {
+      key: 'tail',
+      content: tailContent.value,
+      final: false,
+      codeBlockStream: true,
+      smoothStreaming: resolvedSmoothStreaming.value,
+      typewriter: resolvedTypewriter.value,
+      nodeVirtual: false,
+      maxLiveNodes: 0,
+      liveNodeBuffer: 0,
+      initialBatch: STREAM_INITIAL_RENDER_BATCH_SIZE,
+      batchSize: STREAM_RENDER_BATCH_SIZE,
+      batchDelay: STREAM_RENDER_BATCH_DELAY_MS,
+      batchBudget: STREAM_RENDER_BATCH_BUDGET_MS,
+      batchIdle: STREAM_RENDER_BATCH_IDLE_TIMEOUT_MS,
+      parseCoalesce: parseCoalesceMs.value,
+      customId: `${customRendererId.value}::tail`
+    }
+  ]
+})
+
 const { navigateLink } = useMarkdownLinkNavigation({
   linkContext: effectiveLinkContext
 })
@@ -358,23 +544,16 @@ function handleRendererMouseout(event: MouseEvent): void {
 // which would repaint stale markdown and reintroduce the completion flash.
 let contentRevision = 0
 
-const updateContentFast = useDebounceFn(
-  (revision: number, value: string) => {
-    if (revision === contentRevision) {
-      renderContent.value = value
-    }
-  },
-  32,
-  { maxWait: 64 }
-)
-const updateContentSlow = useDebounceFn(
-  (revision: number, value: string) => {
-    if (revision === contentRevision) {
-      renderContent.value = value
-    }
-  },
-  96,
-  { maxWait: 180 }
+const contentUpdateDebouncers = CONTENT_UPDATE_COALESCE_LEVELS.map((level) =>
+  useDebounceFn(
+    (revision: number, value: string) => {
+      if (revision === contentRevision) {
+        renderContent.value = value
+      }
+    },
+    level.debounceMs,
+    { maxWait: level.maxWaitMs }
+  )
 )
 
 const updateContent = (value: string, commitImmediately: boolean) => {
@@ -388,12 +567,10 @@ const updateContent = (value: string, commitImmediately: boolean) => {
     return
   }
 
-  if (props.smoothStreaming && value.length > 12_000) {
-    updateContentSlow(revision, normalizedValue)
-    return
-  }
-
-  updateContentFast(revision, normalizedValue)
+  const levelIndex = isStreaming.value
+    ? CONTENT_UPDATE_COALESCE_LEVELS.indexOf(contentUpdateCoalesceLevel(value.length))
+    : 0
+  contentUpdateDebouncers[levelIndex](revision, normalizedValue)
 }
 
 watch([() => props.content, isStreaming], ([value, streaming], [, wasStreaming]) => {

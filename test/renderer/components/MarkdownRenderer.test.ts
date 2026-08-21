@@ -559,4 +559,54 @@ describe('MarkdownRenderer', () => {
     referenceElement.dispatchEvent(new MouseEvent('mouseout'))
     expect(hideReferenceMock).toHaveBeenCalled()
   })
+
+  it('splits long streaming content into a static prefix and a live tail', async () => {
+    const longContent = Array.from(
+      { length: 400 },
+      (_, index) => `paragraph ${index} of text`
+    ).join('\n\n')
+    const { wrapper } = await setup({ streaming: true, content: longContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(2)
+
+    const prefix = renderers[0]
+    const tail = renderers[1]
+    expect(prefix.attributes('data-final')).toBe('true')
+    expect(prefix.attributes('data-custom-id')).toMatch(/::prefix$/)
+    expect(tail.attributes('data-final')).toBe('false')
+    expect(tail.attributes('data-custom-id')).toMatch(/::tail$/)
+    // Prefix + tail together reconstruct the whole document.
+    expect(prefix.attributes('data-content') + tail.attributes('data-content')).toBe(longContent)
+  })
+
+  it('does not split inside a single oversized code fence', async () => {
+    const fencedContent = '```\n' + 'a'.repeat(6500) + '\n```'
+    const { wrapper } = await setup({ streaming: true, content: fencedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    // The whole fence stays in the single streaming renderer, never split.
+    expect(renderers[0].attributes('data-content')).toBe(fencedContent)
+  })
+
+  it('resets the split when a stream shrinks and restarts', async () => {
+    const longContent = Array.from(
+      { length: 400 },
+      (_, index) => `paragraph ${index} of text`
+    ).join('\n\n')
+    const { wrapper } = await setup({ streaming: true, content: longContent })
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="node-renderer"]')).toHaveLength(2)
+
+    const restartedContent = 'short regenerated answer'
+    await wrapper.setProps({ content: restartedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(restartedContent)
+  })
 })
