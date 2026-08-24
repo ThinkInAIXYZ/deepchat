@@ -244,6 +244,15 @@ const STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS = 16
 const STATIC_PARSE_COALESCE_MS = 0
 const STATIC_MAX_LIVE_NODES = 260
 const STATIC_LIVE_NODE_BUFFER = 80
+// The committed prefix advances in ~6 KB chunks. Mounting a whole chunk at once
+// queued a burst of GPU rasterization (0.2-1 s stalls in profiles), so the
+// prefix renders with gentle, budget-capped batching that spreads the mount and
+// raster work across frames.
+const PREFIX_INITIAL_RENDER_BATCH_SIZE = 12
+const PREFIX_RENDER_BATCH_SIZE = 8
+const PREFIX_RENDER_BATCH_DELAY_MS = 12
+const PREFIX_RENDER_BATCH_BUDGET_MS = 4
+const PREFIX_RENDER_BATCH_IDLE_TIMEOUT_MS = 40
 
 const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
 const resolvedNodeVirtual = computed(() =>
@@ -415,11 +424,11 @@ const renderSegments = computed<RenderSegment[]>(() => {
       nodeVirtual: 'auto',
       maxLiveNodes: STATIC_MAX_LIVE_NODES,
       liveNodeBuffer: STATIC_LIVE_NODE_BUFFER,
-      initialBatch: STATIC_INITIAL_RENDER_BATCH_SIZE,
-      batchSize: STATIC_RENDER_BATCH_SIZE,
-      batchDelay: STATIC_RENDER_BATCH_DELAY_MS,
-      batchBudget: STATIC_RENDER_BATCH_BUDGET_MS,
-      batchIdle: STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS,
+      initialBatch: PREFIX_INITIAL_RENDER_BATCH_SIZE,
+      batchSize: PREFIX_RENDER_BATCH_SIZE,
+      batchDelay: PREFIX_RENDER_BATCH_DELAY_MS,
+      batchBudget: PREFIX_RENDER_BATCH_BUDGET_MS,
+      batchIdle: PREFIX_RENDER_BATCH_IDLE_TIMEOUT_MS,
       parseCoalesce: STATIC_PARSE_COALESCE_MS,
       customId: `${customRendererId.value}::prefix`
     },
