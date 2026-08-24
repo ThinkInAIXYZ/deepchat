@@ -1280,9 +1280,7 @@ describe('DeepChatAgentHarness', () => {
       projectDir: prepared.projectDir,
       emitRefreshBeforeStream: true,
       preserveResolvedRepresentations: true,
-      ...(prepared.sourceMessageId
-        ? { preStreamAnchorMessageId: prepared.sourceMessageId }
-        : {}),
+      ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
       beforeHistoryPreparation: () =>
         transcriptMutations.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
     })

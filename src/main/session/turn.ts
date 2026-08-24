@@ -372,9 +372,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         projectDir: prepared.projectDir,
         emitRefreshBeforeStream: true,
         preserveResolvedRepresentations: true,
-        ...(prepared.sourceMessageId
-          ? { preStreamAnchorMessageId: prepared.sourceMessageId }
-          : {}),
+        ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
         beforeHistoryPreparation: () =>
           this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
       }
