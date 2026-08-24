@@ -14121,11 +14121,15 @@ describe('DeepChatAgentHarness', () => {
         estimateToolReserveTokens(providerTools) +
         providerMaxTokens
 
-      expect(llmProvider.generateText).toHaveBeenCalled()
+      // Retry kept the user prompt in the transcript, so the pre-stream
+      // compaction already fit the request below the budget and no further
+      // runtime compaction is needed. The durable signal is the conversation
+      // checkpoint that the compaction added to the assembled request.
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
       expect(providerCoreStream).toHaveBeenCalledTimes(1)
       expect(providerMessages[0].content).toBe(baseSystemPrompt)
       expect(
-        providerMessages.some(
+        runMessages.some(
           (message: any) =>
             message.role === 'user' && String(message.content).includes('Persisted Rolling Summary')
         )

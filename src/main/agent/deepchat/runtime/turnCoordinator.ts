@@ -800,6 +800,13 @@ export class TurnCoordinator {
             state.providerId,
             state.modelId
           )
+        // A retried user prompt that is anchored and kept in the transcript is
+        // already part of the history, so compaction must not project it a second
+        // time (avoids inflating the context estimate).
+        const anchorMessageId = instance.getPreStreamTranscriptAnchorId()
+        const newUserContentInHistory = Boolean(
+          anchorMessageId && historyRecords.some((record) => record.id === anchorMessageId)
+        )
         return await this.runPreStreamStep(
           {
             sessionId,
@@ -822,6 +829,7 @@ export class TurnCoordinator {
               preserveEmptyInterleavedReasoning:
                 interleavedReasoning.preserveEmptyReasoningContent === true,
               newUserContent: content,
+              newUserContentInHistory,
               ...(pendingContextPressure ? { forceContextPressure: true } : {}),
               historyRecords,
               signal: preStreamAbortSignal
