@@ -14204,6 +14204,25 @@ describe('DeepChatAgentHarness', () => {
       // live turn, so it must appear exactly once in the assembled request.
       expect(retriedPromptCount).toBe(1)
     })
+
+    it('does not duplicate a pinned first user prompt on retry', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([
+        makeDeepchatUserRow(1, 'pinned retry me', 'retry-user'),
+        makeDeepchatAssistantRow(2, 'failed reply', 'retry-assistant', 'error')
+      ])
+
+      await retryMessage('s1', 'retry-user')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
+      const retriedPromptCount = runMessages.filter(
+        (message) => message.role === 'user' && String(message.content).includes('pinned retry me')
+      ).length
+      // The retried prompt is also the pinned first user; it must still appear
+      // exactly once (as the live turn, not also as the pinned leading message).
+      expect(retriedPromptCount).toBe(1)
+    })
   })
 
   describe('respondToolInteraction', () => {

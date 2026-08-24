@@ -1842,7 +1842,15 @@ export function buildCacheAwareContextWithMetadata(
           undefined,
           options.runPinnedFirstUser
         )
-    : null
+      : null
+  // When the reused retried prompt is itself the pinned first user, drop it from
+  // the leading pinned message: the live newUserMessage already carries it, so
+  // pinning it again would send the prompt twice.
+  const emittedPinnedFirstUser =
+    options.newUserContentMessageId != null &&
+    pinnedFirstUser?.record.id === options.newUserContentMessageId
+      ? null
+      : pinnedFirstUser
   const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
     .filter((record) => record.id !== pinnedFirstUser?.record.id)
     .filter((record) => record.id !== options.newUserContentMessageId)
@@ -1855,7 +1863,11 @@ export function buildCacheAwareContextWithMetadata(
     undefined,
     options.providerReplayProjector
   )
-  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context, pinnedFirstUser)
+  const leadingMessages = buildCacheAwareLeadingMessages(
+    systemPrompt,
+    context,
+    emittedPinnedFirstUser
+  )
   const inputBudget = resolveFiniteInputBudget(
     contextLength,
     reserveTokens,
@@ -1940,7 +1952,7 @@ export function buildCacheAwareContextWithMetadata(
       emittedTurns: historyTurns,
       cursor,
       context,
-      pinnedFirstUser,
+      pinnedFirstUser: emittedPinnedFirstUser,
       includesSystemPrompt: Boolean(systemPrompt)
     })
   }
