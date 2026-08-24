@@ -7,7 +7,13 @@ import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvide
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
-const CODEX_5_6_RESOURCE_MODEL_IDS = ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra']
+const CODEX_RESOURCE_MODEL_IDS = [
+  'gpt-5.6',
+  'gpt-5.6-sol',
+  'gpt-5.6-luna',
+  'gpt-5.6-terra',
+  'gpt-image-2'
+]
 
 describe('OpenAI Codex provider registration', () => {
   it('keeps OpenAI Codex separate from the OpenAI API-key provider', () => {
@@ -39,14 +45,14 @@ describe('OpenAI Codex provider registration', () => {
     expect(definition?.checkModelId).toBe('gpt-5.6-luna')
   })
 
-  it('has Codex 5.6 models in the bundled OpenAI provider database', async () => {
+  it('has curated Codex models in the bundled OpenAI provider database', async () => {
     const fs = await vi.importActual<typeof import('fs')>('fs')
     const providerDbPath = path.join(process.cwd(), 'resources', 'model-db', 'providers.json')
     const db = JSON.parse(fs.readFileSync(providerDbPath, 'utf-8'))
     const openaiProvider = db.providers.openai
     const modelIds = new Set(openaiProvider.models.map((model: { id: string }) => model.id))
 
-    for (const modelId of CODEX_5_6_RESOURCE_MODEL_IDS) {
+    for (const modelId of CODEX_RESOURCE_MODEL_IDS) {
       expect(modelIds.has(modelId)).toBe(true)
     }
   })
@@ -140,6 +146,15 @@ describe('OpenAI Codex provider registration', () => {
           limit: { context: 1050000, output: 128000 },
           tool_call: true,
           reasoning: { supported: true }
+        },
+        {
+          id: 'gpt-image-2',
+          display_name: 'GPT Image 2',
+          modalities: { input: ['text', 'image'], output: ['image'] },
+          limit: { context: 8192, output: 8192 },
+          type: 'imageGeneration',
+          tool_call: false,
+          reasoning: { supported: false }
         }
       ]
     } as any)
@@ -155,7 +170,8 @@ describe('OpenAI Codex provider registration', () => {
       'gpt-5.6-luna',
       'gpt-5.4',
       'gpt-5.4-mini',
-      'gpt-5.3-codex-spark'
+      'gpt-5.3-codex-spark',
+      'gpt-image-2'
     ])
     expect(models.some((model) => model.id === 'gpt-5.6')).toBe(false)
     expect(models.every((model) => model.group === 'Codex')).toBe(true)

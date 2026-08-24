@@ -73,6 +73,13 @@ describe('Provider DB strict matching and user overrides', () => {
               tool_call: true
             },
             {
+              id: 'gpt-image-2',
+              type: 'imageGeneration',
+              limit: { context: 8192, output: 8192 },
+              modalities: { input: ['text', 'image'], output: ['image'] },
+              tool_call: false
+            },
+            {
               id: 'opaque-renderer',
               type: 'imageGeneration',
               limit: { context: 65_536, output: 8_192 },
@@ -305,6 +312,21 @@ describe('Provider DB strict matching and user overrides', () => {
       maxTokens: 32_000,
       reasoning: true
     })
+  })
+
+  it('resolves the OpenAI Codex image model through the OpenAI catalog identity', () => {
+    const helper = new ModelConfigHelper()
+
+    const config = helper.getModelConfig('gpt-image-2', 'openai-codex')
+
+    expect(config).toMatchObject({
+      type: ModelType.ImageGeneration,
+      apiEndpoint: ApiEndpointType.Image,
+      vision: false,
+      functionCall: false
+    })
+
+    expect(helper.getModelConfig('gpt-image-2', 'openai').vision).toBe(true)
   })
 
   it('applies partial fallbacks when limit fields are missing', () => {

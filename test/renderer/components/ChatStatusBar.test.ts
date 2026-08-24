@@ -1758,17 +1758,24 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
   })
 
-  it('uses the dedicated image settings panel for gpt-image-2', async () => {
+  it.each([
+    { providerId: 'openai', providerName: 'OpenAI', apiType: 'openai' },
+    {
+      providerId: 'openai-codex',
+      providerName: 'OpenAI Codex',
+      apiType: 'openai-codex'
+    }
+  ])('uses the dedicated image settings panel for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
-      preferredModel: { providerId: 'openai', modelId: 'gpt-image-2' },
-      defaultModel: { providerId: 'openai', modelId: 'gpt-image-2' },
+      preferredModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
+      defaultModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
       extraModelGroups: [
         {
-          providerId: 'openai',
-          providerName: 'OpenAI',
-          apiType: 'openai',
+          providerId: provider.providerId,
+          providerName: provider.providerName,
+          apiType: provider.apiType,
           models: [{ id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }]
         }
       ],
@@ -1780,7 +1787,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).selectModel('openai', 'gpt-image-2')
+    await (wrapper.vm as any).selectModel(provider.providerId, 'gpt-image-2')
     await flushPromises()
 
     expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)

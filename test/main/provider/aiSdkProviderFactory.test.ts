@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateText, streamText } from 'ai'
+import { generateImage, generateText, streamText } from 'ai'
+
+const codexAuthState = vi.hoisted(() => ({
+  getBackendAuth: vi.fn(),
+  forceRefreshBackendAuth: vi.fn()
+}))
 
 vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }
+}))
+
+vi.mock('../../../src/main/provider/auth/openaiCodex', () => ({
+  getGlobalOpenAICodexAuth: () => codexAuthState
 }))
 
 import {
@@ -239,6 +248,65 @@ describe('AI SDK provider factory', () => {
       'https://example.openai.azure.com/openai/v1/images/generations?api-version=v1'
     )
     expect(context.resolvedModelId).toBe('my-gpt-4.1-deployment')
+  })
+
+  it('generates images through the OpenAI Codex image endpoint', async () => {
+    const imageBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: 1,
+          data: [{ b64_json: imageBase64 }]
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    codexAuthState.getBackendAuth.mockResolvedValueOnce({
+      accessToken: 'codex-token',
+      accountId: 'acct-1'
+    })
+
+    const context = createAiSdkProviderContext({
+      providerKind: 'openai-codex',
+      provider: {
+        id: 'openai-codex',
+        name: 'OpenAI Codex',
+        apiType: 'openai-codex',
+        apiKey: '',
+        baseUrl: 'https://chatgpt.com/backend-api/codex',
+        enable: true
+      } as any,
+      providerSettings: {} as any,
+      defaultHeaders: {},
+      modelId: 'gpt-image-2',
+      wrapThinkReasoning: false
+    })
+
+    expect(context.imageModel).toBeDefined()
+    expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
+    expect(context.imageEndpoint).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+
+    const result = await generateImage({
+      model: context.imageModel,
+      prompt: 'A red fox in a field',
+      size: '1024x1024'
+    })
+
+    expect(result.image.base64).toBe(imageBase64)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [requestUrl, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(requestUrl).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+    expect(JSON.parse(String(requestInit.body))).toEqual({
+      model: 'gpt-image-2',
+      prompt: 'A red fox in a field',
+      n: 1,
+      size: '1024x1024'
+    })
   })
 
   it('uses deployment ids from azure deployment-scoped urls', () => {

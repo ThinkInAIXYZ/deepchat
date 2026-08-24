@@ -129,6 +129,36 @@ describe('OpenAI Codex adapter', () => {
     expect(body).not.toHaveProperty('max_output_tokens')
   })
 
+  it('preserves image request bodies and asks the Codex backend for JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('{}', { status: 200 })))
+    authState.getBackendAuth.mockResolvedValueOnce({
+      accessToken: 'token',
+      accountId: 'acct-1'
+    })
+
+    const { createOpenAICodexFetch } = await import('../../../src/main/provider/openaiCodexAdapter')
+    const fetcher = createOpenAICodexFetch({})
+    const imageBody = JSON.stringify({
+      model: 'gpt-image-2',
+      prompt: 'A red fox in a field',
+      quality: 'medium',
+      size: '1024x1024'
+    })
+
+    await fetcher('https://chatgpt.com/backend-api/codex/images/generations', {
+      method: 'POST',
+      body: imageBody
+    })
+
+    const requestInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    const headers = requestInit.headers as Headers
+    expect(requestInit.body).toBe(imageBody)
+    expect(headers.get('Accept')).toBe('application/json')
+    expect(headers.get('Content-Type')).toBe('application/json')
+    expect(headers.get('Authorization')).toBe('Bearer token')
+    expect(headers.get('ChatGPT-Account-ID')).toBe('acct-1')
+  })
+
   it('preserves streaming responses and abort signals', async () => {
     const streamBody = 'data: {"type":"response.output_text.delta","delta":"hello"}\n\n'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(streamBody, { status: 200 })))

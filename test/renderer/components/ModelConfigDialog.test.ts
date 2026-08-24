@@ -999,12 +999,15 @@ describe('ModelConfigDialog reasoning portraits', () => {
 })
 
 describe('ModelConfigDialog OpenAI image generation settings', () => {
-  it('uses the image settings form for gpt-image-2', async () => {
+  it.each([
+    { providerId: 'openai', providerApiType: 'openai' },
+    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
+  ])('uses the image settings form for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper } = await setup({
-      providerId: 'openai',
+      providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
-      providerApiType: 'openai',
+      providerApiType: provider.providerApiType,
       modelConfig: {
         imageGeneration: {
           size: '1024x1024'
@@ -1039,12 +1042,15 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
   })
 
-  it('saves normalized image settings for gpt-image-2', async () => {
+  it.each([
+    { providerId: 'openai', providerApiType: 'openai' },
+    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
+  ])('saves normalized image settings for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper, modelConfigStore } = await setup({
-      providerId: 'openai',
+      providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
-      providerApiType: 'openai',
+      providerApiType: provider.providerApiType,
       modelConfig: {
         topP: 0.4
       }
@@ -1062,7 +1068,7 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
 
     expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
       'gpt-image-2',
-      'openai',
+      provider.providerId,
       expect.objectContaining({
         topP: 0.4,
         imageGeneration: {

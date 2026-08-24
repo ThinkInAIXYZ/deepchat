@@ -13,6 +13,16 @@ function stripResponsesSuffix(pathname: string): string {
   return pathname.replace(/\/responses\/?$/i, '') || '/'
 }
 
+function isResponsesRequest(input: string | URL | Request): boolean {
+  const requestUrl =
+    typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  try {
+    return /\/responses\/?$/i.test(new URL(requestUrl).pathname)
+  } catch {
+    return /\/responses\/?(?:\?|$)/i.test(requestUrl)
+  }
+}
+
 export function normalizeOpenAICodexBaseUrl(baseUrl: string | undefined): string {
   const normalized = (baseUrl || '').trim().replace(/\/+$/, '')
   if (!normalized) {
@@ -154,7 +164,8 @@ function normalizeOpenAICodexRequestBody(
 function applyCodexHeaders(
   inputHeaders: HeadersInit | undefined,
   defaultHeaders: Record<string, string>,
-  auth: OpenAICodexBackendAuth
+  auth: OpenAICodexBackendAuth,
+  accept: string
 ): Headers {
   const headers = new Headers(inputHeaders ?? {})
   Object.entries(defaultHeaders).forEach(([key, value]) => headers.set(key, value))
@@ -170,7 +181,7 @@ function applyCodexHeaders(
   headers.set('Version', OPENAI_CODEX_CLIENT_VERSION)
   headers.set('User-Agent', OPENAI_CODEX_USER_AGENT)
   if (!headers.has('Accept')) {
-    headers.set('Accept', 'text/event-stream')
+    headers.set('Accept', accept)
   }
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -186,10 +197,12 @@ export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
 
     const auth = getGlobalOpenAICodexAuth()
     const backendAuth = await auth.getBackendAuth()
+    const responsesRequest = isResponsesRequest(url)
+    const accept = responsesRequest ? 'text/event-stream' : 'application/json'
     const nextInit: RequestInit = {
       ...init,
-      body: normalizeOpenAICodexRequestBody(init?.body),
-      headers: applyCodexHeaders(init?.headers, defaultHeaders, backendAuth)
+      body: responsesRequest ? normalizeOpenAICodexRequestBody(init?.body) : init?.body,
+      headers: applyCodexHeaders(init?.headers, defaultHeaders, backendAuth, accept)
     }
 
     let response = await fetch(url, nextInit)
@@ -200,7 +213,7 @@ export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
     const refreshedAuth = await auth.forceRefreshBackendAuth()
     response = await fetch(url, {
       ...nextInit,
-      headers: applyCodexHeaders(init?.headers, defaultHeaders, refreshedAuth)
+      headers: applyCodexHeaders(init?.headers, defaultHeaders, refreshedAuth, accept)
     })
     return normalizeOpenAICodexErrorResponse(response)
   }
