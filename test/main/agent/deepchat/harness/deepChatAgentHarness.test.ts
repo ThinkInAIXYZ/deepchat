@@ -1280,8 +1280,9 @@ describe('DeepChatAgentHarness', () => {
       projectDir: prepared.projectDir,
       emitRefreshBeforeStream: true,
       preserveResolvedRepresentations: true,
+      ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
       beforeHistoryPreparation: () =>
-        transcriptMutations.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+        transcriptMutations.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
     })
   }
 
@@ -11690,9 +11691,11 @@ describe('DeepChatAgentHarness', () => {
       sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
       await retryMessage('s1', 'retry-assistant')
 
+      // Retry keeps the user prompt in place and truncates from the retried
+      // assistant message, so the memory cursor only rewinds to just before it.
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
-        4
+        5
       )
     })
 
@@ -14116,11 +14119,15 @@ describe('DeepChatAgentHarness', () => {
         estimateToolReserveTokens(providerTools) +
         providerMaxTokens
 
-      expect(llmProvider.generateText).toHaveBeenCalled()
+      // Retry kept the user prompt in the transcript, so the pre-stream
+      // compaction already fit the request below the budget and no further
+      // runtime compaction is needed. The durable signal is the conversation
+      // checkpoint that the compaction added to the assembled request.
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
       expect(providerCoreStream).toHaveBeenCalledTimes(1)
       expect(providerMessages[0].content).toBe(baseSystemPrompt)
       expect(
-        providerMessages.some(
+        runMessages.some(
           (message: any) =>
             message.role === 'user' && String(message.content).includes('Persisted Rolling Summary')
         )
@@ -14175,6 +14182,46 @@ describe('DeepChatAgentHarness', () => {
       expectPublished('chat.stream.failed', {
         error: expect.stringContaining('Request was not sent')
       })
+    })
+
+    it('does not duplicate a retried user prompt in the assembled request', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([
+        makeDeepchatUserRow(1, 'hello one', 'user-1'),
+        makeDeepchatAssistantRow(2, 'reply one', 'assistant-1'),
+        makeDeepchatUserRow(3, 'retry me now', 'retry-user'),
+        makeDeepchatAssistantRow(4, 'failed reply', 'retry-assistant', 'error')
+      ])
+
+      await retryMessage('s1', 'retry-user')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
+      const retriedPromptCount = runMessages.filter(
+        (message) => message.role === 'user' && String(message.content).includes('retry me now')
+      ).length
+      // The retried user prompt stays in the transcript and is re-sent as the
+      // live turn, so it must appear exactly once in the assembled request.
+      expect(retriedPromptCount).toBe(1)
+    })
+
+    it('does not duplicate a pinned first user prompt on retry', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([
+        makeDeepchatUserRow(1, 'pinned retry me', 'retry-user'),
+        makeDeepchatAssistantRow(2, 'failed reply', 'retry-assistant', 'error')
+      ])
+
+      await retryMessage('s1', 'retry-user')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
+      const retriedPromptCount = runMessages.filter(
+        (message) => message.role === 'user' && String(message.content).includes('pinned retry me')
+      ).length
+      // The retried prompt is also the pinned first user; it must still appear
+      // exactly once (as the live turn, not also as the pinned leading message).
+      expect(retriedPromptCount).toBe(1)
     })
   })
 

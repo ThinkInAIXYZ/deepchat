@@ -660,7 +660,10 @@ describe('SessionAssignment', () => {
       const send = vi.fn().mockResolvedValue({ requestId: 'request-1', messageId: 'message-1' })
       const prepareRetryMessage = vi.fn().mockResolvedValue({
         content: { text: 'Retry', files: [] },
-        projectDir: '/source'
+        projectDir: '/source',
+        sourceOrderSeq: 1,
+        retryFromOrderSeq: 2,
+        sourceMessageId: 'user-1'
       })
       const resolveSession = vi.fn(() => {
         observedAgentIds.push(harness.records.get('s1')?.agentId ?? 'missing')

@@ -148,6 +148,7 @@ export interface TurnStartContext {
   maxProviderRounds?: number
   preserveResolvedRepresentations?: boolean
   beforeHistoryPreparation?: () => void
+  preStreamAnchorMessageId?: string
 }
 
 export interface TurnExecutionContext extends TurnStartContext {
@@ -495,7 +496,9 @@ export class TurnCoordinator {
       if (!instance) throw new Error(`Session ${sessionId} not found`)
       instance.clearPreStreamTranscriptAnchor()
       const reservedTranscriptAnchor =
-        reservedSteerAssistantMessageId ?? linkedSteerMessageIds.at(-1)
+        context?.preStreamAnchorMessageId ??
+        reservedSteerAssistantMessageId ??
+        linkedSteerMessageIds.at(-1)
       if (reservedTranscriptAnchor) {
         instance.setPreStreamTranscriptAnchorId(reservedTranscriptAnchor)
       }
@@ -797,6 +800,13 @@ export class TurnCoordinator {
             state.providerId,
             state.modelId
           )
+        // A retried user prompt that is anchored and kept in the transcript is
+        // already part of the history, so compaction must not project it a second
+        // time (avoids inflating the context estimate).
+        const anchorMessageId = instance.getPreStreamTranscriptAnchorId()
+        const newUserContentInHistory = Boolean(
+          anchorMessageId && historyRecords.some((record) => record.id === anchorMessageId)
+        )
         return await this.runPreStreamStep(
           {
             sessionId,
@@ -819,6 +829,7 @@ export class TurnCoordinator {
               preserveEmptyInterleavedReasoning:
                 interleavedReasoning.preserveEmptyReasoningContent === true,
               newUserContent: content,
+              newUserContentInHistory,
               ...(pendingContextPressure ? { forceContextPressure: true } : {}),
               historyRecords,
               signal: preStreamAbortSignal
@@ -992,6 +1003,14 @@ export class TurnCoordinator {
         >
       ) => {
         const contextBuildStartedAt = Date.now()
+        // A retried user prompt that is anchored and kept in the transcript is
+        // already carried by historyRecords; exclude it from the history turns so
+        // the newUserMessage (which holds the live turn and memory injection)
+        // does not duplicate it.
+        const anchorMessageId = instance.getPreStreamTranscriptAnchorId()
+        const newUserContentInHistory = Boolean(
+          anchorMessageId && historyRecords.some((record) => record.id === anchorMessageId)
+        )
         const contextBuild = buildTapeChatView({
           sessionId,
           newUserContent: content,
@@ -1009,7 +1028,9 @@ export class TurnCoordinator {
             preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
-            providerReplayProjector
+            providerReplayProjector,
+            newUserContentInHistory,
+            newUserContentMessageId: newUserContentInHistory ? anchorMessageId : undefined
           }
         })
         logSlowPreStreamStep(sessionId, 'context-build', contextBuildStartedAt)

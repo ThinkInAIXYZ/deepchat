@@ -409,6 +409,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     newUserContent: SendMessageInput
+    newUserContentInHistory?: boolean
     forceContextPressure?: boolean
     historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
@@ -440,13 +441,20 @@ export class CompactionService {
       pinnedFirstUser,
       minimumRetainedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
-      projectedMessages: [
-        createUserChatMessage(
-          params.newUserContent,
-          params.supportsVision,
-          params.supportsAudioInput === true
-        )
-      ],
+      // When retry reuses an existing user prompt that is already part of the
+      // history (newUserContentInHistory), do not project it a second time:
+      // counting it in both historyRecords and projectedMessages inflates the
+      // context estimate and can prematurely trigger compaction.
+      projectedMessages:
+        params.newUserContentInHistory === true
+          ? []
+          : [
+              createUserChatMessage(
+                params.newUserContent,
+                params.supportsVision,
+                params.supportsAudioInput === true
+              )
+            ],
       force: params.forceContextPressure === true,
       anchorName: params.forceContextPressure
         ? 'auto_handoff/context_overflow'

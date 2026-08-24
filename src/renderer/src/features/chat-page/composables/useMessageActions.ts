@@ -41,7 +41,7 @@ type UseMessageActionsOptions = {
   chatClient: ChatClientLike
   beginPlanTurn: (sessionId: string) => void
   clearPlanSnapshotForDeletedMessage: (sessionId: string, messageId: string) => void
-  loadMessagesForSession: (sessionId: string) => Promise<unknown>
+  loadMessagesForSession: (sessionId: string, count?: number) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
@@ -84,6 +84,22 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     try {
       activeRetrySessionIds.add(sessionId)
       options.messageStore.clearStreamingState()
+      // The main process truncates from the retried message onward (the user
+      // prompt survives) and re-streams with fresh ids. Mirror that in the UI
+      // BEFORE the IPC: the main starts streaming before the retry IPC resolves,
+      // so an after-await truncation would leave the stale rows visible under
+      // the new stream. When the retried message IS the user prompt, keep it in
+      // place and truncate from the next order sequence instead. The blocked/
+      // failure paths below restore via a reload.
+      const target = options.messageStore.messageCache.get(messageId)
+      // Optimistic truncation shortens messageIds; remember the pre-truncation
+      // window so a blocked retry can restore the full loaded view.
+      const priorMessageCount = options.messageStore.messageIds.length
+      if (target) {
+        const fromOrderSeq = target.role === 'user' ? target.orderSeq + 1 : target.orderSeq
+        options.messageStore.truncateMessagesFromOrderSeq(sessionId, fromOrderSeq)
+      }
+
       const result = attachmentFallbackPolicy
         ? await options.sessionClient.retryMessage(sessionId, messageId, {
             attachmentFallbackPolicy
@@ -94,6 +110,9 @@ export function useMessageActions(options: UseMessageActionsOptions) {
           blockedRetryAttempt.value = { sessionId, messageId }
           retryAttachmentPreparationSummary.value =
             result.attachmentPreparation ?? fallbackPreparationSummary()
+          // A blocked retry did not delete anything; bring the optimistically
+          // removed rows back with the same window that was visible before.
+          await options.loadMessagesForSession(sessionId, priorMessageCount)
         }
         return
       }
