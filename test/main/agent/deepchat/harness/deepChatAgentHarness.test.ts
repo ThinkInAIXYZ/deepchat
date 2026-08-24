@@ -14183,6 +14183,27 @@ describe('DeepChatAgentHarness', () => {
         error: expect.stringContaining('Request was not sent')
       })
     })
+
+    it('does not duplicate a retried user prompt in the assembled request', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([
+        makeDeepchatUserRow(1, 'hello one', 'user-1'),
+        makeDeepchatAssistantRow(2, 'reply one', 'assistant-1'),
+        makeDeepchatUserRow(3, 'retry me now', 'retry-user'),
+        makeDeepchatAssistantRow(4, 'failed reply', 'retry-assistant', 'error')
+      ])
+
+      await retryMessage('s1', 'retry-user')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const runMessages = (callArgs as { run: { messages: ChatMessage[] } }).run.messages
+      const retriedPromptCount = runMessages.filter(
+        (message) => message.role === 'user' && String(message.content).includes('retry me now')
+      ).length
+      // The retried user prompt stays in the transcript and is re-sent as the
+      // live turn, so it must appear exactly once in the assembled request.
+      expect(retriedPromptCount).toBe(1)
+    })
   })
 
   describe('respondToolInteraction', () => {

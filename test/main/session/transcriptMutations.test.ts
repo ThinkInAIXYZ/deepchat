@@ -15,8 +15,12 @@ describe('SessionTranscriptMutations', () => {
     const runtime = {
       prepareRetry: vi.fn().mockResolvedValue({ projectDir: '/repo' })
     }
+    const transcript = {
+      getMessage: vi.fn(() => message),
+      updateMessageStatus: vi.fn()
+    }
     const mutations = new SessionTranscriptMutations({
-      transcript: { getMessage: vi.fn(() => message) },
+      transcript,
       runtime
     } as any)
 
@@ -30,6 +34,9 @@ describe('SessionTranscriptMutations', () => {
     expect(runtime.prepareRetry).toHaveBeenCalledWith('s1', {
       allowRestartHeldQueue: true
     })
+    // The failed Steer prompt is kept as the pre-stream anchor, so it must be
+    // restored to 'sent' to remain visible to context history filtering.
+    expect(transcript.updateMessageStatus).toHaveBeenCalledWith('steer-1', 'sent')
   })
 
   it('keeps the user prompt in place when retrying a user message directly', async () => {

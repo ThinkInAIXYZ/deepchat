@@ -68,6 +68,14 @@ export class SessionTranscriptMutations {
       throw new Error('Cannot retry an empty user message.')
     }
 
+    // The retried user prompt is kept in the transcript and reused as the
+    // pre-stream anchor. A failed/error row (e.g. a failed Steer prompt) must be
+    // restored to 'sent' so context history filtering keeps it; otherwise the
+    // prompt silently drops out of future turns.
+    if (sourceUserMessage.status !== 'sent') {
+      this.dependencies.transcript.updateMessageStatus(sourceUserMessage.id, 'sent')
+    }
+
     return {
       content,
       projectDir,

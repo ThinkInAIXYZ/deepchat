@@ -102,6 +102,11 @@ export type ContextBuildOptions = {
   extraReserveTokens?: number
   supportsAudioInput?: boolean
   providerReplayProjector?: ChatMessageProviderReplayProjector
+  // When retry reuses an existing user prompt that is already part of the
+  // history, the context build must not include it both in the history turns
+  // and as the new user message.
+  newUserContentInHistory?: boolean
+  newUserContentMessageId?: string
 }
 
 export type CacheAwareContextBuildOptions = ContextBuildOptions & {
@@ -1838,9 +1843,9 @@ export function buildCacheAwareContextWithMetadata(
           options.runPinnedFirstUser
         )
     : null
-  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor).filter(
-    (record) => record.id !== pinnedFirstUser?.record.id
-  )
+  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
+    .filter((record) => record.id !== pinnedFirstUser?.record.id)
+    .filter((record) => record.id !== options.newUserContentMessageId)
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,

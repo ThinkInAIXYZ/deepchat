@@ -872,18 +872,20 @@ export const useMessageStore = defineStore('message', () => {
    */
   function truncateMessagesFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
     if (committedSessionId.value !== sessionId) return
-    const removedIds = messageIds.value.filter((id) => {
-      const record = messageCache.value.get(id)
-      return Boolean(record && record.orderSeq >= fromOrderSeq)
-    })
-    if (removedIds.length === 0) return
+    const removedIds = new Set(
+      messageIds.value.filter((id) => {
+        const record = messageCache.value.get(id)
+        return Boolean(record && record.orderSeq >= fromOrderSeq)
+      })
+    )
+    if (removedIds.size === 0) return
 
     markLiveMessageViewMutation(sessionId)
     for (const id of removedIds) {
       messageCache.value.delete(id)
       parsedMessageCache.delete(id)
     }
-    messageIds.value = messageIds.value.filter((id) => !removedIds.includes(id))
+    messageIds.value = messageIds.value.filter((id) => !removedIds.has(id))
     lastPersistedRevision.value += 1
   }
 

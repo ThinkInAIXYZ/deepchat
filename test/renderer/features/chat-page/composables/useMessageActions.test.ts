@@ -13,6 +13,7 @@ function createHarness() {
     clearStreamingState: vi.fn(),
     messageCache,
     messages,
+    messageIds: [] as string[],
     truncateMessagesFromOrderSeq: vi.fn()
   }
   const sessionStore = { fetchSessions: vi.fn(), selectSession: vi.fn() }

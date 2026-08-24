@@ -41,7 +41,7 @@ type UseMessageActionsOptions = {
   chatClient: ChatClientLike
   beginPlanTurn: (sessionId: string) => void
   clearPlanSnapshotForDeletedMessage: (sessionId: string, messageId: string) => void
-  loadMessagesForSession: (sessionId: string) => Promise<unknown>
+  loadMessagesForSession: (sessionId: string, count?: number) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
@@ -92,6 +92,9 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       // place and truncate from the next order sequence instead. The blocked/
       // failure paths below restore via a reload.
       const target = options.messageStore.messageCache.get(messageId)
+      // Optimistic truncation shortens messageIds; remember the pre-truncation
+      // window so a blocked retry can restore the full loaded view.
+      const priorMessageCount = options.messageStore.messageIds.length
       if (target) {
         const fromOrderSeq = target.role === 'user' ? target.orderSeq + 1 : target.orderSeq
         options.messageStore.truncateMessagesFromOrderSeq(sessionId, fromOrderSeq)
@@ -108,8 +111,8 @@ export function useMessageActions(options: UseMessageActionsOptions) {
           retryAttachmentPreparationSummary.value =
             result.attachmentPreparation ?? fallbackPreparationSummary()
           // A blocked retry did not delete anything; bring the optimistically
-          // removed rows back.
-          await options.loadMessagesForSession(sessionId)
+          // removed rows back with the same window that was visible before.
+          await options.loadMessagesForSession(sessionId, priorMessageCount)
         }
         return
       }
