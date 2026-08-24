@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.1-beta.4 (2026-08-24)
+- Added Codex image generation support for providers
+- Reduced markdown streaming stalls with split rendering and gentle prefix batching
+- Kept the user message mounted on retry, fixed retry budget double counting and duplicate pinned prompts
+- Fixed decimal value formatting in the memory diagnostics panel
+- 新增 Provider 的 Codex 图片生成支持
+- 通过分段渲染与温和的前缀批处理减少 Markdown 流式渲染卡顿
+- 重试时保留用户消息挂载，修复重试预算重复计算与重复固定提示词
+- 修复内存诊断面板中十进制数值的格式化
+
 ## v1.1.1-beta.3 (2026-08-20)
 - Added managed Node.js and uv toolchains with automatic detection, installation, repair, and recovery
 - Added terminal authentication for ACP agents
