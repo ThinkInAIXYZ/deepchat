@@ -241,6 +241,28 @@ describe('AI SDK provider factory', () => {
     expect(context.resolvedModelId).toBe('my-gpt-4.1-deployment')
   })
 
+  it('creates an image model for the OpenAI Codex image endpoint', () => {
+    const context = createAiSdkProviderContext({
+      providerKind: 'openai-codex',
+      provider: {
+        id: 'openai-codex',
+        name: 'OpenAI Codex',
+        apiType: 'openai-codex',
+        apiKey: '',
+        baseUrl: 'https://chatgpt.com/backend-api/codex',
+        enable: true
+      } as any,
+      providerSettings: {} as any,
+      defaultHeaders: {},
+      modelId: 'gpt-image-2',
+      wrapThinkReasoning: false
+    })
+
+    expect(context.imageModel).toBeDefined()
+    expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
+    expect(context.imageEndpoint).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+  })
+
   it('uses deployment ids from azure deployment-scoped urls', () => {
     const context = createAiSdkProviderContext({
       providerKind: 'azure',

@@ -593,7 +593,9 @@ export function createAiSdkProviderContext(
         providerOptionsKey: 'openai',
         apiType: 'openai_responses',
         model: maybeWrapModel(provider.responses(params.modelId) as any),
-        endpoint: buildOpenAICodexResponsesEndpoint(codexBaseUrl)
+        imageModel: provider.image(params.modelId),
+        endpoint: buildOpenAICodexResponsesEndpoint(codexBaseUrl),
+        imageEndpoint: buildOpenAIEndpoint(codexBaseUrl, '/images/generations')
       }
     }
 

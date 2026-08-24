@@ -77,12 +77,14 @@ passing through unless an explicit model request policy requires a different wir
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
 routes and request adapter. Current recommended catalog includes `gpt-5.5`, `gpt-5.6-sol`,
-`gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.4`, `gpt-5.4-mini` and `gpt-5.3-codex-spark` when provider-db
-metadata contains them; connection check uses `gpt-5.6-luna`.
+`gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark` and `gpt-image-2`
+when provider-db metadata contains them; connection check uses `gpt-5.6-luna`.
 
 Codex requests include required instructions and backend routing headers, preserve streaming/tool/reasoning
-behavior, and surface entitlement failure without logging token or account identifiers. Background
-provider-db refresh skips its dedicated runtime catalog; manual refresh remains available.
+behavior, and surface entitlement failure without logging token or account identifiers. Image generation
+uses the same OAuth credential path with `/images/generations`; Responses-only body normalization does not
+apply to image requests. Background provider-db refresh skips its dedicated runtime catalog; manual refresh
+remains available.
 
 ## Validation
 

@@ -79,7 +79,8 @@ const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.6-luna',
   'gpt-5.4',
   'gpt-5.4-mini',
-  'gpt-5.3-codex-spark'
+  'gpt-5.3-codex-spark',
+  'gpt-image-2'
 ]
 const GREENPT_RECOMMENDED_MODEL_IDS = [
   'glm-5.2',
