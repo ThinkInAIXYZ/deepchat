@@ -48,8 +48,9 @@ References:
 metadata source. `gpt-image-2` joins the explicit curated model ID list. If provider-db does not
 contain that ID, it is omitted in the same way as every other curated Codex model.
 
-The provider-db record owns the `imageGeneration` type and text/image modalities. Renderer code
-does not add a Codex-specific type rule.
+The provider-db record owns the `imageGeneration` type and image-output modality. The Codex
+image-generation projection disables vision input because the current standalone route sends only a
+text prompt to `/images/generations`; renderer code does not add a Codex-specific type rule.
 
 ### Runtime transport
 
@@ -104,7 +105,7 @@ OpenAI Codex                        OpenAI Codex
 ```
 
 Selecting `GPT Image 2` uses the existing image settings panel and image result rendering; no new
-screen, control, or copy is introduced.
+screen, control, or copy is introduced. Reference-image attachments remain disabled for this route.
 
 ## Ownership and security
 
@@ -124,6 +125,8 @@ account identifiers never cross the preload boundary or appear in request traces
 
 - Existing OpenAI Codex text requests retain their wire shape and streaming behavior.
 - Existing API-key OpenAI image generation is unchanged.
+- Codex image generation does not advertise vision input, keeping reference images out of the
+  supported attachment flow.
 - Accounts without image entitlement receive the existing normalized Codex permission error.
 - Missing provider-db metadata omits `gpt-image-2` instead of synthesizing incomplete capability
   data.
@@ -134,6 +137,8 @@ account identifiers never cross the preload boundary or appear in request traces
 
 - Refreshing OpenAI Codex models includes `gpt-image-2` when bundled provider-db includes it.
 - DeepChat identifies that model as an image-generation model and shows the existing image settings UI.
+- Model and session image-generation options survive capability normalization, while reference-image
+  attachments remain unavailable.
 - A generation request targets `/backend-api/codex/images/generations` with OAuth/account headers,
   a JSON accept header, and no Responses-only `store` field.
 - Returned base64 image data follows the existing image cache and preview path.

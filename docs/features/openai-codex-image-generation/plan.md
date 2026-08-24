@@ -18,6 +18,7 @@ fallback behavior.
 - [x] Create the Codex image model and trace endpoint in the existing AI SDK provider context.
 - [x] Keep Responses-only body and Accept normalization away from image requests.
 - [x] Preserve OAuth injection, refresh, abort, and normalized error behavior for both endpoints.
+- [x] Preserve shared model/session image settings and disable unsupported reference-image input.
 
 Completion condition: the existing image runtime can call the Codex image endpoint with the current
 credential store and no renderer-owned provider logic.
@@ -40,4 +41,4 @@ the repository quality gates pass.
 - `pnpm run i18n`: passed.
 - `pnpm run lint`: passed.
 - `pnpm run typecheck`: passed.
-- Focused main and renderer provider tests: 5 files and 91 tests passed.
+- Focused main and renderer provider tests: 7 files and 261 tests passed.

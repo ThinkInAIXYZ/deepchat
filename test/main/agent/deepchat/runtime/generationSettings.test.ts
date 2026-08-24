@@ -2,6 +2,7 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import {
   buildPersistedGenerationSettingsPatch,
   mapPersistedGenerationPatch,
@@ -284,5 +285,36 @@ describe('generation settings policy', () => {
       imageGeneration: { size: '1024x1024', quality: 'high' },
       videoGeneration: { duration: 8, generateAudio: true }
     })
+  })
+
+  it('preserves OpenAI Codex image options during session sanitization', async () => {
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getProviderById).mockReturnValue({
+      id: 'openai-codex',
+      name: 'OpenAI Codex',
+      apiType: 'openai-codex',
+      apiKey: '',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      enable: true
+    })
+    vi.mocked(providerSettings.getModelConfig).mockReturnValue({
+      contextLength: 8_192,
+      maxTokens: 8_192,
+      temperature: 0.7,
+      timeout: 60_000,
+      type: ModelType.ImageGeneration,
+      apiEndpoint: ApiEndpointType.Image,
+      imageGeneration: { size: '1024x1024', quality: 'high' }
+    })
+
+    const result = await sanitizeGenerationSettings(
+      providerSettings,
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
+      'openai-codex',
+      'gpt-image-2',
+      { imageGeneration: { size: '1536x1024', quality: 'medium' } }
+    )
+
+    expect(result.imageGeneration).toEqual({ size: '1536x1024', quality: 'medium' })
   })
 })

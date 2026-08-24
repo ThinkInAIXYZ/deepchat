@@ -155,6 +155,15 @@ export class ModelConfigHelper {
 
     const policyConfig = applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
 
+    if (
+      normalizeProviderKind(providerId) === 'openai-codex' &&
+      (policyConfig.type === ModelType.ImageGeneration ||
+        policyConfig.apiEndpoint === ApiEndpointType.Image ||
+        policyConfig.endpointType === 'image-generation')
+    ) {
+      return { ...policyConfig, vision: false }
+    }
+
     if (!isMiniMaxM3Model(providerId, modelId)) {
       return policyConfig
     }

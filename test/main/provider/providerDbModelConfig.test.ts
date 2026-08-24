@@ -322,9 +322,11 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(config).toMatchObject({
       type: ModelType.ImageGeneration,
       apiEndpoint: ApiEndpointType.Image,
-      vision: true,
+      vision: false,
       functionCall: false
     })
+
+    expect(helper.getModelConfig('gpt-image-2', 'openai').vision).toBe(true)
   })
 
   it('applies partial fallbacks when limit fields are missing', () => {

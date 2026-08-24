@@ -83,8 +83,9 @@ when provider-db metadata contains them; connection check uses `gpt-5.6-luna`.
 Codex requests include required instructions and backend routing headers, preserve streaming/tool/reasoning
 behavior, and surface entitlement failure without logging token or account identifiers. Image generation
 uses the same OAuth credential path with `/images/generations`; Responses-only body normalization does not
-apply to image requests. Background provider-db refresh skips its dedicated runtime catalog; manual refresh
-remains available.
+apply to image requests. The image-generation projection preserves shared OpenAI image settings but disables
+vision input because the standalone route accepts only text prompts. Background provider-db refresh skips
+its dedicated runtime catalog; manual refresh remains available.
 
 ## Validation
 
