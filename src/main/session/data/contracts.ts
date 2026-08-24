@@ -72,8 +72,14 @@ export interface SessionTranscriptMutationPort {
   prepareRetryMessage(
     sessionId: string,
     messageId: string
-  ): Promise<{ content: SendMessageInput; projectDir: string | null; sourceOrderSeq: number }>
-  commitRetryMessage(sessionId: string, sourceOrderSeq: number): void
+  ): Promise<{
+    content: SendMessageInput
+    projectDir: string | null
+    sourceOrderSeq: number
+    retryFromOrderSeq: number
+    sourceMessageId: string | null
+  }>
+  commitRetryMessage(sessionId: string, orderSeq: number): void
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
   forkSessionFromMessage(

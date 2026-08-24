@@ -1280,8 +1280,11 @@ describe('DeepChatAgentHarness', () => {
       projectDir: prepared.projectDir,
       emitRefreshBeforeStream: true,
       preserveResolvedRepresentations: true,
+      ...(prepared.sourceMessageId
+        ? { preStreamAnchorMessageId: prepared.sourceMessageId }
+        : {}),
       beforeHistoryPreparation: () =>
-        transcriptMutations.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+        transcriptMutations.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
     })
   }
 
@@ -11690,9 +11693,11 @@ describe('DeepChatAgentHarness', () => {
       sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
       await retryMessage('s1', 'retry-assistant')
 
+      // Retry keeps the user prompt in place and truncates from the retried
+      // assistant message, so the memory cursor only rewinds to just before it.
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
-        4
+        5
       )
     })
 

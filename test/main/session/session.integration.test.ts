@@ -148,7 +148,9 @@ function createMockDeepChatAgent() {
     prepareRetryMessage: vi.fn().mockResolvedValue({
       content: { text: 'retry', files: [] },
       projectDir: null,
-      sourceOrderSeq: 1
+      sourceOrderSeq: 1,
+      retryFromOrderSeq: 2,
+      sourceMessageId: 'user-1'
     }),
     commitRetryMessage: vi.fn(),
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -2474,7 +2476,9 @@ describe('Session application coordinators', () => {
       deepChatAgent.prepareRetryMessage.mockResolvedValueOnce({
         content: { text: 'Retry body', files: [] },
         projectDir: '/retry/project',
-        sourceOrderSeq: 3
+        sourceOrderSeq: 3,
+        retryFromOrderSeq: 4,
+        sourceMessageId: 'user-1'
       })
 
       await turn.retryMessage('s1', 'message-1')
@@ -2487,12 +2491,13 @@ describe('Session application coordinators', () => {
           projectDir: '/retry/project',
           emitRefreshBeforeStream: true,
           preserveResolvedRepresentations: true,
+          preStreamAnchorMessageId: 'user-1',
           beforeHistoryPreparation: expect.any(Function)
         }
       )
       const retryContext = deepChatAgent.processMessage.mock.calls[0][2]
       retryContext.beforeHistoryPreparation()
-      expect(deepChatAgent.commitRetryMessage).toHaveBeenCalledWith('s1', 3)
+      expect(deepChatAgent.commitRetryMessage).toHaveBeenCalledWith('s1', 4)
       expect(deepChatAgent.prepareRetryMessage.mock.invocationCallOrder[0]).toBeLessThan(
         deepChatAgent.processMessage.mock.invocationCallOrder[0]
       )

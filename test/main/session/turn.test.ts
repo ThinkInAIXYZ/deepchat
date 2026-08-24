@@ -142,7 +142,9 @@ function createHarness(
     prepareRetryMessage: vi.fn().mockResolvedValue({
       content: { text: 'Retry', files: [] },
       projectDir: '/retry',
-      sourceOrderSeq: 3
+      sourceOrderSeq: 3,
+      retryFromOrderSeq: 4,
+      sourceMessageId: 'user-1'
     }),
     commitRetryMessage: vi.fn(),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
@@ -517,12 +519,13 @@ describe('SessionTurn', () => {
         projectDir: '/retry',
         emitRefreshBeforeStream: true,
         preserveResolvedRepresentations: true,
+        preStreamAnchorMessageId: 'user-1',
         beforeHistoryPreparation: expect.any(Function)
       }
     })
     const retryContext = harness.send.mock.calls[0][0].context
     retryContext?.beforeHistoryPreparation?.()
-    expect(harness.transcript.commitRetryMessage).toHaveBeenCalledWith('s1', 3)
+    expect(harness.transcript.commitRetryMessage).toHaveBeenCalledWith('s1', 4)
     expect(harness.cancel).not.toHaveBeenCalled()
 
     await harness.coordinator.deleteMessage('s1', 'message-1')

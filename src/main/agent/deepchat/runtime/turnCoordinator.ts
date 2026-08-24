@@ -148,6 +148,7 @@ export interface TurnStartContext {
   maxProviderRounds?: number
   preserveResolvedRepresentations?: boolean
   beforeHistoryPreparation?: () => void
+  preStreamAnchorMessageId?: string
 }
 
 export interface TurnExecutionContext extends TurnStartContext {
@@ -495,7 +496,9 @@ export class TurnCoordinator {
       if (!instance) throw new Error(`Session ${sessionId} not found`)
       instance.clearPreStreamTranscriptAnchor()
       const reservedTranscriptAnchor =
-        reservedSteerAssistantMessageId ?? linkedSteerMessageIds.at(-1)
+        context?.preStreamAnchorMessageId ??
+        reservedSteerAssistantMessageId ??
+        linkedSteerMessageIds.at(-1)
       if (reservedTranscriptAnchor) {
         instance.setPreStreamTranscriptAnchorId(reservedTranscriptAnchor)
       }

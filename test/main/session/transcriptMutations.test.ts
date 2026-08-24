@@ -23,10 +23,44 @@ describe('SessionTranscriptMutations', () => {
     await expect(mutations.prepareRetryMessage('s1', 'steer-1')).resolves.toEqual({
       content: { text: 'Retry steer', files: [], search: false },
       projectDir: '/repo',
-      sourceOrderSeq: 3
+      sourceOrderSeq: 3,
+      retryFromOrderSeq: 4,
+      sourceMessageId: 'steer-1'
     })
     expect(runtime.prepareRetry).toHaveBeenCalledWith('s1', {
       allowRestartHeldQueue: true
+    })
+  })
+
+  it('keeps the user prompt in place when retrying a user message directly', async () => {
+    const message = {
+      id: 'user-1',
+      sessionId: 's1',
+      orderSeq: 3,
+      role: 'user',
+      content: JSON.stringify({ text: 'Retry prompt', files: [] }),
+      status: 'sent',
+      metadata: '{}'
+    }
+    const runtime = {
+      prepareRetry: vi.fn().mockResolvedValue({ projectDir: '/repo' })
+    }
+    const mutations = new SessionTranscriptMutations({
+      transcript: { getMessage: vi.fn(() => message) },
+      runtime
+    } as any)
+
+    await expect(mutations.prepareRetryMessage('s1', 'user-1')).resolves.toEqual({
+      content: { text: 'Retry prompt', files: [], search: false },
+      projectDir: '/repo',
+      sourceOrderSeq: 3,
+      // Truncate from the message after the prompt so the prompt survives, and
+      // anchor it so the same record is re-sent instead of a fresh duplicate.
+      retryFromOrderSeq: 4,
+      sourceMessageId: 'user-1'
+    })
+    expect(runtime.prepareRetry).toHaveBeenCalledWith('s1', {
+      allowRestartHeldQueue: false
     })
   })
 

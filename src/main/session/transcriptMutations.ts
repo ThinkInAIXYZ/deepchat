@@ -43,7 +43,13 @@ export class SessionTranscriptMutations {
   async prepareRetryMessage(
     sessionId: string,
     messageId: string
-  ): Promise<{ content: SendMessageInput; projectDir: string | null; sourceOrderSeq: number }> {
+  ): Promise<{
+    content: SendMessageInput
+    projectDir: string | null
+    sourceOrderSeq: number
+    retryFromOrderSeq: number
+    sourceMessageId: string | null
+  }> {
     const target = this.requireMessage(sessionId, messageId)
     const sourceUserMessage =
       target.role === 'user'
@@ -62,14 +68,25 @@ export class SessionTranscriptMutations {
       throw new Error('Cannot retry an empty user message.')
     }
 
-    return { content, projectDir, sourceOrderSeq: sourceUserMessage.orderSeq }
+    return {
+      content,
+      projectDir,
+      sourceOrderSeq: sourceUserMessage.orderSeq,
+      // Truncate from the retried message (not the source user message) so the
+      // user prompt survives and only the assistant reply is regenerated. When
+      // the retried message IS the user prompt, keep it too and truncate from
+      // the next order sequence, anchoring it so the same record is re-sent
+      // instead of a fresh duplicate.
+      retryFromOrderSeq: target.role === 'user' ? target.orderSeq + 1 : target.orderSeq,
+      sourceMessageId: sourceUserMessage.id
+    }
   }
 
-  commitRetryMessage(sessionId: string, sourceOrderSeq: number): void {
+  commitRetryMessage(sessionId: string, orderSeq: number): void {
     this.dependencies.runInTransaction(() => {
-      this.dependencies.transcript.deleteFromOrderSeq(sessionId, sourceOrderSeq)
+      this.dependencies.transcript.deleteFromOrderSeq(sessionId, orderSeq)
     })
-    this.dependencies.runtime.invalidateTranscriptFrom(sessionId, sourceOrderSeq)
+    this.dependencies.runtime.invalidateTranscriptFrom(sessionId, orderSeq)
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {

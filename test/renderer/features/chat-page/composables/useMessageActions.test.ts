@@ -7,7 +7,14 @@ function createHarness() {
   const sessionId = ref('s1')
   const isReadOnly = ref(false)
   const isBlocking = ref(false)
-  const messageStore = { clearStreamingState: vi.fn() }
+  const messageCache = new Map<string, any>()
+  const messages: any[] = []
+  const messageStore = {
+    clearStreamingState: vi.fn(),
+    messageCache,
+    messages,
+    truncateMessagesFromOrderSeq: vi.fn()
+  }
   const sessionStore = { fetchSessions: vi.fn(), selectSession: vi.fn() }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -107,6 +114,46 @@ describe('useMessageActions', () => {
     harness.stop()
   })
 
+  it('truncates the display from the retried message when a retry is accepted', async () => {
+    const harness = createHarness()
+    const records = [
+      { id: 'user-1', sessionId: 's1', role: 'user', orderSeq: 10 },
+      { id: 'assistant-1', sessionId: 's1', role: 'assistant', orderSeq: 20 },
+      { id: 'user-2', sessionId: 's1', role: 'user', orderSeq: 30 }
+    ]
+    for (const record of records) {
+      harness.messageStore.messageCache.set(record.id, record)
+      harness.messageStore.messages.push(record)
+    }
+
+    await harness.actions.onMessageRetry('assistant-1')
+
+    expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledWith('s1', 20)
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    harness.stop()
+  })
+
+  it('keeps the user prompt in place when retrying a user message directly', async () => {
+    const harness = createHarness()
+    const records = [
+      { id: 'user-1', sessionId: 's1', role: 'user', orderSeq: 10 },
+      { id: 'assistant-1', sessionId: 's1', role: 'assistant', orderSeq: 20 },
+      { id: 'user-2', sessionId: 's1', role: 'user', orderSeq: 30 }
+    ]
+    for (const record of records) {
+      harness.messageStore.messageCache.set(record.id, record)
+      harness.messageStore.messages.push(record)
+    }
+
+    await harness.actions.onMessageRetry('user-1')
+
+    // Truncate from the next order sequence so the retried user prompt stays
+    // mounted and is not re-created as a fresh row.
+    expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledWith('s1', 11)
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    harness.stop()
+  })
+
   it('keeps history intact when retry preflight blocks and supports explicit degradation', async () => {
     const harness = createHarness()
     const attachmentPreparation = {
@@ -126,7 +173,7 @@ describe('useMessageActions', () => {
 
     expect(harness.actions.retryAttachmentPreparationSummary.value).toEqual(attachmentPreparation)
     expect(harness.beginPlanTurn).not.toHaveBeenCalled()
-    expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
+    expect(harness.loadMessagesForSession).toHaveBeenCalledTimes(1)
 
     await harness.actions.retryBlockedMessageWithoutImageContent()
 

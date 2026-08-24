@@ -84,6 +84,19 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     try {
       activeRetrySessionIds.add(sessionId)
       options.messageStore.clearStreamingState()
+      // The main process truncates from the retried message onward (the user
+      // prompt survives) and re-streams with fresh ids. Mirror that in the UI
+      // BEFORE the IPC: the main starts streaming before the retry IPC resolves,
+      // so an after-await truncation would leave the stale rows visible under
+      // the new stream. When the retried message IS the user prompt, keep it in
+      // place and truncate from the next order sequence instead. The blocked/
+      // failure paths below restore via a reload.
+      const target = options.messageStore.messageCache.get(messageId)
+      if (target) {
+        const fromOrderSeq = target.role === 'user' ? target.orderSeq + 1 : target.orderSeq
+        options.messageStore.truncateMessagesFromOrderSeq(sessionId, fromOrderSeq)
+      }
+
       const result = attachmentFallbackPolicy
         ? await options.sessionClient.retryMessage(sessionId, messageId, {
             attachmentFallbackPolicy
@@ -94,6 +107,9 @@ export function useMessageActions(options: UseMessageActionsOptions) {
           blockedRetryAttempt.value = { sessionId, messageId }
           retryAttachmentPreparationSummary.value =
             result.attachmentPreparation ?? fallbackPreparationSummary()
+          // A blocked retry did not delete anything; bring the optimistically
+          // removed rows back.
+          await options.loadMessagesForSession(sessionId)
         }
         return
       }

@@ -352,6 +352,8 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
     if (runtime.kind === 'acp') {
+      // ACP re-creates the user message on send, so truncate from the source
+      // user message (inclusive) to avoid a stale duplicate.
       this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
       return await runtime.send({
         content: prepared.content,
@@ -370,8 +372,11 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         projectDir: prepared.projectDir,
         emitRefreshBeforeStream: true,
         preserveResolvedRepresentations: true,
+        ...(prepared.sourceMessageId
+          ? { preStreamAnchorMessageId: prepared.sourceMessageId }
+          : {}),
         beforeHistoryPreparation: () =>
-          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
       }
     })
   }

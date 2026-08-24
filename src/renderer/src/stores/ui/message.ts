@@ -863,6 +863,30 @@ export const useMessageStore = defineStore('message', () => {
     parsedMessageCache.delete(id)
   }
 
+  /**
+   * Removes every record with orderSeq >= fromOrderSeq (inclusive), mirroring the
+   * main-process `deleteFromOrderSeq` used by retry. Retry truncates the
+   * transcript and re-streams with fresh ids, so without this the stale rows stay
+   * mounted until the stream completes and the full reload lands (visible as the
+   * old message lingering below the new one).
+   */
+  function truncateMessagesFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    if (committedSessionId.value !== sessionId) return
+    const removedIds = messageIds.value.filter((id) => {
+      const record = messageCache.value.get(id)
+      return Boolean(record && record.orderSeq >= fromOrderSeq)
+    })
+    if (removedIds.length === 0) return
+
+    markLiveMessageViewMutation(sessionId)
+    for (const id of removedIds) {
+      messageCache.value.delete(id)
+      parsedMessageCache.delete(id)
+    }
+    messageIds.value = messageIds.value.filter((id) => !removedIds.includes(id))
+    lastPersistedRevision.value += 1
+  }
+
   function applyPersistedMessageRecords(records: ChatMessageRecord[]): void {
     const sessionId = records[0]?.sessionId
     if (
@@ -1076,6 +1100,7 @@ export const useMessageStore = defineStore('message', () => {
     getMessage,
     addOptimisticUserMessage,
     removeOptimisticMessage,
+    truncateMessagesFromOrderSeq,
     applyPersistedMessageRecords,
     clearStreamingState,
     clearStreamingStateForOtherSession,
