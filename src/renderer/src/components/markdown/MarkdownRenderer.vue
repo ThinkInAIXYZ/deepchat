@@ -422,8 +422,11 @@ const renderSegments = computed<RenderSegment[]>(() => {
       smoothStreaming: false,
       typewriter: false,
       nodeVirtual: 'auto',
-      maxLiveNodes: STATIC_MAX_LIVE_NODES,
-      liveNodeBuffer: STATIC_LIVE_NODE_BUFFER,
+      // Incremental batching only takes effect when virtual live-node limiting is
+      // off (markstream-vue gates batching on `maxLiveNodes <= 0`), so the prefix
+      // must not pin live nodes or the gentle raster spreading never happens.
+      maxLiveNodes: 0,
+      liveNodeBuffer: 0,
       initialBatch: PREFIX_INITIAL_RENDER_BATCH_SIZE,
       batchSize: PREFIX_RENDER_BATCH_SIZE,
       batchDelay: PREFIX_RENDER_BATCH_DELAY_MS,
