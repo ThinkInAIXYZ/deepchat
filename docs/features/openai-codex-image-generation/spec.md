@@ -133,7 +133,7 @@ account identifiers never cross the preload boundary or appear in request traces
 ## Acceptance criteria
 
 - Refreshing OpenAI Codex models includes `gpt-image-2` when bundled provider-db includes it.
-- DeepChat identifies that model as image generation and shows the existing image settings UI.
+- DeepChat identifies that model as an image-generation model and shows the existing image settings UI.
 - A generation request targets `/backend-api/codex/images/generations` with OAuth/account headers,
   a JSON accept header, and no Responses-only `store` field.
 - Returned base64 image data follows the existing image cache and preview path.
