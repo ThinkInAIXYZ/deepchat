@@ -292,7 +292,14 @@ export class StartupWorkloadCoordinator {
     })
 
     for (const task of sortedPending) {
-      if (this.runningCounts[task.resource] >= MAX_CONCURRENCY[task.resource]) {
+      // Interactive work is short and latency-critical (startup bootstrap, first session
+      // page). The concurrency caps protect the event loop / disk from heavy background
+      // work; when long-running background io tasks (MCP / remote runtime init) hold every
+      // lane, an interactive task would otherwise starve and delay the first paint. Admit
+      // interactive tasks even at capacity — they still count toward runningCounts, so
+      // isIdle()/cancel/dedupe semantics stay intact.
+      const atCapacity = this.runningCounts[task.resource] >= MAX_CONCURRENCY[task.resource]
+      if (atCapacity && task.phase !== 'interactive') {
         continue
       }
 

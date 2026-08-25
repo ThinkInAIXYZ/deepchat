@@ -278,4 +278,68 @@ describe('StartupWorkloadCoordinator', () => {
 
     expect(onFailure).not.toHaveBeenCalled()
   })
+
+  it('does not starve interactive io work behind occupied background lanes', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    // Fill both io lanes with long-running background work so an interactive task
+    // would otherwise wait for a lane to free up.
+    const gate = createDeferred<void>()
+    const interactiveStarted = createDeferred<void>()
+    let backgroundDone = false
+
+    const backgroundTaskA = coordinator.scheduleTask({
+      id: 'main:mcp-init',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.mcpInit',
+      run: async () => {
+        await gate.promise
+        backgroundDone = true
+      }
+    })
+    const backgroundTaskB = coordinator.scheduleTask({
+      id: 'main:remote-runtime',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.remoteRuntime',
+      run: async () => {
+        await gate.promise
+      }
+    })
+
+    await new Promise((resolve) => setImmediate(resolve))
+
+    const interactiveTask = coordinator.scheduleTask({
+      id: 'main.bootstrap:route',
+      target: 'main',
+      phase: 'interactive',
+      resource: 'io',
+      labelKey: 'startup.main.bootstrap',
+      visibleId: 'main.bootstrap',
+      run: async () => {
+        interactiveStarted.resolve()
+      }
+    })
+
+    // The interactive task must start while both background io lanes are still occupied;
+    // failing fast keeps this a regression signal instead of a hanging test.
+    await Promise.race([
+      interactiveStarted.promise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('interactive task starved behind occupied background io lanes')),
+          1000
+        )
+      )
+    ])
+    expect(backgroundDone).toBe(false)
+
+    gate.resolve()
+    await Promise.all([backgroundTaskA, backgroundTaskB, interactiveTask])
+  })
 })
