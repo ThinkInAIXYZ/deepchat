@@ -22,6 +22,7 @@ import {
   resolvePromptCachePlan,
   type OpenAICompatiblePromptCacheMarker
 } from '../promptCacheStrategy'
+import { fetchWithProviderHeaders } from '../providerHeaders'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
@@ -408,7 +409,7 @@ function createFetchMiddleware(
     }
 
     nextInit.body = normalizeRequestBody(provider, requestUrl, nextInit.body)
-    return fetch(url, nextInit)
+    return fetchWithProviderHeaders(provider, url, nextInit)
   }
 }
 
@@ -586,7 +587,9 @@ export function createAiSdkProviderContext(
         baseURL: codexBaseUrl,
         apiKey: 'openai-codex-oauth',
         headers: params.defaultHeaders,
-        fetch: createOpenAICodexFetch(params.defaultHeaders)
+        fetch: createOpenAICodexFetch(params.defaultHeaders, (url, init) =>
+          fetchWithProviderHeaders(params.provider, url, init)
+        )
       })
 
       return {

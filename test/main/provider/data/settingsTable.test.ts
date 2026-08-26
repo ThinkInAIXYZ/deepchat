@@ -59,6 +59,34 @@ describeIfSqlite('ProviderSettingsTable', () => {
     db.close()
   })
 
+  it('persists valid custom headers and ignores malformed legacy values', () => {
+    const { db, table } = createTable()
+    const configured = {
+      ...provider('gateway'),
+      customHeaders: {
+        'X-Tenant-ID': 'team-a',
+        'CF-Access-Client-Secret': 'secret'
+      }
+    }
+
+    table.replaceProviders([configured])
+    expect(table.listProviders()[0].customHeaders).toEqual(configured.customHeaders)
+
+    const stored = db
+      .prepare('SELECT provider_json FROM providers WHERE id = ?')
+      .get('gateway') as { provider_json: string }
+    db.prepare('UPDATE providers SET provider_json = ? WHERE id = ?').run(
+      JSON.stringify({
+        ...JSON.parse(stored.provider_json),
+        customHeaders: { Authorization: 'Bearer legacy-secret' }
+      }),
+      'gateway'
+    )
+
+    expect(table.listProviders()[0]).not.toHaveProperty('customHeaders')
+    db.close()
+  })
+
   it('stores provider models, statuses, and configs', () => {
     const { db, table } = createTable()
 

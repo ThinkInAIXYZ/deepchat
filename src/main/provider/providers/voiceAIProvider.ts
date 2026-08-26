@@ -314,7 +314,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       headers.Authorization = `Bearer ${this.provider.apiKey}`
     }
 
-    const response = await fetch(url, {
+    const response = await this.fetchProvider(url, {
       method: 'GET',
       headers,
       ...(signal ? { signal } : {})
@@ -393,7 +393,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       timeout: this.getModelFetchTimeout()
     })
     try {
-      const response = await fetch(this.buildUrl('/api/v1/tts/voices'), {
+      const response = await this.fetchProvider(this.buildUrl('/api/v1/tts/voices'), {
         method: 'GET',
         headers: this.getAuthHeaders(),
         ...(signal ? { signal } : {})
@@ -456,7 +456,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
         })
       }
 
-      const response = await fetch(this.buildUrl('/api/v1/tts/speech'), {
+      const response = await this.fetchProvider(this.buildUrl('/api/v1/tts/speech'), {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),

@@ -1717,7 +1717,10 @@ describe('AI SDK runtime', () => {
         id: 'aihubmix',
         apiType: 'openai-compatible',
         baseUrl: 'https://aihubmix.com/v1',
-        apiKey: 'test-key'
+        apiKey: 'test-key',
+        customHeaders: {
+          'X-Tenant-ID': 'team-a'
+        }
       },
       providerSettings: createProviderSettings(),
       defaultHeaders: {
@@ -1752,6 +1755,11 @@ describe('AI SDK runtime', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://aihubmix.com/v1/videos')
 
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const pollInit = fetchMock.mock.calls[1]?.[1] as RequestInit
+    const downloadInit = fetchMock.mock.calls[2]?.[1] as RequestInit
+    expect(new Headers(requestInit.headers).get('x-tenant-id')).toBe('team-a')
+    expect(new Headers(pollInit.headers).get('x-tenant-id')).toBe('team-a')
+    expect(new Headers(downloadInit.headers).has('x-tenant-id')).toBe(false)
     const payload = JSON.parse(String(requestInit.body)) as Record<string, unknown>
     expect(payload).toMatchObject({
       model: 'doubao-seedance-2-0-fast-260128',

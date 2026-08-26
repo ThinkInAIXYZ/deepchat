@@ -79,6 +79,7 @@ export type LLM_PROVIDER = {
   apiKey: string
   copilotClientId?: string
   baseUrl: string
+  customHeaders?: Record<string, string>
   models?: MODEL_META[]
   customModels?: MODEL_META[]
   enable: boolean

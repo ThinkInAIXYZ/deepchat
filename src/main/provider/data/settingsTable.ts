@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
 import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../userModelConfig'
 import {
   hasPersistedDerivedProviderModelFields,
@@ -518,8 +519,13 @@ export class ProviderSettingsTable extends BaseTable {
 
   private toProvider(row: ProviderRow): LLM_PROVIDER {
     const stored = parseJson<Partial<LLM_PROVIDER>>(row.provider_json, {})
+    const customHeaders = getValidProviderCustomHeaders(stored.customHeaders)
+    if ('customHeaders' in stored && !customHeaders) {
+      delete stored.customHeaders
+    }
     return {
       ...stored,
+      ...(customHeaders ? { customHeaders } : {}),
       id: row.id,
       name: row.name,
       apiType: row.api_type,

@@ -174,4 +174,59 @@ describe('providerStore.stageProviderApiChange', () => {
       baseUrl: 'U1'
     })
   })
+
+  it('validates configured custom headers atomically before persisting them', async () => {
+    const { store, providerClient, configClient } = await setupStore()
+    await store.markProviderConfigured('p1')
+    providerClient.updateProviderAtomic.mockClear()
+    configClient.setSetting.mockClear()
+
+    providerClient.validateDraftProvider.mockResolvedValueOnce({
+      isOk: false,
+      errorMsg: 'Connection failed',
+      models: []
+    })
+    const rejected = await store.saveProviderCustomHeaders('p1', {
+      'X-Tenant-ID': 'rejected-team'
+    })
+
+    expect(rejected).toEqual({ isOk: false, errorMsg: 'Connection failed' })
+    expect(providerClient.updateProviderAtomic).not.toHaveBeenCalled()
+
+    providerClient.validateDraftProvider.mockResolvedValueOnce({
+      isOk: true,
+      errorMsg: null,
+      models: []
+    })
+    const accepted = await store.saveProviderCustomHeaders('p1', {
+      'X-Tenant-ID': 'team-a',
+      'CF-Access-Client-Secret': 'secret'
+    })
+
+    expect(accepted).toEqual({ isOk: true, errorMsg: null })
+    expect(providerClient.validateDraftProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: 'p1',
+        customHeaders: {
+          'X-Tenant-ID': 'team-a',
+          'CF-Access-Client-Secret': 'secret'
+        }
+      }),
+      { loadModels: false }
+    )
+    expect(providerClient.updateProviderAtomic).toHaveBeenCalledWith('p1', {
+      customHeaders: {
+        'X-Tenant-ID': 'team-a',
+        'CF-Access-Client-Secret': 'secret'
+      }
+    })
+    expect(configClient.setSetting).toHaveBeenCalledWith(
+      'providerHealth',
+      expect.objectContaining({
+        p1: expect.objectContaining({ status: 'verified', fingerprint: expect.any(String) })
+      })
+    )
+    const healthWrite = configClient.setSetting.mock.calls.find(([key]) => key === 'providerHealth')
+    expect(JSON.stringify(healthWrite)).not.toContain('secret')
+  })
 })

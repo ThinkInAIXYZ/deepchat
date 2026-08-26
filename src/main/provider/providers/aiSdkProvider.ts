@@ -867,17 +867,18 @@ export class AiSdkProvider extends BaseLLMProvider {
       const requestRuntimeProvider = useGrokOAuth
         ? refreshedRuntimeProvider
         : { ...refreshedRuntimeProvider, oauthToken: undefined }
-      const response = await fetch(url, {
+      const requestHeaders = new Headers(
+        this.getRequestHeaders(
+          resolvedDecision,
+          requestRuntimeProvider,
+          defaultHeaders,
+          init.body && !(init.body instanceof FormData) ? 'application/json' : undefined
+        )
+      )
+      new Headers(init.headers).forEach((value, name) => requestHeaders.set(name, value))
+      const response = await this.fetchProvider(url, {
         ...init,
-        headers: {
-          ...this.getRequestHeaders(
-            resolvedDecision,
-            requestRuntimeProvider,
-            defaultHeaders,
-            init.body && !(init.body instanceof FormData) ? 'application/json' : undefined
-          ),
-          ...(init.headers as Record<string, string> | undefined)
-        },
+        headers: requestHeaders,
         signal: controller.signal
       })
 
@@ -1406,7 +1407,7 @@ export class AiSdkProvider extends BaseLLMProvider {
     })
 
     try {
-      const response = await fetch(modelsUrl, {
+      const response = await this.fetchProvider(modelsUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -1464,7 +1465,7 @@ export class AiSdkProvider extends BaseLLMProvider {
     })
 
     try {
-      const response = await fetch(modelsUrl, {
+      const response = await this.fetchProvider(modelsUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -2100,7 +2101,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   public async getKeyStatus(): Promise<KeyStatus | null> {
     switch (this.resolveKeyStatusStrategy()) {
       case 'openrouter': {
-        const response = await fetch('https://openrouter.ai/api/v1/key', {
+        const response = await this.fetchProvider('https://openrouter.ai/api/v1/key', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
@@ -2129,7 +2130,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         return keyStatus
       }
       case 'deepseek': {
-        const response = await fetch('https://api.deepseek.com/user/balance', {
+        const response = await this.fetchProvider('https://api.deepseek.com/user/balance', {
           method: 'GET',
           headers: {
             Accept: 'application/json',
@@ -2164,7 +2165,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       case 'ppio': {
-        const response = await fetch('https://api.ppinfra.com/v3/user', {
+        const response = await this.fetchProvider('https://api.ppinfra.com/v3/user', {
           method: 'GET',
           headers: {
             Authorization: this.provider.apiKey,
@@ -2184,7 +2185,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       case 'tokenflux': {
-        const response = await fetch(`${this.provider.baseUrl}/models`, {
+        const response = await this.fetchProvider(`${this.provider.baseUrl}/models`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
@@ -2203,7 +2204,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       case '302ai': {
-        const response = await fetch('https://api.302.ai/dashboard/balance', {
+        const response = await this.fetchProvider('https://api.302.ai/dashboard/balance', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
@@ -2224,7 +2225,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'cherryin': {
         const baseUrl = (this.provider.baseUrl || 'https://open.cherryin.ai/v1').replace(/\/$/, '')
-        const usageResponse = await fetch(`${baseUrl}/dashboard/billing/usage`, {
+        const usageResponse = await this.fetchProvider(`${baseUrl}/dashboard/billing/usage`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
@@ -2253,7 +2254,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       case 'siliconcloud': {
-        const response = await fetch('https://api.siliconflow.cn/v1/user/info', {
+        const response = await this.fetchProvider('https://api.siliconflow.cn/v1/user/info', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,

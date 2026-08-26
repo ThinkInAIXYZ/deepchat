@@ -6,6 +6,7 @@ import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import type { ProviderHealthEntry } from '@shared/contracts/routes'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/types/provider'
+import { canonicalizeProviderCustomHeaders } from '@shared/providerCustomHeaders'
 
 type VoiceAIConfig = {
   audioFormat: string
@@ -192,11 +193,13 @@ export const useProviderStore = defineStore('provider', () => {
   const computeHealthFingerprint = (provider: LLM_PROVIDER): string => {
     const bedrock = provider as AWS_BEDROCK_PROVIDER
     const vertex = provider as VERTEX_PROVIDER
+    const customHeaders = canonicalizeProviderCustomHeaders(provider.customHeaders)
     const material = [
       provider.apiType,
       provider.baseUrl ?? '',
       provider.apiKey ? hashString(provider.apiKey) : '',
       provider.oauthToken ? hashString(provider.oauthToken) : '',
+      customHeaders ? hashString(customHeaders) : '',
       // Bedrock keeps its secrets in provider.credential, not apiKey.
       bedrock.credential
         ? hashString(
@@ -475,7 +478,11 @@ export const useProviderStore = defineStore('provider', () => {
 
   const stageProviderApiChange = (
     providerId: string,
-    updates: { apiKey?: string; baseUrl?: string }
+    updates: {
+      apiKey?: string
+      baseUrl?: string
+      customHeaders?: Record<string, string>
+    }
   ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
     const previous = stagedApiChangeQueues.get(providerId) ?? Promise.resolve()
     const run = previous.then(
@@ -492,7 +499,11 @@ export const useProviderStore = defineStore('provider', () => {
 
   const performStageApiChange = async (
     providerId: string,
-    updates: { apiKey?: string; baseUrl?: string }
+    updates: {
+      apiKey?: string
+      baseUrl?: string
+      customHeaders?: Record<string, string>
+    }
   ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
     const current = providers.value.find((item) => item.id === providerId)
     if (!current) {
@@ -503,9 +514,22 @@ export const useProviderStore = defineStore('provider', () => {
     if (!result.isOk) {
       return { isOk: false, errorMsg: result.errorMsg }
     }
-    await updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
+    await updateProviderConfig(providerId, updates)
     await recordProviderHealth(providerId, computeHealthFingerprint(staged), true)
     return { isOk: true, errorMsg: null }
+  }
+
+  const saveProviderCustomHeaders = async (
+    providerId: string,
+    customHeaders?: Record<string, string>
+  ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
+    if (!isProviderConfigured(providerId)) {
+      await updateProviderConfig(providerId, { customHeaders })
+      await clearProviderHealth(providerId)
+      return { isOk: true, errorMsg: null }
+    }
+
+    return stageProviderApiChange(providerId, { customHeaders })
   }
 
   const removeProvider = async (providerId: string) => {
@@ -718,6 +742,7 @@ export const useProviderStore = defineStore('provider', () => {
     validateDraftProvider,
     commitValidatedDraft,
     stageProviderApiChange,
+    saveProviderCustomHeaders,
     removeProvider,
     updateAwsBedrockProviderConfig,
     updateVertexProviderConfig,

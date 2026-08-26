@@ -519,7 +519,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
+      const response = await this.fetchProvider(
+        `${this.baseApiUrl}/chat/completions`,
+        requestOptions
+      )
 
       logger.info('📥 [GitHub Copilot] Stream API Response:')
       logger.info(`   Status: ${response.status} ${response.statusText}`)
@@ -669,7 +672,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
+      const response = await this.fetchProvider(
+        `${this.baseApiUrl}/chat/completions`,
+        requestOptions
+      )
 
       logger.info('📥 [GitHub Copilot] Completion API Response:')
       logger.info(`   Status: ${response.status} ${response.statusText}`)

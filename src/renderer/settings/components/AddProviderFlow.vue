@@ -128,6 +128,13 @@
             />
           </div>
 
+          <ProviderCustomHeadersEditor
+            :provider-id="draftId"
+            :model-value="form.customHeaders"
+            :save="saveDraftCustomHeaders"
+            :disabled="isBusy"
+          />
+
           <DcInlineError v-if="connectError" :error="connectError" />
 
           <div class="flex items-center gap-2">
@@ -176,6 +183,8 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { createWindowClient } from '@api/WindowClient'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { ProviderCustomHeaders } from '@shared/providerCustomHeaders'
+import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const emit = defineEmits<{
   cancel: []
@@ -191,7 +200,13 @@ const windowClient = createWindowClient()
 // provider id, and a cancelled attempt never leaves a second half-created id.
 const draftId = nanoid()
 
-const form = ref({
+const form = ref<{
+  name: string
+  apiType: string
+  apiKey: string
+  baseUrl: string
+  customHeaders?: ProviderCustomHeaders
+}>({
   name: '',
   apiType: 'openai',
   apiKey: '',
@@ -254,9 +269,17 @@ const buildDraft = (): LLM_PROVIDER => ({
   apiType: form.value.apiType,
   apiKey: form.value.apiKey.trim(),
   baseUrl: form.value.baseUrl.trim(),
+  ...(form.value.customHeaders ? { customHeaders: form.value.customHeaders } : {}),
   enable: false,
   custom: true
 })
+
+const saveDraftCustomHeaders = async (
+  customHeaders?: ProviderCustomHeaders
+): Promise<{ isOk: boolean; errorMsg: string | null }> => {
+  form.value.customHeaders = customHeaders
+  return { isOk: true, errorMsg: null }
+}
 
 const finishToDetail = () => {
   if (committedProvider) {

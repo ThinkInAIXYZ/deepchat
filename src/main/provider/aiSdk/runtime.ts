@@ -62,6 +62,7 @@ import type { PromptCacheIntent } from '../promptCacheStrategy'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
 import { normalizeReasoningEffortValue } from '@shared/types/model-db'
 import { createDeepSeekResponsesAdapter } from '../deepseekResponsesAdapter'
+import { fetchWithProviderHeaders } from '../providerHeaders'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
 type ImageGenerationRequestOptions = {
@@ -476,7 +477,7 @@ async function executeTtsPatternA(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    const response = await fetch(url, fetchInit)
+    const response = await fetchWithProviderHeaders(provider, url, fetchInit)
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
@@ -538,7 +539,7 @@ async function executeTtsPatternB(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    const response = await fetch(url, fetchInit)
+    const response = await fetchWithProviderHeaders(provider, url, fetchInit)
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
@@ -619,7 +620,7 @@ async function executeTtsPatternC(
       body: JSON.stringify(body),
       signal: controller.signal
     }
-    const response = await fetch(url, fetchInit)
+    const response = await fetchWithProviderHeaders(provider, url, fetchInit)
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
@@ -1088,7 +1089,7 @@ async function executeOpenAICompatibleVideoGeneration(
         signal: controller.signal
       }
 
-      const response = await fetch(url, fetchInit)
+      const response = await fetchWithProviderHeaders(provider, url, fetchInit)
       if (!response.ok) {
         const errorText = await response.text().catch(() => '')
         throw new Error(`Video request failed (${response.status}): ${errorText}`)
@@ -1107,7 +1108,7 @@ async function executeOpenAICompatibleVideoGeneration(
         signal: controller.signal
       }
 
-      const response = await fetch(url, fetchInit)
+      const response = await fetchWithProviderHeaders(provider, url, fetchInit)
       if (!response.ok) {
         const errorText = await response.text().catch(() => '')
         throw new Error(`Video content download failed (${response.status}): ${errorText}`)
