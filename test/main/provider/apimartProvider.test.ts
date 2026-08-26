@@ -584,7 +584,9 @@ describe('ApimartProvider', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValue(jsonResponse({ data: { id: 'task-pending', status: 'processing' } }))
+        .mockImplementation(() =>
+          Promise.resolve(jsonResponse({ data: { id: 'task-pending', status: 'processing' } }))
+        )
     )
     const provider = createProviderInstance()
 
