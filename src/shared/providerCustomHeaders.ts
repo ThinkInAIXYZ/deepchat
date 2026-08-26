@@ -23,7 +23,7 @@ export const PROVIDER_CUSTOM_HEADER_VALUE_MAX_BYTES = 8 * 1024
 export const PROVIDER_CUSTOM_HEADERS_MAX_BYTES = 64 * 1024
 
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u
-const INVALID_HEADER_VALUE_PATTERN = /[\r\n\0]/u
+const INVALID_HEADER_VALUE_PATTERN = /[\r\n\0]|[^\u0000-\u00ff]/u
 
 export const RESERVED_PROVIDER_HEADER_NAMES = new Set([
   'authorization',

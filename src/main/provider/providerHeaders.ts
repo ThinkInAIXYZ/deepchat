@@ -174,7 +174,8 @@ export async function fetchWithProviderHeaders(
       method: rewriteToGet ? 'GET' : currentMethod,
       body: nextBody,
       headers: nextHeaders,
-      redirect: 'manual'
+      redirect: 'manual',
+      ...(nextBody instanceof ReadableStream ? { duplex: 'half' as const } : {})
     }
   }
 }

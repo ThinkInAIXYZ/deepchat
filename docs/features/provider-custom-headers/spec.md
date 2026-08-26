@@ -167,7 +167,8 @@ authoritative:
 - every value is a string;
 - at most 64 headers are accepted;
 - names are RFC HTTP field-name tokens, at most 128 characters, and unique case-insensitively;
-- values contain no CR, LF, or NUL, and each value is at most 8 KiB;
+- values are representable as HTTP `ByteString` values, contain no CR, LF, or NUL, and each value
+  is at most 8 KiB;
 - the complete UTF-8 encoded header map is at most 64 KiB;
 - transport- and credential-owned names are rejected case-insensitively:
   `authorization`, `proxy-authorization`, `api-key`, `x-api-key`, `x-goog-api-key`,

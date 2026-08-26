@@ -86,8 +86,9 @@ positioned before Models. Preserve existing provider behavior when the field is 
 - `pnpm run i18n`
 - `pnpm run lint`
 - `pnpm run typecheck`
+- `pnpm run architecture:renderer-baseline:check`
 - `pnpm exec electron-vite build`
-- Focused main tests: 127 passed; the 5 SQLite-native cases were skipped because the optional native
+- Focused main tests: 128 passed; the 5 SQLite-native cases were skipped because the optional native
   binding was unavailable to the host Node test runner.
 - Focused renderer tests: 14 passed.
 - Built Electron smoke: 1 passed.

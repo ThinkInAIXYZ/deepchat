@@ -155,7 +155,10 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('installs an origin-scoped SDK fetch when custom headers are configured', async () => {
-    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    const fetchMock = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
     vi.stubGlobal('fetch', fetchMock)
     new OllamaProvider(
       {

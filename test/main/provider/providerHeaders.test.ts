@@ -42,6 +42,11 @@ describe('provider custom header validation', () => {
       ok: false,
       code: 'invalid_value'
     })
+    expect(validateProviderCustomHeaders({ 'X-Latin-1': '\u00ff' })).toMatchObject({ ok: true })
+    expect(validateProviderCustomHeaders({ 'X-Unicode': '\u0100' })).toMatchObject({
+      ok: false,
+      code: 'invalid_value'
+    })
   })
 
   it('enforces header count, field, and total byte limits', () => {
@@ -83,7 +88,10 @@ describe('fetchWithProviderHeaders', () => {
     const provider = createProvider()
     const input = 'https://gateway.example.com/v1/chat/completions'
     const init = { method: 'POST', headers: { Authorization: 'Bearer provider-key' } }
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    const fetchImpl = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
 
     await fetchWithProviderHeaders(provider, input, init, fetchImpl)
 
@@ -95,7 +103,10 @@ describe('fetchWithProviderHeaders', () => {
       'X-Tenant-ID': 'team-a',
       'HTTP-Referer': 'https://custom.example.com'
     })
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    const fetchImpl = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
 
     await fetchWithProviderHeaders(
       provider,
@@ -148,6 +159,35 @@ describe('fetchWithProviderHeaders', () => {
     expect(String(fetchImpl.mock.calls[1][0])).toBe('https://gateway.example.com/v1/redirected')
     expect(redirectedHeaders.get('x-tenant-id')).toBe('team-a')
     expect(redirectedHeaders.get('authorization')).toBe('Bearer provider-key')
+  })
+
+  it('sets duplex when a redirect retries a stream body', async () => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const fetchImpl = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+    fetchImpl.mockResolvedValueOnce(
+      new Response(null, {
+        status: 307,
+        headers: { Location: '/v1/redirected' }
+      })
+    )
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('payload'))
+        controller.close()
+      }
+    })
+    const request = new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      body,
+      duplex: 'half'
+    })
+
+    await fetchWithProviderHeaders(provider, request, undefined, fetchImpl)
+
+    expect(fetchImpl.mock.calls[1]?.[1]?.duplex).toBe('half')
   })
 
   it('strips custom and credential headers on cross-origin redirects', async () => {
