@@ -13,12 +13,16 @@ function createAssistantMessage(id: string, blocks: unknown[]) {
 
 function createHarness(messages: Array<Record<string, unknown>>) {
   const sessionId = ref('s1')
+  const messageRecords = ref(messages)
   const messageStore = {
-    messages,
+    get messages() {
+      return messageRecords.value
+    },
     getAssistantMessageBlocks: vi.fn((message: { content: string }) => JSON.parse(message.content))
   }
   const chatClient = {
-    respondToolInteraction: vi.fn().mockResolvedValue({ handledInline: false })
+    respondToolInteraction: vi.fn().mockResolvedValue({ handledInline: false }),
+    dismissToolInteraction: vi.fn().mockResolvedValue({ dismissed: true })
   }
   const loadMessagesForSession = vi.fn().mockResolvedValue({ id: 'restored' })
   const applyRestoredSessionSummary = vi.fn()
@@ -45,6 +49,7 @@ function createHarness(messages: Array<Record<string, unknown>>) {
   return {
     toolInteraction,
     sessionId,
+    messageRecords,
     chatClient,
     loadMessagesForSession,
     applyRestoredSessionSummary,
@@ -200,6 +205,11 @@ describe('useToolInteraction', () => {
     // A rejected respond is treated as a stale interaction: the page refreshes
     // and, because the block is still pending, releases the approval UI.
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
+    expect(harness.chatClient.dismissToolInteraction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      messageId: 'm1',
+      toolCallId: 'tool-1'
+    })
     expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
@@ -237,7 +247,13 @@ describe('useToolInteraction', () => {
     } as any)
 
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
-    // The stale approval is dropped and the next pending interaction surfaces.
+    // The stale approval is dropped, durably dismissed on the main process, and
+    // the next pending interaction surfaces.
+    expect(harness.chatClient.dismissToolInteraction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      messageId: 'm1',
+      toolCallId: 'tool-1'
+    })
     expect(harness.toolInteraction.pendingInteractions.value).toMatchObject([
       { messageId: 'm2', toolCallId: 'tool-2', actionType: 'question_request' }
     ])
@@ -249,7 +265,7 @@ describe('useToolInteraction', () => {
   })
 
   it('keeps a responded interaction when the main process resolved its block', async () => {
-    const messages = [
+    const harness = createHarness([
       createAssistantMessage('m1', [
         {
           type: 'action',
@@ -258,15 +274,21 @@ describe('useToolInteraction', () => {
           tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
         }
       ])
-    ]
-    const harness = createHarness(messages)
+    ])
     harness.chatClient.respondToolInteraction.mockResolvedValue({ resumed: true })
     // Simulate the main process persisting a resolved block before the reload.
     harness.loadMessagesForSession.mockImplementation(async () => {
-      const blocks = JSON.parse(messages[0].content as string) as Array<Record<string, any>>
-      blocks[0].status = 'granted'
-      blocks[0].extra = { needsUserAction: false }
-      messages[0].content = JSON.stringify(blocks)
+      harness.messageRecords.value = [
+        createAssistantMessage('m1', [
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'granted',
+            extra: { needsUserAction: false },
+            tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
+          }
+        ])
+      ]
       return { id: 'restored' }
     })
 
@@ -277,6 +299,7 @@ describe('useToolInteraction', () => {
 
     expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
     harness.stop()
   })

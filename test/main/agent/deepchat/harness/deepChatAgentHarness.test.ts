@@ -17526,6 +17526,87 @@ describe('DeepChatAgentHarness', () => {
     })
   })
 
+  describe('dismissToolInteraction', () => {
+    it('resolves a stale pending permission block in the transcript', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
+
+      expect(dismissed).toBe(true)
+      const blocks = getLatestUpdatedBlocks('m1')
+      const permissionBlock = blocks.find(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.tool_call?.id === 'tc1'
+      )
+      expect(permissionBlock?.status).toBe('denied')
+      expect(permissionBlock?.extra?.needsUserAction).toBe(false)
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+      ).toBe(false)
+    })
+
+    it('stamps the interaction as cancelled in the message metadata', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+
+      await agent.dismissToolInteraction('s1', 'm1', 'tc1')
+
+      const metadataUpdate = sqlitePresenter.deepchatMessagesTable.updateMetadata.mock.calls.find(
+        ([id]) => id === 'm1'
+      )
+      expect(JSON.parse(metadataUpdate?.[1] ?? '{}')).toMatchObject({
+        interactionResolution: 'cancelled'
+      })
+    })
+
+    it('resolves a pending question block in the transcript', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingQuestion()
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'pending-question')
+
+      expect(dismissed).toBe(true)
+      const blocks = getLatestUpdatedBlocks('m1')
+      const questionBlock = blocks.find(
+        (block) => block.type === 'action' && block.action_type === 'question_request'
+      )
+      expect(questionBlock?.status).toBe('success')
+      expect(questionBlock?.extra?.needsUserAction).toBe(false)
+    })
+
+    it('returns false for a non-pending interaction without writing', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+      const persistedUpdateCount =
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'missing-tool-call')
+
+      expect(dismissed).toBe(false)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length).toBe(
+        persistedUpdateCount
+      )
+    })
+  })
+
   describe('permission mode', () => {
     it('setPermissionMode updates runtime and db', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })

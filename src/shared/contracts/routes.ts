@@ -37,6 +37,7 @@ import {
 } from './routes/computerUse.routes'
 import {
   chatCancelSubmissionRoute,
+  chatDismissToolInteractionRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -1075,6 +1076,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
+  [chatDismissToolInteractionRoute.name]: chatDismissToolInteractionRoute,
   [databaseSecurityGetStatusRoute.name]: databaseSecurityGetStatusRoute,
   [databaseSecurityEnableRoute.name]: databaseSecurityEnableRoute,
   [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,

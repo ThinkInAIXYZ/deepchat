@@ -468,6 +468,17 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       .toolInteractions.respond(messageId, toolCallId, response)
   }
 
+  async dismissToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string
+  ): Promise<boolean> {
+    this.requireSession(sessionId)
+    return await this.dependencies.runtime
+      .resolveSession(toAppSessionId(sessionId))
+      .toolInteractions.dismiss(messageId, toolCallId)
+  }
+
   private promoteDraft(sessionId: string, input: SendMessageInput): void {
     const title = input.text.trim().slice(0, 50) || 'New Chat'
     this.dependencies.sessions.update(sessionId, { isDraft: false, title })

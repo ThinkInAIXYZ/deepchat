@@ -747,6 +747,51 @@ export class InteractionCoordinator {
     }
   }
 
+  /**
+   * Closes a stale pending interaction (permission/question) whose backing run
+   * can no longer resolve it. The block is marked denied/resolved in the
+   * transcript so the approval does not linger across session reloads or block
+   * new turns. No tool executes and no run resumes.
+   */
+  async dismiss(sessionId: string, messageId: string, toolCallId: string): Promise<boolean> {
+    const message = await this.ports.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant' || message.sessionId !== sessionId) {
+      return false
+    }
+
+    const blocks = parseAssistantBlocks(message.content)
+    const entry = collectPendingInteractionEntries(messageId, blocks).find(
+      ({ interaction }) => interaction.toolCallId === toolCallId
+    )
+    if (!entry) {
+      return false
+    }
+
+    const actionBlock = blocks[entry.blockIndex]
+    if (actionBlock.action_type === 'tool_call_permission') {
+      const permissionType = parsePermissionPayload(actionBlock)?.permissionType ?? 'write'
+      markPermissionResolved(actionBlock, false, permissionType)
+      updateToolCallResponse(blocks, toolCallId, 'User denied the request.', true)
+    } else if (actionBlock.action_type === 'question_request') {
+      markQuestionResolved(actionBlock, '')
+    } else {
+      return false
+    }
+
+    const metadata = stampInteractionResolution(
+      parseMessageMetadata(message.metadata),
+      'cancelled'
+    )
+    this.ports.messageStore.updateAssistantContent(messageId, blocks, JSON.stringify(metadata))
+    this.ports.messageProjection.refresh(sessionId, messageId)
+    const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    replacePendingInteractions(
+      instance,
+      collectPendingInteractionEntries(messageId, blocks)
+    )
+    return true
+  }
+
   private readLatestPendingInteraction(
     sessionId: string,
     messageId: string,

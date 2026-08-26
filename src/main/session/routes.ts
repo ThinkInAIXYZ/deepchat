@@ -1,5 +1,6 @@
 import {
   chatCancelSubmissionRoute,
+  chatDismissToolInteractionRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -850,6 +851,15 @@ export function createSessionRoutes(deps: {
         const input = chatRespondToolInteractionRoute.input.parse(rawInput)
         return chatRespondToolInteractionRoute.output.parse(
           await chatService.respondToolInteraction(input)
+        )
+      }
+    ],
+    [
+      chatDismissToolInteractionRoute.name,
+      async (rawInput) => {
+        const input = chatDismissToolInteractionRoute.input.parse(rawInput)
+        return chatDismissToolInteractionRoute.output.parse(
+          await chatService.dismissToolInteraction(input)
         )
       }
     ]

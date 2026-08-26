@@ -96,6 +96,11 @@ export interface DeepChatAgentBackendPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  dismissToolInteraction(
+    sessionId: AppSessionId,
+    messageId: string,
+    toolCallId: string
+  ): Promise<boolean>
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
@@ -183,7 +188,9 @@ export function createDeepChatAgentBackend(
       },
       toolInteractions: {
         respond: (messageId, toolCallId, response) =>
-          port.respondToolInteraction(sessionId, messageId, toolCallId, response)
+          port.respondToolInteraction(sessionId, messageId, toolCallId, response),
+        dismiss: (messageId, toolCallId) =>
+          port.dismissToolInteraction(sessionId, messageId, toolCallId)
       },
       send: (input) => port.send(sessionId, input),
       cancel: () => port.cancelGeneration(sessionId),

@@ -376,6 +376,7 @@ export interface SessionTurnPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  dismissToolInteraction(sessionId: string, messageId: string, toolCallId: string): Promise<boolean>
 }
 
 export interface SessionAssignmentCatalogPort {

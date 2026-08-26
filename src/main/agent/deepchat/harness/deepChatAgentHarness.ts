@@ -228,6 +228,13 @@ export class DeepChatAgentHarness
     )
   }
 
+  readonly dismissToolInteraction = (
+    sessionId: string,
+    messageId: string,
+    toolCallId: string
+  ): Promise<boolean> =>
+    this.services.interactionCoordinator.dismiss(sessionId, messageId, toolCallId)
+
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
     await this.services.sessionSettings.setPermissionMode(sessionId, mode)
   }
@@ -275,11 +282,10 @@ export class DeepChatAgentHarness
 
   async cancelGeneration(sessionId: string): Promise<void> {
     const instance = this.services.runtime.getHydratedScope(toAppSessionId(sessionId))?.instance
-    if (instance) {
+    if (instance)
       try {
         this.services.toolSurfaceDiagnostics.cancelPending(instance)
       } catch {}
-    }
     await this.services.runLifecycle.cancel(sessionId)
   }
 
@@ -288,9 +294,7 @@ export class DeepChatAgentHarness
   }
 
   async cancelGenerationByEventId(sessionId: string, eventId: string): Promise<boolean> {
-    if (this.services.runLifecycle.getActiveGeneration(sessionId)?.eventId !== eventId) {
-      return false
-    }
+    if (this.services.runLifecycle.getActiveGeneration(sessionId)?.eventId !== eventId) return false
     await this.cancelGeneration(sessionId)
     return true
   }

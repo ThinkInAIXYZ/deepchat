@@ -201,6 +201,22 @@ export const createDirectAcpAgentBackend = (
             ?.resolvePermissionRequest(requestId, response.granted)
           if (!resolved) throw new Error(`Unknown ACP permission request: ${requestId}`)
           return { resumed: false }
+        },
+        async dismiss(messageId: string, toolCallId: string) {
+          const message = await transcript.getMessage(messageId)
+          if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
+            return false
+          }
+          const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+          const block = blocks.find(
+            (candidate) =>
+              candidate.type === 'action' &&
+              candidate.action_type === 'tool_call_permission' &&
+              candidate.tool_call?.id === toolCallId
+          )
+          const requestId = block?.extra?.permissionRequestId?.trim()
+          if (!requestId) return false
+          return runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, false) ?? false
         }
       },
       async send(input): Promise<MessageStartResult> {
