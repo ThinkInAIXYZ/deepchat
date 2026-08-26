@@ -64,6 +64,7 @@ export interface AgentToolInteractionFacet {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  dismiss(messageId: string, toolCallId: string): Promise<boolean>
 }
 
 export interface AgentSessionHandle {

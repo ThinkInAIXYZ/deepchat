@@ -43,6 +43,7 @@ export interface ChatServiceTurnPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  dismissToolInteraction(sessionId: string, messageId: string, toolCallId: string): Promise<boolean>
 }
 
 export interface ChatRespondToolInteractionInput {
@@ -294,6 +295,24 @@ export class ChatService {
       accepted: true,
       ...result
     }
+  }
+
+  async dismissToolInteraction(input: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+  }): Promise<{ dismissed: boolean }> {
+    const dismissed = await this.deps.scheduler.timeout({
+      task: this.deps.turn.dismissToolInteraction(
+        input.sessionId,
+        input.messageId,
+        input.toolCallId
+      ),
+      ms: CHAT_INTERACTION_TIMEOUT_MS,
+      reason: `chat.dismissToolInteraction:${input.sessionId}:${input.toolCallId}`
+    })
+
+    return { dismissed }
   }
 
   private async bestEffortCancel(sessionId: string, reason: string): Promise<void> {

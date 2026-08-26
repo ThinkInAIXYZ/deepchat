@@ -80,7 +80,8 @@ function createHarness() {
           extra: { permissionRequestId: 'permission-request' }
         }
       ])
-    })
+    }),
+    updateAssistantContent: vi.fn()
   }
   const tape = {
     linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
@@ -336,6 +337,26 @@ describe('direct ACP agent backend', () => {
       'permission-request',
       false
     )
+  })
+
+  it('durably dismisses an ACP permission when the runtime is unavailable', async () => {
+    const harness = createHarness()
+    harness.runtime.getHydrated.mockReturnValue(undefined)
+    const handle = harness.backend.open(sessionId, descriptor)
+
+    await expect(handle.toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(true)
+
+    expect(harness.transcript.updateAssistantContent).toHaveBeenCalledTimes(1)
+    const [messageId, blocks] = harness.transcript.updateAssistantContent.mock.calls[0] as [
+      string,
+      AssistantMessageBlock[]
+    ]
+    expect(messageId).toBe('assistant')
+    const block = blocks.find(
+      (candidate) => candidate.type === 'action' && candidate.action_type === 'tool_call_permission'
+    )
+    expect(block?.status).toBe('denied')
+    expect(block?.extra?.needsUserAction).toBe(false)
   })
 
   it('exposes direct transfer, pending, subagent, generation, and close facets', async () => {

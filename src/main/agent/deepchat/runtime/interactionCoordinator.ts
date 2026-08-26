@@ -747,6 +747,63 @@ export class InteractionCoordinator {
     }
   }
 
+  /**
+   * Closes a stale pending interaction (permission/question) whose backing run
+   * can no longer resolve it. The block is marked denied/resolved in the
+   * transcript so the approval does not linger across session reloads or block
+   * new turns. No tool executes and no run resumes.
+   */
+  async dismiss(sessionId: string, messageId: string, toolCallId: string): Promise<boolean> {
+    const message = await this.ports.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant' || message.sessionId !== sessionId) {
+      return false
+    }
+
+    const blocks = parseAssistantBlocks(message.content)
+    const entry = collectPendingInteractionEntries(messageId, blocks).find(
+      ({ interaction }) => interaction.toolCallId === toolCallId
+    )
+    if (!entry) {
+      return false
+    }
+
+    const actionBlock = blocks[entry.blockIndex]
+    if (actionBlock.action_type === 'tool_call_permission') {
+      const permissionType = parsePermissionPayload(actionBlock)?.permissionType ?? 'write'
+      markPermissionResolved(actionBlock, false, permissionType)
+      updateToolCallResponse(blocks, toolCallId, 'User denied the request.', true)
+    } else if (actionBlock.action_type === 'question_request') {
+      markQuestionResolved(actionBlock, '')
+      updateToolCallResponse(blocks, toolCallId, 'Question dismissed.', false)
+    } else {
+      return false
+    }
+
+    const metadata = stampInteractionResolution(
+      parseMessageMetadata(message.metadata),
+      'cancelled'
+    )
+    const metadataJson = JSON.stringify(metadata)
+    const remainingPending = collectPendingInteractionEntries(messageId, blocks)
+    if (remainingPending.length === 0) {
+      // Nothing is left to resolve in this message: finalize it so it no longer
+      // reads as a pending assistant message after the reload.
+      this.ports.messageStore.finalizeAssistantMessage(messageId, blocks, metadataJson)
+    } else {
+      this.ports.messageStore.updateAssistantContent(messageId, blocks, metadataJson)
+    }
+    this.ports.messageProjection.refresh(sessionId, messageId)
+    // Remove only the dismissed entry from the instance queue, preserving pending
+    // interactions that belong to other messages.
+    const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    instance.replacePendingInteractions(
+      instance.getPendingInteractions().filter(
+        (pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId
+      )
+    )
+    return true
+  }
+
   private readLatestPendingInteraction(
     sessionId: string,
     messageId: string,

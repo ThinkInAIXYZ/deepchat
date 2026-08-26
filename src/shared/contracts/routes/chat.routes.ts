@@ -85,3 +85,15 @@ export const chatRespondToolInteractionRoute = defineRouteContract({
     })
     .extend(ToolInteractionResultSchema.shape)
 })
+
+export const chatDismissToolInteractionRoute = defineRouteContract({
+  name: 'chat.dismissToolInteraction',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    messageId: EntityIdSchema,
+    toolCallId: EntityIdSchema
+  }),
+  output: z.object({
+    dismissed: z.boolean()
+  })
+})

@@ -17526,6 +17526,111 @@ describe('DeepChatAgentHarness', () => {
     })
   })
 
+  describe('dismissToolInteraction', () => {
+    const getFinalizedWrite = (messageId: string) => {
+      const call = sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+        ([id]) => id === messageId
+      )
+      expect(call).toBeDefined()
+      return call as [string, string, string, string]
+    }
+
+    it('resolves a stale pending permission block and finalizes the message', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
+
+      expect(dismissed).toBe(true)
+      const [, content, status, metadataJson] = getFinalizedWrite('m1')
+      expect(status).toBe('sent')
+      const blocks = JSON.parse(content) as AssistantMessageBlock[]
+      const permissionBlock = blocks.find(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.tool_call?.id === 'tc1'
+      )
+      expect(permissionBlock?.status).toBe('denied')
+      expect(permissionBlock?.extra?.needsUserAction).toBe(false)
+      expect(JSON.parse(metadataJson)).toMatchObject({ interactionResolution: 'cancelled' })
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+      ).toBe(false)
+    })
+
+    it('resolves a pending question block and its paired tool call', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingQuestion()
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'pending-question')
+
+      expect(dismissed).toBe(true)
+      const [, content] = getFinalizedWrite('m1')
+      const blocks = JSON.parse(content) as AssistantMessageBlock[]
+      const questionBlock = blocks.find(
+        (block) => block.type === 'action' && block.action_type === 'question_request'
+      )
+      const toolBlock = blocks.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === 'pending-question'
+      )
+      expect(questionBlock?.status).toBe('success')
+      expect(questionBlock?.extra?.needsUserAction).toBe(false)
+      expect(toolBlock?.status).toBe('success')
+    })
+
+    it('preserves pending interactions from other messages when dismissing one', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        messageId: 'm1',
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/a.txt']
+      })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.replacePendingInteractions([
+        { messageId: 'm1', toolCallId: 'tc1', origin: 'pre-check-permission', order: 0 },
+        { messageId: 'm2', toolCallId: 'tc2', origin: 'pre-check-permission', order: 1 }
+      ])
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
+
+      expect(dismissed).toBe(true)
+      expect(instance.getPendingInteractions()).toEqual([
+        { messageId: 'm2', toolCallId: 'tc2', origin: 'pre-check-permission', order: 1 }
+      ])
+    })
+
+    it('returns false for a non-pending interaction without writing', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/file.txt']
+      })
+      const contentWrites = sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+      const finalizeWrites =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.length
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'missing-tool-call')
+
+      expect(dismissed).toBe(false)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length).toBe(
+        contentWrites
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.length).toBe(
+        finalizeWrites
+      )
+    })
+  })
+
   describe('permission mode', () => {
     it('setPermissionMode updates runtime and db', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })

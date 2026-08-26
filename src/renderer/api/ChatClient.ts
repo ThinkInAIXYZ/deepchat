@@ -9,6 +9,7 @@ import {
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
   chatCancelSubmissionRoute,
+  chatDismissToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
@@ -67,6 +68,17 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     )
   }
 
+  async function dismissToolInteraction(input: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+  }) {
+    return await bridge.invoke(
+      chatDismissToolInteractionRoute.name,
+      input as DeepchatRouteInput<typeof chatDismissToolInteractionRoute.name>
+    )
+  }
+
   function onStreamUpdated(
     listener: (payload: DeepchatEventPayload<'chat.stream.updated'>) => void
   ) {
@@ -93,6 +105,7 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     cancelSubmission,
     stopStream,
     respondToolInteraction,
+    dismissToolInteraction,
     onStreamUpdated,
     onStreamCompleted,
     onStreamFailed,

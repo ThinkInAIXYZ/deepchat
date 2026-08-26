@@ -73,7 +73,8 @@ function createHarness(
     delete: vi.fn().mockResolvedValue(undefined)
   }
   const toolInteractions = {
-    respond: vi.fn().mockResolvedValue({ resumed: true })
+    respond: vi.fn().mockResolvedValue({ resumed: true }),
+    dismiss: vi.fn().mockResolvedValue(true)
   }
   const send = vi.fn().mockResolvedValue({ requestId: 'request-1', messageId: 'message-1' })
   const cancel = vi.fn().mockResolvedValue(undefined)
