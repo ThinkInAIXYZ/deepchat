@@ -33,7 +33,7 @@ type ChatClientLike = {
     messageId: string
     toolCallId: string
     response: ToolInteractionResponse
-  }) => Promise<{ handledInline?: boolean }>
+  }) => Promise<{ handledInline?: boolean; waitingForUserMessage?: boolean }>
 }
 
 type UseToolInteractionOptions = {
@@ -66,6 +66,24 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
  */
 export function useToolInteraction(options: UseToolInteractionOptions) {
   const isHandlingInteraction = ref(false)
+
+  // Interactions the main process could not resolve (their backing run is gone,
+  // the session was replaced mid-response, or the subagent session vanished).
+  // Keeping them in the list would trap the approval UI on an interaction that
+  // can never close and block access to newer pending approvals.
+  const staleInteractionKeys = ref<Set<string>>(new Set())
+
+  const interactionKey = (interaction: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+  }) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
+
+  const markStale = (interaction: { sessionId: string; messageId: string; toolCallId: string }) => {
+    const key = interactionKey(interaction)
+    if (staleInteractionKeys.value.has(key)) return
+    staleInteractionKeys.value = new Set(staleInteractionKeys.value).add(key)
+  }
 
   const pendingInteractions = computed<PendingInteractionView[]>(() => {
     const list: PendingInteractionView[] = []
@@ -130,7 +148,12 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       }
     }
 
-    return list
+    if (staleInteractionKeys.value.size === 0) {
+      return list
+    }
+
+    const stale = staleInteractionKeys.value
+    return list.filter((entry) => !stale.has(interactionKey(entry)))
   })
 
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
@@ -144,6 +167,18 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     const sessionId = options.sessionId()
     const requestId = options.currentRestoreRequestId()
     isHandlingInteraction.value = true
+    const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
+    const refreshAfterResponse = async () => {
+      if (!isCurrentView()) return false
+      const restoredSession = await options.loadMessagesForSession(sessionId)
+      if (!isCurrentView()) return false
+      options.applyRestoredSessionSummary(restoredSession)
+      return true
+    }
+    const isStillPending = () =>
+      pendingInteractions.value.some(
+        (entry) => interactionKey(entry) === interactionKey(interaction)
+      )
     try {
       const result = await options.chatClient.respondToolInteraction({
         sessionId: interaction.sessionId,
@@ -151,15 +186,30 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         toolCallId: interaction.toolCallId,
         response
       })
-      if (!options.canWriteSessionView(sessionId, requestId)) return
-      const restoredSession = await options.loadMessagesForSession(sessionId)
-      if (!options.canWriteSessionView(sessionId, requestId)) return
-      options.applyRestoredSessionSummary(restoredSession)
-      if (result.handledInline) {
+      const refreshed = await refreshAfterResponse()
+      if (!refreshed || result.handledInline || result.waitingForUserMessage) {
         return
+      }
+      // The main process resolves a handled interaction by persisting a
+      // non-pending block status. If it is still pending after the reload, its
+      // backing run is gone and the approval can never be closed here. Drop it
+      // so the UI advances to the next pending approval instead of staying stuck.
+      if (isStillPending()) {
+        markStale(interaction)
       }
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
+      // A rejected respond is itself a strong staleness signal (a resolvable
+      // interaction would not be rejected). Reload once and, if the interaction
+      // is still pending, release the UI from the uncloseable approval.
+      try {
+        const refreshed = await refreshAfterResponse()
+        if (refreshed && isStillPending()) {
+          markStale(interaction)
+        }
+      } catch (refreshError) {
+        console.error('[ChatPage] refresh after failed tool interaction response:', refreshError)
+      }
     } finally {
       isHandlingInteraction.value = false
     }

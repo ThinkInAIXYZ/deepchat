@@ -177,7 +177,7 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('releases the response lock without refreshing when the client rejects', async () => {
+  it('releases the response lock and drops an unresolvable interaction when the client rejects', async () => {
     const error = new Error('response failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const harness = createHarness([
@@ -197,10 +197,87 @@ describe('useToolInteraction', () => {
       granted: true
     } as any)
 
-    expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
+    // A rejected respond is treated as a stale interaction: the page refreshes
+    // and, because the block is still pending, releases the approval UI.
+    expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
+    expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
     consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('drops a responded interaction that stays pending after reload so the UI advances', async () => {
+    const harness = createHarness([
+      createAssistantMessage('m1', [
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
+        }
+      ]),
+      createAssistantMessage('m2', [
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          tool_call: { id: 'tool-2', name: 'ask', params: '{}' }
+        }
+      ])
+    ])
+    // The main process returns without resolving the first interaction (its
+    // backing run is gone): the block stays pending after the reload.
+    harness.chatClient.respondToolInteraction.mockResolvedValue({ resumed: false })
+
+    await harness.toolInteraction.onToolInteractionRespond({
+      kind: 'permission',
+      granted: true
+    } as any)
+
+    expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
+    // The stale approval is dropped and the next pending interaction surfaces.
+    expect(harness.toolInteraction.pendingInteractions.value).toMatchObject([
+      { messageId: 'm2', toolCallId: 'tool-2', actionType: 'question_request' }
+    ])
+    expect(harness.toolInteraction.activePendingInteraction.value).toMatchObject({
+      messageId: 'm2',
+      toolCallId: 'tool-2'
+    })
+    harness.stop()
+  })
+
+  it('keeps a responded interaction when the main process resolved its block', async () => {
+    const messages = [
+      createAssistantMessage('m1', [
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
+        }
+      ])
+    ]
+    const harness = createHarness(messages)
+    harness.chatClient.respondToolInteraction.mockResolvedValue({ resumed: true })
+    // Simulate the main process persisting a resolved block before the reload.
+    harness.loadMessagesForSession.mockImplementation(async () => {
+      const blocks = JSON.parse(messages[0].content as string) as Array<Record<string, any>>
+      blocks[0].status = 'granted'
+      blocks[0].extra = { needsUserAction: false }
+      messages[0].content = JSON.stringify(blocks)
+      return { id: 'restored' }
+    })
+
+    await harness.toolInteraction.onToolInteractionRespond({
+      kind: 'permission',
+      granted: true
+    } as any)
+
+    expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 })
