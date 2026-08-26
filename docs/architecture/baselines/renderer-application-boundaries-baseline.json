@@ -484,6 +484,10 @@
       "specifier": "@/lib/utils"
     },
     {
+      "file": "src/renderer/settings/components/ProviderCustomHeadersEditor.vue",
+      "specifier": "@/stores/uiSettingsStore"
+    },
+    {
       "file": "src/renderer/settings/components/ProviderDeeplinkImportDialog.vue",
       "specifier": "@/components/icons/ModelIcon.vue"
     },
@@ -556,5 +560,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 126
+  "settingsToChatAppImportCount": 127
 }

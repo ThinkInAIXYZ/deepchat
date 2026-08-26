@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Pengepala permintaan tersuai",
+      "description": "Masukkan objek JSON dengan nilai rentetan.",
+      "parseError": "Penghuraian Header tersuai gagal"
+    },
     "search": "Cari platform penyedia perkhidmatan…",
     "enable": "Mulakan perkhidmatan",
     "enabled": "Didayakan",

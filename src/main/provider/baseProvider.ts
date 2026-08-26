@@ -16,6 +16,7 @@ import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
 import type { ProviderLocalePort } from './ports'
+import { buildProviderTraceHeaders, fetchWithProviderHeaders } from './providerHeaders'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
 
@@ -113,6 +114,10 @@ export abstract class BaseLLMProvider {
   public updateConfig(provider: LLM_PROVIDER): void {
     this.provider = { ...provider }
     this.loadCachedModels()
+  }
+
+  protected fetchProvider(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+    return fetchWithProviderHeaders(this.provider, input, init)
   }
 
   protected createModelRequestSignal(
@@ -817,7 +822,7 @@ ${this.convertToolsToXml(tools)}
 
     const tracePayload: ProviderRequestTracePayload = {
       endpoint: payload.endpoint,
-      headers: payload.headers ?? {},
+      headers: buildProviderTraceHeaders(this.provider, payload.endpoint, payload.headers ?? {}),
       body: payload.body ?? null
     }
 

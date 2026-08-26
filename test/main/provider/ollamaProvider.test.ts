@@ -154,6 +154,29 @@ describe('OllamaProvider.fetchModels', () => {
     })
   })
 
+  it('installs an origin-scoped SDK fetch when custom headers are configured', async () => {
+    const fetchMock = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    new OllamaProvider(
+      {
+        ...provider,
+        customHeaders: { 'X-Tenant-ID': 'team-a' }
+      },
+      providerSettings
+    )
+
+    const options = mockOllamaConstructorOptions.at(-1) as {
+      fetch: typeof fetch
+    }
+    await options.fetch('http://127.0.0.1:11434/api/tags')
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
+    expect(headers.get('x-tenant-id')).toBe('team-a')
+  })
+
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
     vi.mocked(providerSettings.getProviderModels).mockClear()

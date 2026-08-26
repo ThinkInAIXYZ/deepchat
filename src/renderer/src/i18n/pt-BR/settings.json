@@ -874,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Cabeçalhos de Solicitação Personalizados",
+      "description": "Insira um objeto JSON com valores de texto.",
+      "parseError": "Falha na análise do Cabeçalho Personalizado"
+    },
     "search": "Buscar plataformas de provedores…",
     "enable": "Habilitar Serviço",
     "enabled": "Habilitado",

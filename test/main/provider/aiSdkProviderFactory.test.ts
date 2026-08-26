@@ -279,6 +279,7 @@ describe('AI SDK provider factory', () => {
         apiType: 'openai-codex',
         apiKey: '',
         baseUrl: 'https://chatgpt.com/backend-api/codex',
+        customHeaders: { 'X-Tenant-ID': 'team-a' },
         enable: true
       } as any,
       providerSettings: {} as any,
@@ -301,6 +302,7 @@ describe('AI SDK provider factory', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [requestUrl, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(requestUrl).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+    expect(new Headers(requestInit.headers).get('x-tenant-id')).toBe('team-a')
     expect(JSON.parse(String(requestInit.body))).toEqual({
       model: 'gpt-image-2',
       prompt: 'A red fox in a field',
@@ -708,12 +710,16 @@ describe('AI SDK provider factory', () => {
         apiType: 'ollama',
         apiKey: '',
         baseUrl: 'http://127.0.0.1:11434',
+        customHeaders: {
+          'X-Tenant-ID': 'team-a',
+          'X-Title': 'Custom title'
+        },
         enable: true
       } as any,
       providerSettings: {
         getAzureApiVersion: () => undefined
       } as any,
-      defaultHeaders: {},
+      defaultHeaders: { 'X-Title': 'DeepChat' },
       modelId: 'llama3',
       wrapThinkReasoning: false
     })
@@ -725,6 +731,9 @@ describe('AI SDK provider factory', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const init = fetchMock.mock.calls[0]?.[1] as (RequestInit & { dispatcher?: object }) | undefined
+    const headers = new Headers(init?.headers)
+    expect(headers.get('x-tenant-id')).toBe('team-a')
+    expect(headers.get('x-title')).toBe('Custom title')
     expect(init?.dispatcher).toBeUndefined()
   })
 })

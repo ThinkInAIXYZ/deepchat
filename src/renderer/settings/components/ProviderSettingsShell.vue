@@ -49,16 +49,6 @@
           <slot name="connection" />
         </section>
 
-        <section
-          data-testid="provider-models-section"
-          class="rounded-lg border border-border bg-card p-4"
-        >
-          <h3 class="mb-3 text-sm font-semibold">
-            {{ t('settings.provider.center.tabs.models') }}
-          </h3>
-          <slot name="models" />
-        </section>
-
         <Collapsible v-model:open="isAdvancedOpen" class="rounded-lg border border-border bg-card">
           <CollapsibleTrigger as-child>
             <button
@@ -85,6 +75,16 @@
             </div>
           </CollapsibleContent>
         </Collapsible>
+
+        <section
+          data-testid="provider-models-section"
+          class="rounded-lg border border-border bg-card p-4"
+        >
+          <h3 class="mb-3 text-sm font-semibold">
+            {{ t('settings.provider.center.tabs.models') }}
+          </h3>
+          <slot name="models" />
+        </section>
       </div>
     </ScrollArea>
 

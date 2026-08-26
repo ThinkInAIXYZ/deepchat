@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Niestandardowe nagłówki żądań",
+      "description": "Wprowadź obiekt JSON z wartościami tekstowymi.",
+      "parseError": "Analiza nagłówka niestandardowego nie powiodła się"
+    },
     "search": "Platformy dostawców wyszukiwania…",
     "enable": "Włącz usługę",
     "enabled": "Włączone",

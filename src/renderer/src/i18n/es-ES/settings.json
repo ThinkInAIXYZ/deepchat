@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Encabezados de solicitud personalizados",
+      "description": "Introduzca un objeto JSON con valores de texto.",
+      "parseError": "Error al analizar el encabezado personalizado"
+    },
     "search": "Buscar plataformas provider...",
     "enable": "Habilitar servicio",
     "enabled": "Habilitado",

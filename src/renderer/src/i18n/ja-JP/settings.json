@@ -874,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "カスタムリクエストヘッダー",
+      "description": "文字列値を持つ JSON オブジェクトを入力してください。",
+      "parseError": "カスタムヘッダーの解析は失敗しました"
+    },
     "search": "プロバイダープラットフォームを検索…",
     "enable": "サービスを有効にする",
     "enabled": "有効",

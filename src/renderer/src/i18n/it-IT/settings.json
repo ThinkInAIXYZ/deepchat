@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Header richiesta personalizzati",
+      "description": "Inserisci un oggetto JSON con valori stringa.",
+      "parseError": "Analisi Header personalizzati non riuscita"
+    },
     "search": "Cerca piattaforme provider…",
     "enable": "Attiva servizio",
     "enabled": "Attivo",

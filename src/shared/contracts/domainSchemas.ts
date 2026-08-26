@@ -23,6 +23,7 @@ import {
   AGENT_OUTPUT_LIMIT_MIN_CHARS
 } from '../lib/agentOutputLimits'
 import { ToolModeSchema } from '../toolMode'
+import { ProviderCustomHeadersSchema } from '../providerCustomHeaders'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -377,6 +378,7 @@ export const LlmProviderSchema = z.looseObject({
   apiKey: z.string(),
   copilotClientId: z.string().optional(),
   baseUrl: z.string(),
+  customHeaders: ProviderCustomHeadersSchema.optional(),
   models: z.array(ProviderModelSummarySchema).optional(),
   customModels: z.array(ProviderModelSummarySchema).optional(),
   enable: z.boolean(),

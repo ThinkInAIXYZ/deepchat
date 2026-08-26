@@ -276,6 +276,25 @@ describe('Provider routes', () => {
     })
   })
 
+  it('rejects invalid custom headers before updating the runtime', async () => {
+    const updateProviderAtomic = vi.fn()
+    const routes = createRoutes({
+      providerSettings: {},
+      providerRuntime: { updateProviderAtomic }
+    })
+
+    await expect(
+      routes.get(providersUpdateRoute.name)?.(
+        {
+          providerId: 'openai',
+          updates: { customHeaders: { Authorization: 'Bearer unsafe' } }
+        },
+        context
+      )
+    ).rejects.toThrow('Invalid custom request headers: reserved_name')
+    expect(updateProviderAtomic).not.toHaveBeenCalled()
+  })
+
   it('returns lightweight provider summaries without model arrays', async () => {
     const routes = createRoutes({
       providerSettings: {
@@ -286,6 +305,7 @@ describe('Provider routes', () => {
             apiType: 'openai',
             apiKey: 'sk-test',
             baseUrl: 'https://api.openai.com/v1',
+            customHeaders: { 'X-Tenant-ID': 'team-a' },
             enable: true,
             models: [{ id: 'gpt-5.4', name: 'GPT-5.4', group: 'default' }],
             customModels: [{ id: 'custom', name: 'Custom', group: 'custom' }],
@@ -307,6 +327,7 @@ describe('Provider routes', () => {
         apiType: 'openai',
         apiKey: 'sk-test',
         baseUrl: 'https://api.openai.com/v1',
+        customHeaders: { 'X-Tenant-ID': 'team-a' },
         enable: true
       })
     ])

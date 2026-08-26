@@ -69,6 +69,7 @@ async function setup(options?: {
     getGeminiSafety: vi.fn().mockResolvedValue('BLOCK_MEDIUM_AND_ABOVE'),
     removeProvider: vi.fn().mockResolvedValue(undefined),
     getProviderHealth: vi.fn(() => ({ status: 'not_checked' })),
+    saveProviderCustomHeaders: vi.fn().mockResolvedValue({ isOk: true, errorMsg: null }),
     stageProviderApiChange: vi
       .fn()
       .mockResolvedValue(options?.stageResult ?? { isOk: true, errorMsg: null })
@@ -120,6 +121,9 @@ async function setup(options?: {
   }))
   vi.doMock('../../../src/renderer/settings/components/ProviderRateLimitConfig.vue', () => ({
     default: passthrough('ProviderRateLimitConfig')
+  }))
+  vi.doMock('../../../src/renderer/settings/components/ProviderCustomHeadersEditor.vue', () => ({
+    default: passthrough('ProviderCustomHeadersEditor')
   }))
   vi.doMock('../../../src/renderer/settings/components/ModelScopeMcpSync.vue', () => ({
     default: passthrough('ModelScopeMcpSync')

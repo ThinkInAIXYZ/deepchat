@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Header permintaan khusus",
+      "description": "Masukkan objek JSON dengan nilai string.",
+      "parseError": "Penguraian Header Kustom gagal"
+    },
     "search": "Platform penyedia layanan pencarian…",
     "enable": "Mulai layanan",
     "enabled": "Diaktifkan",

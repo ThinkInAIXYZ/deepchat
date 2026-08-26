@@ -807,6 +807,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Brugerdefinerede forespørgselsheaders",
+      "description": "Indtast et JSON-objekt med tekstværdier.",
+      "parseError": "Fortolkning af brugerdefinerede headers mislykkedes"
+    },
     "search": "Søg efter udbydere…",
     "enable": "Aktivér tjeneste",
     "enabled": "Aktiveret",

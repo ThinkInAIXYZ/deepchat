@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Özel İstek Başlıkları",
+      "description": "Dize değerleri içeren bir JSON nesnesi girin.",
+      "parseError": "Özel Başlık ayrıştırma işlemi başarısız oldu"
+    },
     "search": "Sağlayıcı platformlarında arama yapın…",
     "enable": "Hizmeti Etkinleştir",
     "enabled": "Etkinleştirilmiş",

@@ -94,6 +94,15 @@
         </div>
       </div>
 
+      <div v-if="canConfigureCustomHeaders" class="p-2">
+        <ProviderCustomHeadersEditor
+          :key="provider.id"
+          :provider-id="provider.id"
+          :model-value="provider.customHeaders"
+          :save="saveCustomHeaders"
+        />
+      </div>
+
       <div class="flex flex-col items-start p-2 gap-2">
         <Label :for="`${provider.id}-model`" class="flex-1">
           {{ t('settings.provider.modelList') }}
@@ -333,6 +342,11 @@ import type {
 } from '@shared/types/provider'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { ModelType } from '@shared/model'
+import {
+  supportsProviderCustomHeaders,
+  type ProviderCustomHeaders
+} from '@shared/providerCustomHeaders'
+import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const { t } = useI18n()
 
@@ -359,6 +373,10 @@ const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
 const defaultBaseUrl = 'http://127.0.0.1:11434'
 const hasDefaultBaseUrl = defaultBaseUrl.length > 0
+const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(props.provider))
+
+const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
+  providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
 
 const isProviderReadyForOnboarding = (
   provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>

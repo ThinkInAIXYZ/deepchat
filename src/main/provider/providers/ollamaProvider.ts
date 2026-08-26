@@ -13,6 +13,7 @@ import type {
   ProgressResponse
 } from '@shared/types/provider'
 import { ModelType } from '@shared/model'
+import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,
@@ -56,9 +57,10 @@ export class OllamaProvider extends BaseLLMProvider {
 
   private createOllamaClient(signal?: AbortSignal): Ollama {
     const host = normalizeOllamaSdkHost(this.provider.baseUrl)
-    const requestFetch: typeof fetch | undefined = signal
-      ? (input, init) => fetch(input, { ...init, signal })
-      : undefined
+    const requestFetch: typeof fetch | undefined =
+      signal || getValidProviderCustomHeaders(this.provider.customHeaders)
+        ? (input, init) => this.fetchProvider(input, { ...init, ...(signal ? { signal } : {}) })
+        : undefined
 
     if (this.provider.apiKey) {
       return new Ollama({

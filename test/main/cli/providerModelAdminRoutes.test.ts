@@ -147,6 +147,36 @@ describe('CLI provider administration routes', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
   })
 
+  it('does not expose or mutate custom headers through public provider updates', async () => {
+    const provider: LLM_PROVIDER = {
+      id: 'custom-headers-provider',
+      name: 'Custom headers provider',
+      apiType: 'openai',
+      apiKey: 'secret',
+      baseUrl: 'https://api.example/v1',
+      customHeaders: { 'CF-Access-Client-Secret': 'header-secret' },
+      enable: true,
+      custom: true
+    }
+    const harness = createHarness([provider])
+
+    const result = await harness.invoke(providersUpdatePublicRoute.name, {
+      providerId: provider.id,
+      updates: { enabled: false }
+    })
+    expect(JSON.stringify(result)).not.toContain('header-secret')
+
+    await expect(
+      harness.invoke(providersUpdatePublicRoute.name, {
+        providerId: provider.id,
+        updates: { customHeaders: { 'X-Tenant-ID': 'other-team' } }
+      })
+    ).rejects.toBeTruthy()
+    expect(harness.providers.get(provider.id)?.customHeaders).toEqual({
+      'CF-Access-Client-Secret': 'header-secret'
+    })
+  })
+
   it('sets and clears API keys without returning credential material', async () => {
     const provider: LLM_PROVIDER = {
       id: 'provider-1',

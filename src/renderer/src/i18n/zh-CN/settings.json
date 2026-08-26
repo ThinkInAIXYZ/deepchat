@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "自定义请求头",
+      "description": "请输入值为字符串的 JSON 对象",
+      "parseError": "自定义Header解析失败"
+    },
     "search": "搜索服务商平台…",
     "enable": "开启服务",
     "enabled": "已启用",

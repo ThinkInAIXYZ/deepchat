@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Tiêu đề yêu cầu tùy chỉnh",
+      "description": "Nhập một đối tượng JSON với các giá trị chuỗi.",
+      "parseError": "Phân tích cú pháp tiêu đề tùy chỉnh không thành công"
+    },
     "search": "Nền tảng nhà cung cấp tìm kiếm…",
     "enable": "Kích hoạt dịch vụ",
     "enabled": "Đã bật",

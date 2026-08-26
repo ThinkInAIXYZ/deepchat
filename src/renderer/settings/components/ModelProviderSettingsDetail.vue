@@ -39,6 +39,14 @@
     <template #advanced>
       <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
+      <ProviderCustomHeadersEditor
+        v-if="canConfigureCustomHeaders"
+        :key="provider.id"
+        :provider-id="provider.id"
+        :model-value="provider.customHeaders"
+        :save="saveCustomHeaders"
+      />
+
       <VertexProviderSettingsDetail
         v-if="provider.apiType === 'vertex'"
         :provider="provider as VERTEX_PROVIDER"
@@ -103,6 +111,11 @@ import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import {
+  supportsProviderCustomHeaders,
+  type ProviderCustomHeaders
+} from '@shared/providerCustomHeaders'
+import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 interface ProviderWebsites {
   official: string
@@ -169,6 +182,7 @@ const enabledModels = computed(() => {
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
 const providerHealth = computed(() => providerStore.getProviderHealth(props.provider.id))
+const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(props.provider))
 // The vertical page keeps every section mounted; onboarding steps scroll to the
 // relevant section instead of switching tabs.
 const scrollToOnboardingSection = (stepId?: string | null) => {
@@ -369,6 +383,9 @@ const applyStagedApiChange = async (updates: { apiKey?: string; baseUrl?: string
     return false
   }
 }
+
+const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
+  providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
 
 const handleApiKeyChange = async (value: string) => {
   if (shouldStageApiChanges.value && value.trim() && value !== props.provider.apiKey) {

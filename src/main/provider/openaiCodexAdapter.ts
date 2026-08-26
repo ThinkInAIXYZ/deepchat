@@ -189,7 +189,10 @@ function applyCodexHeaders(
   return headers
 }
 
-export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
+export function createOpenAICodexFetch(
+  defaultHeaders: Record<string, string>,
+  baseFetch: typeof fetch = fetch
+) {
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (isOpenAICodexDisabled()) {
       throw new Error('OpenAI Codex provider is disabled by environment')
@@ -205,13 +208,13 @@ export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
       headers: applyCodexHeaders(init?.headers, defaultHeaders, backendAuth, accept)
     }
 
-    let response = await fetch(url, nextInit)
+    let response = await baseFetch(url, nextInit)
     if (response.status !== 401) {
       return normalizeOpenAICodexErrorResponse(response)
     }
 
     const refreshedAuth = await auth.forceRefreshBackendAuth()
-    response = await fetch(url, {
+    response = await baseFetch(url, {
       ...nextInit,
       headers: applyCodexHeaders(init?.headers, defaultHeaders, refreshedAuth, accept)
     })
