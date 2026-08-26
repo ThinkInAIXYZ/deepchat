@@ -38,6 +38,10 @@ export const isZenmuxAnthropicRoute = (providerId: string, modelId: string): boo
   providerId.trim().toLowerCase() === 'zenmux' &&
   modelId.trim().toLowerCase().startsWith('anthropic/')
 
+export const isApimartResponsesRoute = (providerId: string, modelId: string): boolean =>
+  providerId.trim().toLowerCase() === 'apimart' &&
+  /^gpt-5(?:-|$)/.test(normalizeCanonicalModelId(modelId))
+
 export const isOpenCodeGoAnthropicRoute = (providerId: string, modelId: string): boolean =>
   providerId.trim().toLowerCase() === 'opencode-go' &&
   OPENCODE_GO_ANTHROPIC_MODEL_IDS.has(modelId.trim().toLowerCase())

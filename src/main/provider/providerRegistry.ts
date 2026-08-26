@@ -11,6 +11,7 @@ export type AiSdkBehaviorPreset =
 
 export type AiSdkModelSourceStrategy =
   | 'openai'
+  | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
   | 'kimi-for-coding'
@@ -43,7 +44,7 @@ export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
 export type AiSdkCredentialStrategy = 'none' | 'api-key' | 'anthropic' | 'vertex' | 'bedrock'
 
-export type AiSdkRouteStrategy = 'none' | 'grok' | 'new-api' | 'opencode-go' | 'zenmux'
+export type AiSdkRouteStrategy = 'none' | 'apimart' | 'grok' | 'new-api' | 'opencode-go' | 'zenmux'
 
 export type AiSdkEmbeddingStrategy = 'none' | 'openai' | 'google' | 'new-api' | 'zenmux'
 
@@ -135,6 +136,15 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...OPENAI_BASE,
       credentialStrategy: 'api-key'
+    })
+  ],
+  [
+    'apimart',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'apimart',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'apimart'
     })
   ],
   [
@@ -669,6 +679,7 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
 ])
 
 const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
+  ['apimart', PROVIDER_ID_REGISTRY.get('apimart')!],
   ['anthropic', PROVIDER_ID_REGISTRY.get('anthropic')!],
   ['aws-bedrock', PROVIDER_ID_REGISTRY.get('aws-bedrock')!],
   ['doubao', PROVIDER_ID_REGISTRY.get('doubao')!],

@@ -115,7 +115,8 @@ const isOpenAICompatibleProvider = (target: OpenAIImageGenerationSettingsTarget)
     providerId === 'openai' ||
     providerId === 'openai-codex' ||
     providerId === 'openai-responses' ||
-    providerId === 'new-api'
+    providerId === 'new-api' ||
+    providerId === 'apimart'
   ) {
     return true
   }
@@ -127,6 +128,7 @@ const isOpenAICompatibleProvider = (target: OpenAIImageGenerationSettingsTarget)
     providerApiType === 'openai-compatible' ||
     providerApiType === 'openai-completions' ||
     providerApiType === 'new-api' ||
+    providerApiType === 'apimart' ||
     providerApiType === 'openai_chat'
   ) {
     return true

@@ -83,6 +83,7 @@ import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
 import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
+import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -103,6 +104,7 @@ export const modelIcons = {
   'alibaba-token-plan-cn': dashscopeColorIcon,
   alibaba: dashscopeColorIcon,
   aihubmix: aihubmixColorIcon,
+  apimart: apimartIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,
   grok: grokColorIcon,
@@ -244,7 +246,8 @@ const monoIconUrls = new Set<string>([
   awsBedrockIcon,
   voiceAiColorIcon,
   novitaAiIcon,
-  amdIcon
+  amdIcon,
+  apimartIcon
 ])
 
 export const isMonoModelIconUrl = (iconUrl: string): boolean => monoIconUrls.has(iconUrl)
