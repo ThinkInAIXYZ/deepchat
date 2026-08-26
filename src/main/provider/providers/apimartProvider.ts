@@ -1,10 +1,9 @@
-import { cacheImage } from '@/platform/imageCache'
+import { cacheImage, fetchRemoteFile } from '@/platform/imageCache'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
 import {
-  ApiEndpointType,
   ModelType,
   inferNewApiSpecialEndpointTypeFromRoute,
   isNewApiEndpointType,
@@ -25,6 +24,9 @@ import { AiSdkProvider } from './aiSdkProvider'
 
 const APIMART_DEFAULT_BASE_URL = 'https://api.apimart.ai/v1'
 const APIMART_POLL_INTERVAL_MS = 3000
+const APIMART_TASK_TIMEOUT_MS = 15 * 60 * 1000
+const APIMART_VIDEO_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000
+const APIMART_VIDEO_DOWNLOAD_MAX_BYTES = 256 * 1024 * 1024
 
 type ApimartMediaKind = 'image' | 'video'
 
@@ -61,15 +63,16 @@ const toPositiveFiniteNumber = (value: unknown): number | undefined =>
 
 function extractModelRecords(payload: unknown): ApimartModelRecord[] {
   const root = asRecord(payload)
-  const directData = root?.data
-  const nestedData = asRecord(directData)?.data
-  const records = Array.isArray(directData)
-    ? directData
-    : Array.isArray(nestedData)
-      ? nestedData
-      : []
+  if (
+    !root ||
+    !Array.isArray(root.data) ||
+    (root.success !== undefined && root.success !== true) ||
+    (root.object !== undefined && root.object !== 'list')
+  ) {
+    throw new Error('Invalid APIMart model catalog response')
+  }
 
-  return records.filter(
+  return root.data.filter(
     (record): record is ApimartModelRecord =>
       Boolean(asRecord(record)) && typeof asRecord(record)?.id === 'string'
   )
@@ -431,7 +434,7 @@ export class ApimartProvider extends AiSdkProvider {
   }
 
   private canSendParameter(route: ApimartMediaRoute, name: string): boolean {
-    return route.parameterNames === undefined || route.parameterNames.has(name)
+    return route.parameterNames?.has(name) === true
   }
 
   private resolveMediaRoute(
@@ -676,10 +679,15 @@ export class ApimartProvider extends AiSdkProvider {
 
   private async waitForTask(
     taskId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    timeoutMs = APIMART_TASK_TIMEOUT_MS
   ): Promise<Record<string, unknown>> {
     const taskUrl = `${this.getBaseUrl()}/tasks/${encodeURIComponent(taskId)}?language=en`
+    const deadline = Date.now() + timeoutMs
     while (true) {
+      if (Date.now() >= deadline) {
+        throw new Error(`APIMart task polling timed out after ${timeoutMs}ms`)
+      }
       const payload = await this.requestProviderJson<unknown>(
         taskUrl,
         { method: 'GET' },
@@ -696,7 +704,11 @@ export class ApimartProvider extends AiSdkProvider {
         throw new Error(extractTaskError(task, `APIMart task ${status ?? 'failed'}`))
       }
 
-      await delayWithAbort(APIMART_POLL_INTERVAL_MS, signal)
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) {
+        throw new Error(`APIMart task polling timed out after ${timeoutMs}ms`)
+      }
+      await delayWithAbort(Math.min(APIMART_POLL_INTERVAL_MS, remainingMs), signal)
     }
   }
 
@@ -704,19 +716,20 @@ export class ApimartProvider extends AiSdkProvider {
     url: string,
     signal?: AbortSignal
   ): Promise<{ data: string; mimeType: string }> {
-    const response = await fetch(url, {
-      method: 'GET',
-      signal
+    const response = await fetchRemoteFile(url, {
+      signal,
+      allowPrivateNetwork: false,
+      maxBytes: APIMART_VIDEO_DOWNLOAD_MAX_BYTES,
+      timeoutMs: APIMART_VIDEO_DOWNLOAD_TIMEOUT_MS
     })
     if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      throw new Error(`APIMart video download failed (${response.status}): ${detail}`)
+      throw new Error(
+        `APIMart video download failed (${response.status}): ${response.data.toString('utf8')}`
+      )
     }
 
-    const mimeType =
-      response.headers.get('content-type')?.split(';', 1)[0]?.trim() ||
-      inferMediaMimeType(url, 'video')
-    const data = Buffer.from(await response.arrayBuffer()).toString('base64')
+    const mimeType = response.mimeType || inferMediaMimeType(url, 'video')
+    const data = response.data.toString('base64')
     return {
       data: `data:${mimeType};base64,${data}`,
       mimeType
@@ -741,7 +754,8 @@ export class ApimartProvider extends AiSdkProvider {
       kind === 'image'
         ? this.buildImageRequestBody(modelId, prompt, route, modelConfig.imageGeneration)
         : this.buildVideoRequestBody(modelId, prompt, route, modelConfig.videoGeneration)
-    const { signal, dispose } = this.createModelRequestSignal(modelConfig, callerSignal)
+    const timeout = this.resolveModelRequestTimeout(modelConfig) ?? APIMART_TASK_TIMEOUT_MS
+    const { signal, dispose } = this.createModelRequestSignal({ timeout }, callerSignal)
 
     try {
       signal?.throwIfAborted()
@@ -776,6 +790,9 @@ export class ApimartProvider extends AiSdkProvider {
         if (kind === 'image') {
           const mimeType = inferMediaMimeType(url, kind)
           const data = await cacheImage(url, { signal, allowPrivateNetwork: false })
+          if (!data.startsWith('imgcache://')) {
+            throw new Error('APIMart image output could not be cached safely')
+          }
           yield {
             type: 'image_data',
             image_data: { data, mimeType }
@@ -807,24 +824,27 @@ export class ApimartProvider extends AiSdkProvider {
     tools: MCPToolDefinition[],
     options?: ProviderStreamOptions
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (
-      modelConfig.type === ModelType.ImageGeneration ||
-      modelConfig.apiEndpoint === ApiEndpointType.Image ||
-      modelConfig.endpointType === 'image-generation'
-    ) {
-      yield* this.generateMedia('image', messages, modelId, modelConfig, options?.signal)
+    const decision = this.resolveRouteDecision(modelId, modelConfig)
+    const resolvedModelConfig = this.getModelConfigForDecision(modelId, decision, modelConfig)
+
+    if (decision.endpointType === 'image-generation') {
+      yield* this.generateMedia('image', messages, modelId, resolvedModelConfig, options?.signal)
       return
     }
 
-    if (
-      modelConfig.type === ModelType.VideoGeneration ||
-      modelConfig.apiEndpoint === ApiEndpointType.Video ||
-      modelConfig.endpointType === 'video-generation'
-    ) {
-      yield* this.generateMedia('video', messages, modelId, modelConfig, options?.signal)
+    if (decision.endpointType === 'video-generation') {
+      yield* this.generateMedia('video', messages, modelId, resolvedModelConfig, options?.signal)
       return
     }
 
-    yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools, options)
+    yield* super.coreStream(
+      messages,
+      modelId,
+      resolvedModelConfig,
+      temperature,
+      maxTokens,
+      tools,
+      options
+    )
   }
 }

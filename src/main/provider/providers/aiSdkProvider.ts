@@ -560,21 +560,14 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  private resolveRouteDecision(
+  protected resolveRouteDecision(
     modelId: string,
     modelConfig?: ModelConfig,
     options?: RouteDecisionOptions
   ): RouteDecision {
     const routeModelConfig = this.getRouteModelConfig(modelId, modelConfig)
     const decision = this.buildRouteDecision(modelId, routeModelConfig, options)
-    const resolvedModelConfig = {
-      ...this.providerSettings.getModelConfig(
-        modelId,
-        this.provider.id,
-        decision.capabilityIdentity
-      ),
-      ...modelConfig
-    }
+    const resolvedModelConfig = this.getModelConfigForDecision(modelId, decision, modelConfig)
     return {
       ...decision,
       resolvedModelConfig
@@ -610,12 +603,12 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  private getModelConfigForDecision(
+  protected getModelConfigForDecision(
     modelId: string,
     decision: RouteDecision,
     modelConfig?: ModelConfig
   ): ModelConfig {
-    return {
+    const resolvedModelConfig = {
       ...(decision.resolvedModelConfig ??
         this.providerSettings.getModelConfig(
           modelId,
@@ -624,6 +617,37 @@ export class AiSdkProvider extends BaseLLMProvider {
         )),
       ...modelConfig,
       ...decision.modelConfigPatch
+    }
+
+    if (this.getRouteStrategy() !== 'apimart') {
+      return resolvedModelConfig
+    }
+
+    const routeMetadata = this.getStoredModelRouteMetadata(modelId, {})
+    const decisionEndpointType =
+      decision.endpointType === 'grok-image' ? undefined : decision.endpointType
+    const endpointType = decisionEndpointType ?? routeMetadata?.endpointType ?? 'openai'
+    const type =
+      endpointType === 'image-generation'
+        ? ModelType.ImageGeneration
+        : endpointType === 'video-generation'
+          ? ModelType.VideoGeneration
+          : (routeMetadata?.type ?? ModelType.Chat)
+    const apiEndpoint =
+      type === ModelType.ImageGeneration
+        ? ApiEndpointType.Image
+        : type === ModelType.VideoGeneration
+          ? ApiEndpointType.Video
+          : type === ModelType.TTS
+            ? ApiEndpointType.AudioSpeech
+            : ApiEndpointType.Chat
+
+    return {
+      ...resolvedModelConfig,
+      apiEndpoint,
+      endpointType,
+      ownedBy: routeMetadata?.ownedBy,
+      type
     }
   }
 

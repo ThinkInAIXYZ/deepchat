@@ -70,6 +70,18 @@ export type CacheImageOptions = {
   allowPrivateNetwork?: boolean
 }
 
+export type RemoteFileOptions = CacheImageOptions & {
+  maxBytes: number
+  timeoutMs: number
+}
+
+export type RemoteFileResponse = {
+  ok: boolean
+  status: number
+  data: Buffer
+  mimeType: string
+}
+
 function toMimeType(value: unknown): string {
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {
@@ -122,66 +134,93 @@ function assertAllowedImageUrl(url: URL, allowPrivateNetwork: boolean): void {
   }
 }
 
+export async function fetchRemoteFile(
+  url: string,
+  options: RemoteFileOptions
+): Promise<RemoteFileResponse> {
+  if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes <= 0) {
+    throw new Error('Remote file size limit must be a positive integer')
+  }
+  if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0) {
+    throw new Error('Remote file timeout must be a positive integer')
+  }
+
+  const timeoutSignal = AbortSignal.timeout(options.timeoutMs)
+  const requestSignal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal
+  const allowPrivateNetwork = options.allowPrivateNetwork !== false
+
+  let currentUrl = new URL(url)
+  for (let redirectCount = 0; ; redirectCount += 1) {
+    requestSignal.throwIfAborted()
+    assertAllowedImageUrl(currentUrl, allowPrivateNetwork)
+    const response = await axios({
+      method: 'get',
+      url: currentUrl.toString(),
+      responseType: 'arraybuffer',
+      timeout: options.timeoutMs,
+      signal: requestSignal,
+      maxRedirects: 0,
+      maxContentLength: options.maxBytes,
+      maxBodyLength: options.maxBytes,
+      ...(allowPrivateNetwork
+        ? {}
+        : {
+            proxy: false,
+            lookup: lookupPublicImageAddress as NonNullable<AxiosRequestConfig['lookup']>
+          }),
+      validateStatus: () => true
+    })
+
+    if (REDIRECT_STATUS_CODES.has(response.status)) {
+      const location = toMimeType(response.headers.location)
+      if (!location || redirectCount >= MAX_IMAGE_REDIRECTS) {
+        throw new Error('Remote URL redirect limit exceeded')
+      }
+      currentUrl = new URL(location, currentUrl)
+      continue
+    }
+
+    const data = Buffer.from(response.data)
+    if (data.byteLength > options.maxBytes) {
+      throw new Error('Remote file exceeds the download size limit')
+    }
+    requestSignal.throwIfAborted()
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      data,
+      mimeType: toMimeType(response.headers['content-type']).split(';', 1)[0].trim()
+    }
+  }
+}
+
 async function cacheImageFromUrl(
   url: string,
   cacheDir: string,
   fileName: string,
   options: CacheImageOptions
 ): Promise<string> {
-  const timeoutSignal = AbortSignal.timeout(IMAGE_CACHE_TIMEOUT_MS)
-  const requestSignal = options.signal
-    ? AbortSignal.any([options.signal, timeoutSignal])
-    : timeoutSignal
-  const allowPrivateNetwork = options.allowPrivateNetwork !== false
-
   try {
-    let currentUrl = new URL(url)
-    for (let redirectCount = 0; ; redirectCount += 1) {
-      requestSignal.throwIfAborted()
-      assertAllowedImageUrl(currentUrl, allowPrivateNetwork)
-      const response = await axios({
-        method: 'get',
-        url: currentUrl.toString(),
-        responseType: 'arraybuffer',
-        timeout: IMAGE_CACHE_TIMEOUT_MS,
-        signal: requestSignal,
-        maxRedirects: 0,
-        maxContentLength: MAX_CACHED_IMAGE_BYTES,
-        maxBodyLength: MAX_CACHED_IMAGE_BYTES,
-        ...(allowPrivateNetwork
-          ? {}
-          : {
-              proxy: false,
-              lookup: lookupPublicImageAddress as NonNullable<AxiosRequestConfig['lookup']>
-            }),
-        validateStatus: (status) =>
-          (status >= 200 && status < 300) || REDIRECT_STATUS_CODES.has(status)
-      })
-
-      if (REDIRECT_STATUS_CODES.has(response.status)) {
-        const location = toMimeType(response.headers.location)
-        if (!location || redirectCount >= MAX_IMAGE_REDIRECTS) {
-          throw new Error('Image URL redirect limit exceeded')
-        }
-        currentUrl = new URL(location, currentUrl)
-        continue
-      }
-
-      const extension = getImageExtensionFromMimeType(response.headers['content-type'])
-      if (!extension) {
-        throw new Error('Unsupported image MIME type')
-      }
-      const data = Buffer.from(response.data)
-      if (data.byteLength > MAX_CACHED_IMAGE_BYTES) {
-        throw new Error('Image exceeds the cache size limit')
-      }
-      requestSignal.throwIfAborted()
-      const saveFileName = `${fileName}.${extension}`
-      await fs.promises.writeFile(path.join(cacheDir, saveFileName), data, {
-        signal: requestSignal
-      })
-      return `imgcache://${saveFileName}`
+    const response = await fetchRemoteFile(url, {
+      ...options,
+      maxBytes: MAX_CACHED_IMAGE_BYTES,
+      timeoutMs: IMAGE_CACHE_TIMEOUT_MS
+    })
+    if (!response.ok) {
+      throw new Error(`Image download failed (${response.status})`)
     }
+
+    const extension = getImageExtensionFromMimeType(response.mimeType)
+    if (!extension) {
+      throw new Error('Unsupported image MIME type')
+    }
+    const saveFileName = `${fileName}.${extension}`
+    await fs.promises.writeFile(path.join(cacheDir, saveFileName), response.data, {
+      signal: options.signal
+    })
+    return `imgcache://${saveFileName}`
   } catch (error) {
     if (options.signal?.aborted) throw error
     console.error('下载图片失败:', error)

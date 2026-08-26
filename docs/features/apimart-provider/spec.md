@@ -63,11 +63,15 @@ OpenAI video task shape used by the shared runtime. The dedicated adapter theref
 
 The adapter forwards the shared image and video settings that have an APIMart counterpart. Pixel
 image sizes are converted to aspect ratios, and video ratios are sent as `aspect_ratio`. Basic
-text-to-image and text-to-video remain valid when no optional settings are selected.
+text-to-image and text-to-video remain valid when no optional settings are selected. If the live
+parameter schema is unavailable after a restart or failed refresh, the adapter sends only the
+required model and prompt fields instead of guessing which optional parameters remain supported.
 
 Caller cancellation and model timeouts cover task creation, polling, image caching, and media
-download. Task failures surface the provider error message. API credentials are sent only to the
-APIMart API host and are never forwarded to generated-media URLs.
+download. Polling also has a 15-minute maximum deadline. Task failures surface the provider error
+message. Image output must be cached locally before it is returned. Video downloads reject
+private-network destinations, time out after two minutes, and are limited to 256 MiB. API
+credentials are sent only to the APIMart API host and are never forwarded to generated-media URLs.
 
 ## Renderer
 
@@ -95,5 +99,6 @@ logic is introduced.
   request endpoint.
 - Image and video requests use APIMart task creation and polling routes and return standard
   DeepChat media events.
-- Abort signals stop polling and output downloads.
+- Abort signals stop polling and output downloads; polling and downloads remain bounded without a
+  caller signal.
 - The APIMart favicon is rendered for the provider.

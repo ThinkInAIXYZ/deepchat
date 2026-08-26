@@ -9,8 +9,9 @@ import { ProviderInstanceManager } from '../../../src/main/provider/managers/pro
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 import { ApimartProvider } from '../../../src/main/provider/providers/apimartProvider'
 
-const { mockCacheImage, mockRunAiSdkCoreStream } = vi.hoisted(() => ({
+const { mockCacheImage, mockFetchRemoteFile, mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockCacheImage: vi.fn(),
+  mockFetchRemoteFile: vi.fn(),
   mockRunAiSdkCoreStream: vi.fn()
 }))
 
@@ -43,7 +44,8 @@ vi.mock('../../../src/main/platform/proxy', () => ({
 }))
 
 vi.mock('../../../src/main/platform/imageCache', () => ({
-  cacheImage: mockCacheImage
+  cacheImage: mockCacheImage,
+  fetchRemoteFile: mockFetchRemoteFile
 }))
 
 vi.mock('../../../src/main/provider/aiSdk', () => ({
@@ -105,6 +107,12 @@ describe('ApimartProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCacheImage.mockResolvedValue('imgcache://apimart-output.png')
+    mockFetchRemoteFile.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: Buffer.from([1, 2, 3, 4]),
+      mimeType: 'video/mp4'
+    })
     mockRunAiSdkCoreStream.mockReturnValue({
       async *[Symbol.asyncIterator]() {
         yield { type: 'stop', stop_reason: 'complete' }
@@ -296,6 +304,27 @@ describe('ApimartProvider', () => {
     expect(models.map(({ id }) => id)).not.toContain('omni-moderation-latest')
   })
 
+  it('rejects malformed model catalog envelopes without replacing cached models', async () => {
+    const cachedModel = {
+      id: 'cached-model',
+      name: 'Cached model',
+      group: 'Chat',
+      providerId: 'apimart',
+      type: ModelType.Chat,
+      endpointType: 'openai' as const
+    }
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getProviderModels).mockReturnValue([cachedModel])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} })))
+    const provider = createProviderInstance(providerSettings)
+
+    await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
+      'Invalid APIMart model catalog response'
+    )
+    expect(provider.getModels()).toContainEqual(cachedModel)
+    expect(providerSettings.setProviderModels).not.toHaveBeenCalled()
+  })
+
   it('maps current catalog routes despite stale request endpoint state', async () => {
     vi.stubGlobal(
       'fetch',
@@ -351,15 +380,22 @@ describe('ApimartProvider', () => {
     }
 
     const staleLunaConfig = createModelConfig({
-      endpointType: 'openai',
+      apiEndpoint: ApiEndpointType.Image,
+      endpointType: 'image-generation',
       isUserDefined: true,
       reasoning: true,
-      reasoningEffort: 'medium'
+      reasoningEffort: 'medium',
+      type: ModelType.ImageGeneration
     })
     expect(resolveRuntime('gpt-5.6-luna', staleLunaConfig)).toMatchObject({
       decision: {
+        endpointType: 'openai-response',
         providerKind: 'openai-responses',
-        endpointType: 'openai-response'
+        resolvedModelConfig: {
+          apiEndpoint: ApiEndpointType.Chat,
+          endpointType: 'openai-response',
+          type: ModelType.Chat
+        }
       },
       runtimeProvider: {
         apiType: 'openai-responses',
@@ -384,6 +420,7 @@ describe('ApimartProvider', () => {
         baseUrl: 'https://api.apimart.ai/v1'
       }
     })
+    expect(mockCacheImage).not.toHaveBeenCalled()
     expect(
       resolveRuntime(
         'claude-sonnet-4-6',
@@ -519,6 +556,106 @@ describe('ApimartProvider', () => {
       },
       { type: 'stop', stop_reason: 'complete' }
     ])
+
+    mockCacheImage.mockResolvedValueOnce('https://cdn.apimart.ai/output.webp')
+    const consumeUnsafeImage = async () => {
+      for await (const _event of provider.coreStream(
+        [{ role: 'user', content: 'paint another castle' }],
+        'gpt-image-2',
+        createModelConfig({
+          type: ModelType.ImageGeneration,
+          apiEndpoint: ApiEndpointType.Image,
+          endpointType: 'image-generation'
+        }),
+        0.7,
+        1024,
+        []
+      )) {
+        continue
+      }
+    }
+    await expect(consumeUnsafeImage()).rejects.toThrow(
+      'APIMart image output could not be cached safely'
+    )
+  })
+
+  it('times out non-terminal media tasks without a caller signal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ data: { id: 'task-pending', status: 'processing' } }))
+    )
+    const provider = createProviderInstance()
+
+    await expect((provider as any).waitForTask('task-pending', undefined, 1)).rejects.toThrow(
+      'APIMart task polling timed out after 1ms'
+    )
+  })
+
+  it('uses conservative media defaults when only cached catalog metadata is available', async () => {
+    const cachedModel = {
+      id: 'wan2.7',
+      name: 'wan2.7',
+      group: 'Video',
+      providerId: 'apimart',
+      type: ModelType.VideoGeneration,
+      endpointType: 'video-generation' as const,
+      supportedEndpointTypes: ['video-generation' as const]
+    }
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getProviderModels).mockReturnValue([cachedModel])
+    vi.mocked(providerSettings.getProviderModelRouteMetadata!).mockReturnValue({
+      type: ModelType.VideoGeneration,
+      endpointType: 'video-generation',
+      supportedEndpointTypes: ['video-generation']
+    })
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/videos/generations') && init?.method === 'POST') {
+        return jsonResponse({ data: [{ task_id: 'task-cached-video' }] })
+      }
+      if (url.includes('/tasks/task-cached-video')) {
+        return jsonResponse({
+          data: {
+            status: 'completed',
+            result: { videos: ['https://cdn.apimart.ai/cached.mp4'] }
+          }
+        })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const provider = createProviderInstance(providerSettings)
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'animate the castle' }],
+      'wan2.7',
+      createModelConfig({
+        type: ModelType.VideoGeneration,
+        apiEndpoint: ApiEndpointType.Video,
+        endpointType: 'video-generation',
+        videoGeneration: {
+          duration: 8,
+          ratio: '16:9',
+          resolution: '1080P',
+          generateAudio: true
+        }
+      }),
+      0.7,
+      1024,
+      []
+    )) {
+      continue
+    }
+
+    const creationCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).endsWith('/videos/generations') && init?.method === 'POST'
+    )
+    expect(JSON.parse(String(creationCall?.[1]?.body))).toEqual({
+      model: 'wan2.7',
+      prompt: 'animate the castle'
+    })
   })
 
   it('uses the model schema for video parameters without leaking the API key to output URLs', async () => {
@@ -564,12 +701,6 @@ describe('ApimartProvider', () => {
           }
         })
       }
-      if (url === 'https://cdn.apimart.ai/output.mp4') {
-        return new Response(videoBytes, {
-          status: 200,
-          headers: { 'Content-Type': 'video/mp4' }
-        })
-      }
       throw new Error(`Unexpected request: ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -609,10 +740,12 @@ describe('ApimartProvider', () => {
       resolution: '1080P',
       generate_audio: true
     })
-    const downloadCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === 'https://cdn.apimart.ai/output.mp4'
-    )
-    expect(downloadCall?.[1]?.headers).toBeUndefined()
+    expect(mockFetchRemoteFile).toHaveBeenCalledWith('https://cdn.apimart.ai/output.mp4', {
+      allowPrivateNetwork: false,
+      maxBytes: 256 * 1024 * 1024,
+      signal: expect.any(AbortSignal),
+      timeoutMs: 2 * 60 * 1000
+    })
     expect(events).toEqual([
       {
         type: 'image_data',
