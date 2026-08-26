@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Niestandardowe nagłówki żądań",
-      "description": "Nieprawidłowy format nagłówka żądania. Sprawdź, czy wprowadzone dane są prawidłowe.",
+      "description": "Wprowadź obiekt JSON z wartościami tekstowymi.",
       "parseError": "Analiza nagłówka niestandardowego nie powiodła się"
     },
     "search": "Platformy dostawców wyszukiwania…",

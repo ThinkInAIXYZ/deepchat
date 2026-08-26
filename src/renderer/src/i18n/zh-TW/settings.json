@@ -876,7 +876,7 @@
   "provider": {
     "customHeaders": {
       "title": "自定義請求頭",
-      "description": "錯誤的請求頭格式，請檢查輸入是否正確",
+      "description": "請輸入值為字串的 JSON 物件",
       "parseError": "自定義Header解析失敗"
     },
     "search": "搜尋服務提供者平台…",

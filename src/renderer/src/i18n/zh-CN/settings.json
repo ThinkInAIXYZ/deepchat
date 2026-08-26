@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "自定义请求头",
-      "description": "错误的请求头格式，请检查输入是否正确",
+      "description": "请输入值为字符串的 JSON 对象",
       "parseError": "自定义Header解析失败"
     },
     "search": "搜索服务商平台…",

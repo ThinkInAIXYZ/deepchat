@@ -875,9 +875,9 @@
   },
   "provider": {
     "customHeaders": {
-      "title": "En-tête de demande personnalisé",
-      "description": "Format d'en-tête de demande incorrect, veuillez vérifier si l'entrée est correcte.",
-      "parseError": "L'analyse de l'en-tête personnalisée a échoué"
+      "title": "En-têtes de requête personnalisés",
+      "description": "Saisissez un objet JSON dont les valeurs sont des chaînes.",
+      "parseError": "Impossible d’analyser les en-têtes personnalisés"
     },
     "search": "Rechercher des plateformes de fournisseurs…",
     "enable": "Activer le service",

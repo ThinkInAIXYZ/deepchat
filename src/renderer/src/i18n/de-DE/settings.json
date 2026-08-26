@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Benutzerdefinierte Anfrage-Header",
-      "description": "Ungültiges Header-Format. Bitte Eingabe prüfen.",
+      "description": "Geben Sie ein JSON-Objekt mit Zeichenfolgenwerten ein.",
       "parseError": "Benutzerdefinierte Header konnten nicht geparst werden"
     },
     "search": "Anbieterplattformen suchen…",

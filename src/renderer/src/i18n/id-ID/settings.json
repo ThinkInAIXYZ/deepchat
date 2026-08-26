@@ -1242,8 +1242,8 @@
   },
   "provider": {
     "customHeaders": {
-      "title": "Tajuk permintaan khusus",
-      "description": "Format header permintaan salah, harap periksa apakah inputnya benar",
+      "title": "Header permintaan khusus",
+      "description": "Masukkan objek JSON dengan nilai string.",
       "parseError": "Penguraian Header Kustom gagal"
     },
     "search": "Platform penyedia layanan pencarian…",

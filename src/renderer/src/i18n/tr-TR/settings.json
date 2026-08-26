@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Özel İstek Başlıkları",
-      "description": "Yanlış istek başlığı biçimi. Lütfen girişin doğru olup olmadığını kontrol edin.",
+      "description": "Dize değerleri içeren bir JSON nesnesi girin.",
       "parseError": "Özel Başlık ayrıştırma işlemi başarısız oldu"
     },
     "search": "Sağlayıcı platformlarında arama yapın…",

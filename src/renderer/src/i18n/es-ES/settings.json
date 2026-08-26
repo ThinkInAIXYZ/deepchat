@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Encabezados de solicitud personalizados",
-      "description": "Formato de encabezado de solicitud incorrecto; verifique si la entrada es correcta.",
+      "description": "Introduzca un objeto JSON con valores de texto.",
       "parseError": "Error al analizar el encabezado personalizado"
     },
     "search": "Buscar plataformas provider...",

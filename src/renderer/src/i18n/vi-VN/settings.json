@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Tiêu đề yêu cầu tùy chỉnh",
-      "description": "Định dạng tiêu đề yêu cầu không chính xác, vui lòng kiểm tra xem đầu vào có đúng không.",
+      "description": "Nhập một đối tượng JSON với các giá trị chuỗi.",
       "parseError": "Phân tích cú pháp tiêu đề tùy chỉnh không thành công"
     },
     "search": "Nền tảng nhà cung cấp tìm kiếm…",

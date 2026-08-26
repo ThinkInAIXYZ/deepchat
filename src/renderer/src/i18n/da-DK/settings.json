@@ -809,7 +809,7 @@
   "provider": {
     "customHeaders": {
       "title": "Brugerdefinerede forespørgselsheaders",
-      "description": "Forkert format på header, kontroller input.",
+      "description": "Indtast et JSON-objekt med tekstværdier.",
       "parseError": "Fortolkning af brugerdefinerede headers mislykkedes"
     },
     "search": "Søg efter udbydere…",

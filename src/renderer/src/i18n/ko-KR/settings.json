@@ -876,7 +876,7 @@
   "provider": {
     "customHeaders": {
       "title": "사용자 정의 요청 헤더",
-      "description": "잘못된 요청 헤더 형식, 입력이 올바른지 확인하십시오.",
+      "description": "문자열 값을 가진 JSON 객체를 입력하세요.",
       "parseError": "사용자 정의 헤더 구문 분석이 실패했습니다"
     },
     "search": "프로바이더 플랫폼 검색…",

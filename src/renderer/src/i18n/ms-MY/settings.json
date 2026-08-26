@@ -1243,7 +1243,7 @@
   "provider": {
     "customHeaders": {
       "title": "Pengepala permintaan tersuai",
-      "description": "Format pengepala permintaan salah, sila semak sama ada input adalah betul",
+      "description": "Masukkan objek JSON dengan nilai rentetan.",
       "parseError": "Penghuraian Header tersuai gagal"
     },
     "search": "Cari platform penyedia perkhidmatan…",

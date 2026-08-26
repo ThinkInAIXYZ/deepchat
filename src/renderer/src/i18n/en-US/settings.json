@@ -1243,8 +1243,8 @@
   "provider": {
     "customHeaders": {
       "title": "Custom Request Headers",
-      "description": "Incorrect request header format, please check whether the input is correct.",
-      "parseError": "Custom Header parsing failed"
+      "description": "Enter a JSON object with string values.",
+      "parseError": "Failed to parse custom headers"
     },
     "search": "Search provider platforms…",
     "enable": "Enable Service",
