@@ -149,6 +149,29 @@ describe('AddProviderFlow', () => {
     ).toBe('My Provider')
   })
 
+  it('shows custom headers only for a valid HTTP(S) base URL', async () => {
+    const { wrapper, providerStore } = await setup({
+      validateResult: { isOk: false, errorMsg: 'invalid URL', models: [] }
+    })
+
+    expect(wrapper.find('[data-testid="set-draft-custom-headers"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="add-provider-base-url"]').setValue('ftp://api.example.com')
+    expect(wrapper.find('[data-testid="set-draft-custom-headers"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="add-provider-base-url"]').setValue('https://api.example.com')
+    expect(wrapper.find('[data-testid="set-draft-custom-headers"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="set-draft-custom-headers"]').trigger('click')
+    await wrapper.get('[data-testid="add-provider-name"]').setValue('My Provider')
+    await wrapper.get('[data-testid="add-provider-api-key"]').setValue('sk-test')
+    await wrapper.get('[data-testid="add-provider-base-url"]').setValue('ftp://api.example.com')
+    await wrapper.get('[data-testid="add-provider-connect"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.validateDraftProvider.mock.calls[0][0]).not.toHaveProperty('customHeaders')
+  })
+
   it('commits the draft, applies recommendations, and offers Start chatting', async () => {
     const { wrapper, providerStore, modelStore, windowClient, fillForm } = await setup()
 

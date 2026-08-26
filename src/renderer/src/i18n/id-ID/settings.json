@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Tajuk permintaan khusus",
+      "description": "Format header permintaan salah, harap periksa apakah inputnya benar",
+      "parseError": "Penguraian Header Kustom gagal"
+    },
     "search": "Platform penyedia layanan pencarian…",
     "enable": "Mulai layanan",
     "enabled": "Diaktifkan",

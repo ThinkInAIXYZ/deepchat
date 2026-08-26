@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Encabezados de solicitud personalizados",
+      "description": "Formato de encabezado de solicitud incorrecto; verifique si la entrada es correcta.",
+      "parseError": "Error al analizar el encabezado personalizado"
+    },
     "search": "Buscar plataformas provider...",
     "enable": "Habilitar servicio",
     "enabled": "Habilitado",

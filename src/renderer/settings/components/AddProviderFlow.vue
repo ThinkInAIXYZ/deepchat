@@ -129,6 +129,7 @@
           </div>
 
           <ProviderCustomHeadersEditor
+            v-if="canConfigureCustomHeaders"
             :provider-id="draftId"
             :model-value="form.customHeaders"
             :save="saveDraftCustomHeaders"
@@ -183,7 +184,10 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { createWindowClient } from '@api/WindowClient'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { ProviderCustomHeaders } from '@shared/providerCustomHeaders'
+import {
+  supportsProviderCustomHeaders,
+  type ProviderCustomHeaders
+} from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const emit = defineEmits<{
@@ -225,6 +229,13 @@ const loadedModelCount = ref(0)
 const selectedModelCount = ref(0)
 let committedProvider: LLM_PROVIDER | null = null
 const normalizedBaseUrl = computed(() => form.value.baseUrl.trim().replace(/\/+$/, ''))
+const canConfigureCustomHeaders = computed(() =>
+  supportsProviderCustomHeaders({
+    id: draftId,
+    apiType: form.value.apiType,
+    baseUrl: form.value.baseUrl.trim()
+  })
+)
 const apiEndpointSuffix = computed(() => {
   if (!normalizedBaseUrl.value) return ''
   if (form.value.apiType === 'openai') return '/responses'
@@ -269,7 +280,9 @@ const buildDraft = (): LLM_PROVIDER => ({
   apiType: form.value.apiType,
   apiKey: form.value.apiKey.trim(),
   baseUrl: form.value.baseUrl.trim(),
-  ...(form.value.customHeaders ? { customHeaders: form.value.customHeaders } : {}),
+  ...(canConfigureCustomHeaders.value && form.value.customHeaders
+    ? { customHeaders: form.value.customHeaders }
+    : {}),
   enable: false,
   custom: true
 })

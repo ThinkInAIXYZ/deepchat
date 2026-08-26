@@ -133,6 +133,37 @@ describe('AiSdkProvider openai-compatible', () => {
     ])
   })
 
+  it.each([
+    {
+      label: 'Headers',
+      headers: new Headers({ Authorization: 'Bearer request-key', 'X-Tenant-ID': 'team-a' })
+    },
+    {
+      label: 'tuple array',
+      headers: [
+        ['Authorization', 'Bearer request-key'],
+        ['X-Tenant-ID', 'team-a']
+      ] as Array<[string, string]>
+    }
+  ])('preserves $label request headers and their precedence', async ({ headers }) => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    await provider.requestProviderJson('https://mock.example.com/v1/models', {
+      method: 'GET',
+      headers
+    })
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const requestHeaders = new Headers(requestInit.headers)
+    expect(requestHeaders.get('authorization')).toBe('Bearer request-key')
+    expect(requestHeaders.get('x-tenant-id')).toBe('team-a')
+  })
+
   it('forwards streaming requests to the AI SDK runtime', async () => {
     const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true

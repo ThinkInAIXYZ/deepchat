@@ -867,17 +867,23 @@ export class AiSdkProvider extends BaseLLMProvider {
       const requestRuntimeProvider = useGrokOAuth
         ? refreshedRuntimeProvider
         : { ...refreshedRuntimeProvider, oauthToken: undefined }
+      const requestHeaders = this.getRequestHeaders(
+        resolvedDecision,
+        requestRuntimeProvider,
+        defaultHeaders,
+        init.body && !(init.body instanceof FormData) ? 'application/json' : undefined
+      )
+      new Headers(init.headers).forEach((value, name) => {
+        for (const existingName of Object.keys(requestHeaders)) {
+          if (existingName.toLowerCase() === name.toLowerCase()) {
+            delete requestHeaders[existingName]
+          }
+        }
+        requestHeaders[name] = value
+      })
       const response = await this.fetchProvider(url, {
         ...init,
-        headers: {
-          ...this.getRequestHeaders(
-            resolvedDecision,
-            requestRuntimeProvider,
-            defaultHeaders,
-            init.body && !(init.body instanceof FormData) ? 'application/json' : undefined
-          ),
-          ...(init.headers as Record<string, string> | undefined)
-        },
+        headers: requestHeaders,
         signal: controller.signal
       })
 

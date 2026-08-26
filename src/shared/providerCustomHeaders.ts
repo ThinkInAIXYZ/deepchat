@@ -133,7 +133,14 @@ export function supportsProviderCustomHeaders(provider: {
   }
 }
 
-export const ProviderCustomHeadersSchema = z.custom<ProviderCustomHeaders>(
-  (value) => validateProviderCustomHeaders(value).ok,
-  { message: 'Invalid custom request headers' }
-)
+export const ProviderCustomHeadersSchema = z
+  .custom<ProviderCustomHeaders>()
+  .superRefine((value, context) => {
+    const result = validateProviderCustomHeaders(value)
+    if (!result.ok) {
+      context.addIssue({
+        code: 'custom',
+        message: `Invalid custom request headers: ${result.code}`
+      })
+    }
+  })

@@ -45,9 +45,7 @@ const isSameProviderOrigin = (provider: LLM_PROVIDER, input: string | URL | Requ
 }
 
 const mergeInputHeaders = (input: string | URL | Request, init?: RequestInit): Headers => {
-  const headers = new Headers(input instanceof Request ? input.headers : undefined)
-  new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
-  return headers
+  return new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
 }
 
 const applyCustomHeaders = (
@@ -161,6 +159,19 @@ export async function fetchWithProviderHeaders(
         (currentInput instanceof Request && !['GET', 'HEAD'].includes(currentMethod.toUpperCase())
           ? currentInput.clone().body
           : undefined))
+    const requestRedirectInit =
+      currentInput instanceof Request
+        ? {
+            cache: currentInput.cache,
+            credentials: currentInput.credentials,
+            integrity: currentInput.integrity,
+            keepalive: currentInput.keepalive,
+            mode: currentInput.mode,
+            referrer: currentInput.referrer,
+            referrerPolicy: currentInput.referrerPolicy,
+            signal: currentInput.signal
+          }
+        : undefined
 
     if (rewriteToGet) {
       nextHeaders.delete('content-length')
@@ -170,11 +181,14 @@ export async function fetchWithProviderHeaders(
     await response.body?.cancel().catch(() => undefined)
     currentInput = nextUrl
     currentInit = {
+      ...requestRedirectInit,
       ...currentInit,
       method: rewriteToGet ? 'GET' : currentMethod,
       body: nextBody,
       headers: nextHeaders,
       redirect: 'manual',
+      // Streaming request bodies are not buffered. As with native fetch, another
+      // body-preserving redirect can fail after the stream has been consumed.
       ...(nextBody instanceof ReadableStream ? { duplex: 'half' as const } : {})
     }
   }

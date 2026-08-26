@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Pengepala permintaan tersuai",
+      "description": "Format pengepala permintaan salah, sila semak sama ada input adalah betul",
+      "parseError": "Penghuraian Header tersuai gagal"
+    },
     "search": "Cari platform penyedia perkhidmatan…",
     "enable": "Mulakan perkhidmatan",
     "enabled": "Didayakan",

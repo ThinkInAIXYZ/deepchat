@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Custom Request Headers",
+      "description": "Incorrect request header format, please check whether the input is correct.",
+      "parseError": "Custom Header parsing failed"
+    },
     "search": "Search provider platforms…",
     "enable": "Enable Service",
     "enabled": "Enabled",

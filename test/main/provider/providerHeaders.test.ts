@@ -136,6 +136,30 @@ describe('fetchWithProviderHeaders', () => {
     expect(mediaHeaders.get('authorization')).toBe('Bearer download-key')
   })
 
+  it('preserves multi-value init headers with Request replacement semantics', async () => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const input = new Request('https://gateway.example.com/v1/chat/completions', {
+      headers: { 'X-Input': 'input' }
+    })
+    const headers = new Headers([
+      ['Set-Cookie', 'one=1'],
+      ['Set-Cookie', 'two=2'],
+      ['X-Init', 'init']
+    ])
+    const fetchImpl = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+
+    await fetchWithProviderHeaders(provider, input, { headers }, fetchImpl)
+
+    const resolvedHeaders = new Headers(fetchImpl.mock.calls[0]?.[1]?.headers)
+    expect(resolvedHeaders.getSetCookie()).toEqual(['one=1', 'two=2'])
+    expect(resolvedHeaders.get('x-init')).toBe('init')
+    expect(resolvedHeaders.has('x-input')).toBe(false)
+    expect(resolvedHeaders.get('x-tenant-id')).toBe('team-a')
+  })
+
   it('retains custom headers on same-origin redirects', async () => {
     const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
     const fetchImpl = vi
@@ -159,6 +183,125 @@ describe('fetchWithProviderHeaders', () => {
     expect(String(fetchImpl.mock.calls[1][0])).toBe('https://gateway.example.com/v1/redirected')
     expect(redirectedHeaders.get('x-tenant-id')).toBe('team-a')
     expect(redirectedHeaders.get('authorization')).toBe('Bearer provider-key')
+  })
+
+  it.each([301, 302, 303])('rewrites POST to GET on %i redirects', async (status) => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const fetchImpl = vi
+      .fn(
+        async (_input: string | URL | Request, _init?: RequestInit) =>
+          new Response('{}', { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status,
+          headers: { Location: '/v1/redirected' }
+        })
+      )
+
+    await fetchWithProviderHeaders(
+      provider,
+      'https://gateway.example.com/v1/chat/completions',
+      {
+        method: 'POST',
+        body: '{"prompt":"hello"}',
+        headers: {
+          'Content-Length': '18',
+          'Content-Type': 'application/json'
+        }
+      },
+      fetchImpl
+    )
+
+    const redirectInit = fetchImpl.mock.calls[1]?.[1]
+    const redirectedHeaders = new Headers(redirectInit?.headers)
+    expect(redirectInit?.method).toBe('GET')
+    expect(redirectInit?.body).toBeUndefined()
+    expect(redirectedHeaders.has('content-length')).toBe(false)
+    expect(redirectedHeaders.has('content-type')).toBe(false)
+    expect(redirectedHeaders.get('x-tenant-id')).toBe('team-a')
+  })
+
+  it('replays a replayable body across body-preserving redirects', async () => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const fetchImpl = vi
+      .fn(
+        async (_input: string | URL | Request, _init?: RequestInit) =>
+          new Response('{}', { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(null, { status: 307, headers: { Location: '/v1/redirected' } })
+      )
+      .mockResolvedValueOnce(
+        new Response(null, { status: 308, headers: { Location: '/v1/final' } })
+      )
+
+    await fetchWithProviderHeaders(
+      provider,
+      'https://gateway.example.com/v1/chat/completions',
+      { method: 'POST', body: 'payload' },
+      fetchImpl
+    )
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', body: 'payload' })
+    expect(fetchImpl.mock.calls[2]?.[1]).toMatchObject({ method: 'POST', body: 'payload' })
+  })
+
+  it('preserves Request attributes after a redirect', async () => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const fetchImpl = vi
+      .fn(
+        async (_input: string | URL | Request, _init?: RequestInit) =>
+          new Response('{}', { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(null, { status: 307, headers: { Location: '/v1/redirected' } })
+      )
+    const request = new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      body: 'payload',
+      cache: 'no-store',
+      credentials: 'include',
+      integrity: 'sha256-test',
+      keepalive: true,
+      mode: 'cors',
+      referrer: 'https://app.example.com/settings',
+      referrerPolicy: 'origin'
+    })
+
+    await fetchWithProviderHeaders(provider, request, undefined, fetchImpl)
+
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({
+      cache: request.cache,
+      credentials: request.credentials,
+      integrity: request.integrity,
+      keepalive: request.keepalive,
+      mode: request.mode,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      signal: request.signal
+    })
+  })
+
+  it.each(['manual', 'error'] as const)('passes through redirect mode %s', async (redirect) => {
+    const provider = createProvider({ 'X-Tenant-ID': 'team-a' })
+    const fetchImpl = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        new Response(null, { status: 302, headers: { Location: '/v1/redirected' } })
+    )
+
+    const response = await fetchWithProviderHeaders(
+      provider,
+      'https://gateway.example.com/v1/chat/completions',
+      { redirect },
+      fetchImpl
+    )
+
+    expect(response.status).toBe(302)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl.mock.calls[0]?.[1]?.redirect).toBe(redirect)
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get('x-tenant-id')).toBe('team-a')
   })
 
   it('sets duplex when a redirect retries a stream body', async () => {

@@ -291,7 +291,7 @@ describe('Provider routes', () => {
         },
         context
       )
-    ).rejects.toThrow('Invalid custom request headers')
+    ).rejects.toThrow('Invalid custom request headers: reserved_name')
     expect(updateProviderAtomic).not.toHaveBeenCalled()
   })
 

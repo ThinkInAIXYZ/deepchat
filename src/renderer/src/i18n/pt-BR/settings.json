@@ -874,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Cabeçalhos de Solicitação Personalizados",
+      "description": "Formato de cabeçalho de solicitação incorreto, verifique se a entrada está correta.",
+      "parseError": "Falha na análise do Cabeçalho Personalizado"
+    },
     "search": "Buscar plataformas de provedores…",
     "enable": "Habilitar Serviço",
     "enabled": "Habilitado",

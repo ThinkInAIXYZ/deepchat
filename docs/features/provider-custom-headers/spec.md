@@ -249,6 +249,8 @@ profile through the existing atomic-update event; the next request resolves head
 
 - Custom headers are sent only by the main process and never by renderer `fetch`.
 - Header values are never interpolated into URLs, logs, notifications, or error messages.
+- Header values are stored inside `provider_json` alongside `apiKey`; they have the same at-rest
+  protection and are not encrypted as separate fields.
 - Request traces mask every custom header value regardless of its name; relying only on the current
   fixed sensitive-header allowlist is insufficient.
 - Public CLI provider list/update routes do not expose or mutate custom headers.

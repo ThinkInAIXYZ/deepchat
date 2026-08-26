@@ -10,7 +10,7 @@
       >
         <span class="min-w-0">
           <span class="block text-sm font-medium">
-            {{ t('settings.mcp.serverForm.customHeaders') }}
+            {{ t('settings.provider.customHeaders.title') }}
           </span>
           <span class="block text-xs font-normal text-muted-foreground">
             {{ statusLabel }}
@@ -30,9 +30,9 @@
       @open-auto-focus="handleOpenAutoFocus"
     >
       <DialogHeader>
-        <DialogTitle>{{ t('settings.mcp.serverForm.customHeaders') }}</DialogTitle>
+        <DialogTitle>{{ t('settings.provider.customHeaders.title') }}</DialogTitle>
         <DialogDescription>
-          {{ t('settings.mcp.serverForm.invalidKeyValueFormat') }}
+          {{ t('settings.provider.customHeaders.description') }}
         </DialogDescription>
       </DialogHeader>
 
@@ -150,7 +150,7 @@ const { createEditor, updateCode, getEditorView, cleanupEditor } = useMonaco({
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   lineNumbers: 'on',
-  ariaLabel: t('settings.mcp.serverForm.customHeaders')
+  ariaLabel: t('settings.provider.customHeaders.title')
 })
 
 const configuredCount = computed(() => Object.keys(props.modelValue ?? {}).length)
@@ -174,9 +174,9 @@ const validationError = computed(() => {
   if (parsedDraft.value) return ''
   try {
     JSON.parse(draft.value)
-    return t('settings.mcp.serverForm.invalidKeyValueFormat')
+    return t('settings.provider.customHeaders.description')
   } catch {
-    return t('settings.mcp.serverForm.customHeadersParseError')
+    return t('settings.provider.customHeaders.parseError')
   }
 })
 

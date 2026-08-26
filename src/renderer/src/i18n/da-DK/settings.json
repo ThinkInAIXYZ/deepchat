@@ -807,6 +807,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Brugerdefinerede forespørgselsheaders",
+      "description": "Forkert format på header, kontroller input.",
+      "parseError": "Fortolkning af brugerdefinerede headers mislykkedes"
+    },
     "search": "Søg efter udbydere…",
     "enable": "Aktivér tjeneste",
     "enabled": "Aktiveret",

@@ -874,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "自定義請求頭",
+      "description": "錯誤的請求頭格式，請檢查輸入是否正確",
+      "parseError": "自定義Header解析失敗"
+    },
     "search": "搜尋服務商平台…",
     "enable": "開啟服務",
     "enabled": "已啟用",

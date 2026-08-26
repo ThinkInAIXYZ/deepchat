@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Niestandardowe nagłówki żądań",
+      "description": "Nieprawidłowy format nagłówka żądania. Sprawdź, czy wprowadzone dane są prawidłowe.",
+      "parseError": "Analiza nagłówka niestandardowego nie powiodła się"
+    },
     "search": "Platformy dostawców wyszukiwania…",
     "enable": "Włącz usługę",
     "enabled": "Włączone",

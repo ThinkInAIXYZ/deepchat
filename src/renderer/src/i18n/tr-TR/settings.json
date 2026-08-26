@@ -1241,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Özel İstek Başlıkları",
+      "description": "Yanlış istek başlığı biçimi. Lütfen girişin doğru olup olmadığını kontrol edin.",
+      "parseError": "Özel Başlık ayrıştırma işlemi başarısız oldu"
+    },
     "search": "Sağlayıcı platformlarında arama yapın…",
     "enable": "Hizmeti Etkinleştir",
     "enabled": "Etkinleştirilmiş",
