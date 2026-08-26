@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
-import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 
@@ -33,7 +33,7 @@ type ChatClientLike = {
     messageId: string
     toolCallId: string
     response: ToolInteractionResponse
-  }) => Promise<{ handledInline?: boolean; waitingForUserMessage?: boolean }>
+  }) => Promise<ToolInteractionResult>
   dismissToolInteraction: (input: {
     sessionId: string
     messageId: string

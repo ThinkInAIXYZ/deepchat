@@ -182,7 +182,7 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('releases the response lock and drops an unresolvable interaction when the client rejects', async () => {
+  it('drops an unresolvable interaction when the client rejects', async () => {
     const error = new Error('response failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const harness = createHarness([

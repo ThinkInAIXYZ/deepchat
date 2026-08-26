@@ -774,6 +774,7 @@ export class InteractionCoordinator {
       updateToolCallResponse(blocks, toolCallId, 'User denied the request.', true)
     } else if (actionBlock.action_type === 'question_request') {
       markQuestionResolved(actionBlock, '')
+      updateToolCallResponse(blocks, toolCallId, 'Question dismissed.', false)
     } else {
       return false
     }
@@ -782,12 +783,23 @@ export class InteractionCoordinator {
       parseMessageMetadata(message.metadata),
       'cancelled'
     )
-    this.ports.messageStore.updateAssistantContent(messageId, blocks, JSON.stringify(metadata))
+    const metadataJson = JSON.stringify(metadata)
+    const remainingPending = collectPendingInteractionEntries(messageId, blocks)
+    if (remainingPending.length === 0) {
+      // Nothing is left to resolve in this message: finalize it so it no longer
+      // reads as a pending assistant message after the reload.
+      this.ports.messageStore.finalizeAssistantMessage(messageId, blocks, metadataJson)
+    } else {
+      this.ports.messageStore.updateAssistantContent(messageId, blocks, metadataJson)
+    }
     this.ports.messageProjection.refresh(sessionId, messageId)
+    // Remove only the dismissed entry from the instance queue, preserving pending
+    // interactions that belong to other messages.
     const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
-    replacePendingInteractions(
-      instance,
-      collectPendingInteractionEntries(messageId, blocks)
+    instance.replacePendingInteractions(
+      instance.getPendingInteractions().filter(
+        (pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId
+      )
     )
     return true
   }

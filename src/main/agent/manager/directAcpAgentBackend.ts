@@ -21,7 +21,13 @@ import type {
 export interface DirectAcpAgentBackendOptions {
   runtime: AcpAgentRuntime
   sessionState: SessionStatePort
-  transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'>
+  transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'> & {
+    updateAssistantContent(
+      messageId: string,
+      blocks: AssistantMessageBlock[],
+      metadata?: string
+    ): void
+  }
   tape: Pick<SessionTapePort, 'linkSubagentTape'>
   deleteDurableSession(sessionId: AppSessionId): Promise<void>
   resolveInput(
@@ -216,7 +222,16 @@ export const createDirectAcpAgentBackend = (
           )
           const requestId = block?.extra?.permissionRequestId?.trim()
           if (!requestId) return false
-          return runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, false) ?? false
+          if (runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, false)) {
+            return true
+          }
+          // No live ACP runtime can resolve the request: persist a durable denied
+          // block so the stale approval does not reappear after a reload.
+          if (!block) return false
+          block.status = 'denied'
+          block.extra = { ...block.extra, needsUserAction: false }
+          transcript.updateAssistantContent(messageId, blocks)
+          return true
         }
       },
       async send(input): Promise<MessageStartResult> {
