@@ -61,6 +61,7 @@ async function setup(options?: {
     ],
     providers: [options?.updatedProvider ?? provider],
     ensureDefaultProvidersReady: vi.fn().mockResolvedValue(undefined),
+    updateProviderStatus: vi.fn().mockResolvedValue(undefined),
     updateProviderApi: vi.fn().mockResolvedValue({
       updated: options?.updatedProvider ?? createProvider({ ...provider, apiKey: 'updated-key' })
     }),
@@ -228,5 +229,14 @@ describe('ModelProviderSettingsDetail', () => {
     await flushPromises()
 
     expect(wrapper.emitted('provider-configured')).toBeUndefined()
+  })
+
+  it('updates the provider status from the banner toggle', async () => {
+    const { wrapper, providerStore } = await setup()
+
+    await wrapper.get('[data-testid="provider-enabled-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.updateProviderStatus).toHaveBeenCalledWith('anthropic', false)
   })
 })

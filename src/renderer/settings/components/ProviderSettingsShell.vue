@@ -31,10 +31,22 @@
                 }}
               </p>
             </div>
-            <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <div class="flex shrink-0 flex-col items-start gap-2 lg:items-end">
               <DcBadge variant="outline">
                 {{ t('settings.provider.center.enabledModels', { count: enabledCount }) }}
               </DcBadge>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-muted-foreground">
+                  {{ t('settings.provider.menu.enable') }}
+                </span>
+                <Switch
+                  data-testid="provider-enabled-toggle"
+                  :aria-label="t('settings.provider.menu.enable')"
+                  :model-value="enabled"
+                  :disabled="enabledUpdating"
+                  @update:model-value="emit('enabled-change', Boolean($event))"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -104,13 +116,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from '@shadcn/components/ui/collapsible'
+import { Switch } from '@shadcn/components/ui/switch'
 import type { ProviderHealthView } from '@/stores/providerStore'
 
 const props = defineProps<{
   title: string
   subtitle?: string
   enabledCount: number
+  enabled: boolean
+  enabledUpdating?: boolean
   health?: ProviderHealthView | null
+}>()
+
+const emit = defineEmits<{
+  'enabled-change': [enabled: boolean]
 }>()
 
 const { t, locale } = useI18n()
