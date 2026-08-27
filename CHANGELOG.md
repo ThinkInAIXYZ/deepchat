@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.1-beta.5 (2026-08-27)
+- Added built-in APIMart and Synthorai providers, including native APIMart image and video generation
+- Added validated per-provider custom request headers with cross-origin protections
+- Restored manual Skill installation from folders, ZIP archives, URLs, and Git repositories
+- Refreshed the built-in model and ACP catalogs
+- Fixed stale permission and question prompts blocking conversations
+- Reduced startup delays when background tasks occupy the available work lanes
+- 新增内置 APIMart 与 Synthorai Provider，并支持 APIMart 原生图片与视频生成
+- 新增经过验证的 Provider 自定义请求头，并提供跨域保护
+- 恢复从文件夹、ZIP 压缩包、URL 与 Git 仓库手动安装 Skill
+- 刷新内置模型与 ACP 目录
+- 修复过期的权限与问题提示阻塞对话
+- 减少后台任务占满工作通道时的启动延迟
+
 ## v1.1.1-beta.4 (2026-08-24)
 - Added Codex image generation support for providers
 - Reduced markdown streaming stalls with split rendering and gentle prefix batching
