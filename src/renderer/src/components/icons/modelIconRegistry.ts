@@ -50,6 +50,7 @@ import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
+import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
 import routerraColorIcon from '@/assets/llm-icons/routerra.svg?url'
 import modelsellColorIcon from '@/assets/llm-icons/modelsell.png?url'
 import straicoColorIcon from '@/assets/llm-icons/straico.svg?url'
@@ -167,6 +168,7 @@ export const modelIcons = {
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
   orcarouter: orcarouterColorIcon,
+  synthorai: synthoraiColorIcon,
   routerra: routerraColorIcon,
   modelsell: modelsellColorIcon,
   straico: straicoColorIcon,

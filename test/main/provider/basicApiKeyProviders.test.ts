@@ -283,6 +283,48 @@ describe('basic API-key provider registrations', () => {
     ])
   })
 
+  it('discovers Synthorai models through the OpenAI-compatible endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          { id: 'claude-opus-5', owned_by: 'synthorai' },
+          { id: 'deepseek-v4-pro', owned_by: 'synthorai' }
+        ]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'synthorai',
+        name: 'Synthorai',
+        baseUrl: 'https://synthorai.io/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(resolveAiSdkProviderDefinition(createProvider({ id: 'synthorai' }))).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://synthorai.io/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models.map((model) => model.id)).toEqual(['claude-opus-5', 'deepseek-v4-pro'])
+  })
+
   it('discovers Modelsell models through the OpenAI-compatible endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

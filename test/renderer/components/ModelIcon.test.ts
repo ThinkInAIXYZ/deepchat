@@ -92,6 +92,7 @@ describe('ModelIcon', () => {
     const amdIcon = (await import('@/assets/llm-icons/amd.svg?url')).default
     const modelsellIcon = (await import('@/assets/llm-icons/modelsell.png?url')).default
     const orcarouterIcon = (await import('@/assets/llm-icons/orcarouter.svg?url')).default
+    const synthoraiIcon = (await import('@/assets/llm-icons/synthorai.svg?url')).default
     const apimartIcon = (await import('@/assets/llm-icons/apimart.ico?url')).default
 
     const nvidia = mount(ModelIcon, {
@@ -140,6 +141,11 @@ describe('ModelIcon', () => {
         modelId: 'orcarouter'
       }
     })
+    const synthorai = mount(ModelIcon, {
+      props: {
+        modelId: 'synthorai'
+      }
+    })
     const apimart = mount(ModelIcon, {
       props: {
         modelId: 'apimart',
@@ -157,6 +163,7 @@ describe('ModelIcon', () => {
     expect(amdDeveloper.get('img').classes()).toContain('invert')
     expect(modelsell.get('img').attributes('src')).toBe(modelsellIcon)
     expect(orcarouter.get('img').attributes('src')).toBe(orcarouterIcon)
+    expect(synthorai.get('img').attributes('src')).toBe(synthoraiIcon)
     expect(apimart.get('img').attributes('src')).toBe(apimartIcon)
     expect(apimart.get('img').classes()).toContain('invert')
   })

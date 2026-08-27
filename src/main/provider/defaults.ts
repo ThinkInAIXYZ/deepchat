@@ -415,6 +415,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'synthorai',
+    name: 'Synthorai',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://synthorai.io/v1',
+    enable: false,
+    websites: {
+      official: 'https://synthorai.io/',
+      apiKey: 'https://synthorai.io/console/api-keys',
+      docs: 'https://synthorai.io/docs/',
+      models: 'https://synthorai.io/models/',
+      defaultBaseUrl: 'https://synthorai.io/v1'
+    }
+  },
+  {
     id: 'opencode-go',
     name: 'OpenCode Go',
     apiType: 'openai-completions',
