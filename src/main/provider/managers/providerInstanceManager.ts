@@ -7,6 +7,7 @@ import { OllamaProvider } from '../providers/ollamaProvider'
 import { AcpProvider } from '../providers/acpProvider'
 import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
+import { ApimartProvider } from '../providers/apimartProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -352,6 +353,10 @@ export class ProviderInstanceManager {
 
       if (provider.id === 'voiceai') {
         return new VoiceAIProvider(provider, this.options.providerSettings, this.options.locale)
+      }
+
+      if (provider.id === 'apimart' || provider.apiType === 'apimart') {
+        return new ApimartProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       if (provider.id === 'ollama' || provider.apiType === 'ollama') {

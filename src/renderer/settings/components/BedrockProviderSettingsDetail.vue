@@ -3,7 +3,10 @@
     :title="t(provider.name)"
     :subtitle="region"
     :enabled-count="enabledModels.length"
+    :enabled="provider.enable"
+    :enabled-updating="isProviderStatusUpdating"
     :health="providerHealth"
+    @enabled-change="handleProviderEnabledChange"
   >
     <template #connection>
       <div class="flex flex-col gap-4">
@@ -228,6 +231,7 @@ const region = ref(props.provider.credential?.region || '')
 const profile = ref(props.provider.credential?.profile || '')
 const showAccessKeyId = ref(false)
 const showSecretAccessKey = ref(false)
+const isProviderStatusUpdating = ref(false)
 const providerHealth = computed(() => providerStore.getProviderHealth(props.provider.id))
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = computed(() => {
@@ -259,6 +263,21 @@ const isProviderReadyForOnboarding = (
 const maybeEmitProviderConfigured = (provider: AWS_BEDROCK_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
     emit('provider-configured')
+  }
+}
+
+const handleProviderEnabledChange = async (enabled: boolean) => {
+  if (isProviderStatusUpdating.value || enabled === props.provider.enable) {
+    return
+  }
+
+  isProviderStatusUpdating.value = true
+  try {
+    await providerStore.updateProviderStatus(props.provider.id, enabled)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+  } finally {
+    isProviderStatusUpdating.value = false
   }
 }
 

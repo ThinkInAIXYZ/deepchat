@@ -3,7 +3,10 @@
     :title="t(provider.name)"
     :subtitle="provider.baseUrl"
     :enabled-count="enabledModels.length"
+    :enabled="provider.enable"
+    :enabled-updating="isProviderStatusUpdating"
     :health="providerHealth"
+    @enabled-change="handleProviderEnabledChange"
   >
     <template #connection>
       <ProviderApiConfig
@@ -158,6 +161,7 @@ const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
 const isRefreshingModels = ref(false)
+const isProviderStatusUpdating = ref(false)
 const hasInitializedModelList = ref(false)
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
@@ -235,6 +239,21 @@ const isProviderReadyForOnboarding = (
 const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
     emit('provider-configured')
+  }
+}
+
+const handleProviderEnabledChange = async (enabled: boolean) => {
+  if (isProviderStatusUpdating.value || enabled === props.provider.enable) {
+    return
+  }
+
+  isProviderStatusUpdating.value = true
+  try {
+    await providerStore.updateProviderStatus(props.provider.id, enabled)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+  } finally {
+    isProviderStatusUpdating.value = false
   }
 }
 

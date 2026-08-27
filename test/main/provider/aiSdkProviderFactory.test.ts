@@ -668,6 +668,55 @@ describe('AI SDK provider factory', () => {
     expect(headers.has('authorization')).toBe(false)
   })
 
+  it('uses bearer auth for APIMart native Gemini routes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        'data: {"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}\n\n',
+        {
+          status: 200,
+          headers: {
+            'content-type': 'text/event-stream'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = createAiSdkProviderContext({
+      providerKind: 'gemini',
+      provider: {
+        id: 'apimart',
+        name: 'APIMart',
+        apiType: 'apimart',
+        apiKey: 'test-key-1234',
+        baseUrl: 'https://api.apimart.ai/v1beta',
+        enable: false
+      } as any,
+      providerSettings: {} as any,
+      defaultHeaders: {},
+      modelId: 'gemini-2.5-pro',
+      cleanHeaders: true
+    })
+
+    const result = streamText({
+      model: context.model,
+      messages: [{ role: 'user', content: 'hello' }],
+      maxOutputTokens: 16
+    })
+    for await (const _part of result.stream) {
+      continue
+    }
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.apimart.ai/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse',
+      expect.any(Object)
+    )
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const headers = new Headers(requestInit.headers)
+    expect(headers.get('authorization')).toBe('Bearer test-key-1234')
+    expect(headers.has('x-goog-api-key')).toBe(false)
+  })
+
   it('does not attach a private dispatcher for no-proxy openai-compatible fetch', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

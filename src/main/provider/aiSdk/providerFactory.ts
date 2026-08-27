@@ -399,6 +399,10 @@ function createFetchMiddleware(
         }
       })
 
+      if (provider.apiType === 'apimart') {
+        sanitized.delete('x-goog-api-key')
+      }
+
       if (!shouldUseGeminiHeader && !sanitized.has('Authorization') && provider.apiKey) {
         sanitized.set('Authorization', `Bearer ${provider.apiKey}`)
       }

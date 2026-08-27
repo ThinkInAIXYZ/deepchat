@@ -62,6 +62,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'apimart',
+    name: 'APIMart',
+    apiType: 'apimart',
+    apiKey: '',
+    baseUrl: 'https://api.apimart.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://apimart.ai/zh',
+      apiKey: 'https://apimart.ai/zh/keys',
+      docs: 'https://docs.apimart.ai/cn',
+      models: 'https://docs.apimart.ai/cn/api-reference/texts/models/list',
+      defaultBaseUrl: 'https://api.apimart.ai/v1'
+    }
+  },
+  {
     id: 'qiniu',
     name: 'Qiniu',
     apiType: 'openai-completions',

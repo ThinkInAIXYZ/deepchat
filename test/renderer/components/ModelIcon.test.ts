@@ -92,6 +92,7 @@ describe('ModelIcon', () => {
     const amdIcon = (await import('@/assets/llm-icons/amd.svg?url')).default
     const modelsellIcon = (await import('@/assets/llm-icons/modelsell.png?url')).default
     const orcarouterIcon = (await import('@/assets/llm-icons/orcarouter.svg?url')).default
+    const apimartIcon = (await import('@/assets/llm-icons/apimart.ico?url')).default
 
     const nvidia = mount(ModelIcon, {
       props: {
@@ -139,6 +140,12 @@ describe('ModelIcon', () => {
         modelId: 'orcarouter'
       }
     })
+    const apimart = mount(ModelIcon, {
+      props: {
+        modelId: 'apimart',
+        isDark: true
+      }
+    })
 
     expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
     expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
@@ -150,6 +157,8 @@ describe('ModelIcon', () => {
     expect(amdDeveloper.get('img').classes()).toContain('invert')
     expect(modelsell.get('img').attributes('src')).toBe(modelsellIcon)
     expect(orcarouter.get('img').attributes('src')).toBe(orcarouterIcon)
+    expect(apimart.get('img').attributes('src')).toBe(apimartIcon)
+    expect(apimart.get('img').classes()).toContain('invert')
   })
 
   it('keeps fuzzy matching for common model ids and provider apiType fallback', async () => {
