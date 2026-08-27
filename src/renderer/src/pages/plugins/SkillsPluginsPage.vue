@@ -8,8 +8,14 @@ import { Separator } from '@shadcn/components/ui/separator'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSkillClient } from '@api/SkillClient'
 import type { Agent } from '@shared/types/agent-interface'
@@ -24,9 +30,11 @@ import {
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import ImportSkillsFromAgentDialog from './skills/ImportSkillsFromAgentDialog.vue'
+import InstallFromGitDialog from './skills/InstallFromGitDialog.vue'
 import SkillCard from './skills/SkillCard.vue'
 import SkillDetailDialog from './skills/SkillDetailDialog.vue'
 import SkillImportExportTab from './skills/SkillImportExportTab.vue'
+import SkillInstallDialog from './skills/SkillInstallDialog.vue'
 
 type SkillsView = 'skills' | 'syncDirectory'
 
@@ -45,6 +53,8 @@ const agentUpdatePendingId = ref<string | null>(null)
 const activeView = ref<SkillsView>('skills')
 const searchQuery = ref('')
 const externalImportOpen = ref(false)
+const installDialogOpen = ref(false)
+const gitDialogOpen = ref(false)
 const detailDialogOpen = ref(false)
 const selectedSkill = ref<UnifiedSkillItem | null>(null)
 const skillDetail = ref<SkillDetail | null>(null)
@@ -366,15 +376,38 @@ onUnmounted(() => {
                 {{ t('settings.skills.syncDirectory.action') }}
               </DcButton>
 
-              <DcButton
-                data-testid="skills-import-action"
-                size="sm"
-                :disabled="operationPending"
-                @click="externalImportOpen = true"
-              >
-                <Icon icon="lucide:download" class="mr-1 size-4" />
-                {{ t('settings.skills.agentImport.menuItem') }}
-              </DcButton>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <DcButton
+                    data-testid="skills-import-action"
+                    size="sm"
+                    :disabled="operationPending"
+                  >
+                    <Icon icon="lucide:plus" class="mr-1 size-4" />
+                    {{ t('settings.skills.addSkill') }}
+                  </DcButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-56">
+                  <DcDropdownActionItem
+                    data-testid="skills-import-from-agent"
+                    icon="lucide:copy-plus"
+                    :label="t('settings.skills.agentImport.menuItem')"
+                    @select="externalImportOpen = true"
+                  />
+                  <DcDropdownActionItem
+                    data-testid="skills-import-basic"
+                    icon="lucide:folder-plus"
+                    :label="t('settings.skills.install.basicTitle')"
+                    @select="installDialogOpen = true"
+                  />
+                  <DcDropdownActionItem
+                    data-testid="skills-import-git"
+                    icon="lucide:git-branch"
+                    :label="t('settings.skills.git.menuItem')"
+                    @select="gitDialogOpen = true"
+                  />
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </template>
@@ -453,6 +486,8 @@ onUnmounted(() => {
         :agents="agents"
         @imported="loadPage(true)"
       />
+      <SkillInstallDialog v-model:open="installDialogOpen" />
+      <InstallFromGitDialog v-model:open="gitDialogOpen" />
       <SkillDetailDialog
         ref="detailDialogRef"
         :open="detailDialogOpen"
