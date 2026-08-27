@@ -184,7 +184,7 @@ const activeTab = ref('folder')
 const installUrl = ref('')
 const validationError = ref('')
 const operationError = ref<string | null>(null)
-const { status: installStatus, run: runInstall } = useDcFormSubmit()
+const { status: installStatus, run: runInstall, reset: resetInstallStatus } = useDcFormSubmit()
 
 // Drag and drop state: which zone is currently being dragged over
 const dragActive = ref<'folder' | 'zip' | null>(null)
@@ -263,14 +263,20 @@ const executeInstall = async (
       showError(error)
       throw error
     }
-  }).catch(() => {
-    // runInstall already settled the status to error; the inline error is
-    // set by showError/handleInstallResult, keep a fallback for edge cases.
-    if (!operationError.value) {
-      operationError.value = t('common.error.requestFailed')
-      installing.value = false
-    }
   })
+    .then(() => {
+      // A conflict leaves the overwrite confirmation open; do not let the
+      // submit button settle into a misleading success state.
+      if (conflictRequest.value.status !== 'idle') resetInstallStatus()
+    })
+    .catch(() => {
+      // runInstall already settled the status to error; the inline error is
+      // set by showError/handleInstallResult, keep a fallback for edge cases.
+      if (!operationError.value) {
+        operationError.value = t('common.error.requestFailed')
+        installing.value = false
+      }
+    })
 }
 
 const selectFolder = async () => {

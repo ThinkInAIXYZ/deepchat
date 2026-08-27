@@ -370,11 +370,15 @@ describe('SkillsPluginsPage', () => {
 
     await wrapper.get('[data-testid="skills-import-basic"]').trigger('click')
     expect(wrapper.get('[data-testid="install-dialog"]').attributes('data-open')).toBe('true')
-    wrapper.get('[data-testid="install-dialog"]').trigger('update:open', false)
+    wrapper.findComponent(SkillInstallDialogStub).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="install-dialog"]').attributes('data-open')).toBe('false')
 
     await wrapper.get('[data-testid="skills-import-git"]').trigger('click')
     expect(wrapper.get('[data-testid="git-install-dialog"]').attributes('data-open')).toBe('true')
-    wrapper.get('[data-testid="git-install-dialog"]').trigger('update:open', false)
+    wrapper.findComponent(InstallFromGitDialogStub).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="git-install-dialog"]').attributes('data-open')).toBe('false')
 
     await wrapper.get('[data-testid="skills-import-from-agent"]').trigger('click')
     expect(wrapper.get('[data-testid="agent-import-dialog"]').attributes('data-open')).toBe('true')

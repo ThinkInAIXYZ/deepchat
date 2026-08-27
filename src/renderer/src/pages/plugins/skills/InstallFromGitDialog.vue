@@ -160,7 +160,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const skillClient = createSkillClient()
 
-const repoUrl = ref('https://github.com/op7418/guizang-ppt-skill')
+const repoUrl = ref('https://github.com/op7418/guizang-ppt-skill') // sample repo pre-filled for convenience
 const scanResult = ref<GitSkillRepoScanResult | null>(null)
 const selectedNames = ref<Set<string>>(new Set())
 const strategy = ref<SkillInstallConflictStrategy>('rename')
@@ -283,12 +283,12 @@ const install = async () => {
         selectedNames.value = new Set(
           input.skillNames.filter((skillName) => !installedSourceNames.has(skillName))
         )
+        operationError.value = t('settings.skills.git.successMessage', {
+          count: installed,
+          failed: failed || selectedNames.value.size
+        })
       }
       installing.value = false
-      operationError.value = t('settings.skills.git.successMessage', {
-        count: installed,
-        failed: failed || selectedNames.value.size
-      })
       throw new Error('Git repository install was incomplete')
     }
     installing.value = false
@@ -297,10 +297,10 @@ const install = async () => {
     }
   }).catch((cause) => {
     if (!isCurrentInstall(generation) || requestId !== installRequestId) return
-    if (!operationError.value) {
+    installing.value = false
+    if (isCurrentContext(contextVersion.value) && !operationError.value) {
       logFailure('[InstallFromGitDialog] Failed to install repository skills', cause)
       operationError.value = t('common.error.requestFailed')
-      installing.value = false
     }
   })
 }
