@@ -388,6 +388,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
       <a href="https://www.orcarouter.ai/">OrcaRouter</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/synthorai.svg" width="50" height="50" alt="Synthorai Icon"><br/>
+      <a href="https://synthorai.io/">Synthorai</a>
+    </td>
   </tr>
 
 </table>

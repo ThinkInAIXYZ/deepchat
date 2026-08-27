@@ -386,6 +386,10 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
       <a href="https://www.orcarouter.ai/">OrcaRouter</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/synthorai.svg" width="50" height="50" alt="Synthorai Icon"><br/>
+      <a href="https://synthorai.io/">Synthorai</a>
+    </td>
   </tr>
 
 </table>

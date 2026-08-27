@@ -1529,6 +1529,50 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps a Synthorai base URL to the built-in Synthorai provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'synthorai-gateway',
+        name: 'Synthorai Gateway',
+        type: 'openai',
+        apiKey: 'sk-synthorai-test',
+        apiHost: 'https://synthorai.io/v1',
+        models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'synthorai',
+        name: 'Synthorai',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://synthorai.io/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'synthorai-gateway',
+      targetKind: 'builtin',
+      targetProviderId: 'synthorai',
+      targetApiType: 'openai-completions',
+      modelPreview: ['Claude Opus 5'],
+      warnings: []
+    })
+  })
+
   it('uses Cherry Studio custom data directory from app config', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

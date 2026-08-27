@@ -40,6 +40,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Synthorai as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'synthorai',
+        name: 'Synthorai',
+        apiType: 'openai-completions',
+        baseUrl: 'https://synthorai.io/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://synthorai.io/',
+          apiKey: 'https://synthorai.io/console/api-keys',
+          docs: 'https://synthorai.io/docs/',
+          models: 'https://synthorai.io/models/',
+          defaultBaseUrl: 'https://synthorai.io/v1'
+        })
+      })
+    )
+  })
+
   it('includes Modelsell as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
