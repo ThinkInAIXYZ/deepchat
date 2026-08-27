@@ -60,6 +60,36 @@ const passthrough = (name: string) =>
     template: '<div><slot name="actions" /><slot /></div>'
   })
 
+const DropdownActionItemStub = defineComponent({
+  name: 'DcDropdownActionItem',
+  inheritAttrs: false,
+  props: { icon: String, label: String, disabled: Boolean },
+  emits: ['select'],
+  template:
+    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'select\')">{{ label }}</button>'
+})
+
+const ImportSkillsFromAgentDialogStub = defineComponent({
+  name: 'ImportSkillsFromAgentDialog',
+  props: { open: Boolean },
+  emits: ['update:open', 'imported'],
+  template: '<div data-testid="agent-import-dialog" :data-open="String(open)" />'
+})
+
+const SkillInstallDialogStub = defineComponent({
+  name: 'SkillInstallDialog',
+  props: { open: Boolean },
+  emits: ['update:open'],
+  template: '<div data-testid="install-dialog" :data-open="String(open)" />'
+})
+
+const InstallFromGitDialogStub = defineComponent({
+  name: 'InstallFromGitDialog',
+  props: { open: Boolean },
+  emits: ['update:open'],
+  template: '<div data-testid="git-install-dialog" :data-open="String(open)" />'
+})
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((nextResolve) => {
@@ -164,7 +194,13 @@ const mountSkillsPluginsPage = async () => {
           template:
             '<button data-testid="sync-directory-view" @click="$emit(\'busy-change\', true)" />'
         }),
-        ImportSkillsFromAgentDialog: true,
+        DropdownMenu: passthrough('DropdownMenu'),
+        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        DropdownMenuContent: passthrough('DropdownMenuContent'),
+        DcDropdownActionItem: DropdownActionItemStub,
+        ImportSkillsFromAgentDialog: ImportSkillsFromAgentDialogStub,
+        SkillInstallDialog: SkillInstallDialogStub,
+        InstallFromGitDialog: InstallFromGitDialogStub,
         SkillDetailDialog: SkillDetailDialogStub,
         Icon: true
       }
@@ -315,5 +351,32 @@ describe('SkillsPluginsPage', () => {
     await flushPromises()
 
     expect(mocks.skillClient.deleteSkill).toHaveBeenCalledWith('review', ['agent-a', 'agent-b'])
+  })
+
+  it('exposes manual Skill import entries from the Add Skill menu', async () => {
+    const wrapper = await mountSkillsPluginsPage()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="skills-import-action"]')).toBeTruthy()
+    expect(wrapper.get('[data-testid="skills-import-from-agent"]').text()).toContain(
+      'settings.skills.agentImport.menuItem'
+    )
+    expect(wrapper.get('[data-testid="skills-import-basic"]').text()).toContain(
+      'settings.skills.install.basicTitle'
+    )
+    expect(wrapper.get('[data-testid="skills-import-git"]').text()).toContain(
+      'settings.skills.git.menuItem'
+    )
+
+    await wrapper.get('[data-testid="skills-import-basic"]').trigger('click')
+    expect(wrapper.get('[data-testid="install-dialog"]').attributes('data-open')).toBe('true')
+    wrapper.get('[data-testid="install-dialog"]').trigger('update:open', false)
+
+    await wrapper.get('[data-testid="skills-import-git"]').trigger('click')
+    expect(wrapper.get('[data-testid="git-install-dialog"]').attributes('data-open')).toBe('true')
+    wrapper.get('[data-testid="git-install-dialog"]').trigger('update:open', false)
+
+    await wrapper.get('[data-testid="skills-import-from-agent"]').trigger('click')
+    expect(wrapper.get('[data-testid="agent-import-dialog"]').attributes('data-open')).toBe('true')
   })
 })
