@@ -40,6 +40,34 @@
       href="https://go.apimart.ai/gh-deepchat">注册链接</a>注册即可开用。
     </td>
   </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
+        <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      感谢 OpenModel 对本项目的支持！OpenModel 为 Codex 和 Claude Code 提供高达 90%
+      的客户专属折扣，涵盖所有支持的模型，帮助开发者在不改变工作方式的前提下降低 API
+      成本。只需连接您的 OpenModel API 密钥，即可像往常一样继续使用 Codex 或 Claude
+      Code——系统会自动检测支持的客户端，并应用折扣路由，无需额外参数或手动路由。您还可以为每个
+      API 密钥配置备用方案，选择在折扣路由暂时不可用时继续按标准价格计费或停止计费。DeepChat
+      用户可以通过<a href="https://www.openmodel.ai?ref=ZGLyq8YQ">此链接</a>注册。
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.packyapi.ai/register?aff=0A33">
+        <img src="./assets/sponsors/packycode.png" alt="PackyCode" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      PackyCode 是一家稳定、高效的 API 中转服务商，提供 Claude Code、Codex、Gemini
+      等多种中转服务。具备自动故障转移、智能路由和无限并发等多种功能，让 AI
+      编程成为真正的生产力工具。点击<a
+      href="https://www.packyapi.ai/register?aff=0A33">此链接</a>注册，立即开始使用！
+    </td>
+  </tr>
 </table>
 
 ## 📑 目录

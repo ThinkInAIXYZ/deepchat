@@ -42,6 +42,36 @@
       here</a> to get started.
     </td>
   </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
+        <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      Thanks to OpenModel for sponsoring this project! OpenModel offers client-specific discounts of
+      up to 90% for Codex and 60% for Claude Code across supported models, helping developers cut API
+      costs without changing how they work. Just connect your OpenModel API key and keep using Codex
+      or Claude Code as usual — supported clients are detected automatically and discounted routes
+      are applied with no extra parameters or manual routing required. You can also configure
+      fallback behavior per API key, choosing whether to continue at standard pricing or stop when a
+      discounted route is temporarily unavailable. DeepChat users can register via <a
+      href="https://www.openmodel.ai?ref=ZGLyq8YQ">this link</a>.
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.packyapi.ai/register?aff=0A33">
+        <img src="./assets/sponsors/packycode.png" alt="PackyCode" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      PackyCode is a stable, high-performance API relay provider, offering relay services for Claude
+      Code, Codex, Gemini, and more. With automatic failover, smart routing, and unlimited
+      concurrency, it turns AI into a real productivity tool. Register via <a
+      href="https://www.packyapi.ai/register?aff=0A33">this link</a> and get started!
+    </td>
+  </tr>
 </table>
 
 ## 📑 Table of Contents
