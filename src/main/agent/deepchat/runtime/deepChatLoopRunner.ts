@@ -2082,7 +2082,10 @@ export class DeepChatLoopRunner {
                   state.providerId,
                   event.delayMs
                 )
-              } else if (event.type === 'retry_started' || event.type === 'retry_finished') {
+              } else if (
+                event.type === 'retry_started' ||
+                (event.type === 'retry_finished' && event.retryDecision !== 'retry_scheduled')
+              ) {
                 clearProviderRetryWaiting()
               }
               logger.info('[DeepChatAgent] Provider retry lifecycle', {
