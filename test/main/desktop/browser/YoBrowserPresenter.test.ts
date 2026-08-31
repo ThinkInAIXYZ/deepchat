@@ -1059,6 +1059,68 @@ describe('YoBrowserPresenter', () => {
     )
   })
 
+  it.each(['load_url', 'cdp_send'])(
+    'stops activity for a canceled %s and ignores late completion',
+    async (toolName) => {
+      const { presenter, windows, getSessionWebContents } = await setupPresenter()
+      windows.set(1, new MockBrowserWindow(1))
+      const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+      const webContents = getSessionWebContents('session-a')!
+      webContents.emitDomReady()
+      await initialLoad
+      webContents.finishLoad()
+      sendToAllWindowsMock.mockClear()
+
+      let finishCommand!: () => void
+      if (toolName === 'cdp_send') {
+        webContents.debugger.sendCommand.mockImplementation(async (method: string) => {
+          if (method === 'Runtime.evaluate') {
+            await new Promise<void>((resolve) => {
+              finishCommand = resolve
+            })
+          }
+          return {}
+        })
+      }
+      const controller = new AbortController()
+      const command = presenter.toolHandler.callTool(
+        toolName,
+        toolName === 'load_url'
+          ? { url: 'https://example.com/next' }
+          : {
+              method: 'Runtime.evaluate',
+              params: {
+                expression: 'new Promise(() => { document.querySelector("button").click() })',
+                awaitPromise: true
+              }
+            },
+        'session-a',
+        'run-a',
+        undefined,
+        controller.signal
+      )
+      const cancellation = expect(command).rejects.toMatchObject({ name: 'AbortError' })
+      const phases = () =>
+        sendToAllWindowsMock.mock.calls
+          .map(([, envelope]) => envelope)
+          .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+          .map((envelope: any) => envelope.payload.phase)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started'])
+
+      controller.abort()
+      await cancellation
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started', 'failed'])
+
+      if (toolName === 'cdp_send') finishCommand()
+      else webContents.finishLoad()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started', 'failed'])
+      await presenter.shutdown()
+    }
+  )
+
   it('maps agent CDP mouse and screenshot commands to overlay activity', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))

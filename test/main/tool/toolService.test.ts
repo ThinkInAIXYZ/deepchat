@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
+import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
+import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
 import {
   AgentToolManager,
@@ -1254,6 +1256,91 @@ describe('ToolService', () => {
     expect(commitDispatch).not.toHaveBeenCalled()
     expect(registerOutcomeProjection).not.toHaveBeenCalled()
     active.batch.discard()
+  })
+
+  describe.each([
+    { providerId: 'deepseek', toolName: 'run_code' },
+    { providerId: 'openai-codex', toolName: 'exec' }
+  ])('$toolName execution timeout', ({ providerId, toolName }) => {
+    const createService = () => {
+      const service = new ToolService({
+        skillSettings: { isEnabled: () => false } as any,
+        mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+        agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+        providerSettings: { getModelConfig: vi.fn() } as any,
+        settings: { get: vi.fn() },
+        commandPermissionHandler: new CommandPermissionService(),
+        agentTools: buildAgentToolRuntimeMock()
+      })
+      service.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'code',
+        providerId,
+        commandShell: POSIX_COMMAND_SHELL,
+        executionCatalog: []
+      })
+      return service
+    }
+    const request = (timeoutMs: unknown) => ({
+      id: 'code-call',
+      type: 'function' as const,
+      function: {
+        name: toolName,
+        arguments:
+          toolName === 'run_code'
+            ? JSON.stringify({
+                code: 'return true',
+                description: 'Return true',
+                timeout_ms: timeoutMs
+              })
+            : timeoutMs === undefined
+              ? 'return true'
+              : `// @exec: ${JSON.stringify({ timeout_ms: timeoutMs })}\nreturn true`
+      },
+      conversationId: 'session-1'
+    })
+
+    it.each([
+      { timeoutMs: undefined, expected: 300000 },
+      { timeoutMs: 900000, expected: 900000 },
+      { timeoutMs: 1, expected: 1 },
+      { timeoutMs: 2147483647, expected: 2147483647 }
+    ])('uses $expected ms when timeout_ms is $timeoutMs', async ({ timeoutMs, expected }) => {
+      const execute = vi.spyOn(RunCodeRuntimeManager.prototype, 'execute').mockResolvedValue({
+        content: 'completed'
+      })
+      try {
+        await createService().callTool(request(timeoutMs), { permissionMode: 'full_access' })
+
+        expect(execute).toHaveBeenCalledOnce()
+        expect(execute).toHaveBeenCalledWith(
+          expect.objectContaining({ source: 'return true', timeoutMs: expected })
+        )
+      } finally {
+        execute.mockRestore()
+      }
+    })
+
+    it.each([0, -1, 1.5, '900000', null, 2147483648])(
+      'rejects invalid timeout_ms %j before starting code',
+      async (timeoutMs) => {
+        const execute = vi.spyOn(RunCodeRuntimeManager.prototype, 'execute')
+        const commitDispatch = vi.fn()
+        try {
+          await expect(
+            createService().callTool(request(timeoutMs), {
+              permissionMode: 'full_access',
+              commitDispatch
+            })
+          ).rejects.toThrow('timeout_ms must be')
+
+          expect(execute).not.toHaveBeenCalled()
+          expect(commitDispatch).not.toHaveBeenCalled()
+        } finally {
+          execute.mockRestore()
+        }
+      }
+    )
   })
 
   it('projects one execution catalog into Agent, Code, and Minimal modes', async () => {

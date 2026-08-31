@@ -65,6 +65,24 @@ describe('AgentToolManager YoBrowser routing', () => {
     })
   })
 
+  it('cancels a pending browser tool through the Run signal', async () => {
+    const controller = new AbortController()
+    yoBrowserCallTool.mockImplementation(
+      (_name, _args, _sessionId, _runId, _beforeInvoke, signal?: AbortSignal) =>
+        new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const command = manager.callTool('cdp_send', { method: 'Runtime.evaluate' }, 'session-a', {
+      signal: controller.signal
+    })
+    await vi.waitFor(() => expect(yoBrowserCallTool).toHaveBeenCalledOnce())
+
+    controller.abort()
+
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('returns recoverable YoBrowser CDP failures as errored structured tool results', async () => {
     const browserStatus = {
       initialized: false,

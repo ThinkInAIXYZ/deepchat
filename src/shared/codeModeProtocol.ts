@@ -4,6 +4,8 @@ export const RUN_CODE_SOURCE_MAX_BYTES = 256 * 1024
 export const RUN_CODE_OUTPUT_MAX_BYTES = 1024 * 1024
 export const RUN_CODE_MAX_NESTED_CALLS = 128
 export const RUN_CODE_MAX_NESTED_CONCURRENCY = 8
+export const RUN_CODE_DEFAULT_TIMEOUT_MS = 5 * 60_000
+export const RUN_CODE_MAX_TIMEOUT_MS = 2_147_483_647
 
 export type RunCodeFrontend = 'codex' | 'function'
 
