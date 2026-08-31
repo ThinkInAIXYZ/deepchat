@@ -140,7 +140,11 @@ import {
   isCodexToolFrontend,
   normalizeCodexToolName
 } from './codeMode/toolModeTools'
-import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
+import {
+  CODE_MODE_TOOL_SERVER_NAME,
+  RUN_CODE_DEFAULT_TIMEOUT_MS,
+  RUN_CODE_MAX_TIMEOUT_MS
+} from '@shared/codeModeProtocol'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -233,6 +237,7 @@ type InternalToolCallOptions = ToolCallOptions & {
 
 type CodexExecInput = {
   source: string
+  timeoutMs: number
   yieldTimeMs: number
   maxOutputTokens: number
 }
@@ -1269,11 +1274,12 @@ export class ToolService implements ToolServicePort {
 
     const waitInput = isWait ? this.requireCodeModeWaitInput(request.function.arguments) : null
     const execInput = isExec ? this.requireCodexExecInput(request.function.arguments) : null
+    const codeInput = isRunCode ? this.requireRunCodeInput(request.function.arguments) : execInput
     const outerDispatch: ToolDispatchCommitInput = {
       toolName,
       toolSource: 'agent',
       normalizedArguments: execInput
-        ? { source: execInput.source }
+        ? { source: execInput.source, timeout_ms: execInput.timeoutMs }
         : this.parseAgentToolArguments(request.function.arguments, toolName),
       target: { serverName: CODE_MODE_TOOL_SERVER_NAME, originalName: toolName }
     }
@@ -1293,7 +1299,8 @@ export class ToolService implements ToolServicePort {
           runId: options?.runId,
           toolCallId: request.id,
           frontend: context.frontend,
-          source: execInput?.source ?? this.requireRunCodeSource(request.function.arguments),
+          source: codeInput!.source,
+          timeoutMs: codeInput!.timeoutMs,
           ...(execInput
             ? {
                 yieldTimeMs: execInput.yieldTimeMs,
@@ -1321,13 +1328,22 @@ export class ToolService implements ToolServicePort {
     }
   }
 
-  private requireRunCodeSource(argumentsText: string): string {
+  private requireRunCodeInput(argumentsText: string): { source: string; timeoutMs: number } {
     const args = this.parseAgentToolArguments(argumentsText)
     const code = typeof args.code === 'string' ? args.code : ''
     const description = typeof args.description === 'string' ? args.description.trim() : ''
     if (!code) throw new Error('run_code requires a non-empty code string.')
     if (!description) throw new Error('run_code requires a non-empty description string.')
-    return code
+    return {
+      source: code,
+      timeoutMs: this.readBoundedCodeModeNumber(
+        args.timeout_ms,
+        'timeout_ms',
+        RUN_CODE_DEFAULT_TIMEOUT_MS,
+        1,
+        RUN_CODE_MAX_TIMEOUT_MS
+      )
+    }
   }
 
   private requireCodexExecInput(argumentsText: string): CodexExecInput {
@@ -1336,6 +1352,7 @@ export class ToolService implements ToolServicePort {
       if (!argumentsText.trim()) throw new Error('exec requires non-empty JavaScript source.')
       return {
         source: argumentsText,
+        timeoutMs: RUN_CODE_DEFAULT_TIMEOUT_MS,
         yieldTimeMs: CODE_MODE_DEFAULT_YIELD_TIME_MS,
         maxOutputTokens: CODE_MODE_DEFAULT_MAX_OUTPUT_TOKENS
       }
@@ -1354,6 +1371,13 @@ export class ToolService implements ToolServicePort {
     if (!source.trim()) throw new Error('exec requires non-empty JavaScript source.')
     return {
       source,
+      timeoutMs: this.readBoundedCodeModeNumber(
+        pragma.timeout_ms,
+        'timeout_ms',
+        RUN_CODE_DEFAULT_TIMEOUT_MS,
+        1,
+        RUN_CODE_MAX_TIMEOUT_MS
+      ),
       yieldTimeMs: this.readBoundedCodeModeNumber(
         pragma.yield_time_ms,
         'yield_time_ms',

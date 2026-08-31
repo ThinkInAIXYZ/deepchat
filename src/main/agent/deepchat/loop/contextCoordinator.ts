@@ -23,6 +23,7 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import { isDeepStrictEqual } from 'node:util'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   DeepChatProviderAttemptIdentity,
   DeepChatProviderAttemptOrigin,
@@ -559,30 +560,52 @@ async function* observeProviderAttempt(input: {
 }): AsyncGenerator<LLMCoreStreamEvent, void, void> {
   const { observation } = input
   try {
-    for await (const event of input.provider.stream(input.streamInput)) {
-      if (!input.bypassContextBudget && input.isContextOverflowEvent(event)) {
-        observation.contextOverflowObserved = true
-        const facts = input.inspectContextOverflow?.(event)
-        if (facts?.matched) {
-          observation.contextOverflowFacts = facts
-          input.onContextOverflowFacts?.(facts)
+    const stream = input.provider.stream(input.streamInput)
+    let finished = false
+    try {
+      while (true) {
+        input.streamInput.signal.throwIfAborted()
+        const next = await awaitWithAbort(stream.next(), input.streamInput.signal)
+        input.streamInput.signal.throwIfAborted()
+        if (next.done) {
+          finished = true
+          break
         }
-      }
-      if (event.type === 'usage') {
-        observation.usage = providerAttemptUsageFromEvent(event)
-      } else if (event.type === 'error') {
-        observation.errorEvent = event
-        observation.stopReason = 'error'
-      } else if (event.type === 'stop') {
-        observation.stopEvent = event
-        if (observation.stopReason !== 'error') {
-          observation.stopReason = event.stop_reason
+        const event = next.value
+        if (!input.bypassContextBudget && input.isContextOverflowEvent(event)) {
+          observation.contextOverflowObserved = true
+          const facts = input.inspectContextOverflow?.(event)
+          if (facts?.matched) {
+            observation.contextOverflowFacts = facts
+            input.onContextOverflowFacts?.(facts)
+          }
         }
-      }
+        if (event.type === 'usage') {
+          observation.usage = providerAttemptUsageFromEvent(event)
+        } else if (event.type === 'error') {
+          observation.errorEvent = event
+          observation.stopReason = 'error'
+        } else if (event.type === 'stop') {
+          observation.stopEvent = event
+          if (observation.stopReason !== 'error') {
+            observation.stopReason = event.stop_reason
+          }
+        }
 
-      if (!isProviderControlEvent(event)) {
-        observation.outputCommitted = true
-        yield event
+        if (!isProviderControlEvent(event)) {
+          observation.outputCommitted = true
+          yield event
+        }
+      }
+    } finally {
+      if (!finished) {
+        // An async generator's return() can wait for its outstanding next() forever.
+        const closing = stream.return(undefined)
+        if (input.streamInput.signal.aborted) {
+          void closing.catch(() => undefined)
+        } else {
+          await awaitWithAbort(closing, input.streamInput.signal)
+        }
       }
     }
   } catch (error) {

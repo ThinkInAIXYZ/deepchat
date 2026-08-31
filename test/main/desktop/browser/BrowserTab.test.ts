@@ -174,6 +174,125 @@ describe('BrowserTab', () => {
     webContents.finishLoad()
   })
 
+  it('cancels readiness waits without leaking listeners or dispatching after dom-ready', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    await makePageInteractive(tab, webContents)
+    webContents.emitStartNavigation('https://example.com/next')
+    const initialListeners = webContents.listenerCount('dom-ready')
+    const controller = new AbortController()
+    const beforeDispatch = vi.fn()
+    const command = tab.sendCdpCommand(
+      'Runtime.evaluate',
+      undefined,
+      beforeDispatch,
+      undefined,
+      controller.signal
+    )
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    expect(webContents.listenerCount('dom-ready')).toBe(initialListeners)
+    await vi.advanceTimersByTimeAsync(2000)
+    webContents.emitDomReady()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(cdpManager.createSession).not.toHaveBeenCalled()
+    expect(cdpManager.evaluateScript).not.toHaveBeenCalled()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('does not dispatch a command after canceled CDP session preparation finishes', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    const controller = new AbortController()
+    let finishSession!: () => void
+    cdpManager.createSession.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSession = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Page.reload',
+      undefined,
+      undefined,
+      undefined,
+      controller.signal
+    )
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishSession()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('cancels a silent CDP command and discards its late navigation response', async () => {
+    const { tab, webContents } = createTab()
+    await makePageInteractive(tab, webContents)
+    const controller = new AbortController()
+    let finishCommand!: (result: { loaderId: string }) => void
+    webContents.debugger.sendCommand.mockImplementationOnce(
+      () =>
+        new Promise<{ loaderId: string }>((resolve) => {
+          finishCommand = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Page.navigate',
+      { url: 'https://example.com/next' },
+      undefined,
+      undefined,
+      controller.signal
+    )
+    const failed = vi.fn()
+    void command.catch(failed)
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(webContents.debugger.sendCommand).toHaveBeenCalledOnce()
+    expect(failed).not.toHaveBeenCalled()
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishCommand({ loaderId: 'late-loader' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(tab.url).toBe('https://example.com')
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('cancels a pending readiness probe without dispatching the requested command', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    await makePageInteractive(tab, webContents)
+    webContents.emitStartNavigation('https://example.com/next')
+    const controller = new AbortController()
+    let finishProbe!: (result: any) => void
+    cdpManager.evaluateScript.mockImplementationOnce(
+      () =>
+        new Promise<any>((resolve) => {
+          finishProbe = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Runtime.evaluate',
+      undefined,
+      undefined,
+      undefined,
+      controller.signal
+    )
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(cdpManager.evaluateScript).toHaveBeenCalledOnce()
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishProbe({ readyState: 'complete', hasBody: true, href: 'https://example.com/late' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+    expect(tab.url).toBe('https://example.com/next')
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+  })
+
   it('still fails immediately when the page is not loading', async () => {
     const { tab, webContents } = createTab()
 

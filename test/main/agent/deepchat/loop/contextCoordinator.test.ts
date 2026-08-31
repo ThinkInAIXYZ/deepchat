@@ -3431,6 +3431,68 @@ describe('DeepChatContextCoordinator', () => {
     })
   })
 
+  it.each(['output', 'rejection'])(
+    'cancels a silent provider without awaiting cleanup or accepting late %s',
+    async (lateResult) => {
+      vi.useFakeTimers()
+      const fixture = createAttemptInput()
+      const usageEvent: LLMCoreStreamEvent = {
+        type: 'usage',
+        usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 }
+      }
+      let release!: () => void
+      const pending = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const waiting = vi.fn()
+      const cleanup = vi.fn()
+      fixture.input.provider.stream = async function* () {
+        try {
+          yield usageEvent
+          waiting()
+          await pending
+          if (lateResult === 'rejection') throw new Error('Late provider failure')
+          yield { type: 'tool_call_start', tool_call_id: 'late-call', tool_call_name: 'exec' }
+        } finally {
+          cleanup()
+        }
+      }
+      const projected: LLMCoreStreamEvent[] = []
+      const execution = (async () => {
+        for await (const event of new DeepChatContextCoordinator().streamProviderAttempts(
+          fixture.input
+        )) {
+          projected.push(event)
+        }
+      })()
+      const cancellation = expect(execution).rejects.toMatchObject({ name: 'AbortError' })
+
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      expect(waiting).toHaveBeenCalledOnce()
+      expect(fixture.outcomes).toEqual([])
+      fixture.run.abortController.abort(new DOMException('Stopped', 'AbortError'))
+      await cancellation
+
+      expect(projected).toEqual([usageEvent])
+      expect(fixture.outcomes).toEqual([
+        expectedAttemptOutcome({
+          status: 'aborted',
+          stopReason: null,
+          failureClassification: 'aborted',
+          retryDecision: 'not_retryable',
+          usage: { inputTokens: 8, outputTokens: 1, totalTokens: 9 }
+        })
+      ])
+      expect(cleanup).not.toHaveBeenCalled()
+
+      release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cleanup).toHaveBeenCalledOnce()
+      expect(projected).toEqual([usageEvent])
+      expect(fixture.outcomes).toHaveLength(1)
+    }
+  )
+
   it('settles an attempt as aborted when a provider ignores cancellation and stops cleanly', async () => {
     const fixture = createAttemptInput({
       providerEvents: [[{ type: 'stop', stop_reason: 'complete' }]]
