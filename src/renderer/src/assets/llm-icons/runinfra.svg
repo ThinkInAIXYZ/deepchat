@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 256" fill="currentColor" shape-rendering="crispEdges" role="img">
+  <title>RunInfra</title>
+  <rect x="0" y="0" width="64" height="64" />
+  <rect x="64" y="0" width="64" height="64" />
+  <rect x="0" y="64" width="64" height="64" />
+  <rect x="128" y="64" width="64" height="64" />
+  <rect x="0" y="128" width="64" height="64" />
+  <rect x="64" y="128" width="64" height="64" />
+  <rect x="0" y="192" width="64" height="64" />
+  <rect x="128" y="192" width="64" height="64" />
+</svg>
