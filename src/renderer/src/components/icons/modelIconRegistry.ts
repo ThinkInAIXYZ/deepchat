@@ -64,6 +64,7 @@ import qiniuIcon from '@/assets/llm-icons/qiniu.svg?url'
 import grokColorIcon from '@/assets/llm-icons/grok.svg?url'
 import groqColorIcon from '@/assets/llm-icons/groq.svg?url'
 import greenptColorIcon from '@/assets/llm-icons/greenpt.svg?url'
+import runinfraIcon from '@/assets/llm-icons/runinfra.svg?url'
 import amdIcon from '@/assets/llm-icons/amd.svg?url'
 import nvidiaColorIcon from '@/assets/llm-icons/nvidia-color.svg?url'
 import huggingfaceColorIcon from '@/assets/llm-icons/huggingface-color.svg?url'
@@ -111,6 +112,7 @@ export const modelIcons = {
   grok: grokColorIcon,
   groq: groqColorIcon,
   greenpt: greenptColorIcon,
+  runinfra: runinfraIcon,
   'amd-developer': amdIcon,
   nvidia: nvidiaColorIcon,
   huggingface: huggingfaceColorIcon,
@@ -242,6 +244,7 @@ const monoIconUrls = new Set<string>([
   qiniuIcon,
   grokColorIcon,
   groqColorIcon,
+  runinfraIcon,
   metaColorIcon,
   lmstudioColorIcon,
   _302aiIcon,

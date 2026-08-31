@@ -1,6 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 
@@ -156,6 +157,55 @@ describe('basic API-key provider registrations', () => {
       routeStrategy: 'none',
       embeddingStrategy: 'openai'
     })
+  })
+
+  it('discovers RunInfra models and checks credentials without generating text', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'runinfra')!
+    expect(defaults).toBeDefined()
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        object: 'list',
+        data: [{ id: 'deepseek-v4-flash', object: 'model', owned_by: 'runinfra' }]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const config = { ...defaults, apiKey: 'test-key' }
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'deepseek-v4-flash',
+        providerId: 'runinfra',
+        ownedBy: 'runinfra'
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.runinfra.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { error: { message: 'Invalid API key', type: 'authentication_error' } },
+        { status: 401 }
+      )
+    )
+    await expect(provider.check()).resolves.toMatchObject({
+      isOk: false,
+      errorMsg: expect.stringContaining('Invalid API key')
+    })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('discovers AMD GPU Cloud models through the OpenAI-compatible endpoint', async () => {
