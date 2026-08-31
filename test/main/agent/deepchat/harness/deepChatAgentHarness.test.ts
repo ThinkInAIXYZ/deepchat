@@ -7036,6 +7036,82 @@ describe('DeepChatAgentHarness', () => {
       })
     })
 
+    it('emits and clears an ephemeral rate-limit message while waiting for provider retry', async () => {
+      let providerAttempt = 0
+      llmProvider.providerInstance.coreStream.mockImplementation(async function* () {
+        providerAttempt += 1
+        if (providerAttempt === 1) {
+          yield {
+            type: 'error',
+            error_message: 'temporarily unavailable',
+            failure: {
+              statusCode: 503,
+              retryable: true,
+              retryHeaders: { 'retry-after-ms': '0' }
+            }
+          }
+          return
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const typedStreamUpdates = getPublishedPayloads('chat.stream.updated').filter(
+        (payload) => typeof payload?.messageId === 'string'
+      )
+      const typedRateLimitShow = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 1
+      )
+      const typedRateLimitClear = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
+
+      expect(typedRateLimitShow).toMatchObject({
+        sessionId: 's1',
+        requestId: expect.any(String),
+        blocks: [
+          expect.objectContaining({
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending',
+            extra: {
+              providerId: 'openai',
+              estimatedWaitTime: expect.any(Number)
+            }
+          })
+        ]
+      })
+      expect(typedRateLimitShow.blocks[0].extra).not.toHaveProperty('qpsLimit')
+      expect(typedRateLimitShow.blocks[0].extra).not.toHaveProperty('currentQps')
+      expect(typedRateLimitShow.blocks[0].extra).not.toHaveProperty('queueLength')
+      expect(typedRateLimitClear).toMatchObject({
+        sessionId: 's1',
+        requestId: typedRateLimitShow.requestId,
+        blocks: []
+      })
+      expect(llmProvider.providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    })
+
     it('does not call provider.coreStream when a queued request is canceled', async () => {
       const abortError = new Error('Aborted')
       abortError.name = 'AbortError'
