@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.1 (2026-08-31)
+- Added Code and Minimal tool modes, on-demand tool discovery, and permission-scoped CLI tool access
+- Added a Tape Trace Inspector for Agent runs, provider requests, tool calls, and Skill usage
+- Improved long-context compaction and overflow recovery while preserving full conversation history
+- Unified Skills into a shared library with per-Agent enablement and progressive loading, and restored manual installation from folders, ZIP archives, URLs, and Git repositories
+- Added managed Node.js and uv toolchains with detection, installation, repair, and recovery, plus terminal authentication for ACP agents
+- Redesigned provider Settings with staged credential verification, API key copying, and direct chat entry; added validated custom request headers with cross-origin protections
+- Added APIMart, Synthorai, and RunInfra providers, native APIMart image and video generation, and Codex image generation support
+- Upgraded Markstream to 2.0.6 and reduced Markdown streaming stalls with split rendering and a managed worker pool
+- Improved workspace navigation, conversation retry, and permission prompt recovery, and reduced startup delays
+- Made Agent stop requests interrupt stalled provider and browser waits, and added configurable Code Mode cell timeouts
+- Repaired usage statistics and MCP startup, retained corrupt databases for recovery, and fixed Ollama context budgets and provider timeout handling
+- Refreshed the built-in model and ACP catalogs
+- 新增 Code 与 Minimal 工具模式、按需工具发现，以及受权限约束的 CLI 工具访问
+- 新增 Tape Trace Inspector，用于查看 Agent 运行、Provider 请求、工具调用与 Skill 使用记录
+- 改进长上下文压缩与溢出恢复，同时保留完整对话历史
+- 将 Skills 统一为共享库，支持逐 Agent 启用与渐进式加载，并恢复从文件夹、ZIP 压缩包、URL 与 Git 仓库手动安装
+- 新增托管式 Node.js 与 uv 工具链，支持检测、安装、修复与恢复，并为 ACP Agent 新增终端身份验证
+- 重做 Provider 设置，支持暂存并验证凭据、复制 API Key 和直接开始聊天；新增经过验证且具备跨域保护的自定义请求头
+- 新增 APIMart、Synthorai 与 RunInfra Provider，支持 APIMart 原生图片与视频生成，以及 Codex 图片生成
+- 将 Markstream 升级至 2.0.6，并通过分段渲染与受控 Worker 池减少 Markdown 流式渲染卡顿
+- 改进工作区导航、对话重试与权限提示恢复，并减少启动延迟
+- 使 Agent 停止请求能够中断卡住的 Provider 与浏览器等待，并支持配置 Code Mode 代码单元超时
+- 修复用量统计与 MCP 启动，保留损坏数据库以便恢复，并修复 Ollama 上下文预算与 Provider 超时处理
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.1-beta.5 (2026-08-27)
 - Added built-in APIMart and Synthorai providers, including native APIMart image and video generation
 - Added validated per-provider custom request headers with cross-origin protections
