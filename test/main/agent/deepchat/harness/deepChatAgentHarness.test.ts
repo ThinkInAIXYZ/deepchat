@@ -7077,14 +7077,10 @@ describe('DeepChatAgentHarness', () => {
         payload.messageId.startsWith('__rate_limit__:')
       )
       const rateLimitShowUpdates = rateLimitUpdates.filter(
-        (payload) =>
-          Array.isArray(payload.blocks) &&
-          payload.blocks.length === 1
+        (payload) => Array.isArray(payload.blocks) && payload.blocks.length === 1
       )
       const rateLimitClearUpdates = rateLimitUpdates.filter(
-        (payload) =>
-          Array.isArray(payload.blocks) &&
-          payload.blocks.length === 0
+        (payload) => Array.isArray(payload.blocks) && payload.blocks.length === 0
       )
 
       expect(rateLimitUpdates.map((payload) => payload.blocks.length)).toEqual([1, 0, 1, 0])
@@ -7167,8 +7163,8 @@ describe('DeepChatAgentHarness', () => {
       await agent.cancelGeneration('s1')
       await processing
 
-      const rateLimitUpdates = getPublishedPayloads('chat.stream.updated').filter(
-        (payload) => payload?.messageId?.startsWith('__rate_limit__:')
+      const rateLimitUpdates = getPublishedPayloads('chat.stream.updated').filter((payload) =>
+        payload?.messageId?.startsWith('__rate_limit__:')
       )
       expect(rateLimitUpdates.at(-1)).toMatchObject({
         sessionId: 's1',
