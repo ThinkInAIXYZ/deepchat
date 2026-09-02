@@ -1,4 +1,5 @@
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type {
   SessionAgentAssignmentPort,
@@ -10,6 +11,7 @@ export interface LiveDelegationTurnExecutionSnapshot {
   providerId: string
   modelId: string
   generationSettings: SessionGenerationSettings | null
+  toolModeOverride: ToolModeOverride
 }
 
 export interface PrepareLiveDelegationTurnInput {
