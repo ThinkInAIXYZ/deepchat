@@ -1595,6 +1595,7 @@ export async function createMainProcessControl(dependencies: {
           projectDir: session.projectDir ?? null,
           permissionMode,
           orchestrationPolicy: session.orchestrationPolicy,
+          toolModeOverride: session.toolModeOverride ?? null,
           generationSettings,
           disabledAgentTools,
           activeSkills,

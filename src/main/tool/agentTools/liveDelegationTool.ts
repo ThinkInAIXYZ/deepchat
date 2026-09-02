@@ -85,6 +85,8 @@ export class LiveDelegationAgentTool {
         description: [
           'Control persistent direct-child Sessions for adaptive multi-Agent collaboration.',
           DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
+          "A spawned child Session inherits this Session's permission mode and tool mode, so its",
+          'tool calls run under the same trust boundary as approved here.',
           'Use spawn for one bounded task, send to leave a message without starting a turn,',
           'follow_up to start a later child turn, wait for bounded completion mailbox events,',
           'use list or inspect instead of wait to check permission or question states,',

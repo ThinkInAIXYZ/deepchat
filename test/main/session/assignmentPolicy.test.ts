@@ -153,7 +153,8 @@ describe('SessionAssignmentPolicy', () => {
       permissionMode: 'full_access',
       generationSettings: { systemPrompt: '' },
       disabledAgentTools: [],
-      activeSkills: []
+      activeSkills: [],
+      toolModeOverride: null
     })
     expect(catalog.resolveAgent).toHaveBeenCalledWith('claude-acp')
     await expect(policy.resolveTransferTarget('claude-acp', null)).rejects.toThrow(
@@ -175,7 +176,8 @@ describe('SessionAssignmentPolicy', () => {
         permissionMode: 'default',
         generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
         disabledAgentTools: ['exec'],
-        activeSkills: ['skill-a', 'skill-b']
+        activeSkills: ['skill-a', 'skill-b'],
+        toolModeOverride: 'code'
       })
     ).resolves.toEqual({
       agentId: 'deepchat',
@@ -185,7 +187,8 @@ describe('SessionAssignmentPolicy', () => {
       permissionMode: 'default',
       generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
       disabledAgentTools: ['exec'],
-      activeSkills: ['skill-a', 'skill-b']
+      activeSkills: ['skill-a', 'skill-b'],
+      toolModeOverride: 'code'
     })
   })
 
@@ -223,7 +226,8 @@ describe('SessionAssignmentPolicy', () => {
         temperature: 0.4
       },
       disabledAgentTools: ['exec', 'read', 'write'],
-      activeSkills: ['skill-a', 'skill-b', 'skill-c']
+      activeSkills: ['skill-a', 'skill-b', 'skill-c'],
+      toolModeOverride: null
     })
   })
 

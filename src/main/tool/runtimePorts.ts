@@ -19,6 +19,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type {
   LiveDelegationDetail,
   LiveDelegationEventSummary,
@@ -54,6 +55,7 @@ export interface ConversationSessionInfo {
   projectDir: string | null
   permissionMode: PermissionMode
   orchestrationPolicy: OrchestrationPolicy
+  toolModeOverride: ToolModeOverride
   generationSettings: SessionGenerationSettings | null
   disabledAgentTools: string[]
   activeSkills: string[]
@@ -85,6 +87,7 @@ export interface CreateSubagentSessionInput {
   providerId: string
   modelId: string
   permissionMode: PermissionMode
+  toolModeOverride?: ToolModeOverride
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]

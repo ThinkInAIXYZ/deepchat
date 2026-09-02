@@ -1058,6 +1058,7 @@ export class LiveDelegationService {
           providerId: executionSnapshot.providerId,
           modelId: executionSnapshot.modelId,
           permissionMode: safety.parent.permissionMode,
+          toolModeOverride: safety.parent.toolModeOverride,
           generationSettings: executionSnapshot.generationSettings ?? undefined,
           disabledAgentTools: safety.parent.disabledAgentTools,
           activeSkills: safety.parent.activeSkills,
