@@ -19,14 +19,25 @@
 - [x] Run the full required validation and complete the severity-ordered pre-commit review.
 - [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
   and `open_page` items.
-- [ ] Before merge, confirm with a real key that a second independent user turn retains the first
-  turn's replayed search context.
+- [ ] Before merge, confirm with a real key that DeepSeek emits reasoning `summary: []`, accepts an
+  id-less plaintext reasoning replay, and completes the second independent user turn.
+- [ ] Before merge, confirm with a real key that multiple reasoning items and a same-turn MCP tool
+  round complete, including replay of the provider-returned function-call item ID.
+- [ ] Before merge, confirm with a real key that traced wire bodies contain `low` and `max` reasoning
+  effort values and DeepSeek accepts both requests.
+- [ ] Before merge, run a search-off semantic canary that asks for a detail present only in prior
+  search result content and absent from the prior assistant answer, without offering a new search
+  tool or receiving a new search event.
+- [ ] Before merge, capture one raw search response to determine whether DeepSeek emits URL-citation
+  annotations and, if so, confirm that their title and URL survive projection.
 - [x] Capture normalized AI SDK URL sources in search blocks and the existing result table.
 - [x] Hide provider-owned search markers and wrap completed search targets without truncation.
 - [x] Preserve queued search intent during edits and keep replay-bearing turns atomic in emergency
   truncation.
-- [x] Cover production-runtime replay, SDK default store behavior, persisted OpenAI item-ID removal,
-  request-scope isolation, and SQLite opaque-envelope round trips.
+- [x] Cover production-runtime replay, stateless Open Responses wire shape, id-less plaintext
+  reasoning, request-scope isolation, and SQLite opaque-envelope round trips.
+- [x] Preserve incremental MCP argument streaming on search-enabled and replay-only Responses routes
+  without duplicating the final canonical tool call.
 - [x] Keep legacy MCP search blocks and opaque replay payloads out of provider-native renderer UI.
 - [x] Keep ordinary V4 Flash requests on Chat Completions while routing search and replay requests
   through Responses.

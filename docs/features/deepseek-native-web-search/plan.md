@@ -216,6 +216,9 @@ or depend on the experimental Open Responses extension API.
       search projection and opaque envelopes, map replay through a private `function_call` marker,
       restore the original item exactly once, reject malformed or residual state, and omit empty
       reasoning without persisting reasoning item IDs.
+- [x] Preserve incremental MCP argument rendering by projecting raw function-call start/delta events
+      when search or MCP tools can emit them, while using the provider's final canonical tool-call
+      event for deduplicated completion.
 - [x] Update the maintained feature contract for the stateless plaintext-reasoning transport and
       record the released package's extension limitations and upgrade risk.
 - [x] Add durable protocol regression coverage only after the source migration is complete.

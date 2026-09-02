@@ -106,13 +106,19 @@ function createRawSearchItem() {
   }
 }
 
-function projectSearchEnvelope() {
-  const projected = createAdapter().projectRawChunk({
+function projectSearchItem(adapter: ReturnType<typeof createAdapter>, item: unknown) {
+  const projected = adapter.projectRawChunk({
     type: 'response.output_item.done',
-    item: createRawSearchItem()
+    item
   })
-  if (!projected) throw new Error('Expected projected DeepSeek search item')
-  return projected
+  if (projected?.type !== 'provider_search') {
+    throw new Error('Expected projected DeepSeek search item')
+  }
+  return projected.provider_search
+}
+
+function projectSearchEnvelope() {
+  return projectSearchItem(createAdapter(), createRawSearchItem())
 }
 
 describe('DeepSeek Responses route', () => {
@@ -220,10 +226,7 @@ describe('DeepSeek Responses stream projection', () => {
       }
     )
 
-    const projected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item
-    })
+    const projected = projectSearchItem(createAdapter(), item)
 
     expect(projected).toMatchObject({
       id: 'ws_1',
@@ -264,10 +267,7 @@ describe('DeepSeek Responses stream projection', () => {
       }
     }
 
-    const projected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item
-    })
+    const projected = projectSearchItem(createAdapter(), item)
 
     expect(projected?.action.target).toBe('今日金价 2026年8月6日, gold price today August 6 2026')
     expect(projected?.action.target).not.toContain('ws_call_id')
@@ -283,6 +283,59 @@ describe('DeepSeek Responses stream projection', () => {
 
     expect(adapter.projectRawChunk(raw)).not.toBeNull()
     expect(() => adapter.projectRawChunk(raw)).toThrow('Duplicate DeepSeek Web Search output item')
+  })
+
+  it('projects function-call arguments while the provider is still streaming', () => {
+    const adapter = createAdapter()
+
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'run_code',
+          arguments: '',
+          status: 'in_progress'
+        }
+      })
+    ).toEqual({
+      type: 'tool_call_start',
+      tool_call_id: 'call_1',
+      tool_call_name: 'run_code',
+      provider_options: { deepseek: { itemId: 'fc_1' } }
+    })
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.function_call_arguments.delta',
+        item_id: 'fc_1',
+        call_id: 'call_1',
+        delta: '{"code":"console.log(1)"}'
+      })
+    ).toEqual({
+      type: 'tool_call_chunk',
+      tool_call_id: 'call_1',
+      tool_call_arguments_chunk: '{"code":"console.log(1)"}'
+    })
+  })
+
+  it('ignores malformed optional function-call chunks so the canonical event can recover', () => {
+    const adapter = createAdapter()
+
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.output_item.added',
+        item: { type: 'function_call', call_id: 'call_1', name: 'run_code' }
+      })
+    ).toBeNull()
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.function_call_arguments.delta',
+        item_id: 'fc_1',
+        delta: '{}'
+      })
+    ).toBeNull()
   })
 
   it.each([
@@ -308,10 +361,7 @@ describe('DeepSeek Responses stream projection', () => {
       action: { type: 'open_page', url: 'https://deepchat.thinkinai.xyz/' }
     }
 
-    const projected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item
-    })
+    const projected = projectSearchItem(createAdapter(), item)
 
     expect(projected).toMatchObject({
       id: 'ws_page_1',
@@ -337,10 +387,7 @@ describe('DeepSeek Responses stream projection', () => {
         pattern: `release ${'x'.repeat(4096)}`
       }
     }
-    const findProjected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item: findItem
-    })
+    const findProjected = projectSearchItem(createAdapter(), findItem)
 
     expect(findProjected?.action).toEqual({
       type: 'find_in_page',
@@ -357,10 +404,7 @@ describe('DeepSeek Responses stream projection', () => {
         url: `https://example.com/${'x'.repeat(4096)}`
       }
     }
-    const urlOnlyFindProjected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item: urlOnlyFindItem
-    })
+    const urlOnlyFindProjected = projectSearchItem(createAdapter(), urlOnlyFindItem)
 
     expect(urlOnlyFindProjected?.action.target).toHaveLength(2048)
     expect(urlOnlyFindProjected?.action.url).toBe(urlOnlyFindItem.action.url)
@@ -371,10 +415,7 @@ describe('DeepSeek Responses stream projection', () => {
       status: 'completed',
       action: { type: 'open_page', url: 'https://user:secret@example.com/private' }
     }
-    const unsafeProjected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item: unsafeItem
-    })
+    const unsafeProjected = projectSearchItem(createAdapter(), unsafeItem)
 
     expect(unsafeProjected?.action).toEqual({ type: 'open_page', target: '' })
     expect(unsafeProjected?.results).toEqual([])
@@ -397,10 +438,7 @@ describe('DeepSeek Responses stream projection', () => {
       }
     ]
 
-    const projected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item
-    })
+    const projected = projectSearchItem(createAdapter(), item)
 
     expect(projected?.results).toEqual([
       {
@@ -419,10 +457,7 @@ describe('DeepSeek Responses stream projection', () => {
       status: 'completed',
       action: { type: 'open_page', url: `https://example.com/${'x'.repeat(9000)}` }
     }
-    const openPageProjected = createAdapter().projectRawChunk({
-      type: 'response.output_item.done',
-      item: openPageItem
-    })
+    const openPageProjected = projectSearchItem(createAdapter(), openPageItem)
 
     expect(openPageProjected?.action).toEqual({ type: 'open_page', target: '' })
     expect(JSON.parse(openPageProjected!.providerReplayJson).item).toEqual(openPageItem)
@@ -938,6 +973,133 @@ describe('DeepSeek Responses replay', () => {
     ])
   })
 
+  it('streams MCP arguments on a replay turn after native search is disabled', async () => {
+    const projected = projectSearchEnvelope()
+    const projector = createDeepSeekResponsesReplayProjector({
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      baseUrl: 'https://api.deepseek.com/v1'
+    })
+    const replay = projector?.(projected.providerReplayJson)
+    if (!replay) throw new Error('Expected DeepSeek replay marker')
+
+    const responseEvents = [
+      {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'run_code',
+          arguments: '',
+          status: 'in_progress'
+        }
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'fc_1',
+        call_id: 'call_1',
+        delta: '{"code":"'
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'fc_1',
+        call_id: 'call_1',
+        delta: 'console.log(1)"}'
+      },
+      {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'run_code',
+          arguments: '{"code":"console.log(1)"}',
+          status: 'completed'
+        }
+      },
+      {
+        type: 'response.completed',
+        response: {
+          usage: { input_tokens: 10, output_tokens: 5 }
+        }
+      }
+    ]
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(responseEvents.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' }
+        })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const events: unknown[] = []
+    for await (const event of runAiSdkCoreStream(
+      createRuntimeContext(),
+      [
+        { role: 'user', content: 'Search first.' },
+        { role: 'assistant', provider_replay: replay },
+        { role: 'assistant', content: 'Search complete.' },
+        { role: 'user', content: 'Now run code.' }
+      ],
+      DEEPSEEK_RESPONSES_MODEL_ID,
+      deepSeekModelConfig,
+      0.7,
+      1024,
+      [
+        {
+          type: 'function',
+          function: {
+            name: 'run_code',
+            description: 'Run JavaScript.',
+            parameters: {
+              type: 'object',
+              properties: { code: { type: 'string' } },
+              required: ['code']
+            }
+          },
+          server: { name: 'code' }
+        } as any
+      ],
+      undefined,
+      { search: false }
+    )) {
+      events.push(event)
+    }
+
+    expect(
+      events.filter((event) => (event as { type?: string }).type.startsWith('tool_call'))
+    ).toEqual([
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'call_1',
+        tool_call_name: 'run_code',
+        provider_options: { deepseek: { itemId: 'fc_1' } }
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call_1',
+        tool_call_arguments_chunk: '{"code":"'
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call_1',
+        tool_call_arguments_chunk: 'console.log(1)"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call_1',
+        tool_call_arguments_complete: '{"code":"console.log(1)"}',
+        provider_options: { deepseek: { itemId: 'fc_1' } }
+      }
+    ])
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
+      tools?: Array<Record<string, unknown>>
+    }
+    expect(body.tools).toEqual([expect.objectContaining({ type: 'function', name: 'run_code' })])
+  })
+
   it('rejects an MCP tool that collides with the private replay marker', async () => {
     await expect(
       runAiSdkCoreStream(
@@ -1060,16 +1222,10 @@ describe('DeepSeek Responses replay', () => {
 
     const firstAdapter = createAdapter(false)
     const secondAdapter = createAdapter(false)
-    const firstProjection = firstAdapter.projectRawChunk({
-      type: 'response.output_item.done',
-      item: firstItem
-    })
-    const secondProjection = secondAdapter.projectRawChunk({
-      type: 'response.output_item.done',
-      item: secondItem
-    })
-    const firstReplay = firstProjection && projector(firstProjection.providerReplayJson)
-    const secondReplay = secondProjection && projector(secondProjection.providerReplayJson)
+    const firstProjection = projectSearchItem(firstAdapter, firstItem)
+    const secondProjection = projectSearchItem(secondAdapter, secondItem)
+    const firstReplay = projector(firstProjection.providerReplayJson)
+    const secondReplay = projector(secondProjection.providerReplayJson)
     if (!firstReplay || !secondReplay) throw new Error('Expected isolated replay markers')
     firstAdapter.mapReplay(firstReplay)
     secondAdapter.mapReplay(secondReplay)

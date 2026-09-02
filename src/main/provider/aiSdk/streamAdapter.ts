@@ -1,8 +1,4 @@
-import {
-  createStreamEvent,
-  type LLMCoreStreamEvent,
-  type ProviderSearchPayload
-} from '@shared/types/core/llm-events'
+import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { ToolSet, TextStreamPart } from 'ai'
 import { parseLegacyFunctionCalls } from './toolProtocol'
@@ -137,7 +133,7 @@ function toProviderOptions(value: unknown): ChatMessageProviderOptions | undefin
 export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
   cacheImage?: (data: string) => Promise<string>
-  projectRawChunk?: (rawValue: unknown) => ProviderSearchPayload | null
+  projectRawChunk?: (rawValue: unknown) => LLMCoreStreamEvent | null
   urlCitationProviderOptionsKey?: string
 }
 
@@ -146,6 +142,7 @@ export async function* adaptAiSdkStream(
   options: AdaptAiSdkStreamOptions
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const toolArgumentBuffers = new Map<string, string>()
+  const rawProjectedToolCalls = new Set<string>()
   const endedToolCalls = new Set<string>()
   const seenProviderSourceUrls = new Set<string>()
   let providerSourceSearchId: string | undefined
@@ -307,31 +304,58 @@ export async function* adaptAiSdkStream(
           const serializedInput =
             typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {})
           const providerOptions = toProviderOptions((part as any).providerMetadata)
-          yield createStreamEvent.toolCallStart(
-            part.toolCallId,
-            part.toolName,
-            providerOptions,
-            part.providerExecuted === true ? 'provider' : undefined
-          )
-          yield createStreamEvent.toolCallChunk(part.toolCallId, serializedInput, providerOptions)
+          if (
+            !toolArgumentBuffers.has(part.toolCallId) &&
+            !rawProjectedToolCalls.has(part.toolCallId)
+          ) {
+            yield createStreamEvent.toolCallStart(
+              part.toolCallId,
+              part.toolName,
+              providerOptions,
+              part.providerExecuted === true ? 'provider' : undefined
+            )
+            yield createStreamEvent.toolCallChunk(part.toolCallId, serializedInput, providerOptions)
+          }
           yield createStreamEvent.toolCallEnd(part.toolCallId, serializedInput, providerOptions)
+          rawProjectedToolCalls.delete(part.toolCallId)
           endedToolCalls.add(part.toolCallId)
         }
         break
 
       case 'raw': {
         const projected = options.projectRawChunk?.(part.rawValue)
-        if (projected) {
-          if (projected.action.type === 'search' || providerSourceSearchId === undefined) {
-            providerSourceSearchId = projected.id
+        if (!projected) {
+          break
+        }
+
+        if (projected.type === 'provider_search') {
+          const search = projected.provider_search
+          if (search.action.type === 'search' || providerSourceSearchId === undefined) {
+            providerSourceSearchId = search.id
             seenProviderSourceUrls.clear()
-            for (const result of projected.results) {
+            for (const result of search.results) {
               seenProviderSourceUrls.add(result.url)
             }
-            providerSourceRank = projected.results.length
+            providerSourceRank = search.results.length
           }
-          yield createStreamEvent.providerSearch(projected)
+        } else if (projected.type === 'tool_call_start') {
+          if (
+            endedToolCalls.has(projected.tool_call_id) ||
+            toolArgumentBuffers.has(projected.tool_call_id) ||
+            rawProjectedToolCalls.has(projected.tool_call_id)
+          ) {
+            break
+          }
+          rawProjectedToolCalls.add(projected.tool_call_id)
+        } else if (projected.type === 'tool_call_chunk') {
+          if (
+            !rawProjectedToolCalls.has(projected.tool_call_id) ||
+            endedToolCalls.has(projected.tool_call_id)
+          ) {
+            break
+          }
         }
+        yield projected
         break
       }
 

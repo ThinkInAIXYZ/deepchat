@@ -3,7 +3,11 @@ import type {
   ChatMessageProviderReplay,
   ChatMessageProviderReplayProjector
 } from '@shared/types/core/chat-message'
-import type { ProviderSearchPayload } from '@shared/types/core/llm-events'
+import {
+  createStreamEvent,
+  type LLMCoreStreamEvent,
+  type ProviderSearchPayload
+} from '@shared/types/core/llm-events'
 import type { SearchResult } from '@shared/types/core/search'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
@@ -448,7 +452,7 @@ type DeepSeekResponsesAdapter = {
   prepareMessages(messages: ChatMessage[]): ChatMessage[]
   mapReplay(replay: ChatMessageProviderReplay): unknown
   wrapFetch(baseFetch: AiSdkFetch): AiSdkFetch
-  projectRawChunk(rawValue: unknown): ProviderSearchPayload | null
+  projectRawChunk(rawValue: unknown): LLMCoreStreamEvent | null
 }
 
 export function createDeepSeekResponsesAdapter(input: {
@@ -543,7 +547,35 @@ export function createDeepSeekResponsesAdapter(input: {
       }
     },
     projectRawChunk(rawValue) {
-      if (!isRecord(rawValue) || rawValue.type !== 'response.output_item.done') {
+      if (!isRecord(rawValue)) {
+        return null
+      }
+
+      if (
+        rawValue.type === 'response.output_item.added' &&
+        isRecord(rawValue.item) &&
+        rawValue.item.type === 'function_call'
+      ) {
+        if (
+          typeof rawValue.item.id !== 'string' ||
+          typeof rawValue.item.call_id !== 'string' ||
+          typeof rawValue.item.name !== 'string'
+        ) {
+          return null
+        }
+        return createStreamEvent.toolCallStart(rawValue.item.call_id, rawValue.item.name, {
+          [DEEPSEEK_PROVIDER_ID]: { itemId: rawValue.item.id }
+        })
+      }
+
+      if (rawValue.type === 'response.function_call_arguments.delta') {
+        if (typeof rawValue.call_id !== 'string' || typeof rawValue.delta !== 'string') {
+          return null
+        }
+        return createStreamEvent.toolCallChunk(rawValue.call_id, rawValue.delta)
+      }
+
+      if (rawValue.type !== 'response.output_item.done') {
         return null
       }
       if (!isRecord(rawValue.item) || rawValue.item.type !== 'web_search_call') {
@@ -556,14 +588,14 @@ export function createDeepSeekResponsesAdapter(input: {
       const providerReplayJson = encodeEnvelope(item)
       seenRawItems.add(item.id)
       const action = resolveSearchAction(item)
-      return {
+      return createStreamEvent.providerSearch({
         id: item.id,
         action,
         label: action.target || 'Web Search',
         provider: DEEPSEEK_PROVIDER_ID,
         results: normalizeSearchResults(item),
         providerReplayJson
-      }
+      })
     }
   }
 }

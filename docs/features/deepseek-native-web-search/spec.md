@@ -71,7 +71,8 @@ feature.
 
 - A search-enabled request injects exactly one bare `{ type: 'web_search' }` provider tool into the
   final DeepSeek request. Ordinary MCP function tools remain alongside it.
-- Raw AI SDK chunks are enabled only when a new provider search can occur.
+- Raw AI SDK chunks are enabled only while the DeepSeek adapter is active and the request can emit
+  either a new provider search or an MCP function call.
 - A complete `response.output_item.done` item with type `web_search_call` produces one
   `provider_search` event.
 - The event creates one successful `search` block at the event's original position. Its normalized
@@ -95,6 +96,11 @@ feature.
   truncation.
 - Provider-owned Web Search tool lifecycle events do not enter DeepChat's local tool execution
   loop and do not create a visible `tool_call` block.
+- The adapter projects `response.output_item.added(function_call)` and incremental
+  `response.function_call_arguments.delta` events so MCP argument cards update while DeepSeek is
+  generating them. The Open Responses provider's final canonical `tool-call` supplies the complete
+  arguments and closes the block without repeating the projected start or deltas. Missing or
+  malformed optional raw function events fall back to that atomic canonical event.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
   provider protocol item.
 - Renderer code consumes only normalized block fields and never parses `providerReplayJson`.
@@ -240,6 +246,8 @@ After on every unsupported route, the layout remains unchanged.
   `web_search_call`, an id-less plaintext reasoning item with `summary: []`, no private function-call
   marker or `item_reference`, no newly offered search tool when search is off, and no OpenAI state or
   continuation fields.
+- A replay-only route with search disabled continues to stream MCP function arguments before the
+  provider's completed tool-call item arrives.
 - A real-key canary confirms DeepSeek emits `summary: []`, accepts id-less reasoning replay, completes
   two independent user turns, and retains a searched detail that was absent from the first answer.
 - Real-key tool gates cover one response with multiple reasoning items and a same-turn MCP tool
@@ -259,7 +267,8 @@ After on every unsupported route, the layout remains unchanged.
 - Preserve abort signals, proxy handling, headers, and existing non-DeepSeek behavior through the
   fetch adapter. DeepSeek request traces are emitted from the validated, fully transformed wire
   body immediately before network I/O, so they contain the injected search tool and restored search
-  items rather than private markers.
+  items rather than private markers. Tracing is per validated fetch invocation: streaming disables
+  SDK retries, while one-shot SDK retries may produce more than one trace row.
 - Bound normalized URL projection and reject unreasonably large replay envelopes; the full accepted
   opaque item remains the replay source of truth.
 - Treat `@ai-sdk/open-responses` as an actively evolving protocol dependency: request-shape,

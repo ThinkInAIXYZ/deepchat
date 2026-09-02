@@ -1246,7 +1246,7 @@ async function buildPromptRuntime(
     tools: toolsMap,
     supportsNativeTools,
     providerAdapter,
-    includeRawChunks: search && providerAdapter !== null
+    includeRawChunks: providerAdapter !== null && (search || Object.keys(toolsMap).length > 0)
   }
 }
 
