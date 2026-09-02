@@ -641,6 +641,11 @@ describe('DeepSeek Responses replay', () => {
         body: JSON.stringify({ input: [{ ...marker, arguments: '{"unexpected":true}' }] })
       })
     ).rejects.toThrow('DeepSeek Responses replay marker is malformed')
+    await expect(
+      malformedEmission.wrapFetch(baseFetch)('https://api.deepseek.com/responses', {
+        body: JSON.stringify({ input: [{ ...marker, arguments: '{' }] })
+      })
+    ).rejects.toThrow('DeepSeek Responses replay marker is malformed')
 
     await expect(
       createAdapter().wrapFetch(baseFetch)('https://api.deepseek.com/responses', {

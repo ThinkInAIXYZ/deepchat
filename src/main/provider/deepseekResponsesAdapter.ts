@@ -3,11 +3,7 @@ import type {
   ChatMessageProviderReplay,
   ChatMessageProviderReplayProjector
 } from '@shared/types/core/chat-message'
-import {
-  createStreamEvent,
-  type LLMCoreStreamEvent,
-  type ProviderSearchPayload
-} from '@shared/types/core/llm-events'
+import { createStreamEvent, type ProviderSearchPayload } from '@shared/types/core/llm-events'
 import type { SearchResult } from '@shared/types/core/search'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
@@ -257,40 +253,30 @@ function parseRequestBody(body: BodyInit | null | undefined): JsonRecord {
   return parsed
 }
 
-function isItemReference(value: unknown): boolean {
-  return isRecord(value) && value.type === 'item_reference'
-}
-
-function isReplayMarker(value: unknown): value is JsonRecord & {
-  type: 'function_call'
-  call_id: string
-  name: typeof DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME
-  arguments: string
-} {
-  return (
-    isRecord(value) &&
-    value.type === 'function_call' &&
-    value.name === DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME &&
-    typeof value.call_id === 'string' &&
-    typeof value.arguments === 'string'
-  )
-}
-
-function hasReplayMarkerName(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    value.type === 'function_call' &&
-    value.name === DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME
-  )
-}
-
-function hasEmptyMarkerArguments(value: string): boolean {
-  try {
-    const parsed = JSON.parse(value)
-    return isRecord(parsed) && Object.keys(parsed).length === 0
-  } catch {
-    return false
+function parseReplayMarkerId(value: unknown): string | null {
+  if (
+    !isRecord(value) ||
+    value.type !== 'function_call' ||
+    value.name !== DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME
+  ) {
+    return null
   }
+
+  if (typeof value.call_id !== 'string' || !value.call_id || typeof value.arguments !== 'string') {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+
+  let markerInput: unknown
+  try {
+    markerInput = JSON.parse(value.arguments)
+  } catch {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+  if (!isRecord(markerInput) || Object.keys(markerInput).length > 0) {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+
+  return value.call_id
 }
 
 function applyNativeWebSearchTool(body: JsonRecord, search: boolean): void {
@@ -367,8 +353,7 @@ function normalizeSource(source: unknown, searchId: string, rank: number): Searc
 }
 
 function normalizeSearchResults(item: DeepSeekWebSearchCall): SearchResult[] {
-  const action = isRecord(item.action) ? item.action : null
-  const sources = action && Array.isArray(action.sources) ? action.sources : []
+  const sources = Array.isArray(item.action.sources) ? item.action.sources : []
   const seen = new Set<string>()
   const results: SearchResult[] = []
 
@@ -447,21 +432,13 @@ function encodeEnvelope(item: DeepSeekWebSearchCall): string {
   return serialized
 }
 
-type DeepSeekResponsesAdapter = {
-  reservedToolNames: readonly string[]
-  prepareMessages(messages: ChatMessage[]): ChatMessage[]
-  mapReplay(replay: ChatMessageProviderReplay): unknown
-  wrapFetch(baseFetch: AiSdkFetch): AiSdkFetch
-  projectRawChunk(rawValue: unknown): LLMCoreStreamEvent | null
-}
-
 export function createDeepSeekResponsesAdapter(input: {
   providerKind: string
   provider: Pick<LLM_PROVIDER, 'id' | 'baseUrl'>
   modelId: string
   search: boolean
   traceRequest?: (request: { endpoint: string; body: Record<string, unknown> }) => Promise<void>
-}): DeepSeekResponsesAdapter | null {
+}) {
   const target: DeepSeekResponsesRouteInput = {
     providerId: input.provider.id,
     modelId: input.modelId,
@@ -478,7 +455,7 @@ export function createDeepSeekResponsesAdapter(input: {
   return {
     reservedToolNames: [DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME],
     prepareMessages: omitEmptyReasoning,
-    mapReplay(replay) {
+    mapReplay(replay: ChatMessageProviderReplay) {
       const envelope = parseMatchedEnvelope(replay.payload, target)
       if (!envelope || replay.markerId !== envelope.item.id) {
         throw new Error('DeepSeek Web Search replay marker does not match its envelope.')
@@ -495,8 +472,8 @@ export function createDeepSeekResponsesAdapter(input: {
         providerExecuted: true
       }
     },
-    wrapFetch(baseFetch) {
-      return async (requestInput, requestInit) => {
+    wrapFetch(baseFetch: AiSdkFetch) {
+      return async (requestInput: string | URL | Request, requestInit?: RequestInit) => {
         const url = assertResponsesRequestUrl(requestInput)
         const body = parseRequestBody(requestInit?.body)
         const usedReplayIds = new Set<string>()
@@ -504,23 +481,21 @@ export function createDeepSeekResponsesAdapter(input: {
 
         if (Array.isArray(body.input)) {
           body.input = body.input.map((item) => {
-            if (isItemReference(item)) {
+            if (isRecord(item) && item.type === 'item_reference') {
               throw new Error('DeepSeek Responses request contains an item_reference.')
             }
-            if (!hasReplayMarkerName(item)) {
+            const replayId = parseReplayMarkerId(item)
+            if (!replayId) {
               return item
             }
-            if (!isReplayMarker(item) || !hasEmptyMarkerArguments(item.arguments)) {
-              throw new Error('DeepSeek Responses replay marker is malformed.')
-            }
-            const replayItem = replayItems.get(item.call_id)
+            const replayItem = replayItems.get(replayId)
             if (!replayItem) {
-              throw new Error(`Unmatched DeepSeek Responses replay marker: ${item.call_id}`)
+              throw new Error(`Unmatched DeepSeek Responses replay marker: ${replayId}`)
             }
-            if (usedReplayIds.has(item.call_id)) {
-              throw new Error(`Duplicate DeepSeek Responses replay marker: ${item.call_id}`)
+            if (usedReplayIds.has(replayId)) {
+              throw new Error(`Duplicate DeepSeek Responses replay marker: ${replayId}`)
             }
-            usedReplayIds.add(item.call_id)
+            usedReplayIds.add(replayId)
             return replayItem
           })
         } else if (replayItems.size > 0) {
@@ -532,12 +507,6 @@ export function createDeepSeekResponsesAdapter(input: {
             throw new Error(`DeepSeek Responses replay marker was not emitted: ${replayId}`)
           }
         }
-        if (
-          Array.isArray(body.input) &&
-          body.input.some((item) => isItemReference(item) || hasReplayMarkerName(item))
-        ) {
-          throw new Error('DeepSeek Responses request still contains an internal replay marker.')
-        }
 
         const serializedBody = JSON.stringify(body)
         await input.traceRequest?.({ endpoint: url.href, body })
@@ -547,7 +516,7 @@ export function createDeepSeekResponsesAdapter(input: {
         })
       }
     },
-    projectRawChunk(rawValue) {
+    projectRawChunk(rawValue: unknown) {
       if (!isRecord(rawValue)) {
         return null
       }
