@@ -551,9 +551,16 @@ describe('DeepSeek Responses replay', () => {
       },
       {
         role: 'assistant',
-        content: 'answer without reasoning',
+        content: 'tool call without reasoning',
         reasoning_content: '',
-        reasoning_provider_options: { openai: { itemId: 'empty_reasoning_item' } }
+        reasoning_provider_options: { openai: { itemId: 'empty_reasoning_item' } },
+        tool_calls: [
+          {
+            id: 'tc_empty_reasoning',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{"path":"README.md"}' }
+          }
+        ]
       }
     ]
 
@@ -563,7 +570,17 @@ describe('DeepSeek Responses replay', () => {
     expect(prepared[0]?.reasoning_provider_options).toEqual({
       openai: { itemId: 'old_reasoning_item' }
     })
-    expect(prepared[1]).toEqual({ role: 'assistant', content: 'answer without reasoning' })
+    expect(prepared[1]).toEqual({
+      role: 'assistant',
+      content: 'tool call without reasoning',
+      tool_calls: [
+        {
+          id: 'tc_empty_reasoning',
+          type: 'function',
+          function: { name: 'read_file', arguments: '{"path":"README.md"}' }
+        }
+      ]
+    })
     expect(messages[1]?.reasoning_content).toBe('')
     expect(messages[1]?.reasoning_provider_options).toEqual({
       openai: { itemId: 'empty_reasoning_item' }

@@ -165,7 +165,10 @@ is permitted.
 reasoning as a plaintext item with `summary: []` and `content[].type = 'reasoning_text'`. DeepChat
 persists only the streamed reasoning text. It does not consume `reasoning-end` metadata or persist a
 reasoning item ID, so replay uses the provider's text fallback and does not depend on server-side
-item references. Empty reasoning properties are omitted before AI SDK message conversion.
+item references. Empty reasoning properties are omitted before AI SDK message conversion. This does
+not carry the Chat Completions empty-`reasoning_content` compatibility rule into Responses: when the
+provider emitted no reasoning item, the client does not synthesize a bare reasoning item that was
+never part of the response.
 
 The context builder's existing assistant-record contract concatenates multiple persisted reasoning
 blocks into one string. The resulting id-less plaintext reasoning item remains adjacent to the

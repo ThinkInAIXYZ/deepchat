@@ -23,8 +23,8 @@
   id-less plaintext reasoning replay, and completes the second independent user turn.
 - [x] Before merge, confirm with a real key that multiple reasoning items and a same-turn MCP tool
   round complete, including replay of the provider-returned function-call item ID.
-- [ ] Before merge, confirm with a real key that traced wire bodies contain `low` and `max` reasoning
-  effort values and DeepSeek accepts both requests.
+- [x] Before merge, confirm with a real key that DeepSeek accepts `low` and `max` reasoning efforts
+  without unsupported-effort warnings; serializer conformance tests assert both wire values.
 - [ ] Before merge, run a search-off semantic canary that asks for a detail present only in prior
   search result content and absent from the prior assistant answer, without offering a new search
   tool or receiving a new search event.
