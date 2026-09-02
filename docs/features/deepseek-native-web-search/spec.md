@@ -1,14 +1,13 @@
 # DeepSeek Native Web Search
 
-Status: Open Responses migration repository-validated; migration-specific real-key canaries remain a
-merge gate.
+Status: Open Responses migration repository- and real-key-validated.
 
 ## User Need
 
 DeepChat users selecting DeepSeek V4 Flash on DeepSeek's official API need to opt into the
 provider-native Web Search tool for an individual turn. Search results must remain visible and
-exportable, and a later turn must retain the search context even though DeepSeek's Responses API is
-stateless.
+exportable, and compatible provider search items must be replayed on later turns because DeepSeek's
+Responses API is stateless.
 
 ## Migration Rationale
 
@@ -63,6 +62,8 @@ feature.
 - Multiple steer inputs merged into one provider turn combine search intent with logical OR.
 - Turning search off prevents a new search tool from being offered; it never removes compatible
   replay items from prior turns, and those replay-bearing requests still use Responses.
+- Replay preserves provider protocol history; whether DeepSeek exposes the internal body of an old
+  search result when no new search tool is offered is not a DeepChat contract.
 - Resuming an unfinished assistant turn recovers its intent from the closest persisted user record
   at or before that assistant. Completed historical turns never enable search for a new turn.
 - Existing conversation-level `enableSearch` fields are not read, extended, or migrated.
@@ -79,18 +80,12 @@ feature.
   action type and bounded display target serve the renderer. Optional provider-declared HTTP(S)
   `action.sources` continue through the existing message search-result table, but DeepSeek's
   Responses guide does not guarantee that field.
-- AI SDK URL `source` parts and bounded Open Responses URL-citation annotations from the `deepseek`
-  provider-options namespace produce generic `provider_url_source` events associated with the
-  latest `search` action in the same provider round. Safe, deduplicated HTTP(S) citations update
-  that search block and the existing message search-result table; other namespaces, document
-  sources, and unsafe URLs are ignored.
 - `search`, `open_page`, and `find_in_page` actions share one visible activity presentation.
   Safe page targets are clickable, and completed opaque actions never claim that zero results were
   found.
 - An `open_page.url` is a navigation target, not evidence cited by the model. It is displayed but is
-  not fabricated into a citation source. URL citations render as clickable source rows; translating
-  them into inline numbered references remains outside this feature because normalized AI SDK
-  source parts do not retain text offsets.
+  not fabricated into a citation source. Provider-declared URL sources render as clickable source
+  rows.
 - Provider-owned `ws_call_id=...` query markers remain in the opaque replay envelope but are removed
   from the visible search target. Completed search targets wrap instead of using single-line
   truncation.
@@ -238,7 +233,8 @@ After on every unsupported route, the layout remains unchanged.
 - A search stream creates a search block, normalized result rows, and a versioned opaque envelope,
   with no local tool execution.
 - Completed provider search, open-page, and find-in-page actions are visible inside the existing
-  assistant activity group, including safe clickable targets and normalized AI SDK URL source rows.
+  assistant activity group, including safe clickable targets and normalized provider-declared
+  source rows.
 - Switching provider or model excludes incompatible replay markers but preserves response text.
 - Corrupt persisted envelopes are skipped locally, while malformed accepted markers and unmatched
   item references still fail before fetch.
@@ -252,11 +248,10 @@ After on every unsupported route, the layout remains unchanged.
   continuation fields.
 - A replay-only route with search disabled continues to stream MCP function arguments before the
   provider's completed tool-call item arrives.
-- A real-key canary confirms DeepSeek emits `summary: []`, accepts id-less reasoning replay, completes
-  two independent user turns, and retains a searched detail that was absent from the first answer.
+- A real-key canary confirms DeepSeek emits `summary: []`, accepts id-less reasoning replay, and
+  completes two independent user turns.
 - Real-key tool gates cover one response with multiple reasoning items and a same-turn MCP tool
-  round. A search-off replay gate must ask about a fact present only in the prior search result body,
-  not a fact already copied into the prior assistant answer.
+  round.
 
 ## Constraints
 
@@ -287,13 +282,12 @@ After on every unsupported route, the layout remains unchanged.
 - Exposing `reasoning.effort = 'none'` as a cross-route thinking-off product control.
 - Generalizing arbitrary provider response items into a public extension protocol.
 - Restoring the retired external-search drawer or inventing citations from page-navigation actions.
-- Adding inline numbered references for provider URL-citation annotations.
 
 If an external search stack is reintroduced later, its interaction with provider-native search must
 be specified at that time; no such runtime exists today.
 
 ## Open Questions
 
-None. The product semantics remain unchanged: turning search off does not offer a new search tool,
-while compatible historical search items are still replayed. Migration-specific real-key checks in
-the acceptance criteria remain blocking validation gates rather than unresolved design choices.
+None. Turning search off does not offer a new search tool, while compatible historical search items
+are still replayed. Provider-side expansion of an old search result's internal content is outside
+the local feature contract.

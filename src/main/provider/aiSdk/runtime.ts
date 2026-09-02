@@ -1605,10 +1605,7 @@ export async function* runAiSdkCoreStream(
   yield* adaptAiSdkStream(result.stream, {
     supportsNativeTools: runtime.supportsNativeTools,
     cacheImage,
-    projectRawChunk: runtime.providerAdapter?.projectRawChunk,
-    urlCitationProviderOptionsKey: runtime.providerAdapter
-      ? runtime.providerContext.providerOptionsKey
-      : undefined
+    projectRawChunk: runtime.providerAdapter?.projectRawChunk
   })
 }
 

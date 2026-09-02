@@ -7,13 +7,8 @@ import { extractProviderFailureMetadata } from '../providerFailure'
 const FUNCTION_CALL_TAG = '<function_call>'
 const FUNCTION_CALL_CLOSE_TAG = '</function_call>'
 const MAX_PROVIDER_URL_SOURCES = 100
-const MAX_PROVIDER_URL_CITATION_ANNOTATIONS = 1000
 const MAX_PROVIDER_SOURCE_URL_LENGTH = 8192
 const MAX_PROVIDER_SOURCE_TITLE_LENGTH = 512
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function normalizeProviderUrlSource(part: {
   sourceType: string
@@ -48,44 +43,6 @@ function normalizeProviderUrlSource(part: {
       ? part.title.trim().slice(0, MAX_PROVIDER_SOURCE_TITLE_LENGTH)
       : url.hostname
   return { title, url: url.href }
-}
-
-function collectProviderUrlCitations(
-  providerMetadata: unknown,
-  providerOptionsKey: string | undefined
-): Array<{
-  sourceType: 'url'
-  url?: unknown
-  title?: unknown
-}> {
-  if (!providerOptionsKey || !isRecord(providerMetadata)) {
-    return []
-  }
-
-  const metadata = providerMetadata[providerOptionsKey]
-  if (!isRecord(metadata) || !Array.isArray(metadata.annotations)) {
-    return []
-  }
-
-  const citations: Array<{ sourceType: 'url'; url?: unknown; title?: unknown }> = []
-  for (let index = 0; index < metadata.annotations.length; index += 1) {
-    if (
-      index >= MAX_PROVIDER_URL_CITATION_ANNOTATIONS ||
-      citations.length >= MAX_PROVIDER_URL_SOURCES
-    ) {
-      break
-    }
-    const annotation = metadata.annotations[index]
-    if (!isRecord(annotation) || annotation.type !== 'url_citation') {
-      continue
-    }
-    citations.push({
-      sourceType: 'url' as const,
-      url: annotation.url,
-      title: annotation.title
-    })
-  }
-  return citations
 }
 
 function resolveSafeTextLength(buffer: string): number {
@@ -134,7 +91,6 @@ export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
   cacheImage?: (data: string) => Promise<string>
   projectRawChunk?: (rawValue: unknown) => LLMCoreStreamEvent | null
-  urlCitationProviderOptionsKey?: string
 }
 
 export async function* adaptAiSdkStream(
@@ -251,18 +207,6 @@ export async function* adaptAiSdkStream(
         yield* emitLegacyTextBuffer(false)
         break
       }
-
-      case 'text-end':
-        for (const citation of collectProviderUrlCitations(
-          (part as any).providerMetadata,
-          options.urlCitationProviderOptionsKey
-        )) {
-          const event = projectProviderUrlSource(citation)
-          if (event) {
-            yield event
-          }
-        }
-        break
 
       case 'reasoning-delta':
         yield createStreamEvent.reasoning(

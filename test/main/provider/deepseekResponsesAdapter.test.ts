@@ -775,21 +775,7 @@ describe('DeepSeek Responses replay', () => {
         item: {
           type: 'message',
           id: 'msg_1',
-          content: [
-            {
-              type: 'output_text',
-              text: 'Answer',
-              annotations: [
-                {
-                  type: 'url_citation',
-                  start_index: 0,
-                  end_index: 6,
-                  url: 'https://example.com/citation',
-                  title: 'Citation'
-                }
-              ]
-            }
-          ]
+          content: [{ type: 'output_text', text: 'Answer' }]
         }
       },
       {
@@ -856,15 +842,6 @@ describe('DeepSeek Responses replay', () => {
         provider_search: expect.objectContaining({ id: 'ws_1', provider: 'deepseek' })
       })
     )
-    expect(events).toContainEqual({
-      type: 'provider_url_source',
-      provider_url_source: {
-        searchId: 'ws_1',
-        title: 'Citation',
-        url: 'https://example.com/citation',
-        rank: 1
-      }
-    })
     expect(events).toContainEqual(expect.objectContaining({ type: 'text', content: 'Answer' }))
 
     const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))

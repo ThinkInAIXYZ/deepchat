@@ -380,7 +380,7 @@ describe('AI SDK stream adapter', () => {
     expect(projectRawChunk).toHaveBeenCalledWith({ type: 'response.output_item.done' })
   })
 
-  it('keeps URL citations attached to the latest search action', async () => {
+  it('keeps URL sources attached to the latest search action', async () => {
     const search = {
       id: 'ws_search',
       action: { type: 'search' as const, target: 'current price' },
@@ -420,36 +420,11 @@ describe('AI SDK stream adapter', () => {
         {
           type: 'source',
           sourceType: 'url',
-          id: 'citation-1',
+          id: 'source-1',
           url: 'https://example.com/source'
-        },
-        {
-          type: 'text-end',
-          id: 'message-1',
-          providerMetadata: {
-            deepseek: {
-              annotations: [
-                {
-                  type: 'url_citation',
-                  url: 'https://example.com/source',
-                  title: 'Duplicate'
-                },
-                {
-                  type: 'url_citation',
-                  url: 'https://example.com/second',
-                  title: 'Second source'
-                },
-                { type: 'url_citation', url: 'javascript:alert(1)', title: 'Unsafe' }
-              ]
-            }
-          }
         }
       ],
-      {
-        supportsNativeTools: true,
-        projectRawChunk,
-        urlCitationProviderOptionsKey: 'deepseek'
-      }
+      { supportsNativeTools: true, projectRawChunk }
     )
 
     expect(events).toEqual([
@@ -463,72 +438,8 @@ describe('AI SDK stream adapter', () => {
           url: 'https://example.com/source',
           rank: 0
         }
-      },
-      {
-        type: 'provider_url_source',
-        provider_url_source: {
-          searchId: 'ws_search',
-          title: 'Second source',
-          url: 'https://example.com/second',
-          rank: 1
-        }
       }
     ])
-  })
-
-  it('scopes and bounds provider URL citation metadata', async () => {
-    const search = {
-      id: 'ws_search',
-      action: { type: 'search' as const, target: 'bounded citations' },
-      label: 'bounded citations',
-      provider: 'deepseek',
-      results: [],
-      providerReplayJson: '{"search":true}'
-    }
-    const projectRawChunk = vi.fn((rawValue: any) =>
-      rawValue.projected
-        ? { type: 'provider_search' as const, provider_search: rawValue.projected }
-        : null
-    )
-    const ignoredAnnotations = Array.from({ length: 1000 }, () => ({ type: 'other' }))
-
-    const events = await collectEvents(
-      [
-        { type: 'raw', rawValue: { projected: search } },
-        {
-          type: 'text-end',
-          id: 'message-1',
-          providerMetadata: {
-            openai: {
-              annotations: [
-                {
-                  type: 'url_citation',
-                  url: 'https://example.com/wrong-provider',
-                  title: 'Wrong provider'
-                }
-              ]
-            },
-            deepseek: {
-              annotations: [
-                ...ignoredAnnotations,
-                {
-                  type: 'url_citation',
-                  url: 'https://example.com/over-limit',
-                  title: 'Over limit'
-                }
-              ]
-            }
-          }
-        }
-      ],
-      {
-        supportsNativeTools: true,
-        projectRawChunk,
-        urlCitationProviderOptionsKey: 'deepseek'
-      }
-    )
-
-    expect(events).toEqual([{ type: 'provider_search', provider_search: search }])
   })
 
   it('preserves explicit zero cache usage reported by the provider', async () => {

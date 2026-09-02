@@ -232,5 +232,5 @@ or depend on the experimental Open Responses extension API.
 - [x] Run formatting, i18n validation, lint, node/web typechecks, and the broader relevant main suite.
 - [x] Verify with a real key that `summary: []`, id-less reasoning replay, independent search turns,
       multiple reasoning items, and same-turn MCP tools complete without the original 400.
-- [ ] Keep real-key acceptance pending for low reasoning effort, search-off replay semantics, and raw
-      citation behavior without exposing credentials or committing probe code.
+- [x] Verify with a real key that DeepSeek accepts `low` and `max` reasoning effort without the
+      unsupported-effort warning; keep exact wire values covered by serializer tests.

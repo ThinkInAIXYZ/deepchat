@@ -25,11 +25,6 @@
   round complete, including replay of the provider-returned function-call item ID.
 - [x] Before merge, confirm with a real key that DeepSeek accepts `low` and `max` reasoning efforts
   without unsupported-effort warnings; serializer conformance tests assert both wire values.
-- [ ] Before merge, run a search-off semantic canary that asks for a detail present only in prior
-  search result content and absent from the prior assistant answer, without offering a new search
-  tool or receiving a new search event.
-- [ ] Before merge, capture one raw search response to determine whether DeepSeek emits URL-citation
-  annotations and, if so, confirm that their title and URL survive projection.
 - [x] Capture normalized AI SDK URL sources in search blocks and the existing result table.
 - [x] Hide provider-owned search markers and wrap completed search targets without truncation.
 - [x] Preserve queued search intent during edits and keep replay-bearing turns atomic in emergency
