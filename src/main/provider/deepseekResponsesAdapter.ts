@@ -1,11 +1,9 @@
-import { openai } from '@ai-sdk/openai'
 import type {
   ChatMessage,
-  ChatMessageProviderOptions,
   ChatMessageProviderReplay,
   ChatMessageProviderReplayProjector
 } from '@shared/types/core/chat-message'
-import type { ProviderSearchPayload } from '@shared/types/core/llm-events'
+import { createStreamEvent, type ProviderSearchPayload } from '@shared/types/core/llm-events'
 import type { SearchResult } from '@shared/types/core/search'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
@@ -13,14 +11,13 @@ export const DEEPSEEK_RESPONSES_MODEL_ID = 'deepseek-v4-flash'
 export const DEEPSEEK_RESPONSES_BASE_URL = 'https://api.deepseek.com'
 
 const DEEPSEEK_PROVIDER_ID = 'deepseek'
-const DEEPSEEK_WEB_SEARCH_TOOL_NAME = 'deepseek_provider_web_search'
+const DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME = 'deepchat_internal_deepseek_web_search_replay'
 const MAX_REPLAY_JSON_BYTES = 1024 * 1024
 const MAX_NORMALIZED_SOURCES = 100
 const MAX_DISPLAY_TARGET_LENGTH = 2048
 const MAX_NORMALIZED_URL_LENGTH = 8192
 const MAX_NORMALIZED_TITLE_LENGTH = 512
 const MAX_NORMALIZED_SNIPPET_LENGTH = 4096
-const CONTINUATION_FIELDS = ['previous_response_id', 'conversation', 'truncation'] as const
 
 type JsonRecord = Record<string, unknown>
 type AiSdkFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
@@ -41,20 +38,15 @@ type DeepSeekWebSearchReplayEnvelopeV1 = {
   item: DeepSeekWebSearchCall
 }
 
-export type DeepSeekResponsesRouteInput = {
+type DeepSeekResponsesRouteInput = {
   providerId: string
   modelId: string
   baseUrl?: string
 }
 
 export type DeepSeekResponsesRoute = {
-  providerKind: 'openai-responses'
+  providerKind: 'deepseek-open-responses'
   baseUrl: typeof DEEPSEEK_RESPONSES_BASE_URL
-}
-
-export type DeepSeekResponsesRequestRouteInput = DeepSeekResponsesRouteInput & {
-  messages: readonly ChatMessage[]
-  search: boolean
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -106,13 +98,16 @@ export function resolveDeepSeekResponsesRoute(
   }
 
   return {
-    providerKind: 'openai-responses',
+    providerKind: 'deepseek-open-responses',
     baseUrl: DEEPSEEK_RESPONSES_BASE_URL
   }
 }
 
 export function resolveDeepSeekResponsesRequestRoute(
-  input: DeepSeekResponsesRequestRouteInput
+  input: DeepSeekResponsesRouteInput & {
+    messages: readonly ChatMessage[]
+    search: boolean
+  }
 ): DeepSeekResponsesRoute | null {
   const requiresResponses =
     input.search || input.messages.some((message) => message.provider_replay !== undefined)
@@ -203,64 +198,30 @@ export function createDeepSeekResponsesReplayProjector(
   }
 }
 
-function stripOpenAIItemId(
-  providerOptions: ChatMessageProviderOptions | undefined
-): ChatMessageProviderOptions | undefined {
-  const openaiOptions = providerOptions?.openai
-  if (!isRecord(openaiOptions) || !Object.prototype.hasOwnProperty.call(openaiOptions, 'itemId')) {
-    return providerOptions
-  }
-
-  const nextOpenAIOptions = { ...openaiOptions }
-  delete nextOpenAIOptions.itemId
-  const nextOptions = { ...providerOptions }
-  if (Object.keys(nextOpenAIOptions).length > 0) {
-    nextOptions.openai = nextOpenAIOptions
-  } else {
-    delete nextOptions.openai
-  }
-  return Object.keys(nextOptions).length > 0 ? nextOptions : undefined
-}
-
-function stripNonSearchOpenAIItemIds(messages: ChatMessage[]): ChatMessage[] {
+function omitEmptyReasoning(messages: ChatMessage[]): ChatMessage[] {
   return messages.map((message) => {
-    const providerOptions = stripOpenAIItemId(message.provider_options)
-    const reasoningProviderOptions = stripOpenAIItemId(message.reasoning_provider_options)
-    return {
-      ...message,
-      provider_options: providerOptions,
-      reasoning_provider_options: reasoningProviderOptions,
-      ...(Array.isArray(message.content)
-        ? {
-            content: message.content.map((part) => ({
-              ...part,
-              provider_options: stripOpenAIItemId(part.provider_options)
-            }))
-          }
-        : {}),
-      ...(message.tool_calls
-        ? {
-            tool_calls: message.tool_calls.map((toolCall) => ({
-              ...toolCall,
-              provider_options: stripOpenAIItemId(toolCall.provider_options)
-            }))
-          }
-        : {})
+    if (
+      !Object.prototype.hasOwnProperty.call(message, 'reasoning_content') ||
+      (typeof message.reasoning_content === 'string' && message.reasoning_content.length > 0)
+    ) {
+      return message
     }
+
+    const nextMessage = { ...message }
+    delete nextMessage.reasoning_content
+    delete nextMessage.reasoning_provider_options
+    return nextMessage
   })
 }
 
-function requestUrl(input: string | URL | Request): URL {
+function assertResponsesRequestUrl(input: string | URL | Request): URL {
   const value = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  let url: URL
   try {
-    return new URL(value)
+    url = new URL(value)
   } catch {
     throw new Error('DeepSeek Responses request URL is invalid.')
   }
-}
-
-function assertResponsesRequestUrl(input: string | URL | Request): void {
-  const url = requestUrl(input)
   if (
     url.origin !== DEEPSEEK_RESPONSES_BASE_URL ||
     Boolean(url.username) ||
@@ -272,6 +233,7 @@ function assertResponsesRequestUrl(input: string | URL | Request): void {
   ) {
     throw new Error('DeepSeek Responses adapter refused an unexpected endpoint.')
   }
+  return url
 }
 
 function parseRequestBody(body: BodyInit | null | undefined): JsonRecord {
@@ -291,8 +253,58 @@ function parseRequestBody(body: BodyInit | null | undefined): JsonRecord {
   return parsed
 }
 
-function isItemReference(value: unknown): value is { type: 'item_reference'; id: string } {
-  return isRecord(value) && value.type === 'item_reference' && typeof value.id === 'string'
+function parseReplayMarkerId(value: unknown): string | null {
+  if (
+    !isRecord(value) ||
+    value.type !== 'function_call' ||
+    value.name !== DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME
+  ) {
+    return null
+  }
+
+  if (typeof value.call_id !== 'string' || !value.call_id || typeof value.arguments !== 'string') {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+
+  let markerInput: unknown
+  try {
+    markerInput = JSON.parse(value.arguments)
+  } catch {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+  if (!isRecord(markerInput) || Object.keys(markerInput).length > 0) {
+    throw new Error('DeepSeek Responses replay marker is malformed.')
+  }
+
+  return value.call_id
+}
+
+function applyNativeWebSearchTool(body: JsonRecord, search: boolean): void {
+  if (body.tools !== undefined && !Array.isArray(body.tools)) {
+    throw new Error('DeepSeek Responses adapter expected an array of tools.')
+  }
+
+  const tools = Array.isArray(body.tools) ? body.tools : []
+  let nativeToolCount = 0
+  for (const tool of tools) {
+    if (isRecord(tool) && tool.type === 'web_search') {
+      nativeToolCount += 1
+    }
+  }
+
+  if (!search) {
+    if (nativeToolCount > 0) {
+      throw new Error('DeepSeek Responses adapter refused Web Search while search is disabled.')
+    }
+    return
+  }
+
+  if (nativeToolCount > 1) {
+    throw new Error('DeepSeek Responses request contains duplicate Web Search tools.')
+  }
+  if (nativeToolCount === 0) {
+    body.tools = [...tools, { type: 'web_search' }]
+  }
 }
 
 function normalizeHttpUrl(value: unknown): URL | null {
@@ -341,8 +353,7 @@ function normalizeSource(source: unknown, searchId: string, rank: number): Searc
 }
 
 function normalizeSearchResults(item: DeepSeekWebSearchCall): SearchResult[] {
-  const action = isRecord(item.action) ? item.action : null
-  const sources = action && Array.isArray(action.sources) ? action.sources : []
+  const sources = Array.isArray(item.action.sources) ? item.action.sources : []
   const seen = new Set<string>()
   const results: SearchResult[] = []
 
@@ -421,35 +432,30 @@ function encodeEnvelope(item: DeepSeekWebSearchCall): string {
   return serialized
 }
 
-export type DeepSeekResponsesAdapter = {
-  prepareMessages(messages: ChatMessage[]): ChatMessage[]
-  mapReplay(replay: ChatMessageProviderReplay): unknown
-  wrapFetch(baseFetch: AiSdkFetch): AiSdkFetch
-  getSearchTools(): Record<string, ReturnType<typeof openai.tools.webSearch>>
-  projectRawChunk(rawValue: unknown): ProviderSearchPayload | null
-  isSearchToolName(toolName: string): boolean
-}
-
 export function createDeepSeekResponsesAdapter(input: {
   providerKind: string
   provider: Pick<LLM_PROVIDER, 'id' | 'baseUrl'>
   modelId: string
-}): DeepSeekResponsesAdapter | null {
+  search: boolean
+  traceRequest?: (request: { endpoint: string; body: Record<string, unknown> }) => Promise<void>
+}) {
   const target: DeepSeekResponsesRouteInput = {
     providerId: input.provider.id,
     modelId: input.modelId,
     baseUrl: input.provider.baseUrl
   }
-  if (input.providerKind !== 'openai-responses' || !resolveDeepSeekResponsesRoute(target)) {
+  if (input.providerKind !== 'deepseek-open-responses' || !resolveDeepSeekResponsesRoute(target)) {
     return null
   }
 
   const replayItems = new Map<string, DeepSeekWebSearchCall>()
+  const functionCallIdsByItemId = new Map<string, string>()
   const seenRawItems = new Set<string>()
 
   return {
-    prepareMessages: stripNonSearchOpenAIItemIds,
-    mapReplay(replay) {
+    reservedToolNames: [DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME],
+    prepareMessages: omitEmptyReasoning,
+    mapReplay(replay: ChatMessageProviderReplay) {
       const envelope = parseMatchedEnvelope(replay.payload, target)
       if (!envelope || replay.markerId !== envelope.item.id) {
         throw new Error('DeepSeek Web Search replay marker does not match its envelope.')
@@ -461,35 +467,35 @@ export function createDeepSeekResponsesAdapter(input: {
       return {
         type: 'tool-call',
         toolCallId: replay.markerId,
-        toolName: DEEPSEEK_WEB_SEARCH_TOOL_NAME,
+        toolName: DEEPSEEK_WEB_SEARCH_REPLAY_TOOL_NAME,
         input: {},
-        providerExecuted: true,
-        providerOptions: {
-          openai: {
-            itemId: replay.markerId
-          }
-        }
+        providerExecuted: true
       }
     },
-    wrapFetch(baseFetch) {
-      return async (requestInput, requestInit) => {
-        assertResponsesRequestUrl(requestInput)
+    wrapFetch(baseFetch: AiSdkFetch) {
+      return async (requestInput: string | URL | Request, requestInit?: RequestInit) => {
+        const url = assertResponsesRequestUrl(requestInput)
         const body = parseRequestBody(requestInit?.body)
         const usedReplayIds = new Set<string>()
+        applyNativeWebSearchTool(body, input.search)
 
         if (Array.isArray(body.input)) {
           body.input = body.input.map((item) => {
-            if (!isItemReference(item)) {
+            if (isRecord(item) && item.type === 'item_reference') {
+              throw new Error('DeepSeek Responses request contains an item_reference.')
+            }
+            const replayId = parseReplayMarkerId(item)
+            if (!replayId) {
               return item
             }
-            const replayItem = replayItems.get(item.id)
+            const replayItem = replayItems.get(replayId)
             if (!replayItem) {
-              throw new Error(`Unmatched DeepSeek Responses item_reference: ${item.id}`)
+              throw new Error(`Unmatched DeepSeek Responses replay marker: ${replayId}`)
             }
-            if (usedReplayIds.has(item.id)) {
-              throw new Error(`Duplicate DeepSeek Responses item_reference: ${item.id}`)
+            if (usedReplayIds.has(replayId)) {
+              throw new Error(`Duplicate DeepSeek Responses replay marker: ${replayId}`)
             }
-            usedReplayIds.add(item.id)
+            usedReplayIds.add(replayId)
             return replayItem
           })
         } else if (replayItems.size > 0) {
@@ -501,26 +507,59 @@ export function createDeepSeekResponsesAdapter(input: {
             throw new Error(`DeepSeek Responses replay marker was not emitted: ${replayId}`)
           }
         }
-        if (Array.isArray(body.input) && body.input.some(isItemReference)) {
-          throw new Error('DeepSeek Responses request still contains an item_reference.')
-        }
 
-        body.store = false
-        for (const field of CONTINUATION_FIELDS) {
-          delete body[field]
-        }
-
-        return await baseFetch(requestInput, {
+        const serializedBody = JSON.stringify(body)
+        await input.traceRequest?.({ endpoint: url.href, body })
+        return baseFetch(requestInput, {
           ...requestInit,
-          body: JSON.stringify(body)
+          body: serializedBody
         })
       }
     },
-    getSearchTools: () => ({
-      [DEEPSEEK_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch()
-    }),
-    projectRawChunk(rawValue) {
-      if (!isRecord(rawValue) || rawValue.type !== 'response.output_item.done') {
+    projectRawChunk(rawValue: unknown) {
+      if (!isRecord(rawValue)) {
+        return null
+      }
+
+      if (
+        rawValue.type === 'response.output_item.added' &&
+        isRecord(rawValue.item) &&
+        rawValue.item.type === 'function_call'
+      ) {
+        if (
+          typeof rawValue.item.id !== 'string' ||
+          !rawValue.item.id ||
+          typeof rawValue.item.call_id !== 'string' ||
+          !rawValue.item.call_id ||
+          typeof rawValue.item.name !== 'string' ||
+          !rawValue.item.name
+        ) {
+          return null
+        }
+        functionCallIdsByItemId.set(rawValue.item.id, rawValue.item.call_id)
+        return createStreamEvent.toolCallStart(rawValue.item.call_id, rawValue.item.name, {
+          [DEEPSEEK_PROVIDER_ID]: { itemId: rawValue.item.id }
+        })
+      }
+
+      if (rawValue.type === 'response.function_call_arguments.delta') {
+        if (typeof rawValue.item_id !== 'string' || typeof rawValue.delta !== 'string') {
+          return null
+        }
+        const callId = functionCallIdsByItemId.get(rawValue.item_id)
+        if (!callId) {
+          return null
+        }
+        return createStreamEvent.toolCallChunk(callId, rawValue.delta)
+      }
+
+      if (rawValue.type !== 'response.output_item.done') {
+        return null
+      }
+      if (isRecord(rawValue.item) && rawValue.item.type === 'function_call') {
+        if (typeof rawValue.item.id === 'string') {
+          functionCallIdsByItemId.delete(rawValue.item.id)
+        }
         return null
       }
       if (!isRecord(rawValue.item) || rawValue.item.type !== 'web_search_call') {
@@ -533,15 +572,14 @@ export function createDeepSeekResponsesAdapter(input: {
       const providerReplayJson = encodeEnvelope(item)
       seenRawItems.add(item.id)
       const action = resolveSearchAction(item)
-      return {
+      return createStreamEvent.providerSearch({
         id: item.id,
         action,
         label: action.target || 'Web Search',
         provider: DEEPSEEK_PROVIDER_ID,
         results: normalizeSearchResults(item),
         providerReplayJson
-      }
-    },
-    isSearchToolName: (toolName) => toolName === DEEPSEEK_WEB_SEARCH_TOOL_NAME
+      })
+    }
   }
 }

@@ -844,6 +844,32 @@ describe('AI SDK provider options', () => {
     }
   )
 
+  it.each(['low', 'high', 'max'] as const)(
+    'maps only DeepSeek Open Responses reasoning effort %s',
+    (reasoningEffort) => {
+      const result = buildProviderOptions({
+        providerId: 'deepseek',
+        capabilityProviderId: 'deepseek',
+        providerOptionsKey: 'deepseek',
+        apiType: 'open_responses',
+        modelId: 'deepseek-v4-flash',
+        modelConfig: {
+          reasoningEffort,
+          verbosity: 'high',
+          maxCompletionTokens: 4096,
+          thinkingBudget: 2048,
+          conversationId: 'session-private'
+        },
+        tools: [],
+        messages: []
+      })
+
+      expect(result.providerOptions).toEqual({
+        deepseek: { reasoningEffort }
+      })
+    }
+  )
+
   it('passes through extended OpenAI reasoning effort values', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,

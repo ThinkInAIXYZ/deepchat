@@ -1,8 +1,4 @@
-import {
-  createStreamEvent,
-  type LLMCoreStreamEvent,
-  type ProviderSearchPayload
-} from '@shared/types/core/llm-events'
+import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { ToolSet, TextStreamPart } from 'ai'
 import { parseLegacyFunctionCalls } from './toolProtocol'
@@ -94,8 +90,7 @@ function toProviderOptions(value: unknown): ChatMessageProviderOptions | undefin
 export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
   cacheImage?: (data: string) => Promise<string>
-  projectRawChunk?: (rawValue: unknown) => ProviderSearchPayload | null
-  suppressTool?: (toolName: string) => boolean
+  projectRawChunk?: (rawValue: unknown) => LLMCoreStreamEvent | null
 }
 
 export async function* adaptAiSdkStream(
@@ -103,13 +98,40 @@ export async function* adaptAiSdkStream(
   options: AdaptAiSdkStreamOptions
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const toolArgumentBuffers = new Map<string, string>()
+  const rawProjectedToolCalls = new Set<string>()
   const endedToolCalls = new Set<string>()
-  const suppressedToolCallIds = new Set<string>()
   const seenProviderSourceUrls = new Set<string>()
   let providerSourceSearchId: string | undefined
   let providerSourceRank = 0
   let bufferedLegacyText = ''
   let legacyToolUseDetected = false
+
+  const projectProviderUrlSource = (value: {
+    sourceType: string
+    url?: unknown
+    title?: unknown
+  }): LLMCoreStreamEvent | null => {
+    if (
+      providerSourceSearchId === undefined ||
+      seenProviderSourceUrls.size >= MAX_PROVIDER_URL_SOURCES
+    ) {
+      return null
+    }
+
+    const source = normalizeProviderUrlSource(value)
+    if (!source || seenProviderSourceUrls.has(source.url)) {
+      return null
+    }
+    seenProviderSourceUrls.add(source.url)
+    const event = createStreamEvent.providerUrlSource({
+      searchId: providerSourceSearchId,
+      title: source.title,
+      url: source.url,
+      rank: providerSourceRank
+    })
+    providerSourceRank += 1
+    return event
+  }
 
   const emitLegacyTextBuffer = async function* (
     flushAll = false
@@ -194,10 +216,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-start':
-        if (options.suppressTool?.(part.toolName)) {
-          suppressedToolCallIds.add(part.id)
-          break
-        }
         toolArgumentBuffers.set(part.id, '')
         yield createStreamEvent.toolCallStart(
           part.id,
@@ -208,9 +226,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-delta':
-        if (suppressedToolCallIds.has(part.id)) {
-          break
-        }
         toolArgumentBuffers.set(part.id, `${toolArgumentBuffers.get(part.id) ?? ''}${part.delta}`)
         yield createStreamEvent.toolCallChunk(
           part.id,
@@ -220,9 +235,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-end':
-        if (suppressedToolCallIds.has(part.id)) {
-          break
-        }
         endedToolCalls.add(part.id)
         yield createStreamEvent.toolCallEnd(
           part.id,
@@ -232,62 +244,70 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-call':
-        if (options.suppressTool?.(part.toolName)) {
-          suppressedToolCallIds.add(part.toolCallId)
-          endedToolCalls.add(part.toolCallId)
-          break
-        }
         if (!endedToolCalls.has(part.toolCallId)) {
           const serializedInput =
             typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {})
           const providerOptions = toProviderOptions((part as any).providerMetadata)
-          yield createStreamEvent.toolCallStart(
-            part.toolCallId,
-            part.toolName,
-            providerOptions,
-            part.providerExecuted === true ? 'provider' : undefined
-          )
-          yield createStreamEvent.toolCallChunk(part.toolCallId, serializedInput, providerOptions)
+          if (
+            !toolArgumentBuffers.has(part.toolCallId) &&
+            !rawProjectedToolCalls.has(part.toolCallId)
+          ) {
+            yield createStreamEvent.toolCallStart(
+              part.toolCallId,
+              part.toolName,
+              providerOptions,
+              part.providerExecuted === true ? 'provider' : undefined
+            )
+            yield createStreamEvent.toolCallChunk(part.toolCallId, serializedInput, providerOptions)
+          }
           yield createStreamEvent.toolCallEnd(part.toolCallId, serializedInput, providerOptions)
+          rawProjectedToolCalls.delete(part.toolCallId)
           endedToolCalls.add(part.toolCallId)
         }
         break
 
       case 'raw': {
         const projected = options.projectRawChunk?.(part.rawValue)
-        if (projected) {
-          if (projected.action.type === 'search' || providerSourceSearchId === undefined) {
-            providerSourceSearchId = projected.id
+        if (!projected) {
+          break
+        }
+
+        if (projected.type === 'provider_search') {
+          const search = projected.provider_search
+          if (search.action.type === 'search' || providerSourceSearchId === undefined) {
+            providerSourceSearchId = search.id
             seenProviderSourceUrls.clear()
-            for (const result of projected.results) {
+            for (const result of search.results) {
               seenProviderSourceUrls.add(result.url)
             }
-            providerSourceRank = projected.results.length
+            providerSourceRank = search.results.length
           }
-          yield createStreamEvent.providerSearch(projected)
+        } else if (projected.type === 'tool_call_start') {
+          if (
+            endedToolCalls.has(projected.tool_call_id) ||
+            toolArgumentBuffers.has(projected.tool_call_id) ||
+            rawProjectedToolCalls.has(projected.tool_call_id)
+          ) {
+            break
+          }
+          rawProjectedToolCalls.add(projected.tool_call_id)
+        } else if (projected.type === 'tool_call_chunk') {
+          if (
+            !rawProjectedToolCalls.has(projected.tool_call_id) ||
+            endedToolCalls.has(projected.tool_call_id)
+          ) {
+            break
+          }
         }
+        yield projected
         break
       }
 
       case 'source': {
-        if (
-          providerSourceSearchId === undefined ||
-          seenProviderSourceUrls.size >= MAX_PROVIDER_URL_SOURCES
-        ) {
-          break
+        const event = projectProviderUrlSource(part)
+        if (event) {
+          yield event
         }
-        const source = normalizeProviderUrlSource(part)
-        if (!source || seenProviderSourceUrls.has(source.url)) {
-          break
-        }
-        seenProviderSourceUrls.add(source.url)
-        yield createStreamEvent.providerUrlSource({
-          searchId: providerSourceSearchId,
-          title: source.title,
-          url: source.url,
-          rank: providerSourceRank
-        })
-        providerSourceRank += 1
         break
       }
 

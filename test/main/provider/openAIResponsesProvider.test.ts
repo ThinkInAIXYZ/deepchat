@@ -223,7 +223,7 @@ describe('OpenAIResponsesProvider', () => {
 
     const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
     expect(call?.[0]).toMatchObject({
-      providerKind: 'openai-responses',
+      providerKind: 'deepseek-open-responses',
       provider: {
         id: 'deepseek',
         apiType: 'openai-responses',
@@ -269,7 +269,7 @@ describe('OpenAIResponsesProvider', () => {
 
     const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
     expect(call?.[0]).toMatchObject({
-      providerKind: 'openai-responses',
+      providerKind: 'deepseek-open-responses',
       provider: {
         id: 'deepseek',
         apiType: 'openai-responses',

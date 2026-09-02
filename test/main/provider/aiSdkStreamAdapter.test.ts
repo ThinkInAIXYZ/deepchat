@@ -178,7 +178,110 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
-  it('projects provider search sources while suppressing its tool lifecycle', async () => {
+  it('completes raw-projected tool input without duplicating streamed arguments', async () => {
+    const projectRawChunk = vi.fn((rawValue: unknown) => rawValue as LLMCoreStreamEvent)
+    const events = await collectEvents(
+      [
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_start',
+            tool_call_id: 'call-1',
+            tool_call_name: 'run_code',
+            provider_options: { deepseek: { itemId: 'fc-1' } }
+          }
+        },
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: '{"code":"'
+          }
+        },
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: 'console.log(1)"}'
+          }
+        },
+        {
+          type: 'tool-call',
+          toolCallId: 'call-1',
+          toolName: 'run_code',
+          input: { code: 'console.log(1)' },
+          providerMetadata: { deepseek: { itemId: 'fc-1' } }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'call-1',
+        tool_call_name: 'run_code',
+        provider_options: { deepseek: { itemId: 'fc-1' } }
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: '{"code":"'
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: 'console.log(1)"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call-1',
+        tool_call_arguments_complete: '{"code":"console.log(1)"}',
+        provider_options: { deepseek: { itemId: 'fc-1' } }
+      }
+    ])
+  })
+
+  it('falls back to an atomic tool call when a raw delta arrives without its start', async () => {
+    const projectRawChunk = vi.fn((rawValue: unknown) => rawValue as LLMCoreStreamEvent)
+    const events = await collectEvents(
+      [
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: '{"path":"lost-start"}'
+          }
+        },
+        {
+          type: 'tool-call',
+          toolCallId: 'call-1',
+          toolName: 'read_file',
+          input: { path: 'README.md' }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      { type: 'tool_call_start', tool_call_id: 'call-1', tool_call_name: 'read_file' },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: '{"path":"README.md"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call-1',
+        tool_call_arguments_complete: '{"path":"README.md"}'
+      }
+    ])
+  })
+
+  it('projects provider search sources alongside ordinary tool lifecycles', async () => {
     const providerSearch = {
       id: 'ws_1',
       action: { type: 'search' as const, target: 'DeepChat' },
@@ -187,8 +290,10 @@ describe('AI SDK stream adapter', () => {
       results: [],
       providerReplayJson: '{"version":1}'
     }
-    const projectRawChunk = vi.fn(() => providerSearch)
-    const suppressTool = vi.fn((toolName: string) => toolName === 'provider_web_search')
+    const projectRawChunk = vi.fn(() => ({
+      type: 'provider_search' as const,
+      provider_search: providerSearch
+    }))
 
     const events = await collectEvents(
       [
@@ -228,28 +333,6 @@ describe('AI SDK stream adapter', () => {
           mediaType: 'text/plain',
           title: 'Document'
         },
-        {
-          type: 'tool-input-start',
-          id: 'ws_1',
-          toolName: 'provider_web_search',
-          providerExecuted: true
-        },
-        { type: 'tool-input-delta', id: 'ws_1', delta: '{}' },
-        { type: 'tool-input-end', id: 'ws_1' },
-        {
-          type: 'tool-call',
-          toolCallId: 'ws_1',
-          toolName: 'provider_web_search',
-          input: {},
-          providerExecuted: true
-        },
-        {
-          type: 'tool-result',
-          toolCallId: 'ws_1',
-          toolName: 'provider_web_search',
-          output: { action: { type: 'search', query: 'DeepChat' } },
-          providerExecuted: true
-        },
         { type: 'tool-input-start', id: 'local_1', toolName: 'read_file' },
         { type: 'tool-input-delta', id: 'local_1', delta: '{"path":"README.md"}' },
         { type: 'tool-input-end', id: 'local_1' },
@@ -259,7 +342,7 @@ describe('AI SDK stream adapter', () => {
           totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
         }
       ],
-      { supportsNativeTools: true, projectRawChunk, suppressTool }
+      { supportsNativeTools: true, projectRawChunk }
     )
 
     expect(events).toEqual([
@@ -297,7 +380,7 @@ describe('AI SDK stream adapter', () => {
     expect(projectRawChunk).toHaveBeenCalledWith({ type: 'response.output_item.done' })
   })
 
-  it('keeps URL citations attached to the latest search action', async () => {
+  it('keeps URL sources attached to the latest search action', async () => {
     const search = {
       id: 'ws_search',
       action: { type: 'search' as const, target: 'current price' },
@@ -318,7 +401,11 @@ describe('AI SDK stream adapter', () => {
       results: [],
       providerReplayJson: '{"page":true}'
     }
-    const projectRawChunk = vi.fn((rawValue: any) => rawValue.projected ?? null)
+    const projectRawChunk = vi.fn((rawValue: any) =>
+      rawValue.projected
+        ? { type: 'provider_search' as const, provider_search: rawValue.projected }
+        : null
+    )
 
     const events = await collectEvents(
       [
@@ -333,7 +420,7 @@ describe('AI SDK stream adapter', () => {
         {
           type: 'source',
           sourceType: 'url',
-          id: 'citation-1',
+          id: 'source-1',
           url: 'https://example.com/source'
         }
       ],
