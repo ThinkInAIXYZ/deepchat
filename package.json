@@ -109,6 +109,7 @@
     "@ai-sdk/azure": "^4.0.32",
     "@ai-sdk/google": "^4.0.35",
     "@ai-sdk/google-vertex": "^5.0.43",
+    "@ai-sdk/open-responses": "^2.0.38",
     "@ai-sdk/openai": "^4.0.31",
     "@ai-sdk/openai-compatible": "^3.0.24",
     "@ai-sdk/provider": "^4.0.5",

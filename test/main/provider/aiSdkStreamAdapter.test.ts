@@ -178,7 +178,7 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
-  it('projects provider search sources while suppressing its tool lifecycle', async () => {
+  it('projects provider search sources alongside ordinary tool lifecycles', async () => {
     const providerSearch = {
       id: 'ws_1',
       action: { type: 'search' as const, target: 'DeepChat' },
@@ -188,7 +188,6 @@ describe('AI SDK stream adapter', () => {
       providerReplayJson: '{"version":1}'
     }
     const projectRawChunk = vi.fn(() => providerSearch)
-    const suppressTool = vi.fn((toolName: string) => toolName === 'provider_web_search')
 
     const events = await collectEvents(
       [
@@ -228,28 +227,6 @@ describe('AI SDK stream adapter', () => {
           mediaType: 'text/plain',
           title: 'Document'
         },
-        {
-          type: 'tool-input-start',
-          id: 'ws_1',
-          toolName: 'provider_web_search',
-          providerExecuted: true
-        },
-        { type: 'tool-input-delta', id: 'ws_1', delta: '{}' },
-        { type: 'tool-input-end', id: 'ws_1' },
-        {
-          type: 'tool-call',
-          toolCallId: 'ws_1',
-          toolName: 'provider_web_search',
-          input: {},
-          providerExecuted: true
-        },
-        {
-          type: 'tool-result',
-          toolCallId: 'ws_1',
-          toolName: 'provider_web_search',
-          output: { action: { type: 'search', query: 'DeepChat' } },
-          providerExecuted: true
-        },
         { type: 'tool-input-start', id: 'local_1', toolName: 'read_file' },
         { type: 'tool-input-delta', id: 'local_1', delta: '{"path":"README.md"}' },
         { type: 'tool-input-end', id: 'local_1' },
@@ -259,7 +236,7 @@ describe('AI SDK stream adapter', () => {
           totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
         }
       ],
-      { supportsNativeTools: true, projectRawChunk, suppressTool }
+      { supportsNativeTools: true, projectRawChunk }
     )
 
     expect(events).toEqual([
@@ -335,9 +312,34 @@ describe('AI SDK stream adapter', () => {
           sourceType: 'url',
           id: 'citation-1',
           url: 'https://example.com/source'
+        },
+        {
+          type: 'text-end',
+          id: 'message-1',
+          providerMetadata: {
+            deepseek: {
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/source',
+                  title: 'Duplicate'
+                },
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/second',
+                  title: 'Second source'
+                },
+                { type: 'url_citation', url: 'javascript:alert(1)', title: 'Unsafe' }
+              ]
+            }
+          }
         }
       ],
-      { supportsNativeTools: true, projectRawChunk }
+      {
+        supportsNativeTools: true,
+        projectRawChunk,
+        urlCitationProviderOptionsKey: 'deepseek'
+      }
     )
 
     expect(events).toEqual([
@@ -351,8 +353,68 @@ describe('AI SDK stream adapter', () => {
           url: 'https://example.com/source',
           rank: 0
         }
+      },
+      {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_search',
+          title: 'Second source',
+          url: 'https://example.com/second',
+          rank: 1
+        }
       }
     ])
+  })
+
+  it('scopes and bounds provider URL citation metadata', async () => {
+    const search = {
+      id: 'ws_search',
+      action: { type: 'search' as const, target: 'bounded citations' },
+      label: 'bounded citations',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"search":true}'
+    }
+    const projectRawChunk = vi.fn((rawValue: any) => rawValue.projected ?? null)
+    const ignoredAnnotations = Array.from({ length: 1000 }, () => ({ type: 'other' }))
+
+    const events = await collectEvents(
+      [
+        { type: 'raw', rawValue: { projected: search } },
+        {
+          type: 'text-end',
+          id: 'message-1',
+          providerMetadata: {
+            openai: {
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/wrong-provider',
+                  title: 'Wrong provider'
+                }
+              ]
+            },
+            deepseek: {
+              annotations: [
+                ...ignoredAnnotations,
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/over-limit',
+                  title: 'Over limit'
+                }
+              ]
+            }
+          }
+        }
+      ],
+      {
+        supportsNativeTools: true,
+        projectRawChunk,
+        urlCitationProviderOptionsKey: 'deepseek'
+      }
+    )
+
+    expect(events).toEqual([{ type: 'provider_search', provider_search: search }])
   })
 
   it('preserves explicit zero cache usage reported by the provider', async () => {

@@ -11,8 +11,13 @@ import { extractProviderFailureMetadata } from '../providerFailure'
 const FUNCTION_CALL_TAG = '<function_call>'
 const FUNCTION_CALL_CLOSE_TAG = '</function_call>'
 const MAX_PROVIDER_URL_SOURCES = 100
+const MAX_PROVIDER_URL_CITATION_ANNOTATIONS = 1000
 const MAX_PROVIDER_SOURCE_URL_LENGTH = 8192
 const MAX_PROVIDER_SOURCE_TITLE_LENGTH = 512
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
 
 function normalizeProviderUrlSource(part: {
   sourceType: string
@@ -47,6 +52,44 @@ function normalizeProviderUrlSource(part: {
       ? part.title.trim().slice(0, MAX_PROVIDER_SOURCE_TITLE_LENGTH)
       : url.hostname
   return { title, url: url.href }
+}
+
+function collectProviderUrlCitations(
+  providerMetadata: unknown,
+  providerOptionsKey: string | undefined
+): Array<{
+  sourceType: 'url'
+  url?: unknown
+  title?: unknown
+}> {
+  if (!providerOptionsKey || !isRecord(providerMetadata)) {
+    return []
+  }
+
+  const metadata = providerMetadata[providerOptionsKey]
+  if (!isRecord(metadata) || !Array.isArray(metadata.annotations)) {
+    return []
+  }
+
+  const citations: Array<{ sourceType: 'url'; url?: unknown; title?: unknown }> = []
+  for (let index = 0; index < metadata.annotations.length; index += 1) {
+    if (
+      index >= MAX_PROVIDER_URL_CITATION_ANNOTATIONS ||
+      citations.length >= MAX_PROVIDER_URL_SOURCES
+    ) {
+      break
+    }
+    const annotation = metadata.annotations[index]
+    if (!isRecord(annotation) || annotation.type !== 'url_citation') {
+      continue
+    }
+    citations.push({
+      sourceType: 'url' as const,
+      url: annotation.url,
+      title: annotation.title
+    })
+  }
+  return citations
 }
 
 function resolveSafeTextLength(buffer: string): number {
@@ -95,7 +138,7 @@ export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
   cacheImage?: (data: string) => Promise<string>
   projectRawChunk?: (rawValue: unknown) => ProviderSearchPayload | null
-  suppressTool?: (toolName: string) => boolean
+  urlCitationProviderOptionsKey?: string
 }
 
 export async function* adaptAiSdkStream(
@@ -104,12 +147,38 @@ export async function* adaptAiSdkStream(
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const toolArgumentBuffers = new Map<string, string>()
   const endedToolCalls = new Set<string>()
-  const suppressedToolCallIds = new Set<string>()
   const seenProviderSourceUrls = new Set<string>()
   let providerSourceSearchId: string | undefined
   let providerSourceRank = 0
   let bufferedLegacyText = ''
   let legacyToolUseDetected = false
+
+  const projectProviderUrlSource = (value: {
+    sourceType: string
+    url?: unknown
+    title?: unknown
+  }): LLMCoreStreamEvent | null => {
+    if (
+      providerSourceSearchId === undefined ||
+      seenProviderSourceUrls.size >= MAX_PROVIDER_URL_SOURCES
+    ) {
+      return null
+    }
+
+    const source = normalizeProviderUrlSource(value)
+    if (!source || seenProviderSourceUrls.has(source.url)) {
+      return null
+    }
+    seenProviderSourceUrls.add(source.url)
+    const event = createStreamEvent.providerUrlSource({
+      searchId: providerSourceSearchId,
+      title: source.title,
+      url: source.url,
+      rank: providerSourceRank
+    })
+    providerSourceRank += 1
+    return event
+  }
 
   const emitLegacyTextBuffer = async function* (
     flushAll = false
@@ -186,6 +255,18 @@ export async function* adaptAiSdkStream(
         break
       }
 
+      case 'text-end':
+        for (const citation of collectProviderUrlCitations(
+          (part as any).providerMetadata,
+          options.urlCitationProviderOptionsKey
+        )) {
+          const event = projectProviderUrlSource(citation)
+          if (event) {
+            yield event
+          }
+        }
+        break
+
       case 'reasoning-delta':
         yield createStreamEvent.reasoning(
           part.text,
@@ -194,10 +275,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-start':
-        if (options.suppressTool?.(part.toolName)) {
-          suppressedToolCallIds.add(part.id)
-          break
-        }
         toolArgumentBuffers.set(part.id, '')
         yield createStreamEvent.toolCallStart(
           part.id,
@@ -208,9 +285,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-delta':
-        if (suppressedToolCallIds.has(part.id)) {
-          break
-        }
         toolArgumentBuffers.set(part.id, `${toolArgumentBuffers.get(part.id) ?? ''}${part.delta}`)
         yield createStreamEvent.toolCallChunk(
           part.id,
@@ -220,9 +294,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-end':
-        if (suppressedToolCallIds.has(part.id)) {
-          break
-        }
         endedToolCalls.add(part.id)
         yield createStreamEvent.toolCallEnd(
           part.id,
@@ -232,11 +303,6 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-call':
-        if (options.suppressTool?.(part.toolName)) {
-          suppressedToolCallIds.add(part.toolCallId)
-          endedToolCalls.add(part.toolCallId)
-          break
-        }
         if (!endedToolCalls.has(part.toolCallId)) {
           const serializedInput =
             typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {})
@@ -270,24 +336,10 @@ export async function* adaptAiSdkStream(
       }
 
       case 'source': {
-        if (
-          providerSourceSearchId === undefined ||
-          seenProviderSourceUrls.size >= MAX_PROVIDER_URL_SOURCES
-        ) {
-          break
+        const event = projectProviderUrlSource(part)
+        if (event) {
+          yield event
         }
-        const source = normalizeProviderUrlSource(part)
-        if (!source || seenProviderSourceUrls.has(source.url)) {
-          break
-        }
-        seenProviderSourceUrls.add(source.url)
-        yield createStreamEvent.providerUrlSource({
-          searchId: providerSourceSearchId,
-          title: source.title,
-          url: source.url,
-          rank: providerSourceRank
-        })
-        providerSourceRank += 1
         break
       }
 

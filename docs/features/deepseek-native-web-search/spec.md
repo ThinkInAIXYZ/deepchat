@@ -1,7 +1,7 @@
 # DeepSeek Native Web Search
 
-Status: repository-validated; native-search canary passed, real-key second-turn replay canary pending
-as a merge gate.
+Status: Open Responses migration repository-validated; migration-specific real-key canaries remain a
+merge gate.
 
 ## User Need
 
@@ -10,16 +10,30 @@ provider-native Web Search tool for an individual turn. Search results must rema
 exportable, and a later turn must retain the search context even though DeepSeek's Responses API is
 stateless.
 
+## Migration Rationale
+
+[PR #2093](https://github.com/ThinkInAIXYZ/deepchat/pull/2093) introduced the original native-search
+route on `@ai-sdk/openai`. That provider implements OpenAI's server-stored or encrypted continuation
+models: it does not parse DeepSeek's plaintext `reasoning_text` stream, drops plaintext reasoning
+without an OpenAI item reference, and gates reasoning effort by recognized OpenAI model names. A
+tool-bearing follow-up therefore omitted required reasoning and could fail with DeepSeek's
+`reasoning_text` replay error, while configured effort was silently absent from the request.
+
+DeepSeek's endpoint instead uses a stateless plaintext Responses contract. The migration assigns
+that portable contract to `@ai-sdk/open-responses` and keeps only DeepSeek's bare native-search
+extension in the local adapter. No DeepSeek server behavior change is assumed.
+
 ## Goals
 
 - Route only native-search and compatible replay requests from the exact supported DeepSeek
-  configuration through the existing OpenAI Responses transport.
+  configuration through a stateless Open Responses transport.
 - Capture search intent per submitted turn across send, queue, and steer paths.
 - Project provider search output into DeepChat's existing search blocks and result store.
 - Persist the complete provider item required for stateless replay without a schema migration.
 - Replay search history in original assistant-block order without relying on server-side response
   storage.
-- Keep every DeepSeek wire-protocol rule in one removable adapter.
+- Keep every DeepSeek-specific wire-protocol rule in one removable adapter while delegating portable
+  plaintext reasoning and function-tool behavior to the Open Responses provider.
 
 ## Supported Configuration
 
@@ -30,11 +44,11 @@ Native search is eligible only when all of the following are true:
 - the persisted endpoint is an official DeepSeek HTTPS URL.
 
 An official endpoint has host `api.deepseek.com`, no credentials, query, fragment, or custom port,
-and a path of `/` or `/v1` after removing trailing slashes. An eligible request switches to the
-request-local `openai-responses` transport and base URL `https://api.deepseek.com` only when the
-current turn enables native search or the projected context contains compatible replay. Requests
-with neither condition keep the persisted transport and base URL. Persisted provider configuration
-is never mutated.
+and a path of `/` or `/v1` after removing trailing slashes. An eligible request uses the request-local
+API type `openai-responses`, internal AI SDK provider kind `deepseek-open-responses`, and base URL
+`https://api.deepseek.com` only when the current turn enables native search or the projected context
+contains compatible replay. Requests with neither condition keep the persisted transport and base
+URL. Persisted provider configuration is never mutated.
 
 Custom relays, aggregators, model-name prefixes, and DeepSeek V4 Pro are not supported by this
 feature.
@@ -55,7 +69,8 @@ feature.
 
 ### Search output
 
-- A search-enabled request offers `openai.tools.webSearch()` with no optional provider arguments.
+- A search-enabled request injects exactly one bare `{ type: 'web_search' }` provider tool into the
+  final DeepSeek request. Ordinary MCP function tools remain alongside it.
 - Raw AI SDK chunks are enabled only when a new provider search can occur.
 - A complete `response.output_item.done` item with type `web_search_call` produces one
   `provider_search` event.
@@ -63,10 +78,11 @@ feature.
   action type and bounded display target serve the renderer. Optional provider-declared HTTP(S)
   `action.sources` continue through the existing message search-result table, but DeepSeek's
   Responses guide does not guarantee that field.
-- AI SDK URL `source` parts produce generic `provider_url_source` events associated with the latest
-  `search` action in the same provider round. Safe, deduplicated HTTP(S) citations update that
-  search block and the existing message search-result table; document sources and unsafe URLs are
-  ignored.
+- AI SDK URL `source` parts and bounded Open Responses URL-citation annotations from the `deepseek`
+  provider-options namespace produce generic `provider_url_source` events associated with the
+  latest `search` action in the same provider round. Safe, deduplicated HTTP(S) citations update
+  that search block and the existing message search-result table; other namespaces, document
+  sources, and unsafe URLs are ignored.
 - `search`, `open_page`, and `find_in_page` actions share one visible activity presentation.
   Safe page targets are clickable, and completed opaque actions never claim that zero results were
   found.
@@ -117,17 +133,41 @@ both history and in-flight tool-round projection, so a damaged local row cannot 
 the conversation. Once a replay marker is accepted, registration and wire transformation remain
 fail-closed and never send incomplete replay state.
 
-Before AI SDK conversion, non-search OpenAI item IDs are removed from historical messages. The
-adapter maps each compatible replay part to a provider-executed Web Search marker so AI SDK emits
-an `item_reference`. A request-scoped fetch transform then:
+The adapter maps each compatible replay part to a provider-executed private tool-call marker.
+`@ai-sdk/open-responses` serializes the marker as a normal `function_call`. A request-scoped fetch
+transform then:
 
-1. replaces each marker with its matching original `web_search_call` object;
-2. rejects malformed, duplicate, missing, mismatched, or leftover markers before network I/O;
-3. forces `store: false`;
-4. removes `previous_response_id`, `conversation`, and `truncation` state fields.
+1. identifies the private marker by its exact tool name and call ID;
+2. replaces it exactly once with its matching original `web_search_call` object;
+3. rejects malformed, duplicate, missing, mismatched, or leftover markers and every
+   `item_reference` before network I/O.
+
+The marker tool name is reserved while this route is active. An MCP tool with the same name is
+rejected before serialization rather than being confused with replay state.
+
+The Open Responses provider is stateless and does not generate `store`, `previous_response_id`,
+`conversation`, or `truncation` fields. The adapter does not emulate a stateful OpenAI request and
+does not mutate those fields after serialization.
 
 Replay state is held only in a closure owned by one provider request. No global or cross-request map
 is permitted.
+
+### Plaintext reasoning
+
+`@ai-sdk/open-responses` consumes `response.reasoning_text.delta` natively and replays persisted
+reasoning as a plaintext item with `summary: []` and `content[].type = 'reasoning_text'`. DeepChat
+persists only the streamed reasoning text. It does not consume `reasoning-end` metadata or persist a
+reasoning item ID, so replay uses the provider's text fallback and does not depend on server-side
+item references. Empty reasoning properties are omitted before AI SDK message conversion.
+
+The context builder's existing assistant-record contract concatenates multiple persisted reasoning
+blocks into one string. The resulting id-less plaintext reasoning item remains adjacent to the
+assistant content and tool calls reconstructed from that record. Historical records created by a
+broken Responses route and lacking reasoning text cannot be repaired locally.
+
+Configured `low`, `high`, and `max` reasoning efforts are sent under the `deepseek` provider-options
+namespace without OpenAI model-name capability gates. Exposing `none` as a product-level thinking
+toggle is a separate feature because the Chat Completions route requires a different wire mapping.
 
 ### Context budget
 
@@ -197,28 +237,41 @@ After on every unsupported route, the layout remains unchanged.
 - Stream snapshots and paginated client reads exclude opaque replay JSON while durable storage keeps
   the envelope intact.
 - A local two-round conformance test proves that the second request contains the original
-  `web_search_call`, contains no `item_reference`, sets `store: false`, and contains no continuation
-  state fields.
-- A real-key canary completes two independent user turns and demonstrates that the second response
-  retains the first turn's searched context.
+  `web_search_call`, an id-less plaintext reasoning item with `summary: []`, no private function-call
+  marker or `item_reference`, no newly offered search tool when search is off, and no OpenAI state or
+  continuation fields.
+- A real-key canary confirms DeepSeek emits `summary: []`, accepts id-less reasoning replay, completes
+  two independent user turns, and retains a searched detail that was absent from the first answer.
+- Real-key tool gates cover one response with multiple reasoning items and a same-turn MCP tool
+  round. A search-off replay gate must ask about a fact present only in the prior search result body,
+  not a fact already copied into the prior assistant answer.
 
 ## Constraints
 
-- Reuse `ai`, `@ai-sdk/openai`, and the existing OpenAI Responses transport.
+- Reuse `ai` and `@ai-sdk/open-responses` for DeepSeek's stateless plaintext Responses transport;
+  OpenAI, Azure, and Codex remain on `@ai-sdk/openai`.
 - Do not add `@ai-sdk/deepseek` or another search service dependency.
+- Do not use the experimental Open Responses extension registry or depend on unreleased bare-tool
+  support. The adapter must continue to handle DeepSeek's unnamespaced search items explicitly.
 - Do not mutate persisted provider base URLs.
 - Do not add a database migration.
 - Do not broaden provider-db search capability metadata to relays or aggregators.
-- Preserve abort signals, proxy handling, headers, request tracing, and existing non-DeepSeek
-  behavior through the fetch adapter.
+- Preserve abort signals, proxy handling, headers, and existing non-DeepSeek behavior through the
+  fetch adapter. DeepSeek request traces are emitted from the validated, fully transformed wire
+  body immediately before network I/O, so they contain the injected search tool and restored search
+  items rather than private markers.
 - Bound normalized URL projection and reject unreasonably large replay envelopes; the full accepted
   opaque item remains the replay source of truth.
+- Treat `@ai-sdk/open-responses` as an actively evolving protocol dependency: request-shape,
+  id-less reasoning, raw-chunk, and unknown-item behavior remain covered by executable conformance
+  tests before dependency upgrades.
 
 ## Non-goals
 
 - Supporting DeepSeek V4 Pro, custom relays, or third-party DeepSeek aggregators.
 - Adding conversation-level search settings or restoring legacy external-search infrastructure.
 - Implementing DeepSeek Responses state storage or `previous_response_id` chaining.
+- Exposing `reasoning.effort = 'none'` as a cross-route thinking-off product control.
 - Generalizing arbitrary provider response items into a public extension protocol.
 - Restoring the retired external-search drawer or inventing citations from page-navigation actions.
 - Adding inline numbered references for provider URL-citation annotations.
@@ -228,6 +281,6 @@ be specified at that time; no such runtime exists today.
 
 ## Open Questions
 
-None. A real-key native-search canary has confirmed `https://api.deepseek.com/responses` and
-completed `search` plus `open_page` items. A second independent user turn remains a blocking merge
-gate until it confirms that DeepSeek accepts the replayed `web_search_call` and retains its context.
+None. The product semantics remain unchanged: turning search off does not offer a new search tool,
+while compatible historical search items are still replayed. Migration-specific real-key checks in
+the acceptance criteria remain blocking validation gates rather than unresolved design choices.

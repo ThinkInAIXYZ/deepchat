@@ -1,6 +1,8 @@
 # DeepSeek Native Web Search Implementation Plan
 
-## Approach
+## Original Approach
+
+This section records the shipped native-search design before the Open Responses migration below.
 
 Use the existing AI SDK OpenAI Responses transport for native-search and compatible replay requests
 on the exact official DeepSeek V4 Flash route. Ordinary requests keep the configured transport.
@@ -20,12 +22,16 @@ No generic module parses or constructs a DeepSeek protocol object.
 
 ## Dependency Baseline
 
-Upgrade AI SDK core and all directly used provider packages as one validated release set. The
-composite packages pin sibling providers from the same set: Amazon Bedrock depends on Anthropic and
+The original implementation upgraded AI SDK core and all directly used provider packages as one
+validated release set. Its composite packages pin sibling providers from the same set: Amazon
+Bedrock depends on Anthropic and
 OpenAI, Google Vertex depends on Anthropic, Google, and OpenAI Compatible, and Azure depends on
 OpenAI. Every resolved package targets `@ai-sdk/provider@4.0.5` and
 `@ai-sdk/provider-utils@5.0.22`, avoiding a mixed provider ABI. The DeepSeek feature itself still
-uses only the existing OpenAI Responses transport.
+used only the existing OpenAI Responses transport. The migration adds
+`@ai-sdk/open-responses@2.0.38`, which remains on provider specification v4 but currently resolves
+newer provider and provider-utils minors alongside that baseline. Factory and end-to-end serializer
+tests are the compatibility boundary until the repository performs another coordinated SDK update.
 
 ## Data Flow
 
@@ -185,3 +191,42 @@ because credentials are not assumed to exist locally.
 Remove `deepseekResponsesAdapter.ts` and its narrow hook wiring, then remove the toolbar/input additions.
 Persisted `providerReplayJson` values require no cleanup and remain ignored JSON. Reverting the feature
 does not require a database rollback or provider configuration migration.
+
+## Open Responses Migration
+
+### Objective
+
+Replace the OpenAI-specific Responses transport used by official DeepSeek V4 Flash search and
+replay requests with `@ai-sdk/open-responses`, while preserving DeepSeek's server-side Web Search,
+opaque search-item replay, reasoning display, tool loops, and existing non-DeepSeek routes.
+
+The provider package owns portable stateless Responses behavior. The existing request-scoped
+DeepSeek adapter owns only DeepSeek's bare `web_search` extension and its fail-closed replay rules.
+The migration does not add thinking-off UI support, repair reasoning text absent from old records,
+or depend on the experimental Open Responses extension API.
+
+### Implementation
+
+- [x] Add the internal `deepseek-open-responses` provider kind and construct it with the exact DeepSeek
+      `/responses` endpoint, `deepseek` provider-options namespace, existing headers, proxy-aware
+      fetch, and abort behavior.
+- [x] Route only the existing official DeepSeek V4 Flash search/replay boundary to that kind and map
+      only currently supported reasoning effort options.
+- [x] Simplify the DeepSeek adapter: inject the native `web_search` wire tool, preserve validated raw
+      search projection and opaque envelopes, map replay through a private `function_call` marker,
+      restore the original item exactly once, reject malformed or residual state, and omit empty
+      reasoning without persisting reasoning item IDs.
+- [x] Update the maintained feature contract for the stateless plaintext-reasoning transport and
+      record the released package's extension limitations and upgrade risk.
+- [x] Add durable protocol regression coverage only after the source migration is complete.
+
+### Review And Validation
+
+- [x] Review the complete diff before each commit, ordered by severity, for hidden behavior changes,
+      compatibility, edge cases, performance, security, naming, test gaps, and maintenance cost;
+      resolve every confirmed issue before committing.
+- [x] Run focused provider factory, options, routing, adapter, stream, and persisted-history tests.
+- [x] Run formatting, i18n validation, lint, node/web typechecks, and the broader relevant main suite.
+- [ ] Keep real-key acceptance pending until it verifies `summary: []`, id-less reasoning replay,
+      independent search turns, multiple reasoning items, same-turn MCP tools, and search-off replay
+      semantics without exposing credentials or committing probe code.

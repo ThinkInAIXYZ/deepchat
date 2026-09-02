@@ -1179,10 +1179,20 @@ async function buildPromptRuntime(
 ) {
   const supportsNativeTools = resolveSupportsNativeTools(context, modelId, modelConfig)
   const capabilityProviderId = resolveCapabilityProviderId(context)
+  const emitRequestTrace = context.emitRequestTrace
   const providerAdapter = createDeepSeekResponsesAdapter({
     providerKind: context.providerKind,
     provider: context.provider,
-    modelId
+    modelId,
+    search,
+    traceRequest: emitRequestTrace
+      ? ({ endpoint, body }) =>
+          emitRequestTrace(modelConfig, {
+            endpoint,
+            headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+            body
+          })
+      : undefined
   })
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
@@ -1205,10 +1215,11 @@ async function buildPromptRuntime(
     }
   )
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
-  const searchTools = search ? (providerAdapter?.getSearchTools() ?? {}) : {}
-  for (const toolName of Object.keys(searchTools)) {
+  for (const toolName of providerAdapter?.reservedToolNames ?? []) {
     if (Object.prototype.hasOwnProperty.call(toolsMap, toolName)) {
-      throw new Error(`Provider tool name conflicts with an existing tool: ${toolName}`)
+      throw new Error(
+        `Provider adapter reserved tool name conflicts with an existing tool: ${toolName}`
+      )
     }
   }
   const providerOptionResult = buildProviderOptions({
@@ -1232,7 +1243,7 @@ async function buildPromptRuntime(
     instructions: promptSplit.instructions,
     messages: promptSplit.messages,
     providerOptions: providerOptionResult.providerOptions,
-    tools: { ...toolsMap, ...searchTools },
+    tools: toolsMap,
     supportsNativeTools,
     providerAdapter,
     includeRawChunks: search && providerAdapter !== null
@@ -1350,11 +1361,13 @@ export async function runAiSdkGenerateText(
     maxOutputTokens: maxTokens
   }
 
-  await context.emitRequestTrace?.(normalizedModelConfig, {
-    endpoint: runtime.providerContext.endpoint,
-    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
-  })
+  if (!runtime.providerAdapter) {
+    await context.emitRequestTrace?.(normalizedModelConfig, {
+      endpoint: runtime.providerContext.endpoint,
+      headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+      body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
+    })
+  }
 
   const requestSignal = combineRequestSignal(timeout, signal)
   requestSignal?.throwIfAborted()
@@ -1573,11 +1586,13 @@ export async function* runAiSdkCoreStream(
     ...(runtime.includeRawChunks ? { include: { rawChunks: true } } : {})
   }
 
-  await context.emitRequestTrace?.(normalizedModelConfig, {
-    endpoint: runtime.providerContext.endpoint,
-    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
-  })
+  if (!runtime.providerAdapter) {
+    await context.emitRequestTrace?.(normalizedModelConfig, {
+      endpoint: runtime.providerContext.endpoint,
+      headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+      body: buildAiSdkRequestTraceBody(request, runtime.providerContext.resolvedModelId ?? modelId)
+    })
+  }
 
   const requestSignal = combineRequestSignal(timeout, signal)
   requestSignal?.throwIfAborted()
@@ -1591,7 +1606,7 @@ export async function* runAiSdkCoreStream(
     supportsNativeTools: runtime.supportsNativeTools,
     cacheImage,
     projectRawChunk: runtime.providerAdapter?.projectRawChunk,
-    suppressTool: runtime.providerAdapter?.isSearchToolName
+    urlCitationProviderOptionsKey: runtime.providerAdapter?.urlCitationProviderOptionsKey
   })
 }
 
