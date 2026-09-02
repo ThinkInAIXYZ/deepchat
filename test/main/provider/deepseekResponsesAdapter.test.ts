@@ -310,7 +310,6 @@ describe('DeepSeek Responses stream projection', () => {
       adapter.projectRawChunk({
         type: 'response.function_call_arguments.delta',
         item_id: 'fc_1',
-        call_id: 'call_1',
         delta: '{"code":"console.log(1)"}'
       })
     ).toEqual({
@@ -318,9 +317,22 @@ describe('DeepSeek Responses stream projection', () => {
       tool_call_id: 'call_1',
       tool_call_arguments_chunk: '{"code":"console.log(1)"}'
     })
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.output_item.done',
+        item: { type: 'function_call', id: 'fc_1' }
+      })
+    ).toBeNull()
+    expect(
+      adapter.projectRawChunk({
+        type: 'response.function_call_arguments.delta',
+        item_id: 'fc_1',
+        delta: '{}'
+      })
+    ).toBeNull()
   })
 
-  it('ignores malformed optional function-call chunks so the canonical event can recover', () => {
+  it('ignores malformed function-call starts and deltas with unknown item IDs', () => {
     const adapter = createAdapter()
 
     expect(
@@ -998,13 +1010,11 @@ describe('DeepSeek Responses replay', () => {
       {
         type: 'response.function_call_arguments.delta',
         item_id: 'fc_1',
-        call_id: 'call_1',
         delta: '{"code":"'
       },
       {
         type: 'response.function_call_arguments.delta',
         item_id: 'fc_1',
-        call_id: 'call_1',
         delta: 'console.log(1)"}'
       },
       {

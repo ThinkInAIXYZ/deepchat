@@ -472,6 +472,7 @@ export function createDeepSeekResponsesAdapter(input: {
   }
 
   const replayItems = new Map<string, DeepSeekWebSearchCall>()
+  const functionCallIdsByItemId = new Map<string, string>()
   const seenRawItems = new Set<string>()
 
   return {
@@ -558,24 +559,38 @@ export function createDeepSeekResponsesAdapter(input: {
       ) {
         if (
           typeof rawValue.item.id !== 'string' ||
+          !rawValue.item.id ||
           typeof rawValue.item.call_id !== 'string' ||
-          typeof rawValue.item.name !== 'string'
+          !rawValue.item.call_id ||
+          typeof rawValue.item.name !== 'string' ||
+          !rawValue.item.name
         ) {
           return null
         }
+        functionCallIdsByItemId.set(rawValue.item.id, rawValue.item.call_id)
         return createStreamEvent.toolCallStart(rawValue.item.call_id, rawValue.item.name, {
           [DEEPSEEK_PROVIDER_ID]: { itemId: rawValue.item.id }
         })
       }
 
       if (rawValue.type === 'response.function_call_arguments.delta') {
-        if (typeof rawValue.call_id !== 'string' || typeof rawValue.delta !== 'string') {
+        if (typeof rawValue.item_id !== 'string' || typeof rawValue.delta !== 'string') {
           return null
         }
-        return createStreamEvent.toolCallChunk(rawValue.call_id, rawValue.delta)
+        const callId = functionCallIdsByItemId.get(rawValue.item_id)
+        if (!callId) {
+          return null
+        }
+        return createStreamEvent.toolCallChunk(callId, rawValue.delta)
       }
 
       if (rawValue.type !== 'response.output_item.done') {
+        return null
+      }
+      if (isRecord(rawValue.item) && rawValue.item.type === 'function_call') {
+        if (typeof rawValue.item.id === 'string') {
+          functionCallIdsByItemId.delete(rawValue.item.id)
+        }
         return null
       }
       if (!isRecord(rawValue.item) || rawValue.item.type !== 'web_search_call') {

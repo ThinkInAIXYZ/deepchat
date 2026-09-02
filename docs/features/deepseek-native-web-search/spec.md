@@ -98,9 +98,10 @@ feature.
   loop and do not create a visible `tool_call` block.
 - The adapter projects `response.output_item.added(function_call)` and incremental
   `response.function_call_arguments.delta` events so MCP argument cards update while DeepSeek is
-  generating them. The Open Responses provider's final canonical `tool-call` supplies the complete
-  arguments and closes the block without repeating the projected start or deltas. Missing or
-  malformed optional raw function events fall back to that atomic canonical event.
+  generating them. It correlates each delta's `item_id` with the `call_id` captured from the added
+  item. The Open Responses provider's final canonical `tool-call` supplies the complete arguments
+  and closes the block without repeating the projected start or deltas. Missing or malformed
+  optional raw function events fall back to that atomic canonical event.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
   provider protocol item.
 - Renderer code consumes only normalized block fields and never parses `providerReplayJson`.

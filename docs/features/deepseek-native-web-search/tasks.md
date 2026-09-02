@@ -19,9 +19,9 @@
 - [x] Run the full required validation and complete the severity-ordered pre-commit review.
 - [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
   and `open_page` items.
-- [ ] Before merge, confirm with a real key that DeepSeek emits reasoning `summary: []`, accepts an
+- [x] Before merge, confirm with a real key that DeepSeek emits reasoning `summary: []`, accepts an
   id-less plaintext reasoning replay, and completes the second independent user turn.
-- [ ] Before merge, confirm with a real key that multiple reasoning items and a same-turn MCP tool
+- [x] Before merge, confirm with a real key that multiple reasoning items and a same-turn MCP tool
   round complete, including replay of the provider-returned function-call item ID.
 - [ ] Before merge, confirm with a real key that traced wire bodies contain `low` and `max` reasoning
   effort values and DeepSeek accepts both requests.
