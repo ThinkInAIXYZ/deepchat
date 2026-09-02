@@ -1606,7 +1606,9 @@ export async function* runAiSdkCoreStream(
     supportsNativeTools: runtime.supportsNativeTools,
     cacheImage,
     projectRawChunk: runtime.providerAdapter?.projectRawChunk,
-    urlCitationProviderOptionsKey: runtime.providerAdapter?.urlCitationProviderOptionsKey
+    urlCitationProviderOptionsKey: runtime.providerAdapter
+      ? runtime.providerContext.providerOptionsKey
+      : undefined
   })
 }
 

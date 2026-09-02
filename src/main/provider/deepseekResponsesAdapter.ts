@@ -38,7 +38,7 @@ type DeepSeekWebSearchReplayEnvelopeV1 = {
   item: DeepSeekWebSearchCall
 }
 
-export type DeepSeekResponsesRouteInput = {
+type DeepSeekResponsesRouteInput = {
   providerId: string
   modelId: string
   baseUrl?: string
@@ -47,11 +47,6 @@ export type DeepSeekResponsesRouteInput = {
 export type DeepSeekResponsesRoute = {
   providerKind: 'deepseek-open-responses'
   baseUrl: typeof DEEPSEEK_RESPONSES_BASE_URL
-}
-
-export type DeepSeekResponsesRequestRouteInput = DeepSeekResponsesRouteInput & {
-  messages: readonly ChatMessage[]
-  search: boolean
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -109,7 +104,10 @@ export function resolveDeepSeekResponsesRoute(
 }
 
 export function resolveDeepSeekResponsesRequestRoute(
-  input: DeepSeekResponsesRequestRouteInput
+  input: DeepSeekResponsesRouteInput & {
+    messages: readonly ChatMessage[]
+    search: boolean
+  }
 ): DeepSeekResponsesRoute | null {
   const requiresResponses =
     input.search || input.messages.some((message) => message.provider_replay !== undefined)
@@ -216,17 +214,14 @@ function omitEmptyReasoning(messages: ChatMessage[]): ChatMessage[] {
   })
 }
 
-function requestUrl(input: string | URL | Request): URL {
+function assertResponsesRequestUrl(input: string | URL | Request): URL {
   const value = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  let url: URL
   try {
-    return new URL(value)
+    url = new URL(value)
   } catch {
     throw new Error('DeepSeek Responses request URL is invalid.')
   }
-}
-
-function assertResponsesRequestUrl(input: string | URL | Request): URL {
-  const url = requestUrl(input)
   if (
     url.origin !== DEEPSEEK_RESPONSES_BASE_URL ||
     Boolean(url.username) ||
@@ -294,17 +289,18 @@ function hasEmptyMarkerArguments(value: string): boolean {
   }
 }
 
-function hasNativeWebSearchTool(value: unknown): boolean {
-  return isRecord(value) && value.type === 'web_search'
-}
-
 function applyNativeWebSearchTool(body: JsonRecord, search: boolean): void {
   if (body.tools !== undefined && !Array.isArray(body.tools)) {
     throw new Error('DeepSeek Responses adapter expected an array of tools.')
   }
 
   const tools = Array.isArray(body.tools) ? body.tools : []
-  const nativeToolCount = tools.filter(hasNativeWebSearchTool).length
+  let nativeToolCount = 0
+  for (const tool of tools) {
+    if (isRecord(tool) && tool.type === 'web_search') {
+      nativeToolCount += 1
+    }
+  }
 
   if (!search) {
     if (nativeToolCount > 0) {
@@ -447,13 +443,12 @@ function encodeEnvelope(item: DeepSeekWebSearchCall): string {
   return serialized
 }
 
-export type DeepSeekResponsesAdapter = {
+type DeepSeekResponsesAdapter = {
   reservedToolNames: readonly string[]
   prepareMessages(messages: ChatMessage[]): ChatMessage[]
   mapReplay(replay: ChatMessageProviderReplay): unknown
   wrapFetch(baseFetch: AiSdkFetch): AiSdkFetch
   projectRawChunk(rawValue: unknown): ProviderSearchPayload | null
-  urlCitationProviderOptionsKey: string
 }
 
 export function createDeepSeekResponsesAdapter(input: {
@@ -569,7 +564,6 @@ export function createDeepSeekResponsesAdapter(input: {
         results: normalizeSearchResults(item),
         providerReplayJson
       }
-    },
-    urlCitationProviderOptionsKey: DEEPSEEK_PROVIDER_ID
+    }
   }
 }
