@@ -298,6 +298,7 @@
         "openWith": "Mở bằng",
         "openInApp": "Mở trong {app}",
         "openInTerminalApp": "Mở thư mục trong {app}",
+        "openFailed": "Không thể mở tệp bằng ứng dụng đó",
         "revealInFolder": "Hiển thị trong trình quản lý tập tin",
         "insertPath": "Chèn vào đầu vào",
         "openWithSystemDefault": "Mở bằng ứng dụng mặc định của hệ thống"

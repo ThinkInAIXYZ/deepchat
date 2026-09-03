@@ -226,6 +226,7 @@ import {
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import type { ArtifactState } from '@/stores/artifact'
 import type {
@@ -360,27 +361,30 @@ const fullscreenToggleLabel = computed(() => {
 })
 
 const PREFERRED_OPEN_APP_STORAGE_KEY = 'workspace.openWith.preferredAppId'
+/** Sentinel for "use the system default handler"; no registry id can collide. */
+const SYSTEM_DEFAULT_APP_ID = '#system-default'
 
 const openApps = ref<WorkspaceFileOpenApp[]>([])
 const preferredAppId = ref<string | null>(
   globalThis.localStorage?.getItem(PREFERRED_OPEN_APP_STORAGE_KEY) ?? null
 )
 
+const rememberPreferredApp = (appId: string) => {
+  preferredAppId.value = appId
+  globalThis.localStorage?.setItem(PREFERRED_OPEN_APP_STORAGE_KEY, appId)
+}
+
 const editorApps = computed(() => openApps.value.filter((item) => item.kind === 'editor'))
 const terminalApps = computed(() => openApps.value.filter((item) => item.kind === 'terminal'))
 
 /**
- * App used by the primary button: the last app the user picked when it is still
- * available, otherwise the first editor the OS registers for this file type.
+ * App used by the primary button: only ever the app the user last picked. Nothing
+ * is auto-picked, so the button keeps opening the system default handler until the
+ * user chooses otherwise from the dropdown.
  */
-const preferredApp = computed(() => {
-  const remembered = openApps.value.find((item) => item.id === preferredAppId.value)
-  if (remembered) {
-    return remembered
-  }
-
-  return editorApps.value.find((item) => item.isRegisteredHandler) ?? editorApps.value[0] ?? null
-})
+const preferredApp = computed(
+  () => openApps.value.find((item) => item.id === preferredAppId.value) ?? null
+)
 
 /** Terminals open the containing directory, so they get their own label. */
 const openAppLabel = (openApp: WorkspaceFileOpenApp) =>
@@ -402,23 +406,48 @@ watch(
       return
     }
 
-    const apps = await workspaceClient.listFileOpenApps(filePath)
-    if (openFilePath.value === filePath) {
-      openApps.value = apps
+    try {
+      const apps = await workspaceClient.listFileOpenApps(filePath)
+      if (openFilePath.value === filePath) {
+        openApps.value = apps
+      }
+    } catch (error) {
+      // An empty list just hides the picker entries; the primary button and
+      // "system default" still work, so this needs no user-facing error.
+      console.warn('[WorkspaceViewer] Failed to list open-with applications:', error)
     }
   },
   { immediate: true }
 )
 
-/** Run a workspace client action against the file currently in the viewer. */
+/**
+ * Run a workspace client action against the file currently in the viewer, and
+ * tell the user when it fails instead of failing silently.
+ */
 const runOnOpenFile = async (action: (filePath: string) => Promise<unknown>) => {
-  if (openFilePath.value) {
+  if (!openFilePath.value) {
+    return
+  }
+
+  try {
     await action(openFilePath.value)
+  } catch (error) {
+    console.warn('[WorkspaceViewer] Failed to open file:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.openFileFailed',
+      title: t('common.error.operationFailed'),
+      description: t('chat.workspace.files.contextMenu.openFailed')
+    })
   }
 }
 
 const handleRevealInFolder = () => runOnOpenFile(workspaceClient.revealFileInFolder)
-const handleOpenWithSystemDefault = () => runOnOpenFile(workspaceClient.openFile)
+
+const handleOpenWithSystemDefault = () => {
+  rememberPreferredApp(SYSTEM_DEFAULT_APP_ID)
+  return runOnOpenFile(workspaceClient.openFile)
+}
 
 const handleOpenFile = () =>
   runOnOpenFile((filePath) =>
@@ -427,10 +456,8 @@ const handleOpenFile = () =>
       : workspaceClient.openFile(filePath)
   )
 
-const handleOpenWithApp = (openApp: WorkspaceFileOpenApp) =>
-  runOnOpenFile((filePath) => {
-    preferredAppId.value = openApp.id
-    globalThis.localStorage?.setItem(PREFERRED_OPEN_APP_STORAGE_KEY, openApp.id)
-    return workspaceClient.openFileWithApp(filePath, openApp.id)
-  })
+const handleOpenWithApp = (openApp: WorkspaceFileOpenApp) => {
+  rememberPreferredApp(openApp.id)
+  return runOnOpenFile((filePath) => workspaceClient.openFileWithApp(filePath, openApp.id))
+}
 </script>

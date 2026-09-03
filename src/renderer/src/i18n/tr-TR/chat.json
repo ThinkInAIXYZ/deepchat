@@ -298,6 +298,7 @@
         "openWith": "Birlikte aç",
         "openInApp": "{app} ile aç",
         "openInTerminalApp": "Klasörü {app} ile aç",
+        "openFailed": "Dosya bu uygulamayla açılamadı",
         "revealInFolder": "Dosya yöneticisinde göster",
         "insertPath": "Girişe ekle",
         "openWithSystemDefault": "Sistem varsayılan uygulamasıyla aç"

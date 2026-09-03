@@ -383,6 +383,7 @@
         "openWith": "打开方式",
         "openInApp": "在 {app} 中打开",
         "openInTerminalApp": "在 {app} 中打开所在目录",
+        "openFailed": "无法用该应用打开此文件",
         "revealInFolder": "在文件管理器中打开",
         "insertPath": "插入到输入框",
         "openWithSystemDefault": "用系统默认方式打开"

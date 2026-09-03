@@ -298,6 +298,7 @@
         "openWith": "Buka dengan",
         "openInApp": "Buka dalam {app}",
         "openInTerminalApp": "Buka folder dalam {app}",
+        "openFailed": "Tidak dapat membuka fail dengan aplikasi tersebut",
         "revealInFolder": "Buka dalam pengurus fail",
         "insertPath": "Masukkan ke dalam kotak input",
         "openWithSystemDefault": "Buka dengan aplikasi lalai sistem"

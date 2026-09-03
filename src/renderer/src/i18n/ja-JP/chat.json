@@ -231,6 +231,7 @@
         "openFile": "ファイルを開く",
         "openInApp": "{app} で開く",
         "openInTerminalApp": "{app} でフォルダを開く",
+        "openFailed": "そのアプリでファイルを開けませんでした",
         "openWith": "開き方",
         "openWithSystemDefault": "システムの既定のアプリで開く",
         "revealInFolder": "ファイルマネージャーで開く"

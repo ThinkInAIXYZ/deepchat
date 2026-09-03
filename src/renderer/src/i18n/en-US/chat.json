@@ -383,6 +383,7 @@
         "openWith": "Open with",
         "openInApp": "Open in {app}",
         "openInTerminalApp": "Open folder in {app}",
+        "openFailed": "Could not open the file with that application",
         "revealInFolder": "Show in file manager",
         "insertPath": "Insert into input",
         "openWithSystemDefault": "Open with system default"

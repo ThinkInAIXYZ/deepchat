@@ -231,6 +231,7 @@
         "openFile": "открыть файл",
         "openInApp": "Открыть в {app}",
         "openInTerminalApp": "Открыть папку в {app}",
+        "openFailed": "Не удалось открыть файл в этом приложении",
         "openWith": "Открыть с помощью",
         "openWithSystemDefault": "Открыть в приложении по умолчанию",
         "revealInFolder": "Открыть в файловом менеджере"

@@ -811,6 +811,7 @@ declare module 'vue-i18n' {
           openWith: string
           openInApp: string
           openInTerminalApp: string
+          openFailed: string
           revealInFolder: string
           insertPath: string
           openWithSystemDefault: string

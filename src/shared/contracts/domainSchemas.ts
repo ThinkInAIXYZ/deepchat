@@ -852,8 +852,7 @@ export const WorkspaceFileOpenAppSchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: z.enum(['editor', 'terminal']),
-  iconDataUrl: z.string().optional(),
-  isRegisteredHandler: z.boolean()
+  iconDataUrl: z.string().optional()
 })
 
 export const WorkspaceFileMetadataSchema = z.object({

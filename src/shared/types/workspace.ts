@@ -29,6 +29,7 @@ export type WorkspaceFileNode = {
 
 /**
  * An installed editor, IDE or terminal offered for opening a workspace file.
+ * Ordering is meaningful: apps the OS registers for the file type come first.
  */
 export type WorkspaceFileOpenApp = {
   /** Registry id from `@shared/workspace/fileOpenApps`; never a filesystem path */
@@ -39,8 +40,6 @@ export type WorkspaceFileOpenApp = {
   kind: WorkspaceFileOpenAppKind
   /** The application's real icon as a PNG data URL, when the OS exposes one */
   iconDataUrl?: string
-  /** Whether the OS registers this app as a handler for the file type */
-  isRegisteredHandler: boolean
 }
 
 export type WorkspaceFilePreviewKind =
@@ -207,15 +206,16 @@ export interface WorkspaceServicePort {
   openFile(filePath: string): Promise<void>
 
   /**
-   * List applications the operating system can use to open the given file.
+   * List the installed editors, IDEs and terminals offered for the given file.
    * @param filePath Path to inspect
    */
   listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]>
 
   /**
    * Open a file with a specific application returned by {@link listFileOpenApps}.
+   * Rejects when the app is unavailable or the launch fails.
    * @param filePath Path to open
-   * @param appId Platform launch identifier of the chosen application
+   * @param appId Registry id of the chosen application
    */
   openFileWithApp(filePath: string, appId: string): Promise<void>
 

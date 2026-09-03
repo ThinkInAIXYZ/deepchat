@@ -6,6 +6,22 @@
 
 export type WorkspaceFileOpenAppKind = 'editor' | 'terminal'
 
+/**
+ * Command override for launching an app on a platform. `{path}` is substituted
+ * with the target path (the file for editors, its directory for terminals).
+ *
+ * Needed because terminals do not accept a bare positional path: `wt.exe <dir>`
+ * treats it as a command to run, and `gio launch` drops positional arguments for
+ * desktop entries without `%f`/`%U` field codes, so the terminal would open in
+ * the home directory instead.
+ */
+export type WorkspaceFileOpenAppLaunch = {
+  /** Executable to run. Defaults to the detected launch target when omitted. */
+  command?: string
+  /** Argument template; `{path}` is replaced with the target path. */
+  args: string[]
+}
+
 export type WorkspaceFileOpenAppDefinition = {
   /** Stable identifier used across IPC; never a filesystem path. */
   id: string
@@ -18,6 +34,20 @@ export type WorkspaceFileOpenAppDefinition = {
   executables?: string[]
   /** Linux desktop entry ids. */
   desktopIds?: string[]
+  /**
+   * Per-platform launch overrides. macOS is absent on purpose: `open -a <app>
+   * <dir>` already opens terminals at that directory (verified for Terminal.app
+   * and Ghostty).
+   */
+  launch?: {
+    win32?: WorkspaceFileOpenAppLaunch
+    linux?: WorkspaceFileOpenAppLaunch
+  }
+}
+
+/** Substitute the target path into an argument template. */
+export function buildLaunchArgs(template: readonly string[], targetPath: string): string[] {
+  return template.map((arg) => arg.replace('{path}', targetPath))
 }
 
 /**
@@ -209,9 +239,12 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     name: 'Ghostty',
     kind: 'terminal',
     bundleIds: ['com.mitchellh.ghostty'],
-    desktopIds: ['com.mitchellh.ghostty.desktop']
+    desktopIds: ['com.mitchellh.ghostty.desktop'],
+    launch: { linux: { command: 'ghostty', args: ['--working-directory={path}'] } }
   },
   {
+    // ponytail: Warp has no documented working-directory flag, so on Linux it
+    // opens at its own default directory. Add an override if one lands.
     id: 'warp',
     name: 'Warp',
     kind: 'terminal',
@@ -224,14 +257,20 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     kind: 'terminal',
     bundleIds: ['com.github.wez.wezterm'],
     executables: ['wezterm-gui.exe'],
-    desktopIds: ['org.wezfurlong.wezterm.desktop']
+    desktopIds: ['org.wezfurlong.wezterm.desktop'],
+    launch: {
+      win32: { args: ['start', '--cwd', '{path}'] },
+      linux: { command: 'wezterm', args: ['start', '--cwd', '{path}'] }
+    }
   },
   {
     id: 'kitty',
     name: 'kitty',
     kind: 'terminal',
     bundleIds: ['net.kovidgoyal.kitty'],
-    desktopIds: ['kitty.desktop']
+    desktopIds: ['kitty.desktop'],
+    // kitty reads a positional argument as the program to run, not a directory.
+    launch: { linux: { command: 'kitty', args: ['--directory', '{path}'] } }
   },
   {
     id: 'alacritty',
@@ -239,7 +278,11 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     kind: 'terminal',
     bundleIds: ['org.alacritty'],
     executables: ['alacritty.exe'],
-    desktopIds: ['Alacritty.desktop', 'alacritty.desktop']
+    desktopIds: ['Alacritty.desktop', 'alacritty.desktop'],
+    launch: {
+      win32: { args: ['--working-directory', '{path}'] },
+      linux: { command: 'alacritty', args: ['--working-directory', '{path}'] }
+    }
   },
   {
     id: 'hyper',
@@ -247,24 +290,30 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     kind: 'terminal',
     bundleIds: ['co.zeit.hyper'],
     executables: ['hyper.exe'],
-    desktopIds: ['hyper.desktop']
+    desktopIds: ['hyper.desktop'],
+    // Hyper takes the directory positionally; Linux still has to bypass `gio launch`.
+    launch: { linux: { command: 'hyper', args: ['{path}'] } }
   },
   {
     id: 'windows-terminal',
     name: 'Windows Terminal',
     kind: 'terminal',
-    executables: ['wt.exe']
+    executables: ['wt.exe'],
+    // A positional argument is the command line wt runs, not the start directory.
+    launch: { win32: { args: ['-d', '{path}'] } }
   },
   {
     id: 'gnome-terminal',
     name: 'GNOME Terminal',
     kind: 'terminal',
-    desktopIds: ['org.gnome.Terminal.desktop']
+    desktopIds: ['org.gnome.Terminal.desktop'],
+    launch: { linux: { command: 'gnome-terminal', args: ['--working-directory={path}'] } }
   },
   {
     id: 'konsole',
     name: 'Konsole',
     kind: 'terminal',
-    desktopIds: ['org.kde.konsole.desktop']
+    desktopIds: ['org.kde.konsole.desktop'],
+    launch: { linux: { command: 'konsole', args: ['--workdir', '{path}'] } }
   }
 ]

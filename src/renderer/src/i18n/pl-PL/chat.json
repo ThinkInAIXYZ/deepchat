@@ -298,6 +298,7 @@
         "openWith": "Otwórz za pomocą",
         "openInApp": "Otwórz w {app}",
         "openInTerminalApp": "Otwórz folder w {app}",
+        "openFailed": "Nie udało się otworzyć pliku w tej aplikacji",
         "revealInFolder": "Pokaż w menedżerze plików",
         "insertPath": "Wstaw do wejścia",
         "openWithSystemDefault": "Otwórz w domyślnej aplikacji systemowej"

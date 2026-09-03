@@ -5,6 +5,7 @@ import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import { app, nativeImage } from 'electron'
 import {
+  buildLaunchArgs,
   WORKSPACE_FILE_OPEN_APPS,
   type WorkspaceFileOpenAppDefinition
 } from '@shared/workspace/fileOpenApps'
@@ -18,6 +19,8 @@ const LAUNCH_TIMEOUT_MS = 10_000
 const ICON_POINT_SIZE = 32
 /** Icon payload is ~7KB per app; the registry can exceed Node's 1MB default. */
 const ICON_PROBE_MAX_BUFFER = 8 * 1024 * 1024
+/** Re-probe occasionally so apps installed while running eventually show up. */
+const INSTALLED_APPS_TTL_MS = 60_000
 
 /**
  * A detected app: how to launch it, plus its real icon as a PNG data URL.
@@ -28,8 +31,8 @@ type InstalledApp = {
   iconDataUrl?: string
 }
 
-/** Installed apps and their icons are machine-global, so probe once per process. */
-let installedAppsPromise: Promise<InstalledApp[]> | null = null
+/** Detection is expensive but machine-global, so cache it behind a short TTL. */
+let installedAppsCache: { probedAt: number; apps: Promise<InstalledApp[]> } | null = null
 
 /** OS handler lists depend only on file type, so cache them per extension. */
 const handlerCache = new Map<string, Promise<Set<string>>>()
@@ -138,54 +141,75 @@ async function detectMacOSInstalledApps(): Promise<InstalledApp[]> {
 }
 
 /**
- * Resolve a Windows executable through the App Paths registry key, then PATH.
+ * Read the default value of a Windows registry key, or null when absent.
  */
-async function resolveWindowsExecutable(executable: string): Promise<string | null> {
-  const appPathsKey = `HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executable}`
+async function readRegistryDefault(key: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('reg', ['query', appPathsKey, '/ve'], {
+    const { stdout } = await execFileAsync('reg', ['query', key, '/ve'], {
       timeout: PROBE_TIMEOUT_MS
     })
     const match = stdout.match(/\(Default\)\s+REG_(?:EXPAND_)?SZ\s+(.+)/i)
-    const resolvedPath = match?.[1]?.trim().replace(/^"|"$/g, '')
+    return match?.[1]?.trim().replace(/^"|"$/g, '') || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a Windows executable to a full path.
+ *
+ * HKCU is queried before HKLM because per-user installers (the default for VS
+ * Code and Cursor) cannot write HKLM. The PATH fallback is last and filtered to
+ * real executables: the CLI shims on PATH are `.cmd` wrappers, which cannot be
+ * spawned directly and carry no icon.
+ */
+async function resolveWindowsExecutable(executable: string): Promise<string | null> {
+  const appPathsSuffix = `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executable}`
+
+  for (const root of ['HKCU', 'HKLM']) {
+    const resolvedPath = await readRegistryDefault(`${root}\\${appPathsSuffix}`)
     if (resolvedPath && fs.existsSync(resolvedPath)) {
       return resolvedPath
     }
-  } catch {
-    // Not registered under App Paths; fall through to PATH lookup.
   }
 
   try {
     const { stdout } = await execFileAsync('where', [executable], { timeout: PROBE_TIMEOUT_MS })
-    const first = stdout.split(/\r?\n/).find((line) => line.trim())
-    return first?.trim() ?? null
+    const candidate = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().endsWith('.exe') && fs.existsSync(line))
+    return candidate ?? null
   } catch {
     return null
   }
 }
 
 async function detectWindowsInstalledApps(): Promise<InstalledApp[]> {
-  const installed: InstalledApp[] = []
+  // Each definition costs up to 2 subprocess spawns per candidate executable, so
+  // probe definitions concurrently rather than serially.
+  const results = await Promise.all(
+    WORKSPACE_FILE_OPEN_APPS.map(async (definition) => {
+      for (const executable of definition.executables ?? []) {
+        const launchTarget = await resolveWindowsExecutable(executable)
+        if (!launchTarget) {
+          continue
+        }
 
-  for (const definition of WORKSPACE_FILE_OPEN_APPS) {
-    for (const executable of definition.executables ?? []) {
-      const launchTarget = await resolveWindowsExecutable(executable)
-      if (!launchTarget) {
-        continue
+        // On Windows the icon is attached to the executable, so Electron can read it.
+        const icon = await app.getFileIcon(launchTarget, { size: 'normal' }).catch(() => null)
+        return {
+          definition,
+          launchTarget,
+          iconDataUrl: icon && !icon.isEmpty() ? icon.toDataURL() : undefined
+        }
       }
 
-      // On Windows the icon is attached to the executable, so Electron can read it.
-      const icon = await app.getFileIcon(launchTarget, { size: 'normal' }).catch(() => null)
-      installed.push({
-        definition,
-        launchTarget,
-        iconDataUrl: icon && !icon.isEmpty() ? icon.toDataURL() : undefined
-      })
-      break
-    }
-  }
+      return null
+    })
+  )
 
-  return installed
+  return results.filter((entry): entry is InstalledApp => entry !== null)
 }
 
 function desktopEntryDirectories(): string[] {
@@ -246,25 +270,28 @@ async function detectLinuxInstalledApps(): Promise<InstalledApp[]> {
 }
 
 async function listInstalledApps(): Promise<InstalledApp[]> {
-  if (!installedAppsPromise) {
-    installedAppsPromise = (async () => {
-      try {
-        if (process.platform === 'darwin') {
-          return await detectMacOSInstalledApps()
-        }
-        if (process.platform === 'win32') {
-          return await detectWindowsInstalledApps()
-        }
-        return await detectLinuxInstalledApps()
-      } catch (error) {
-        console.warn('[Workspace] Failed to detect installed editors and terminals', error)
-        installedAppsPromise = null
-        return []
-      }
-    })()
+  if (installedAppsCache && Date.now() - installedAppsCache.probedAt < INSTALLED_APPS_TTL_MS) {
+    return installedAppsCache.apps
   }
 
-  return installedAppsPromise
+  const apps = (async () => {
+    try {
+      if (process.platform === 'darwin') {
+        return await detectMacOSInstalledApps()
+      }
+      if (process.platform === 'win32') {
+        return await detectWindowsInstalledApps()
+      }
+      return await detectLinuxInstalledApps()
+    } catch (error) {
+      console.warn('[Workspace] Failed to detect installed editors and terminals', error)
+      installedAppsCache = null
+      return []
+    }
+  })()
+
+  installedAppsCache = { probedAt: Date.now(), apps }
+  return apps
 }
 
 /**
@@ -324,8 +351,7 @@ export async function listFileOpenApps(filePath: string): Promise<WorkspaceFileO
     id: entry.definition.id,
     name: entry.definition.name,
     kind: entry.definition.kind,
-    iconDataUrl: entry.iconDataUrl,
-    isRegisteredHandler: registeredIds.has(entry.definition.id)
+    iconDataUrl: entry.iconDataUrl
   })
 
   const editors = installed.filter((entry) => entry.definition.kind === 'editor')
@@ -345,6 +371,9 @@ export async function listFileOpenApps(filePath: string): Promise<WorkspaceFileO
  * this into an arbitrary command launcher. Terminals receive the containing
  * directory instead of the file: passing the file would make some terminals
  * try to execute it.
+ *
+ * Rejects when the app is unknown or the launch fails, so the caller can tell
+ * the user instead of silently opening something else.
  */
 export async function openFileWithApp(filePath: string, appId: string): Promise<void> {
   const installed = await listInstalledApps()
@@ -356,21 +385,34 @@ export async function openFileWithApp(filePath: string, appId: string): Promise<
   const launchPath = target.definition.kind === 'terminal' ? path.dirname(filePath) : filePath
 
   if (process.platform === 'darwin') {
-    // `open` hands off to Launch Services and exits immediately.
+    // `open` hands off to Launch Services and exits immediately, and already
+    // opens terminals at the given directory.
     await execFileAsync('open', ['-a', target.launchTarget, launchPath], {
       timeout: LAUNCH_TIMEOUT_MS
     })
     return
   }
 
-  // Elsewhere the launched process stays attached, so detach it instead of
-  // waiting: a timeout would otherwise kill the application the user opened.
-  const desktopEntry = findDesktopEntry(target.launchTarget) ?? target.launchTarget
-  const [command, args]: [string, string[]] =
+  const override =
     process.platform === 'win32'
-      ? [target.launchTarget, [launchPath]]
-      : ['gio', ['launch', desktopEntry, launchPath]]
+      ? target.definition.launch?.win32
+      : target.definition.launch?.linux
 
+  let command: string
+  let args: string[]
+  if (override) {
+    command = override.command ?? target.launchTarget
+    args = buildLaunchArgs(override.args, launchPath)
+  } else if (process.platform === 'win32') {
+    command = target.launchTarget
+    args = [launchPath]
+  } else {
+    command = 'gio'
+    args = ['launch', findDesktopEntry(target.launchTarget) ?? target.launchTarget, launchPath]
+  }
+
+  // The launched process stays attached on these platforms, so detach instead of
+  // waiting: a timeout would otherwise kill the application the user opened.
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { detached: true, stdio: 'ignore' })
     child.once('error', reject)

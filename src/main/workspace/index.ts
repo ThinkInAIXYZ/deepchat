@@ -821,17 +821,15 @@ export class WorkspaceService implements WorkspaceServicePort {
   async openFileWithApp(filePath: string, appId: string): Promise<void> {
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked open-with attempt for unauthorized path: ${filePath}`)
-      return
+      throw new Error('Path is not authorized for this workspace')
     }
 
     const normalizedPath = path.resolve(filePath)
 
-    try {
-      await openFileWithApp(normalizedPath, appId)
-    } catch (error) {
-      console.error(`[Workspace] Failed to open path with ${appId}: ${normalizedPath}`, error)
-      await this.openFile(normalizedPath)
-    }
+    // No fallback to the system default: launching a different app than the one
+    // the user picked, while reporting success, hides the failure. Let it reject
+    // so the renderer can surface it.
+    await openFileWithApp(normalizedPath, appId)
   }
 
   async resolveMarkdownLinkedFile(

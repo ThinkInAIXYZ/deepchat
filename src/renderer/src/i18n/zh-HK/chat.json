@@ -248,6 +248,7 @@
         "openFile": "打開文件",
         "openInApp": "在 {app} 中開啟",
         "openInTerminalApp": "在 {app} 中開啟所在目錄",
+        "openFailed": "無法用該應用開啟此檔案",
         "openWith": "開啟方式",
         "openWithSystemDefault": "用系統預設方式開啟",
         "revealInFolder": "在文件管理器中打開"
