@@ -139,9 +139,11 @@ describe('Tape Trace Inspector projection', () => {
         status: 'error',
         retryDecision: 'retry_scheduled',
         errorCode: 'upstream_unavailable'
-      },
-      hashes: { payloadHash: hashString(payloadJson) }
+      }
     })
+    // Stored-string hashes are a detail concern; list rows do not pay for them.
+    expect(record.hashes).toBeUndefined()
+    expect(projectTapeInspectorDetail(attemptRow).hashes.payloadHash).toBe(hashString(payloadJson))
     expect(getTapeInspectorTraceBinding(record)).toEqual({
       scope: 'attempt',
       messageId: 'message-1',
