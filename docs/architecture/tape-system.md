@@ -55,9 +55,9 @@ flowchart TD
     Stores --> SQLite["Shared Session SQLite connection"]
 ```
 
-`src/main/session/data/tape*.ts` 和旧 table modules 只保留显式、冻结且标记 deprecated 的
-compatibility re-export。新代码必须从 `src/main/tape/` 或能力 port 导入，不能把兼容路径重新当作
-owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合同。
+Tape 代码只从 `src/main/tape/` 或能力 port 导入。`src/main/session/data/tape*.ts` 与旧 table
+modules 曾作为冻结的 deprecated compatibility re-export 存在，生产代码归零后已删除；不得再在
+`src/main/session/data/` 下重建 Tape 的转发路径或 owner。
 
 ## 能力端口和组合
 
@@ -84,8 +84,8 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 `TapeNonContextEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
 `TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
 `DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
-`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；两种历史
-`TapeViewManifestSourceMaps` 形状只在各自原有 compatibility path 作为 type alias 保留。
+`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；历史别名
+`TapeViewManifestSourceMaps` 已随 compatibility path 一起移除。
 `TapeAnchorReader` 只暴露 settings 实际使用的 latest reconstruction anchor；transcript/settings 必须
 由 composition 注入 port，不允许在 consumer 内隐式构造 concrete facade。
 

@@ -7,7 +7,7 @@ import {
   AcpRequestTraceAdapter
 } from '@/agent/acp/compatibility/adapters'
 import { SessionTranscript } from '@/session/data/transcript'
-import { SessionTape } from '@/session/data/tape'
+import { SessionTape } from '@/tape/application/sessionTape'
 import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import type { MainDatabase } from '@/data/mainDatabase'
 

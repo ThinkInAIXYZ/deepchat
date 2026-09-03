@@ -2,21 +2,23 @@ import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { SessionTape } from '@/session/data/tape'
-import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/session/data/tapeEffectiveView'
+import { SessionTape } from '@/tape/application/sessionTape'
+import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'
 import {
+  buildRequestRefs,
   createTapeViewManifest,
   type TapeViewManifestBuildInput
-} from '@/session/data/tapeViewManifest'
+} from '@/tape/domain/viewManifest'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   appendToolFactsToTape
-} from '@/session/data/tapeFacts'
-import { buildRequestRefs } from '@/session/data/tapeViewManifest'
-import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
-import { DeepChatExecutionJournalStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+} from '@/tape/application/factPersistence'
+import {
+  DeepChatExecutionJournalStore,
+  DeepChatTapeEntriesTable
+} from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { EXECUTION_JOURNAL_EVENT_NAMES } from '@/tape/domain/executionJournal'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
@@ -24,7 +26,7 @@ import type { TapeTransactionRunner } from '@/tape/ports/storage'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
-} from '@/session/data/tables/deepchatTapeSearchProjection'
+} from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
