@@ -19,7 +19,6 @@ type TapeReconcilerProviders = Pick<
  */
 interface ReconciledTranscriptSnapshot {
   messageCount: number
-  maxOrderSeq: number
   maxUpdatedAt: number
   tapeIncarnationId: string
   tapeHeadEntryId: number
@@ -68,7 +67,6 @@ export class TapeReconcilerService {
       previous &&
       previous.maxUpdatedAt < observedAt &&
       previous.messageCount === historyRecords.length &&
-      previous.maxOrderSeq === maxOrderSeq &&
       previous.maxUpdatedAt === maxUpdatedAt &&
       previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId) &&
       previous.tapeHeadEntryId === table.getMaxEntryId(sessionId)
@@ -120,7 +118,6 @@ export class TapeReconcilerService {
     if (tapeIncarnationId && maxUpdatedAt < observedAt && !table.isInTransaction()) {
       this.reconciled.set(sessionId, {
         messageCount: historyRecords.length,
-        maxOrderSeq,
         maxUpdatedAt,
         tapeIncarnationId,
         tapeHeadEntryId: table.getMaxEntryId(sessionId)

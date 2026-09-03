@@ -3,8 +3,6 @@ import type { DeepChatTapeEntryRow } from './entry'
 
 const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])
 
-export const MESSAGE_RETRACTION_EVENT_NAME = 'message/retracted'
-
 /**
  * Rows that can change effective message/tool state or anchor positions. Every other row
  * (ViewManifests, Journal, provider attempts, contracts, tool-surface provenance, indicators) is
@@ -19,7 +17,7 @@ export function isEffectiveViewInputRow(row: { kind: string; name: string | null
     case 'anchor':
       return true
     case 'event':
-      return row.name === MESSAGE_RETRACTION_EVENT_NAME
+      return row.name === 'message/retracted'
     default:
       return false
   }
@@ -132,7 +130,7 @@ export function tapeMessageRank(record: ChatMessageRecord, includePending: boole
 }
 
 export function readTapeMessageRetractionId(row: DeepChatTapeEntryRow): string | null {
-  if (row.kind !== 'event' || row.name !== MESSAGE_RETRACTION_EVENT_NAME) {
+  if (row.kind !== 'event' || row.name !== 'message/retracted') {
     return null
   }
 
