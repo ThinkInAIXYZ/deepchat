@@ -181,6 +181,52 @@ describe('SessionTape reconciliation and facts', () => {
         nowSpy.mockRestore()
       }
     })
+
+    it('backfills again when the clock stepped back to the remembered newest write', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
+      try {
+        const { service, messageStore, backfillAttempts } = createReconcileHarness([
+          createRecord({ id: 'u1', orderSeq: 1, updatedAt: 4_000 })
+        ])
+        service.ensureSessionTapeReady('s1', messageStore as any)
+        const attemptsAfterFirst = backfillAttempts()
+
+        nowSpy.mockReturnValue(4_000)
+        service.ensureSessionTapeReady('s1', messageStore as any)
+
+        expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+      } finally {
+        nowSpy.mockRestore()
+      }
+    })
+
+    it('backfills again when the Tape head moved under an unchanged transcript', () => {
+      // A restored backup keeps the copied incarnation but carries a different Tape.
+      const { service, messageStore, table, entries, backfillAttempts } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+      ])
+      service.ensureSessionTapeReady('s1', messageStore as any)
+      const attemptsAfterFirst = backfillAttempts()
+      const headAfterFirst = table.getMaxEntryId('s1')
+
+      entries.splice(entries.length - 1, 1)
+      expect(table.getMaxEntryId('s1')).toBeLessThan(headAfterFirst)
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+    })
+
+    it('does not remember a backfill performed inside a host transaction', () => {
+      const { service, messageStore, table, backfillAttempts } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+      ])
+      table.runInTransaction(() => service.ensureSessionTapeReady('s1', messageStore as any))
+      const attemptsAfterFirst = backfillAttempts()
+
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+    })
   })
 
   it('keeps A to B to A tool result revisions effective during backfill', () => {

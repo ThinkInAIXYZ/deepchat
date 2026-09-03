@@ -12,14 +12,17 @@ type TapeReconcilerProviders = Pick<
 
 /**
  * What the last completed backfill of a session saw. Every transcript mutation either changes the
- * row count or stamps a row with `updated_at = Date.now()`, and every Tape reset mints a new
- * incarnation, so an identical snapshot proves the backfill has nothing left to do.
+ * row count or stamps a row with `updated_at = Date.now()`, every Tape reset mints a new
+ * incarnation, and every Tape append moves the head, so an identical snapshot proves the backfill
+ * has nothing left to do. The head also catches the database file being swapped underneath a live
+ * process (sync restore, maintenance reopen), where the incarnation is copied rather than minted.
  */
 interface ReconciledTranscriptSnapshot {
   messageCount: number
   maxOrderSeq: number
   maxUpdatedAt: number
   tapeIncarnationId: string
+  tapeHeadEntryId: number
 }
 
 function legacySummaryProvenanceKey(sessionId: string): string {
@@ -58,13 +61,17 @@ export class TapeReconcilerService {
       maxUpdatedAt = Math.max(maxUpdatedAt, record.updatedAt)
     }
 
+    // A clock that stepped back to or before the newest remembered write could stamp a later
+    // mutation with a smaller `updated_at`, so the snapshot is only trusted while time is ahead of it.
     const previous = this.reconciled.get(sessionId)
     if (
       previous &&
+      previous.maxUpdatedAt < observedAt &&
       previous.messageCount === historyRecords.length &&
       previous.maxOrderSeq === maxOrderSeq &&
       previous.maxUpdatedAt === maxUpdatedAt &&
-      previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId)
+      previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId) &&
+      previous.tapeHeadEntryId === table.getMaxEntryId(sessionId)
     ) {
       return {
         sessionId,
@@ -107,14 +114,16 @@ export class TapeReconcilerService {
 
     // `updated_at` has millisecond resolution: a mutation landing in the same millisecond as the
     // newest row we saw would be indistinguishable from it, so only remember snapshots whose newest
-    // write is already strictly in the past.
+    // write is already strictly in the past. Inside a host transaction the appends above are not
+    // committed yet and could still roll back, so nothing is remembered there either.
     const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
-    if (tapeIncarnationId && maxUpdatedAt < observedAt) {
+    if (tapeIncarnationId && maxUpdatedAt < observedAt && !table.isInTransaction()) {
       this.reconciled.set(sessionId, {
         messageCount: historyRecords.length,
         maxOrderSeq,
         maxUpdatedAt,
-        tapeIncarnationId
+        tapeIncarnationId,
+        tapeHeadEntryId: table.getMaxEntryId(sessionId)
       })
     } else {
       this.reconciled.delete(sessionId)

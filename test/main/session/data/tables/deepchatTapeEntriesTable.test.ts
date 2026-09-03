@@ -467,6 +467,20 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('reports an unreadable bootstrap anchor as a missing incarnation instead of throwing', () => {
+    const { db, table } = createTable()
+    table.ensureBootstrapAnchor('s1')
+    expect(table.getBootstrapIncarnation('s1')).toEqual(expect.any(String))
+
+    db.prepare(
+      "UPDATE deepchat_tape_entries SET meta_json = '{not json' WHERE session_id = 's1' AND entry_id = 1"
+    ).run()
+
+    expect(table.getBootstrapIncarnation('s1')).toBeUndefined()
+
+    db.close()
+  })
+
   it('deletes Tape and its mutation projection through the lifecycle adapter', () => {
     const db = new DatabaseCtor(':memory:')
     const projection = {
