@@ -176,6 +176,8 @@ jobs:
           test/main/session/data/tapeLineage.test.ts
           test/main/session/data/tapeRecall.test.ts
           test/main/session/data/tapeViewReplay.test.ts
+          test/main/session/data/tables/deepchatTapeEntriesTable.test.ts
+          test/main/session/data/transcriptAtomicity.test.ts
 
       - name: Validate encrypted OCR artifact storage
         env:

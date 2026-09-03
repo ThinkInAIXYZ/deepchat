@@ -23,7 +23,10 @@ if (Database) {
   }
 }
 
-const describeIfSqlite = sqliteAvailable ? describe : describe.skip
+// CI rebuilds the native module for the Node ABI and sets this flag; a silent skip there would
+// hide a regression, so an unavailable module must fail the suite instead of skipping it.
+const describeIfSqlite =
+  sqliteAvailable || process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1' ? describe : describe.skip
 
 const userContent = { text: 'hello', files: [], links: [], search: false, think: false }
 const blocks: AssistantMessageBlock[] = [
