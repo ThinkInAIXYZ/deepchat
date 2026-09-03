@@ -48,8 +48,8 @@ const COMPACTION_RECOVERY_INDEX_SQL = `
 `
 
 /**
- * Every UPDATE here must stamp `updated_at = Date.now()`: the Tape reconciler treats an unchanged
- * `(count, max(updated_at))` as proof the session transcript did not change.
+ * Every UPDATE here must stamp `updated_at = Date.now()`: the Tape reconciler treats unchanged
+ * per-row `(id, order_seq, status, updated_at)` as proof the session transcript did not change.
  */
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {

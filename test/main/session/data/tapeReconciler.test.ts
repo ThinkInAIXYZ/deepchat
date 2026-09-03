@@ -140,13 +140,13 @@ describe('SessionTape reconciliation and facts', () => {
       // Retrying a failed steer restores its prompt with updateMessageStatus, which does not write
       // Tape; the next backfill must pick the new status up or the prompt drops out of context.
       const failed = createRecord({ id: 'u1', orderSeq: 1, status: 'error', updatedAt: 100 })
-      const { service, messageStore, setRecords } = createReconcileHarness([failed])
+      const { service, messageStore, entries, setRecords } = createReconcileHarness([failed])
       service.ensureSessionTapeReady('s1', messageStore as any)
 
       setRecords([{ ...failed, status: 'sent', updatedAt: 150 }])
       const result = service.ensureSessionTapeReady('s1', messageStore as any)
 
-      expect(result.appendedFactCount).toBe(1)
+      expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(2)
       expect(result.historyRecords.map((record) => record.status)).toEqual(['sent'])
     })
 
@@ -164,40 +164,24 @@ describe('SessionTape reconciliation and facts', () => {
       expect(result.historyRecords.map((record) => record.id)).toEqual(['u1'])
     })
 
-    it('does not trust a snapshot whose newest write shares the current millisecond', () => {
-      const now = Date.now()
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
-      try {
-        const { service, messageStore, backfillAttempts } = createReconcileHarness([
-          createRecord({ id: 'u1', orderSeq: 1, updatedAt: now })
-        ])
-        service.ensureSessionTapeReady('s1', messageStore as any)
-        const attemptsAfterFirst = backfillAttempts()
+    it('backfills again after a bypass write stamped by a clock that had stepped back', () => {
+      // u2 is restored while the clock is behind u1's stamp, so count and max(updated_at) are
+      // unchanged; only a per-row comparison can see the write once the clock recovers.
+      const newest = createRecord({ id: 'u1', orderSeq: 1, updatedAt: 4_000 })
+      const failed = createRecord({ id: 'u2', orderSeq: 2, status: 'error', updatedAt: 2_000 })
+      const { service, messageStore, entries, setRecords } = createReconcileHarness([
+        newest,
+        failed
+      ])
+      service.ensureSessionTapeReady('s1', messageStore as any)
 
-        service.ensureSessionTapeReady('s1', messageStore as any)
+      setRecords([newest, { ...failed, status: 'sent', updatedAt: 3_000 }])
+      const result = service.ensureSessionTapeReady('s1', messageStore as any)
 
-        expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
-      } finally {
-        nowSpy.mockRestore()
-      }
-    })
-
-    it('backfills again when the clock stepped back to the remembered newest write', () => {
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
-      try {
-        const { service, messageStore, backfillAttempts } = createReconcileHarness([
-          createRecord({ id: 'u1', orderSeq: 1, updatedAt: 4_000 })
-        ])
-        service.ensureSessionTapeReady('s1', messageStore as any)
-        const attemptsAfterFirst = backfillAttempts()
-
-        nowSpy.mockReturnValue(4_000)
-        service.ensureSessionTapeReady('s1', messageStore as any)
-
-        expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
-      } finally {
-        nowSpy.mockRestore()
-      }
+      expect(
+        entries.filter((entry) => entry.kind === 'message' && entry.source_id === 'u2')
+      ).toHaveLength(2)
+      expect(result.historyRecords.map((record) => record.status)).toEqual(['sent', 'sent'])
     })
 
     it('backfills again when the Tape head moved under an unchanged transcript', () => {

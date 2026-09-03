@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeApplicationProviders } from '../ports/application'
 import type { TapeBackfillResult, TapeTranscriptReader } from '../ports/capabilities'
@@ -11,17 +12,25 @@ type TapeReconcilerProviders = Pick<
 >
 
 /**
- * What the last completed backfill of a session saw. Every transcript mutation either changes the
- * row count or stamps a row with `updated_at = Date.now()`, every Tape reset mints a new
- * incarnation, and every Tape append moves the head, so an identical snapshot proves the backfill
- * has nothing left to do. The head also catches the database file being swapped underneath a live
- * process (sync restore, maintenance reopen), where the incarnation is copied rather than minted.
+ * What the last completed backfill of a session saw. The transcript digest covers exactly the row
+ * fields the backfill keys its facts on (identity, order, status, `updated_at`), so an unchanged
+ * digest means a rerun could append nothing new; unlike a clock-based check it does not care which
+ * direction time moved. Every Tape reset mints a new incarnation and every Tape append moves the
+ * head; the head also catches the database file being swapped underneath a live process (sync
+ * restore, maintenance reopen), where the incarnation is copied rather than minted.
  */
 interface ReconciledTranscriptSnapshot {
-  messageCount: number
-  maxUpdatedAt: number
+  transcriptDigest: string
   tapeIncarnationId: string
   tapeHeadEntryId: number
+}
+
+function digestTranscript(records: readonly ChatMessageRecord[]): string {
+  const hash = createHash('sha256')
+  for (const record of records) {
+    hash.update(`${record.id}\n${record.orderSeq}\n${record.status}\n${record.updatedAt}\n`)
+  }
+  return hash.digest('base64')
 }
 
 function legacySummaryProvenanceKey(sessionId: string): string {
@@ -49,25 +58,19 @@ export class TapeReconcilerService {
     messageStore: TapeTranscriptReader
   ): TapeBackfillResult {
     const table = this.table
-    const observedAt = Date.now()
     const historyRecords = [...messageStore.getMessages(sessionId)].sort(
       (left, right) => left.orderSeq - right.orderSeq
     )
-    let maxOrderSeq = 0
-    let maxUpdatedAt = 0
-    for (const record of historyRecords) {
-      maxOrderSeq = Math.max(maxOrderSeq, record.orderSeq)
-      maxUpdatedAt = Math.max(maxUpdatedAt, record.updatedAt)
-    }
+    const maxOrderSeq = historyRecords.reduce(
+      (currentMax, record) => Math.max(currentMax, record.orderSeq),
+      0
+    )
+    const transcriptDigest = digestTranscript(historyRecords)
 
-    // A clock that stepped back to or before the newest remembered write could stamp a later
-    // mutation with a smaller `updated_at`, so the snapshot is only trusted while time is ahead of it.
     const previous = this.reconciled.get(sessionId)
     if (
       previous &&
-      previous.maxUpdatedAt < observedAt &&
-      previous.messageCount === historyRecords.length &&
-      previous.maxUpdatedAt === maxUpdatedAt &&
+      previous.transcriptDigest === transcriptDigest &&
       previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId) &&
       previous.tapeHeadEntryId === table.getMaxEntryId(sessionId)
     ) {
@@ -110,15 +113,12 @@ export class TapeReconcilerService {
       idempotent: true
     })
 
-    // `updated_at` has millisecond resolution: a mutation landing in the same millisecond as the
-    // newest row we saw would be indistinguishable from it, so only remember snapshots whose newest
-    // write is already strictly in the past. Inside a host transaction the appends above are not
-    // committed yet and could still roll back, so nothing is remembered there either.
+    // Inside a host transaction the appends above are not committed yet and could still roll back,
+    // so nothing is remembered there.
     const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
-    if (tapeIncarnationId && maxUpdatedAt < observedAt && !table.isInTransaction()) {
+    if (tapeIncarnationId && !table.isInTransaction()) {
       this.reconciled.set(sessionId, {
-        messageCount: historyRecords.length,
-        maxUpdatedAt,
+        transcriptDigest,
         tapeIncarnationId,
         tapeHeadEntryId: table.getMaxEntryId(sessionId)
       })
