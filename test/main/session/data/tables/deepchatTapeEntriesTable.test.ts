@@ -4,6 +4,7 @@ import {
   TOOL_SURFACE_TAPE_EVENT_NAMES
 } from '@/tape/domain/toolSurfaceFacts'
 import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
+import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -466,6 +467,20 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('reports an unreadable bootstrap anchor as a missing incarnation instead of throwing', () => {
+    const { db, table } = createTable()
+    table.ensureBootstrapAnchor('s1')
+    expect(table.getBootstrapIncarnation('s1')).toEqual(expect.any(String))
+
+    db.prepare(
+      "UPDATE deepchat_tape_entries SET meta_json = '{not json' WHERE session_id = 's1' AND entry_id = 1"
+    ).run()
+
+    expect(table.getBootstrapIncarnation('s1')).toBeUndefined()
+
+    db.close()
+  })
+
   it('deletes Tape and its mutation projection through the lifecycle adapter', () => {
     const db = new DatabaseCtor(':memory:')
     const projection = {
@@ -728,6 +743,75 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     expect(table.search('s1', '100%')).toMatchObject([
       { session_id: 's1', name: 'run/literal-percent' }
     ])
+
+    db.close()
+  })
+
+  it('reads effective source rows with the same predicate the effective view applies', () => {
+    const { db, table } = createTable()
+
+    table.appendEvent({ sessionId: 's1', name: 'view/assembled', data: {}, createdAt: 100 })
+    table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'u1', seq: 0 },
+      payload: { record: { id: 'u1' } },
+      createdAt: 101
+    })
+    table.append({
+      sessionId: 's1',
+      kind: 'tool_call',
+      name: 'read',
+      source: { type: 'tool_call', id: 'a1:t1', seq: 0 },
+      payload: { toolCall: { id: 't1' } },
+      createdAt: 102
+    })
+    table.append({
+      sessionId: 's1',
+      kind: 'tool_result',
+      name: 'read',
+      source: { type: 'tool_result', id: 'a1:t1', seq: 0 },
+      payload: { toolCallId: 't1', response: 'ok' },
+      createdAt: 103
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'message/retracted',
+      source: { type: 'message', id: 'u1', seq: 1 },
+      data: { messageId: 'u1' },
+      createdAt: 104
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'message/compaction_indicator',
+      data: { messageId: 'c1' },
+      createdAt: 105
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/manual',
+      state: { summary: 'one', cursorOrderSeq: 1 },
+      createdAt: 106
+    })
+    db.prepare(
+      `INSERT INTO deepchat_tape_entries
+         (session_id, entry_id, kind, name, payload_json, meta_json, created_at)
+       VALUES ('s1', 8, 'context', 'skill/materialized', '{}', '{}', 107)`
+    ).run()
+    table.append({
+      sessionId: 's2',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'u2', seq: 0 },
+      payload: { record: { id: 'u2' } },
+      createdAt: 108
+    })
+
+    const effective = table.getEffectiveViewInputRows('s1')
+
+    expect(effective.map((row) => row.entry_id)).toEqual([2, 3, 4, 5, 7])
+    expect(effective).toEqual(table.getBySession('s1').filter(isEffectiveViewInputRow))
 
     db.close()
   })

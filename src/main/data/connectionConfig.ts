@@ -18,4 +18,9 @@ export function configureSQLiteConnection(db: Database.Database, password?: stri
   }
 
   db.pragma('journal_mode = WAL')
+  // 64 MiB page cache ceiling (negative = KiB) for every connection opened through this helper.
+  // It is sized for the main database: SQLCipher decrypts every page it loads, so the whole-session
+  // Tape reads before each provider request must stay resident to be cheap. Other connections
+  // (importer, OCR store, utility hosts) only grow the cache to the pages they actually touch.
+  db.pragma('cache_size = -65536')
 }

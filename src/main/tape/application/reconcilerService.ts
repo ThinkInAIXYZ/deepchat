@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeApplicationProviders } from '../ports/application'
 import type { TapeBackfillResult, TapeTranscriptReader } from '../ports/capabilities'
@@ -10,11 +11,39 @@ type TapeReconcilerProviders = Pick<
   'getEntryStore' | 'getLegacySummaryReader'
 >
 
+/**
+ * What the last completed backfill of a session saw. The transcript digest covers exactly the row
+ * fields the backfill keys its facts on (identity, order, status, `updated_at`), so an unchanged
+ * digest means a rerun could append nothing new; unlike a clock-based check it does not care which
+ * direction time moved. Every Tape reset mints a new incarnation and every Tape append moves the
+ * head; the head also catches the database file being swapped underneath a live process (sync
+ * restore, maintenance reopen), where the incarnation is copied rather than minted.
+ */
+interface ReconciledTranscriptSnapshot {
+  transcriptDigest: string
+  tapeIncarnationId: string
+  tapeHeadEntryId: number
+}
+
+function digestTranscript(records: readonly ChatMessageRecord[]): string {
+  const hash = createHash('sha256')
+  for (const record of records) {
+    hash.update(`${record.id}\n${record.orderSeq}\n${record.status}\n${record.updatedAt}\n`)
+  }
+  return hash.digest('base64')
+}
+
 function legacySummaryProvenanceKey(sessionId: string): string {
   return `summary:${sessionId}:legacy-summary:v1`
 }
 
 export class TapeReconcilerService {
+  /**
+   * Keyed by session id; absent until the first completed backfill in this process. Entries are
+   * never evicted: a stale one costs ~100 bytes and can only ever force a full backfill.
+   */
+  private readonly reconciled = new Map<string, ReconciledTranscriptSnapshot>()
+
   constructor(
     private readonly providers: TapeReconcilerProviders,
     private readonly facts: TapeFactService
@@ -36,13 +65,29 @@ export class TapeReconcilerService {
       (currentMax, record) => Math.max(currentMax, record.orderSeq),
       0
     )
+    const transcriptDigest = digestTranscript(historyRecords)
+
+    const previous = this.reconciled.get(sessionId)
+    if (
+      previous &&
+      previous.transcriptDigest === transcriptDigest &&
+      previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId) &&
+      previous.tapeHeadEntryId === table.getMaxEntryId(sessionId)
+    ) {
+      return {
+        sessionId,
+        migrationState: 'ready',
+        messageCount: historyRecords.length,
+        maxOrderSeq,
+        appendedFactCount: 0,
+        historyRecords: this.facts.getMessageRecords(sessionId)
+      }
+    }
 
     table.ensureBootstrapAnchor(sessionId)
 
     let appendedFactCount = 0
-    const toolRevisionIndex = buildTapeToolRevisionIndex(
-      table.getBySessionExcludingContext(sessionId)
-    )
+    const toolRevisionIndex = buildTapeToolRevisionIndex(table.getEffectiveViewInputRows(sessionId))
     for (const record of historyRecords) {
       appendedFactCount += appendMessageRecordToTape(table, record, 'backfill', {
         toolRevisionIndex
@@ -67,6 +112,19 @@ export class TapeReconcilerService {
       },
       idempotent: true
     })
+
+    // Inside a host transaction the appends above are not committed yet and could still roll back,
+    // so nothing is remembered there.
+    const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
+    if (tapeIncarnationId && !table.isInTransaction()) {
+      this.reconciled.set(sessionId, {
+        transcriptDigest,
+        tapeIncarnationId,
+        tapeHeadEntryId: table.getMaxEntryId(sessionId)
+      })
+    } else {
+      this.reconciled.delete(sessionId)
+    }
 
     return {
       sessionId,

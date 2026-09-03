@@ -16,6 +16,7 @@ import {
   type TapeEventAppendInput
 } from '@/tape/domain/entry'
 import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
+import { parseTapeJsonObject } from '@/tape/domain/effectiveSemantics'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   isExecutionJournalReservedName,
@@ -1259,6 +1260,22 @@ export class DeepChatTapeEntriesTable
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
+  /** SQL mirror of `isEffectiveViewInputRow`; skips the bulky rows the effective view ignores. */
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND (
+             kind IN ('message', 'tool_call', 'tool_result', 'anchor')
+             OR (kind = 'event' AND name = 'message/retracted')
+           )
+         ORDER BY entry_id ASC`
+      )
+      .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[] {
     const normalizedIds = [...new Set(entryIds)]
       .filter((entryId) => Number.isSafeInteger(entryId) && entryId > 0)
@@ -1337,10 +1354,9 @@ export class DeepChatTapeEntriesTable
       )
       .get(sessionId) as { meta_json: string } | undefined
     if (!row) return undefined
-    const value = JSON.parse(row.meta_json) as Record<string, unknown>
-    return typeof value[TAPE_INCARNATION_META_KEY] === 'string'
-      ? value[TAPE_INCARNATION_META_KEY]
-      : undefined
+    // Callers treat `undefined` as "bootstrap missing or invalid"; unreadable meta is the latter.
+    const value = parseTapeJsonObject(row.meta_json)[TAPE_INCARNATION_META_KEY]
+    return typeof value === 'string' ? value : undefined
   }
 
   getMaxEventSourceSeq(

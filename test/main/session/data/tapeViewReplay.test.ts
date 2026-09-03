@@ -425,7 +425,8 @@ describe('SessionTape view and replay', () => {
     const sourceMaps = service.getViewManifestSourceMaps('s1')
     expect(sourceMaps.latestEntryId).toBe(receipt.entryId)
     expect(table.getBySession).not.toHaveBeenCalled()
-    expect(table.getBySessionExcludingContext).toHaveBeenCalledWith('s1')
+    expect(table.getBySessionExcludingContext).not.toHaveBeenCalled()
+    expect(table.getEffectiveViewInputRows).toHaveBeenCalledWith('s1')
     const { sessionId: _sessionId, ...authoritativeRef } = buildTapeSkillMaterializationRef(receipt)
     const baseInput: TapeViewManifestBuildInput = {
       sessionId: 's1',

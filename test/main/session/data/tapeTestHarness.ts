@@ -17,6 +17,7 @@ import {
 import { buildRequestRefs } from '@/session/data/tapeViewManifest'
 import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
 import { DeepChatExecutionJournalStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { EXECUTION_JOURNAL_EVENT_NAMES } from '@/tape/domain/executionJournal'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import type { TapeTransactionRunner } from '@/tape/ports/storage'
@@ -437,6 +438,9 @@ function createTapeTableMock() {
     ),
     getBySessionExcludingContext: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId && entry.kind !== 'context')
+    ),
+    getEffectiveViewInputRows: vi.fn((sessionId: string) =>
+      entries.filter((entry) => entry.session_id === sessionId && isEffectiveViewInputRow(entry))
     ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const selected = new Set(entryIds)

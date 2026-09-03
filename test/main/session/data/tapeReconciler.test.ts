@@ -99,6 +99,120 @@ describe('SessionTape reconciliation and facts', () => {
     expect(entries.filter((entry) => entry.name === 'migration/backfill')).toHaveLength(1)
   })
 
+  describe('backfill short-circuit', () => {
+    function createReconcileHarness(initialRecords: any[]) {
+      const { table, entries } = createTapeTableMock()
+      let records = initialRecords
+      const messageStore = { getMessages: vi.fn(() => records) }
+      const service = new SessionTape({
+        deepchatTapeEntriesTable: table,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+      const backfillAttempts = () => table.append.mock.calls.length
+      return {
+        table,
+        entries,
+        service,
+        messageStore,
+        backfillAttempts,
+        setRecords: (next: any[]) => {
+          records = next
+        }
+      }
+    }
+
+    it('skips the backfill while the transcript and Tape incarnation are unchanged', () => {
+      const { service, messageStore, backfillAttempts } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 }),
+        createRecord({ id: 'a1', orderSeq: 2, role: 'assistant', content: '[]', updatedAt: 200 })
+      ])
+
+      const first = service.ensureSessionTapeReady('s1', messageStore as any)
+      const attemptsAfterFirst = backfillAttempts()
+      const second = service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(first.appendedFactCount).toBe(2)
+      expect(second).toEqual({ ...first, appendedFactCount: 0 })
+      expect(backfillAttempts()).toBe(attemptsAfterFirst)
+    })
+
+    it('backfills again after a transcript write that bypassed Tape', () => {
+      // Retrying a failed steer restores its prompt with updateMessageStatus, which does not write
+      // Tape; the next backfill must pick the new status up or the prompt drops out of context.
+      const failed = createRecord({ id: 'u1', orderSeq: 1, status: 'error', updatedAt: 100 })
+      const { service, messageStore, entries, setRecords } = createReconcileHarness([failed])
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      setRecords([{ ...failed, status: 'sent', updatedAt: 150 }])
+      const result = service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(2)
+      expect(result.historyRecords.map((record) => record.status)).toEqual(['sent'])
+    })
+
+    it('backfills again when the Tape was reset under an unchanged transcript', () => {
+      const { service, messageStore, table, entries } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+      ])
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      table.deleteBySession('s1')
+      expect(entries).toEqual([])
+      const result = service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(result.appendedFactCount).toBe(1)
+      expect(result.historyRecords.map((record) => record.id)).toEqual(['u1'])
+    })
+
+    it('backfills again after a bypass write stamped by a clock that had stepped back', () => {
+      // u2 is restored while the clock is behind u1's stamp, so count and max(updated_at) are
+      // unchanged; only a per-row comparison can see the write once the clock recovers.
+      const newest = createRecord({ id: 'u1', orderSeq: 1, updatedAt: 4_000 })
+      const failed = createRecord({ id: 'u2', orderSeq: 2, status: 'error', updatedAt: 2_000 })
+      const { service, messageStore, entries, setRecords } = createReconcileHarness([
+        newest,
+        failed
+      ])
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      setRecords([newest, { ...failed, status: 'sent', updatedAt: 3_000 }])
+      const result = service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(
+        entries.filter((entry) => entry.kind === 'message' && entry.source_id === 'u2')
+      ).toHaveLength(2)
+      expect(result.historyRecords.map((record) => record.status)).toEqual(['sent', 'sent'])
+    })
+
+    it('backfills again when the Tape head moved under an unchanged transcript', () => {
+      // A restored backup keeps the copied incarnation but carries a different Tape.
+      const { service, messageStore, table, entries, backfillAttempts } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+      ])
+      service.ensureSessionTapeReady('s1', messageStore as any)
+      const attemptsAfterFirst = backfillAttempts()
+      const headAfterFirst = table.getMaxEntryId('s1')
+
+      entries.splice(entries.length - 1, 1)
+      expect(table.getMaxEntryId('s1')).toBeLessThan(headAfterFirst)
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+    })
+
+    it('does not remember a backfill performed inside a host transaction', () => {
+      const { service, messageStore, table, backfillAttempts } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+      ])
+      table.runInTransaction(() => service.ensureSessionTapeReady('s1', messageStore as any))
+      const attemptsAfterFirst = backfillAttempts()
+
+      service.ensureSessionTapeReady('s1', messageStore as any)
+
+      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+    })
+  })
+
   it('keeps A to B to A tool result revisions effective during backfill', () => {
     const { table, entries } = createTapeTableMock()
     let response = 'response-a'

@@ -25,7 +25,7 @@ export { tapeEntryToMessageRecord } from '@/tape/domain/effectiveSemantics'
 export type { TapeFactSource } from '@/tape/domain/facts'
 
 type TapeFactWriter = Pick<TapeEntryStore, 'append' | 'appendEvent'> & TapeBootstrapStore
-type TapeFactStore = TapeFactWriter & Pick<TapeEntryStore, 'getBySessionExcludingContext'>
+type TapeFactStore = TapeFactWriter & Pick<TapeEntryStore, 'getEffectiveViewInputRows'>
 
 interface TapeToolRevisionState {
   semanticFingerprint: string
@@ -271,6 +271,21 @@ function describeTapeToolFact(input: TapeToolFactInput): {
     prepared,
     semanticFingerprint: buildToolFactSemanticFingerprint(prepared)
   }
+}
+
+/**
+ * The provenance key a live `appendTapeToolFact` would assign to this input; null when the input
+ * is not appendable. Callers use it to recognise facts they already appended without a lookup.
+ */
+export function buildTapeToolFactProvenanceKey(input: TapeToolFactInput): string | null {
+  const prepared = prepareTapeToolFact(input)
+  if (!prepared) return null
+  return buildToolFactProvenanceKey(
+    prepared.kind,
+    input.messageId,
+    prepared.toolCallId,
+    prepared.payload
+  )
 }
 
 export function buildTapeToolRevisionIndex(rows: DeepChatTapeEntryRow[]): TapeToolRevisionIndex {
@@ -519,7 +534,7 @@ export function appendMessageReplacementToTape(
   const toolInputs = options.revisionKind === 'record' ? buildTapeToolFactInputs(record) : []
   const toolRevisionIndex =
     toolInputs.length > 0
-      ? buildTapeToolRevisionIndex(table.getBySessionExcludingContext(record.sessionId))
+      ? buildTapeToolRevisionIndex(table.getEffectiveViewInputRows(record.sessionId))
       : null
 
   table.append({
