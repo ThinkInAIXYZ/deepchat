@@ -85,24 +85,20 @@ function expectParity(
  * (skill materialization) hash it, so the shared fixture pins the bootstrap explicitly and lets
  * the store's own bootstrap become a no-op.
  */
-function bootstrap(store: Store, sessionId: string) {
+function bootstrap(store: Store, sessionId: string, incarnation: string) {
   store.appendAnchor({
     sessionId,
     name: 'session/start',
     source: { type: 'session', id: sessionId, seq: 0 },
     state: { owner: 'human' },
-    meta: {
-      [TAPE_INCARNATION_META_KEY]: `00000000-0000-4000-8000-${sessionId
-        .replace(/\D/g, '')
-        .padStart(12, '0')}`
-    },
+    meta: { [TAPE_INCARNATION_META_KEY]: incarnation },
     idempotent: true
   })
   store.ensureBootstrapAnchor(sessionId)
 }
 
 function seedConversation(store: Store) {
-  bootstrap(store, SESSION)
+  bootstrap(store, SESSION, '00000000-0000-4000-8000-000000000001')
   store.append({
     sessionId: SESSION,
     kind: 'message',
@@ -237,7 +233,7 @@ function seedConversation(store: Store) {
     }
   ])
 
-  bootstrap(store, OTHER_SESSION)
+  bootstrap(store, OTHER_SESSION, '00000000-0000-4000-8000-000000000002')
   store.append({
     sessionId: OTHER_SESSION,
     kind: 'message',
@@ -364,28 +360,46 @@ describe('Tape table mock contract', () => {
         { kind: 'event', name: 'provider/attempt_completed' },
         { kind: 'event', name: 'compaction/model_call_completed' }
       ] as const
-      const offNamespace = { sessionId: SESSION, name: 'view/assembled', data: {} } as never
-      const crossings: Array<[string, (store: Store) => unknown]> = [
-        ...reserved.map(({ kind, name }): [string, (store: Store) => unknown] => [
-          `generic append of ${kind}:${name}`,
-          (store) => store.append({ sessionId: SESSION, kind, name, payload: {} })
-        ]),
-        ['journal writer', (store) => store.appendExecutionJournalEvent(offNamespace)],
-        ['tool-surface writer', (store) => store.appendToolSurfaceEvent(offNamespace)],
-        ['provider-attempt writer', (store) => store.appendProviderAttemptEvent(offNamespace)],
-        ['compaction-usage writer', (store) => store.appendCompactionModelCallEvent(offNamespace)]
-      ]
-      for (const [label, run] of crossings) {
-        const real = outcome(() => run(stores.real))
-        expect(
-          outcome(() => run(stores.mock)),
-          label
-        ).toBe(real)
-        expect(real, label).not.toBe('accepted')
+      const sameRejection = (label: string, real: () => unknown, mock: () => unknown) => {
+        const rejection = outcome(real)
+        expect(outcome(mock), label).toBe(rejection)
+        expect(rejection, label).not.toBe('accepted')
       }
-      const contract = outcome(() => stores.realContract.appendContractEvent(offNamespace))
-      expect(outcome(() => stores.mock.appendContractEvent(offNamespace))).toBe(contract)
-      expect(contract).not.toBe('accepted')
+      for (const { kind, name } of reserved) {
+        const input = { sessionId: SESSION, kind, name, payload: {} }
+        sameRejection(
+          `generic append of ${kind}:${name}`,
+          () => stores.real.append(input),
+          () => stores.mock.append(input)
+        )
+      }
+      // A strict writer may not step outside its own facts either.
+      const foreign = { sessionId: SESSION, name: 'view/assembled', data: {} } as never
+      sameRejection(
+        'journal writer',
+        () => stores.real.appendExecutionJournalEvent(foreign),
+        () => stores.mock.appendExecutionJournalEvent(foreign)
+      )
+      sameRejection(
+        'contract writer',
+        () => stores.realContract.appendContractEvent(foreign),
+        () => stores.mock.appendContractEvent(foreign)
+      )
+      sameRejection(
+        'tool-surface writer',
+        () => stores.real.appendToolSurfaceEvent(foreign),
+        () => stores.mock.appendToolSurfaceEvent(foreign)
+      )
+      sameRejection(
+        'provider-attempt writer',
+        () => stores.real.appendProviderAttemptEvent(foreign),
+        () => stores.mock.appendProviderAttemptEvent(foreign)
+      )
+      sameRejection(
+        'compaction-usage writer',
+        () => stores.real.appendCompactionModelCallEvent(foreign),
+        () => stores.mock.appendCompactionModelCallEvent(foreign)
+      )
       expectParity(stores, { session: (store) => store.getBySession(SESSION) })
     } finally {
       stores.close()

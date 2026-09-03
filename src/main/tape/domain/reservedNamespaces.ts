@@ -18,83 +18,73 @@ export type TapeReservedNamespace =
   | 'provider-attempt'
   | 'compaction-usage'
 
-type ReservedAppendInput = Pick<DeepChatTapeAppendInput, 'kind' | 'name'>
-
-const includesName = (names: readonly string[], name: string | null | undefined) =>
-  typeof name === 'string' && names.includes(name)
-
-/** What each strict writer is allowed to append, and how an off-namespace name is reported. */
-const STRICT_WRITER_FACTS: Record<
-  TapeReservedNamespace,
-  { accepts: (input: ReservedAppendInput) => boolean; label: string }
-> = {
-  execution: {
-    accepts: ({ name }) => includesName(EXECUTION_JOURNAL_EVENT_NAMES, name),
-    label: 'Execution Journal event name'
-  },
-  contract: {
-    accepts: ({ name }) => includesName(CONTRACT_TAPE_EVENT_NAMES, name),
-    label: 'Contract event name'
-  },
-  'tool-surface': {
-    accepts: ({ name }) => isToolSurfaceTapeReservedName(name),
-    label: 'View Tool Surface event name'
-  },
-  'skill-materialized': {
-    accepts: ({ kind, name }) => kind === 'context' && name === SKILL_MATERIALIZATION_NAME,
-    label: 'Skill materialization fact'
-  },
-  'provider-attempt': {
-    accepts: ({ name }) => name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
-    label: 'provider-attempt event name'
-  },
-  'compaction-usage': {
-    accepts: ({ name }) => name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
-    label: 'compaction-usage event name'
-  }
-}
-
 /**
  * Rejects an append that crosses a namespace boundary. Every Tape store implementation,
  * including test doubles, runs this before persisting a row so the reserved set and the
  * strict-writer name sets have a single source of truth.
  */
 export function assertTapeAppendAuthorized(
-  input: ReservedAppendInput,
+  { kind, name }: Pick<DeepChatTapeAppendInput, 'kind' | 'name'>,
   authorizedNamespace: TapeReservedNamespace | null
 ): void {
   if (authorizedNamespace) {
-    const writer = STRICT_WRITER_FACTS[authorizedNamespace]
-    if (!writer.accepts(input)) {
-      throw new Error(`Unsupported ${writer.label}: ${input.name}.`)
-    }
+    const rejected = strictWriterRejection(authorizedNamespace, kind, name)
+    if (rejected) throw new Error(`Unsupported ${rejected}: ${name}.`)
     return
   }
-  if (isExecutionJournalReservedName(input.name)) {
+  if (isExecutionJournalReservedName(name)) {
     throw new Error(
       'The execution/* namespace is reserved for the strict Execution Journal writer.'
     )
   }
-  if (isContractTapeReservedName(input.name)) {
+  if (isContractTapeReservedName(name)) {
     throw new Error('The contract/* namespace is reserved for the strict Contract writer.')
   }
-  if (isToolSurfaceTapeReservedName(input.name)) {
+  if (isToolSurfaceTapeReservedName(name)) {
     throw new Error('The View Tool Surface namespace is reserved for its provenance writer.')
   }
-  if (input.name === SKILL_MATERIALIZATION_NAME) {
+  if (name === SKILL_MATERIALIZATION_NAME) {
     throw new Error('skill/materialized is reserved for the strict materialization writer.')
   }
-  if (input.kind === 'context') {
+  if (kind === 'context') {
     throw new Error('The context entry kind is reserved for the strict materialization writer.')
   }
-  if (input.name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME) {
+  if (name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME) {
     throw new Error(
       'provider/attempt_completed is reserved for the strict provider-attempt writer.'
     )
   }
-  if (input.name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME) {
+  if (name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME) {
     throw new Error(
       'compaction/model_call_completed is reserved for the strict compaction-usage writer.'
     )
+  }
+}
+
+/** Names the rejected fact when a strict writer steps outside its own facts; null when allowed. */
+function strictWriterRejection(
+  namespace: TapeReservedNamespace,
+  kind: DeepChatTapeAppendInput['kind'],
+  name: DeepChatTapeAppendInput['name']
+): string | null {
+  switch (namespace) {
+    case 'execution':
+      return (EXECUTION_JOURNAL_EVENT_NAMES as readonly string[]).includes(name ?? '')
+        ? null
+        : 'Execution Journal event name'
+    case 'contract':
+      return (CONTRACT_TAPE_EVENT_NAMES as readonly string[]).includes(name ?? '')
+        ? null
+        : 'Contract event name'
+    case 'tool-surface':
+      return isToolSurfaceTapeReservedName(name) ? null : 'View Tool Surface event name'
+    case 'skill-materialized':
+      return kind === 'context' && name === SKILL_MATERIALIZATION_NAME
+        ? null
+        : 'Skill materialization fact'
+    case 'provider-attempt':
+      return name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME ? null : 'provider-attempt event name'
+    case 'compaction-usage':
+      return name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME ? null : 'compaction-usage event name'
   }
 }
