@@ -28,6 +28,7 @@ function createChild(overrides: Partial<ConversationSessionInfo> = {}): Conversa
     projectDir: '/repo',
     permissionMode: 'default',
     orchestrationPolicy: 'explicit',
+    toolModeOverride: null,
     generationSettings: { systemPrompt: 'Current prompt' },
     disabledAgentTools: [],
     activeSkills: [],
@@ -56,7 +57,8 @@ function createHarness(overrides: Partial<ConversationSessionInfo> = {}) {
     permissionMode: BASE_INPUT.parentPermissionMode,
     generationSettings: child?.generationSettings ?? undefined,
     disabledAgentTools: child?.disabledAgentTools ?? [],
-    activeSkills: child?.activeSkills ?? []
+    activeSkills: child?.activeSkills ?? [],
+    toolModeOverride: null
   }))
   const clearSessionPermissions = vi.fn(() => events.push('clear'))
   const setPermissionMode = vi.fn(async (_sessionId: string, permissionMode: string) => {

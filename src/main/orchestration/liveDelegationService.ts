@@ -1058,6 +1058,7 @@ export class LiveDelegationService {
           providerId: executionSnapshot.providerId,
           modelId: executionSnapshot.modelId,
           permissionMode: safety.parent.permissionMode,
+          toolModeOverride: executionSnapshot.toolModeOverride,
           generationSettings: executionSnapshot.generationSettings ?? undefined,
           disabledAgentTools: safety.parent.disabledAgentTools,
           activeSkills: safety.parent.activeSkills,
@@ -2032,7 +2033,8 @@ function createTurnExecutionSnapshot(
     modelId: session.modelId,
     generationSettings: session.generationSettings
       ? structuredClone(session.generationSettings)
-      : null
+      : null,
+    toolModeOverride: session.toolModeOverride
   }
 }
 

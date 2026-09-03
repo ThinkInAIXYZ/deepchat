@@ -1,4 +1,5 @@
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { normalizeToolModeOverride } from '@shared/toolMode'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
@@ -123,7 +124,8 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         permissionMode: resolveAssignmentPermissionMode(input.permissionMode),
         generationSettings: { systemPrompt: '' },
         disabledAgentTools: [],
-        activeSkills: []
+        activeSkills: [],
+        toolModeOverride: null
       }
     }
 
@@ -132,6 +134,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
     const parentAgentId = input.parentAgentId?.trim() || null
     const isCrossAgent = Boolean(parentAgentId && parentAgentId !== descriptor.id)
     const targetAgentId = input.targetAgentId?.trim() ? descriptor.id : null
+    const toolModeOverride = normalizeToolModeOverride(input.toolModeOverride)
 
     if (!isCrossAgent) {
       return {
@@ -142,7 +145,8 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         permissionMode: resolveAssignmentPermissionMode(input.permissionMode),
         generationSettings: input.generationSettings,
         disabledAgentTools: normalizeDisabledAgentTools(input.disabledAgentTools),
-        activeSkills: normalizeActiveSkills(input.activeSkills)
+        activeSkills: normalizeActiveSkills(input.activeSkills),
+        toolModeOverride
       }
     }
 
@@ -172,7 +176,8 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         { disabledAgentTools: input.disabledAgentTools },
         { disabledAgentTools: agentConfig?.disabledAgentTools }
       ).disabledAgentTools,
-      activeSkills: normalizeActiveSkills(input.activeSkills)
+      activeSkills: normalizeActiveSkills(input.activeSkills),
+      toolModeOverride
     }
   }
 
