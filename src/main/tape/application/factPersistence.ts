@@ -273,6 +273,21 @@ function describeTapeToolFact(input: TapeToolFactInput): {
   }
 }
 
+/**
+ * The provenance key a live `appendTapeToolFact` would assign to this input; null when the input
+ * is not appendable. Callers use it to recognise facts they already appended without a lookup.
+ */
+export function buildTapeToolFactProvenanceKey(input: TapeToolFactInput): string | null {
+  const prepared = prepareTapeToolFact(input)
+  if (!prepared) return null
+  return buildToolFactProvenanceKey(
+    prepared.kind,
+    input.messageId,
+    prepared.toolCallId,
+    prepared.payload
+  )
+}
+
 export function buildTapeToolRevisionIndex(rows: DeepChatTapeEntryRow[]): TapeToolRevisionIndex {
   const revisions: TapeToolRevisionIndex = new Map()
   for (const row of rows) {
