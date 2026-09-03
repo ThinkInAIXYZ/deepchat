@@ -20,7 +20,12 @@ import {
   DeepChatTapeEntriesTable
 } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import { SUMMARY_ANCHOR_NAMES } from '@/tape/domain/entry'
 import { EXECUTION_JOURNAL_EVENT_NAMES } from '@/tape/domain/executionJournal'
+import {
+  assertTapeAppendAuthorized,
+  type TapeReservedNamespace
+} from '@/tape/domain/reservedNamespaces'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import type { TapeTransactionRunner } from '@/tape/ports/storage'
 import {
@@ -115,11 +120,60 @@ function createTapeTableMock() {
   const runInTransactionMock = vi.fn((operation: () => unknown) =>
     runInTransaction(operation)
   ) as ReturnType<typeof vi.fn> & TapeTransactionRunner['runInTransaction']
+  const appendInternal = (input: any, authorizedNamespace: TapeReservedNamespace | null) => {
+    assertTapeAppendAuthorized(input, authorizedNamespace)
+    const provenanceKey =
+      input.provenanceKey !== undefined
+        ? input.provenanceKey
+        : input.source
+          ? [
+              input.source.type,
+              input.source.id,
+              input.source.seq ?? 0,
+              input.kind,
+              input.name ?? ''
+            ].join(':')
+          : null
+    const existing =
+      input.idempotent && provenanceKey
+        ? entries.find(
+            (entry) =>
+              entry.session_id === input.sessionId && entry.provenance_key === provenanceKey
+          )
+        : null
+    if (existing) {
+      return existing
+    }
+    const row = {
+      session_id: input.sessionId,
+      entry_id:
+        Math.max(
+          0,
+          ...entries
+            .filter((entry) => entry.session_id === input.sessionId)
+            .map((entry) => entry.entry_id)
+        ) + 1,
+      kind: input.kind,
+      name: input.name ?? null,
+      source_type: input.source?.type ?? null,
+      source_id: input.source?.id ?? null,
+      source_seq: input.source?.seq ?? null,
+      provenance_key: provenanceKey,
+      payload_json: JSON.stringify(input.payload ?? {}),
+      meta_json: JSON.stringify(input.meta ?? {}),
+      created_at: input.createdAt ?? Date.now()
+    }
+    entries.push(row)
+    return row
+  }
+  const appendEventAs = (authorizedNamespace: TapeReservedNamespace) => (input: any) =>
+    appendInternal(
+      { ...input, kind: 'event', payload: { name: input.name, data: input.data } },
+      authorizedNamespace
+    )
   const table = {
     ensureBootstrapAnchor: vi.fn((sessionId: string) => {
-      if (
-        entries.some((entry) => entry.session_id === sessionId && entry.name === 'session/start')
-      ) {
+      if (entries.some((entry) => entry.session_id === sessionId && entry.kind === 'anchor')) {
         return
       }
       table.appendAnchor({
@@ -136,51 +190,7 @@ function createTapeTableMock() {
         idempotent: true
       })
     }),
-    append: vi.fn((input: any) => {
-      const provenanceKey =
-        input.provenanceKey !== undefined
-          ? input.provenanceKey
-          : input.source
-            ? [
-                input.source.type,
-                input.source.id,
-                input.source.seq ?? 0,
-                input.kind,
-                input.name ?? ''
-              ].join(':')
-            : null
-      const existing =
-        input.idempotent && provenanceKey
-          ? entries.find(
-              (entry) =>
-                entry.session_id === input.sessionId && entry.provenance_key === provenanceKey
-            )
-          : null
-      if (existing) {
-        return existing
-      }
-      const row = {
-        session_id: input.sessionId,
-        entry_id:
-          Math.max(
-            0,
-            ...entries
-              .filter((entry) => entry.session_id === input.sessionId)
-              .map((entry) => entry.entry_id)
-          ) + 1,
-        kind: input.kind,
-        name: input.name ?? null,
-        source_type: input.source?.type ?? null,
-        source_id: input.source?.id ?? null,
-        source_seq: input.source?.seq ?? null,
-        provenance_key: provenanceKey,
-        payload_json: JSON.stringify(input.payload ?? {}),
-        meta_json: JSON.stringify(input.meta ?? {}),
-        created_at: input.createdAt ?? Date.now()
-      }
-      entries.push(row)
-      return row
-    }),
+    append: vi.fn((input: any) => appendInternal(input, null)),
     appendAnchor: vi.fn((input: any) =>
       table.append({
         ...input,
@@ -195,46 +205,25 @@ function createTapeTableMock() {
         payload: { name: input.name, data: input.data }
       })
     ),
-    appendProviderAttemptEvent: vi.fn((input: any) =>
-      table.append({
-        ...input,
-        kind: 'event',
-        payload: { name: input.name, data: input.data }
-      })
-    ),
-    appendCompactionModelCallEvent: vi.fn((input: any) =>
-      table.append({
-        ...input,
-        kind: 'event',
-        payload: { name: input.name, data: input.data }
-      })
-    ),
+    appendProviderAttemptEvent: vi.fn(appendEventAs('provider-attempt')),
+    appendCompactionModelCallEvent: vi.fn(appendEventAs('compaction-usage')),
     appendSkillMaterialization: vi.fn((input: any) =>
-      table.append({
-        sessionId: input.sessionId,
-        kind: 'context',
-        name: 'skill/materialized',
-        source: { type: 'runtime_event', id: input.sourceId, seq: 0 },
-        provenanceKey: input.provenanceKey,
-        payload: input.payload,
-        meta: { payloadHash: input.payloadHash },
-        idempotent: true
-      })
+      appendInternal(
+        {
+          sessionId: input.sessionId,
+          kind: 'context',
+          name: 'skill/materialized',
+          source: { type: 'runtime_event', id: input.sourceId, seq: 0 },
+          provenanceKey: input.provenanceKey,
+          payload: input.payload,
+          meta: { payloadHash: input.payloadHash },
+          idempotent: true
+        },
+        'skill-materialized'
+      )
     ),
-    appendExecutionJournalEvent: vi.fn((input: any) =>
-      table.append({
-        ...input,
-        kind: 'event',
-        payload: { name: input.name, data: input.data }
-      })
-    ),
-    appendToolSurfaceEvent: vi.fn((input: any) =>
-      table.append({
-        ...input,
-        kind: 'event',
-        payload: { name: input.name, data: input.data }
-      })
-    ),
+    appendExecutionJournalEvent: vi.fn(appendEventAs('execution')),
+    appendToolSurfaceEvent: vi.fn(appendEventAs('tool-surface')),
     listUnterminatedRunEvents: vi.fn(() => {
       const unterminatedRuns = entries
         .filter(
@@ -255,30 +244,35 @@ function createTapeTableMock() {
             )
         )
         .map((entry) => ({ sessionId: entry.session_id, runId: entry.source_id! }))
-      return unterminatedRuns.flatMap((run) =>
-        entries.flatMap((entry) => {
-          if (entry.session_id !== run.sessionId) return []
-          const data = parseJsonRecord(entry.payload_json).data ?? {}
-          const matchesSource =
-            entry.kind === 'event' &&
-            entry.source_type === 'runtime_event' &&
-            entry.source_id === run.runId &&
-            EXECUTION_JOURNAL_EVENT_NAMES.some((name) => entry.name === name)
-          const matchesPayload =
-            entry.kind === 'event' &&
-            (entry.name === 'execution/dispatch_committed' ||
-              entry.name === 'execution/tool_outcome') &&
-            data.protocolVersion === 2 &&
-            data.operation?.runId === run.runId
-          const matchesParent = providerOperationKeys(run.sessionId, run.runId).some(
-            (operationKey) =>
-              entry.provenance_key?.startsWith(`execution:v2:parent:${operationKey}:`)
-          )
-          return matchesSource || matchesPayload || matchesParent
-            ? [{ ...entry, recovery_run_id: run.runId }]
-            : []
-        })
-      )
+      return unterminatedRuns
+        .flatMap((run) =>
+          entries.flatMap((entry) => {
+            if (entry.session_id !== run.sessionId) return []
+            const data = parseJsonRecord(entry.payload_json).data ?? {}
+            const matchesSource =
+              entry.kind === 'event' &&
+              entry.source_type === 'runtime_event' &&
+              entry.source_id === run.runId &&
+              EXECUTION_JOURNAL_EVENT_NAMES.some((name) => entry.name === name)
+            const matchesPayload =
+              entry.kind === 'event' &&
+              (entry.name === 'execution/dispatch_committed' ||
+                entry.name === 'execution/tool_outcome') &&
+              data.protocolVersion === 2 &&
+              data.operation?.runId === run.runId
+            const matchesParent = providerOperationKeys(run.sessionId, run.runId).some(
+              (operationKey) =>
+                entry.provenance_key?.startsWith(`execution:v2:parent:${operationKey}:`)
+            )
+            return matchesSource || matchesPayload || matchesParent
+              ? [{ ...entry, recovery_run_id: run.runId }]
+              : []
+          })
+        )
+        .sort(
+          (left, right) =>
+            left.session_id.localeCompare(right.session_id) || left.entry_id - right.entry_id
+        )
     }),
     listNestedOperationEventsForMessage: vi.fn(
       (sessionId: string, messageId: string, maximumOperations: number) => {
@@ -572,9 +566,7 @@ function createTapeTableMock() {
             (entry) =>
               entry.session_id === sessionId &&
               entry.kind === 'anchor' &&
-              ['compaction/migrated_summary', 'compaction/manual', 'summary/reset'].includes(
-                entry.name
-              )
+              SUMMARY_ANCHOR_NAMES.includes(entry.name)
           )
           .sort((left, right) => right.entry_id - left.entry_id)[0]
     ),
@@ -595,18 +587,23 @@ function createTapeTableMock() {
         entries.filter((entry) => entry.session_id === sessionId && entry.entry_id > entryId).length
     ),
     search: vi.fn((sessionId: string, query: string, options: any = {}) => {
-      const normalizedQuery = query.trim()
+      // Mirrors the store's LIKE predicate: the whole phrase, or every whitespace token,
+      // matched case-insensitively against payload, meta and name.
+      const normalizedQuery = query.trim().toLowerCase()
       if (!normalizedQuery) {
         return []
       }
+      const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+      const matchesQuery = (haystack: string) =>
+        haystack.includes(normalizedQuery) ||
+        (tokens.length > 1 && tokens.every((token) => haystack.includes(token)))
       const limit = Number.isFinite(options.limit) ? Math.floor(options.limit) : 20
       return entries
         .filter((entry) => entry.session_id === sessionId && entry.kind !== 'context')
-        .filter(
-          (entry) =>
-            entry.payload_json.includes(normalizedQuery) ||
-            entry.meta_json.includes(normalizedQuery) ||
-            entry.name?.includes(normalizedQuery)
+        .filter((entry) =>
+          matchesQuery(
+            `${entry.payload_json}\n${entry.meta_json}\n${entry.name ?? ''}`.toLowerCase()
+          )
         )
         .filter((entry) => !options.kinds?.length || options.kinds.includes(entry.kind))
         .filter(

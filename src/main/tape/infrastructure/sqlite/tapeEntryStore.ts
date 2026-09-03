@@ -19,20 +19,18 @@ import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
 import { parseTapeJsonObject } from '@/tape/domain/effectiveSemantics'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
-  isExecutionJournalReservedName,
   type ExecutionJournalEventName,
   type ExecutionJournalRecoveryRow
 } from '@/tape/domain/executionJournal'
+import { CONTRACT_TAPE_EVENT_NAMES, type ContractTapeEventName } from '@/tape/domain/contractFacts'
 import {
-  CONTRACT_TAPE_EVENT_NAMES,
-  isContractTapeReservedName,
-  type ContractTapeEventName
-} from '@/tape/domain/contractFacts'
-import {
-  isToolSurfaceTapeReservedName,
   TOOL_SURFACE_TAPE_EVENT_NAMES,
   type ToolSurfaceTapeEventName
 } from '@/tape/domain/toolSurfaceFacts'
+import {
+  assertTapeAppendAuthorized,
+  type TapeReservedNamespace
+} from '@/tape/domain/reservedNamespaces'
 import { SKILL_MATERIALIZATION_NAME } from '@/tape/domain/skillMaterialization'
 import {
   TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
@@ -828,48 +826,9 @@ export class DeepChatTapeEntriesTable
 
   protected appendInternal(
     input: DeepChatTapeAppendInput,
-    authorizedNamespace:
-      | 'execution'
-      | 'contract'
-      | 'tool-surface'
-      | 'skill-materialized'
-      | 'provider-attempt'
-      | 'compaction-usage'
-      | null
+    authorizedNamespace: TapeReservedNamespace | null
   ): DeepChatTapeEntryRow {
-    if (authorizedNamespace !== 'execution' && isExecutionJournalReservedName(input.name)) {
-      throw new Error(
-        'The execution/* namespace is reserved for the strict Execution Journal writer.'
-      )
-    }
-    if (authorizedNamespace !== 'contract' && isContractTapeReservedName(input.name)) {
-      throw new Error('The contract/* namespace is reserved for the strict Contract writer.')
-    }
-    if (authorizedNamespace !== 'tool-surface' && isToolSurfaceTapeReservedName(input.name)) {
-      throw new Error('The View Tool Surface namespace is reserved for its provenance writer.')
-    }
-    if (authorizedNamespace !== 'skill-materialized' && input.name === SKILL_MATERIALIZATION_NAME) {
-      throw new Error('skill/materialized is reserved for the strict materialization writer.')
-    }
-    if (authorizedNamespace !== 'skill-materialized' && input.kind === 'context') {
-      throw new Error('The context entry kind is reserved for the strict materialization writer.')
-    }
-    if (
-      authorizedNamespace !== 'provider-attempt' &&
-      input.name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME
-    ) {
-      throw new Error(
-        'provider/attempt_completed is reserved for the strict provider-attempt writer.'
-      )
-    }
-    if (
-      authorizedNamespace !== 'compaction-usage' &&
-      input.name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME
-    ) {
-      throw new Error(
-        'compaction/model_call_completed is reserved for the strict compaction-usage writer.'
-      )
-    }
+    assertTapeAppendAuthorized(input, authorizedNamespace)
     const append = this.db.transaction(() => {
       const provenanceKey = buildProvenanceKey(input)
       if (input.idempotent && provenanceKey) {
