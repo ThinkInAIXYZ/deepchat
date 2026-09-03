@@ -322,7 +322,7 @@ export class TapeViewReplayService {
     messageId?: string
   ): TapeViewManifestAssemblySources {
     const table = this.table
-    const rows = table.getBySessionExcludingContext(sessionId)
+    const rows = table.getEffectiveViewInputRows(sessionId)
     const entryIdByMessageId = new Map<string, number>()
     const messageContentHashByMessageId = new Map<string, string>()
     const toolCallEntryIdByToolId = new Map<string, number>()

@@ -87,6 +87,8 @@ export interface TapeEntryStore {
     limit: number
   ): DeepChatTapeEntryRow[]
   getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[]
+  /** Rows selected by `isEffectiveViewInputRow`, ordered by entry_id. */
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[]
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[]
   getMessageSourceEntries(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
   getLatestViewManifestEvent(sessionId: string): DeepChatTapeEntryRow | undefined

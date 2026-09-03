@@ -25,7 +25,7 @@ export { tapeEntryToMessageRecord } from '@/tape/domain/effectiveSemantics'
 export type { TapeFactSource } from '@/tape/domain/facts'
 
 type TapeFactWriter = Pick<TapeEntryStore, 'append' | 'appendEvent'> & TapeBootstrapStore
-type TapeFactStore = TapeFactWriter & Pick<TapeEntryStore, 'getBySessionExcludingContext'>
+type TapeFactStore = TapeFactWriter & Pick<TapeEntryStore, 'getEffectiveViewInputRows'>
 
 interface TapeToolRevisionState {
   semanticFingerprint: string
@@ -519,7 +519,7 @@ export function appendMessageReplacementToTape(
   const toolInputs = options.revisionKind === 'record' ? buildTapeToolFactInputs(record) : []
   const toolRevisionIndex =
     toolInputs.length > 0
-      ? buildTapeToolRevisionIndex(table.getBySessionExcludingContext(record.sessionId))
+      ? buildTapeToolRevisionIndex(table.getEffectiveViewInputRows(record.sessionId))
       : null
 
   table.append({

@@ -1259,6 +1259,22 @@ export class DeepChatTapeEntriesTable
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
+  /** SQL mirror of `isEffectiveViewInputRow`; skips the bulky rows the effective view ignores. */
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND (
+             kind IN ('message', 'tool_call', 'tool_result', 'anchor')
+             OR (kind = 'event' AND name = 'message/retracted')
+           )
+         ORDER BY entry_id ASC`
+      )
+      .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[] {
     const normalizedIds = [...new Set(entryIds)]
       .filter((entryId) => Number.isSafeInteger(entryId) && entryId > 0)

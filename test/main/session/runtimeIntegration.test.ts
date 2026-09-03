@@ -14,6 +14,7 @@ import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
+import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { createPassthroughModelRequestPolicy } from '@shared/modelRequestPolicy'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 
@@ -172,6 +173,11 @@ function createMockSqlitePresenter() {
     ),
     getBySessionExcludingContext: vi.fn((sessionId: string) =>
       tapeEntries.filter((entry) => entry.session_id === sessionId && entry.kind !== 'context')
+    ),
+    getEffectiveViewInputRows: vi.fn((sessionId: string) =>
+      tapeEntries.filter(
+        (entry) => entry.session_id === sessionId && isEffectiveViewInputRow(entry)
+      )
     ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const requestedIds = new Set(entryIds)

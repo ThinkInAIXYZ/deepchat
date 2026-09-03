@@ -40,9 +40,7 @@ export class TapeReconcilerService {
     table.ensureBootstrapAnchor(sessionId)
 
     let appendedFactCount = 0
-    const toolRevisionIndex = buildTapeToolRevisionIndex(
-      table.getBySessionExcludingContext(sessionId)
-    )
+    const toolRevisionIndex = buildTapeToolRevisionIndex(table.getEffectiveViewInputRows(sessionId))
     for (const record of historyRecords) {
       appendedFactCount += appendMessageRecordToTape(table, record, 'backfill', {
         toolRevisionIndex
