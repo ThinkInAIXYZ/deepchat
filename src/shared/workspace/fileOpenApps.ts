@@ -1,60 +1,29 @@
-/**
- * Registry of editors, IDEs and terminals offered in the workspace "open with" picker.
- * Icons are not listed here: the main process reads each application's real icon
- * from the OS, and the renderer falls back to a placeholder per app kind.
- */
-
 export type WorkspaceFileOpenAppKind = 'editor' | 'terminal'
 
-/**
- * Command override for launching an app on a platform. `{path}` is substituted
- * with the target path (the file for editors, its directory for terminals).
- *
- * Needed because terminals do not accept a bare positional path: `wt.exe <dir>`
- * treats it as a command to run, and `gio launch` drops positional arguments for
- * desktop entries without `%f`/`%U` field codes, so the terminal would open in
- * the home directory instead.
- */
+/** Platform arguments use `{path}` for the file or terminal working directory. */
 export type WorkspaceFileOpenAppLaunch = {
-  /** Executable to run. Defaults to the detected launch target when omitted. */
   command?: string
-  /** Argument template; `{path}` is replaced with the target path. */
   args: string[]
 }
 
 export type WorkspaceFileOpenAppDefinition = {
-  /** Stable identifier used across IPC; never a filesystem path. */
+  /** Stable IPC identifier; never a filesystem path. */
   id: string
-  /** Display name shown in the picker. */
   name: string
   kind: WorkspaceFileOpenAppKind
-  /** macOS bundle identifiers, most specific first. */
   bundleIds?: string[]
-  /** Windows executable basenames looked up via App Paths / PATH. */
   executables?: string[]
-  /** Linux desktop entry ids. */
   desktopIds?: string[]
-  /**
-   * Per-platform launch overrides. macOS is absent on purpose: `open -a <app>
-   * <dir>` already opens terminals at that directory (verified for Terminal.app
-   * and Ghostty).
-   */
   launch?: {
     win32?: WorkspaceFileOpenAppLaunch
     linux?: WorkspaceFileOpenAppLaunch
   }
 }
 
-/** Substitute the target path into an argument template. */
 export function buildLaunchArgs(template: readonly string[], targetPath: string): string[] {
   return template.map((arg) => arg.replace('{path}', targetPath))
 }
 
-/**
- * Only mainstream editors, IDEs and terminals are listed. Anything outside this
- * registry (browsers, note apps, generic viewers) is intentionally excluded from
- * the picker; the "open with system default" entry still covers those cases.
- */
 export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[] = [
   {
     id: 'vscode',
@@ -243,8 +212,8 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     launch: { linux: { command: 'ghostty', args: ['--working-directory={path}'] } }
   },
   {
-    // ponytail: Warp has no documented working-directory flag, so on Linux it
-    // opens at its own default directory. Add an override if one lands.
+    // Warp has no documented working-directory flag, so on Linux it opens at
+    // its own default directory. Add an override if one lands.
     id: 'warp',
     name: 'Warp',
     kind: 'terminal',
@@ -269,7 +238,6 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     kind: 'terminal',
     bundleIds: ['net.kovidgoyal.kitty'],
     desktopIds: ['kitty.desktop'],
-    // kitty reads a positional argument as the program to run, not a directory.
     launch: { linux: { command: 'kitty', args: ['--directory', '{path}'] } }
   },
   {
@@ -291,7 +259,6 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     bundleIds: ['co.zeit.hyper'],
     executables: ['hyper.exe'],
     desktopIds: ['hyper.desktop'],
-    // Hyper takes the directory positionally; Linux still has to bypass `gio launch`.
     launch: { linux: { command: 'hyper', args: ['{path}'] } }
   },
   {
@@ -299,7 +266,6 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     name: 'Windows Terminal',
     kind: 'terminal',
     executables: ['wt.exe'],
-    // A positional argument is the command line wt runs, not the start directory.
     launch: { win32: { args: ['-d', '{path}'] } }
   },
   {

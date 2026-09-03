@@ -825,10 +825,6 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
 
     const normalizedPath = path.resolve(filePath)
-
-    // No fallback to the system default: launching a different app than the one
-    // the user picked, while reporting success, hides the failure. Let it reject
-    // so the renderer can surface it.
     await openFileWithApp(normalizedPath, appId)
   }
 

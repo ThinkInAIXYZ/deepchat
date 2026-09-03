@@ -15,34 +15,22 @@ const execFileAsync = promisify(execFile)
 
 const PROBE_TIMEOUT_MS = 8_000
 const LAUNCH_TIMEOUT_MS = 10_000
-/** Icons render at 16px; 32pt yields a crisp 64x64 bitmap on Retina. */
 const ICON_POINT_SIZE = 32
-/** Icon payload is ~7KB per app; the registry can exceed Node's 1MB default. */
+/** Allows batched macOS icon data to exceed Node's 1 MiB exec buffer. */
 const ICON_PROBE_MAX_BUFFER = 8 * 1024 * 1024
-/** Re-probe occasionally so apps installed while running eventually show up. */
 const INSTALLED_APPS_TTL_MS = 60_000
 
-/**
- * A detected app: how to launch it, plus its real icon as a PNG data URL.
- */
 type InstalledApp = {
   definition: WorkspaceFileOpenAppDefinition
   launchTarget: string
   iconDataUrl?: string
 }
 
-/** Detection is expensive but machine-global, so cache it behind a short TTL. */
 let installedAppsCache: { probedAt: number; apps: Promise<InstalledApp[]> } | null = null
-
-/** OS handler lists depend only on file type, so cache them per extension. */
 const handlerCache = new Map<string, Promise<Set<string>>>()
 
 /**
- * JXA batch probe: resolves each bundle id to its app path and renders the real
- * Launch Services icon to base64 PNG. One subprocess covers the whole registry.
- *
- * `NSWorkspace.iconForFile` is used rather than Electron's `app.getFileIcon`,
- * which returns a generic document icon for `.app` bundles on macOS.
+ * Batch probing uses one subprocess; NSWorkspace avoids generic icons returned for `.app` bundles.
  */
 const MACOS_PROBE_SCRIPT = `ObjC.import('AppKit')
 function run(argv) {
@@ -83,10 +71,6 @@ function run(argv) {
   return JSON.stringify(result)
 }`
 
-/**
- * JXA lookup of the applications Launch Services registers for a file, returned
- * as bundle identifiers so they can be matched against the registry.
- */
 const MACOS_HANDLERS_SCRIPT = `ObjC.import('AppKit')
 function run(argv) {
   const url = $.NSURL.fileURLWithPath(argv[0])
@@ -140,9 +124,6 @@ async function detectMacOSInstalledApps(): Promise<InstalledApp[]> {
   return installed
 }
 
-/**
- * Read the default value of a Windows registry key, or null when absent.
- */
 async function readRegistryDefault(key: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('reg', ['query', key, '/ve'], {
@@ -156,12 +137,7 @@ async function readRegistryDefault(key: string): Promise<string | null> {
 }
 
 /**
- * Resolve a Windows executable to a full path.
- *
- * HKCU is queried before HKLM because per-user installers (the default for VS
- * Code and Cursor) cannot write HKLM. The PATH fallback is last and filtered to
- * real executables: the CLI shims on PATH are `.cmd` wrappers, which cannot be
- * spawned directly and carry no icon.
+ * Prefer per-user App Paths and ignore PATH `.cmd` shims because spawn needs a real executable.
  */
 async function resolveWindowsExecutable(executable: string): Promise<string | null> {
   const appPathsSuffix = `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executable}`
@@ -186,8 +162,6 @@ async function resolveWindowsExecutable(executable: string): Promise<string | nu
 }
 
 async function detectWindowsInstalledApps(): Promise<InstalledApp[]> {
-  // Each definition costs up to 2 subprocess spawns per candidate executable, so
-  // probe definitions concurrently rather than serially.
   const results = await Promise.all(
     WORKSPACE_FILE_OPEN_APPS.map(async (definition) => {
       for (const executable of definition.executables ?? []) {
@@ -196,7 +170,6 @@ async function detectWindowsInstalledApps(): Promise<InstalledApp[]> {
           continue
         }
 
-        // On Windows the icon is attached to the executable, so Electron can read it.
         const icon = await app.getFileIcon(launchTarget, { size: 'normal' }).catch(() => null)
         return {
           definition,
@@ -230,10 +203,7 @@ function findDesktopEntry(desktopId: string): string | null {
   return null
 }
 
-/**
- * Read the `Icon=` value of a desktop entry. Only absolute paths are resolved;
- * themed icon names would need a full icon-theme lookup, so those get no icon.
- */
+/** Themed icon names are unsupported; resolving them requires the active icon theme. */
 function readLinuxDesktopIcon(entryPath: string): string | undefined {
   try {
     const content = fs.readFileSync(entryPath, 'utf-8')
@@ -294,10 +264,7 @@ async function listInstalledApps(): Promise<InstalledApp[]> {
   return apps
 }
 
-/**
- * Registry ids the OS reports as handlers for this file type. Used only for
- * ordering, so a detection failure degrades to registry order.
- */
+/** Handler detection only affects ordering; failures fall back to registry order. */
 async function listRegisteredHandlerIds(filePath: string): Promise<Set<string>> {
   if (process.platform !== 'darwin') {
     return new Set()
@@ -334,13 +301,6 @@ async function listRegisteredHandlerIds(filePath: string): Promise<Set<string>> 
   return pending
 }
 
-/**
- * List the installed editors, IDEs and terminals offered for a file.
- *
- * Editors the OS registers for this file type are listed first, then remaining
- * installed editors, then terminals. Terminals never register as file handlers,
- * so they are always included when installed.
- */
 export async function listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]> {
   const [installed, registeredIds] = await Promise.all([
     listInstalledApps(),
@@ -365,15 +325,8 @@ export async function listFileOpenApps(filePath: string): Promise<WorkspaceFileO
 }
 
 /**
- * Launch a file with one of the apps reported by {@link listFileOpenApps}.
- *
- * The id must belong to an installed registry app, so a renderer cannot turn
- * this into an arbitrary command launcher. Terminals receive the containing
- * directory instead of the file: passing the file would make some terminals
- * try to execute it.
- *
- * Rejects when the app is unknown or the launch fails, so the caller can tell
- * the user instead of silently opening something else.
+ * Only registered installed apps may launch; terminals receive the file's containing directory.
+ * Rejects unknown apps and launch failures instead of opening a different app.
  */
 export async function openFileWithApp(filePath: string, appId: string): Promise<void> {
   const installed = await listInstalledApps()
@@ -385,8 +338,6 @@ export async function openFileWithApp(filePath: string, appId: string): Promise<
   const launchPath = target.definition.kind === 'terminal' ? path.dirname(filePath) : filePath
 
   if (process.platform === 'darwin') {
-    // `open` hands off to Launch Services and exits immediately, and already
-    // opens terminals at the given directory.
     await execFileAsync('open', ['-a', target.launchTarget, launchPath], {
       timeout: LAUNCH_TIMEOUT_MS
     })
@@ -411,8 +362,7 @@ export async function openFileWithApp(filePath: string, appId: string): Promise<
     args = ['launch', findDesktopEntry(target.launchTarget) ?? target.launchTarget, launchPath]
   }
 
-  // The launched process stays attached on these platforms, so detach instead of
-  // waiting: a timeout would otherwise kill the application the user opened.
+  // Detach long-running apps from the main process.
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { detached: true, stdio: 'ignore' })
     child.once('error', reject)

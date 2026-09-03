@@ -361,7 +361,6 @@ const fullscreenToggleLabel = computed(() => {
 })
 
 const PREFERRED_OPEN_APP_STORAGE_KEY = 'workspace.openWith.preferredAppId'
-/** Sentinel for "use the system default handler"; no registry id can collide. */
 const SYSTEM_DEFAULT_APP_ID = '#system-default'
 
 const openApps = ref<WorkspaceFileOpenApp[]>([])
@@ -377,16 +376,10 @@ const rememberPreferredApp = (appId: string) => {
 const editorApps = computed(() => openApps.value.filter((item) => item.kind === 'editor'))
 const terminalApps = computed(() => openApps.value.filter((item) => item.kind === 'terminal'))
 
-/**
- * App used by the primary button: only ever the app the user last picked. Nothing
- * is auto-picked, so the button keeps opening the system default handler until the
- * user chooses otherwise from the dropdown.
- */
 const preferredApp = computed(
   () => openApps.value.find((item) => item.id === preferredAppId.value) ?? null
 )
 
-/** Terminals open the containing directory, so they get their own label. */
 const openAppLabel = (openApp: WorkspaceFileOpenApp) =>
   openApp.kind === 'terminal'
     ? t('chat.workspace.files.contextMenu.openInTerminalApp', { app: openApp.name })
@@ -412,18 +405,12 @@ watch(
         openApps.value = apps
       }
     } catch (error) {
-      // An empty list just hides the picker entries; the primary button and
-      // "system default" still work, so this needs no user-facing error.
       console.warn('[WorkspaceViewer] Failed to list open-with applications:', error)
     }
   },
   { immediate: true }
 )
 
-/**
- * Run a workspace client action against the file currently in the viewer, and
- * tell the user when it fails instead of failing silently.
- */
 const runOnOpenFile = async (action: (filePath: string) => Promise<unknown>) => {
   if (!openFilePath.value) {
     return
