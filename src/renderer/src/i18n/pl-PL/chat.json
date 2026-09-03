@@ -295,8 +295,12 @@
       },
       "contextMenu": {
         "openFile": "Otwórz plik",
+        "openWith": "Otwórz za pomocą",
+        "openInApp": "Otwórz w {app}",
+        "openInTerminalApp": "Otwórz folder w {app}",
         "revealInFolder": "Pokaż w menedżerze plików",
-        "insertPath": "Wstaw do wejścia"
+        "insertPath": "Wstaw do wejścia",
+        "openWithSystemDefault": "Otwórz w domyślnej aplikacji systemowej"
       },
       "watchStatus": {
         "degraded": "Obserwowanie działa w trybie awaryjnym. Zmiany mogą odświeżać się wolniej.",

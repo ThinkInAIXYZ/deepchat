@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "入力ボックスに挿入",
         "openFile": "ファイルを開く",
+        "openInApp": "{app} で開く",
+        "openInTerminalApp": "{app} でフォルダを開く",
+        "openWith": "開き方",
+        "openWithSystemDefault": "システムの既定のアプリで開く",
         "revealInFolder": "ファイルマネージャーで開く"
       },
       "empty": "まだファイルがありません",

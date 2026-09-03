@@ -295,8 +295,12 @@
       },
       "contextMenu": {
         "openFile": "Abrir archivo",
+        "openWith": "Abrir con",
+        "openInApp": "Abrir en {app}",
+        "openInTerminalApp": "Abrir la carpeta en {app}",
         "revealInFolder": "Mostrar en el administrador de archivos",
-        "insertPath": "Insertar en el campo de entrada"
+        "insertPath": "Insertar en el campo de entrada",
+        "openWithSystemDefault": "Abrir con la aplicación predeterminada"
       },
       "watchStatus": {
         "degraded": "La supervisión está en modo de reserva. Los cambios pueden actualizarse más lentamente.",

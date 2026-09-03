@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "Indsæt i inputboksen",
         "openFile": "åbne fil",
+        "openInApp": "Åbn i {app}",
+        "openInTerminalApp": "Åbn mappen i {app}",
+        "openWith": "Åbn med",
+        "openWithSystemDefault": "Åbn med systemets standardprogram",
         "revealInFolder": "Åbn i filhåndtering"
       },
       "empty": "Ingen filer endnu",

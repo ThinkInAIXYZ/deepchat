@@ -295,8 +295,12 @@
       },
       "contextMenu": {
         "openFile": "buka fail",
+        "openWith": "Buka dengan",
+        "openInApp": "Buka dalam {app}",
+        "openInTerminalApp": "Buka folder dalam {app}",
         "revealInFolder": "Buka dalam pengurus fail",
-        "insertPath": "Masukkan ke dalam kotak input"
+        "insertPath": "Masukkan ke dalam kotak input",
+        "openWithSystemDefault": "Buka dengan aplikasi lalai sistem"
       },
       "watchStatus": {
         "degraded": "Pemantauan berjalan dalam mod sandaran. Perubahan mungkin dimuat semula dengan lebih perlahan.",

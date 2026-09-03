@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "در جعبه ورودی وارد کنید",
         "openFile": "باز کردن فایل",
+        "openInApp": "باز کردن در {app}",
+        "openInTerminalApp": "باز کردن پوشه در {app}",
+        "openWith": "باز کردن با",
+        "openWithSystemDefault": "باز کردن با برنامه پیش‌فرض سیستم",
         "revealInFolder": "در فایل منیجر باز کنید"
       },
       "empty": "هنوز فایلی وجود ندارد",

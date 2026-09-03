@@ -295,8 +295,12 @@
       },
       "contextMenu": {
         "openFile": "Datei öffnen",
+        "openWith": "Öffnen mit",
+        "openInApp": "In {app} öffnen",
+        "openInTerminalApp": "Ordner in {app} öffnen",
         "revealInFolder": "Im Dateimanager anzeigen",
-        "insertPath": "In Eingabe einfügen"
+        "insertPath": "In Eingabe einfügen",
+        "openWithSystemDefault": "Mit Systemstandard öffnen"
       },
       "watchStatus": {
         "degraded": "Überwachung läuft im Fallback-Modus. Änderungen werden möglicherweise langsamer aktualisiert.",

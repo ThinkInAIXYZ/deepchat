@@ -3,6 +3,8 @@
  * Types for the unified right sidepanel workspace experience.
  */
 
+import type { WorkspaceFileOpenAppKind } from '@shared/workspace/fileOpenApps'
+
 export type SidePanelTab = 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
 
 export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
@@ -23,6 +25,22 @@ export type WorkspaceFileNode = {
   children?: WorkspaceFileNode[]
   /** Whether expanded (frontend state) */
   expanded?: boolean
+}
+
+/**
+ * An installed editor, IDE or terminal offered for opening a workspace file.
+ */
+export type WorkspaceFileOpenApp = {
+  /** Registry id from `@shared/workspace/fileOpenApps`; never a filesystem path */
+  id: string
+  /** Display name shown in the picker */
+  name: string
+  /** Editors open the file; terminals open its containing directory */
+  kind: WorkspaceFileOpenAppKind
+  /** The application's real icon as a PNG data URL, when the OS exposes one */
+  iconDataUrl?: string
+  /** Whether the OS registers this app as a handler for the file type */
+  isRegisteredHandler: boolean
 }
 
 export type WorkspaceFilePreviewKind =
@@ -187,6 +205,19 @@ export interface WorkspaceServicePort {
    * @param filePath Path to open
    */
   openFile(filePath: string): Promise<void>
+
+  /**
+   * List applications the operating system can use to open the given file.
+   * @param filePath Path to inspect
+   */
+  listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]>
+
+  /**
+   * Open a file with a specific application returned by {@link listFileOpenApps}.
+   * @param filePath Path to open
+   * @param appId Platform launch identifier of the chosen application
+   */
+  openFileWithApp(filePath: string, appId: string): Promise<void>
 
   /**
    * Read a workspace file and normalize it to a preview-friendly payload.

@@ -8,7 +8,9 @@ import {
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
   workspaceGetGitStatusRoute,
+  workspaceListFileOpenAppsRoute,
   workspaceOpenFileRoute,
+  workspaceOpenFileWithAppRoute,
   workspaceReadDirectoryRoute,
   workspaceReadFilePreviewRoute,
   workspaceRegisterRoute,
@@ -62,6 +64,15 @@ export function createWorkspaceClient(bridge: DeepchatBridge = getDeepchatBridge
 
   async function openFile(path: string) {
     return await bridge.invoke(workspaceOpenFileRoute.name, { path })
+  }
+
+  async function listFileOpenApps(path: string) {
+    const result = await bridge.invoke(workspaceListFileOpenAppsRoute.name, { path })
+    return result.apps
+  }
+
+  async function openFileWithApp(path: string, appId: string) {
+    return await bridge.invoke(workspaceOpenFileWithAppRoute.name, { path, appId })
   }
 
   async function readFilePreview(path: string) {
@@ -123,6 +134,8 @@ export function createWorkspaceClient(bridge: DeepchatBridge = getDeepchatBridge
     expandDirectory,
     revealFileInFolder,
     openFile,
+    listFileOpenApps,
+    openFileWithApp,
     readFilePreview,
     resolveMarkdownLinkedFile,
     getGitStatus,

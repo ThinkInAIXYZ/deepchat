@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "הכנס לתוך תיבת הקלט",
         "openFile": "לפתוח קובץ",
+        "openInApp": "פתח ב־{app}",
+        "openInTerminalApp": "פתח את התיקייה ב־{app}",
+        "openWith": "פתח באמצעות",
+        "openWithSystemDefault": "פתח באמצעות ברירת המחדל של המערכת",
         "revealInFolder": "פתח במנהל הקבצים"
       },
       "empty": "עדיין אין קבצים",

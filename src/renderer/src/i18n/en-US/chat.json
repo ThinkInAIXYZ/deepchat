@@ -380,8 +380,12 @@
       },
       "contextMenu": {
         "openFile": "Open file",
+        "openWith": "Open with",
+        "openInApp": "Open in {app}",
+        "openInTerminalApp": "Open folder in {app}",
         "revealInFolder": "Show in file manager",
-        "insertPath": "Insert into input"
+        "insertPath": "Insert into input",
+        "openWithSystemDefault": "Open with system default"
       },
       "watchStatus": {
         "degraded": "Watching in fallback mode. Changes may refresh slower.",

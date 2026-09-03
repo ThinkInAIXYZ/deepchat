@@ -12,6 +12,7 @@ import {
   type WatchHandle
 } from '@/platform/fileWatcher'
 import { readDirectoryShallow } from './directoryReader'
+import { listFileOpenApps, openFileWithApp } from './fileOpenApps'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
   createWorkspacePreviewFileUrl,
@@ -25,6 +26,7 @@ import type {
   WorkspaceServicePort,
   ResolveMarkdownLinkedFileInput,
   WorkspaceFileNode,
+  WorkspaceFileOpenApp,
   WorkspaceFilePreview,
   WorkspaceFilePreviewKind,
   WorkspaceGitChangeType,
@@ -804,6 +806,31 @@ export class WorkspaceService implements WorkspaceServicePort {
       }
     } catch (error) {
       console.error(`[Workspace] Failed to open path: ${normalizedPath}`, error)
+    }
+  }
+
+  async listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]> {
+    if (!this.isPathAllowed(filePath)) {
+      console.warn(`[Workspace] Blocked open-with listing for unauthorized path: ${filePath}`)
+      return []
+    }
+
+    return listFileOpenApps(path.resolve(filePath))
+  }
+
+  async openFileWithApp(filePath: string, appId: string): Promise<void> {
+    if (!this.isPathAllowed(filePath)) {
+      console.warn(`[Workspace] Blocked open-with attempt for unauthorized path: ${filePath}`)
+      return
+    }
+
+    const normalizedPath = path.resolve(filePath)
+
+    try {
+      await openFileWithApp(normalizedPath, appId)
+    } catch (error) {
+      console.error(`[Workspace] Failed to open path with ${appId}: ${normalizedPath}`, error)
+      await this.openFile(normalizedPath)
     }
   }
 

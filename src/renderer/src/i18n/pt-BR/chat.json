@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "Insira na caixa de entrada",
         "openFile": "abrir arquivo",
+        "openInApp": "Abrir no {app}",
+        "openInTerminalApp": "Abrir a pasta no {app}",
+        "openWith": "Abrir com",
+        "openWithSystemDefault": "Abrir com o aplicativo padrão do sistema",
         "revealInFolder": "Abrir no gerenciador de arquivos"
       },
       "empty": "Nenhum arquivo ainda",

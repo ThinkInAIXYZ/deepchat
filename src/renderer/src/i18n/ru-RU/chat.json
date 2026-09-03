@@ -229,6 +229,10 @@
       "contextMenu": {
         "insertPath": "Вставить в поле ввода",
         "openFile": "открыть файл",
+        "openInApp": "Открыть в {app}",
+        "openInTerminalApp": "Открыть папку в {app}",
+        "openWith": "Открыть с помощью",
+        "openWithSystemDefault": "Открыть в приложении по умолчанию",
         "revealInFolder": "Открыть в файловом менеджере"
       },
       "empty": "Файлов пока нет",
