@@ -437,6 +437,7 @@ function createMockSqlitePresenter() {
   }
 
   return {
+    getDatabase: () => ({ transaction: (operation: () => unknown) => operation }),
     compactionUsageReader,
     deepchatSessionsTable,
     deepchatMessagesTable,

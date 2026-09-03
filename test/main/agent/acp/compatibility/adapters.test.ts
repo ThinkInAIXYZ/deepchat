@@ -128,6 +128,7 @@ function createProjectionHarness() {
     return row
   }
   const sqlitePresenter = {
+    getDatabase: () => ({ transaction: (operation: () => unknown) => operation }),
     newSessionsTable: { get: vi.fn() },
     deepchatMessagesTable,
     deepchatSessionsTable: {
