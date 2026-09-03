@@ -10,11 +10,29 @@ type TapeReconcilerProviders = Pick<
   'getEntryStore' | 'getLegacySummaryReader'
 >
 
+/**
+ * What the last completed backfill of a session saw. Every transcript mutation either changes the
+ * row count or stamps a row with `updated_at = Date.now()`, and every Tape reset mints a new
+ * incarnation, so an identical snapshot proves the backfill has nothing left to do.
+ */
+interface ReconciledTranscriptSnapshot {
+  messageCount: number
+  maxOrderSeq: number
+  maxUpdatedAt: number
+  tapeIncarnationId: string
+}
+
 function legacySummaryProvenanceKey(sessionId: string): string {
   return `summary:${sessionId}:legacy-summary:v1`
 }
 
 export class TapeReconcilerService {
+  /**
+   * Keyed by session id; absent until the first completed backfill in this process. Entries are
+   * never evicted: a stale one costs ~100 bytes and can only ever force a full backfill.
+   */
+  private readonly reconciled = new Map<string, ReconciledTranscriptSnapshot>()
+
   constructor(
     private readonly providers: TapeReconcilerProviders,
     private readonly facts: TapeFactService
@@ -29,13 +47,34 @@ export class TapeReconcilerService {
     messageStore: TapeTranscriptReader
   ): TapeBackfillResult {
     const table = this.table
+    const observedAt = Date.now()
     const historyRecords = [...messageStore.getMessages(sessionId)].sort(
       (left, right) => left.orderSeq - right.orderSeq
     )
-    const maxOrderSeq = historyRecords.reduce(
-      (currentMax, record) => Math.max(currentMax, record.orderSeq),
-      0
-    )
+    let maxOrderSeq = 0
+    let maxUpdatedAt = 0
+    for (const record of historyRecords) {
+      maxOrderSeq = Math.max(maxOrderSeq, record.orderSeq)
+      maxUpdatedAt = Math.max(maxUpdatedAt, record.updatedAt)
+    }
+
+    const previous = this.reconciled.get(sessionId)
+    if (
+      previous &&
+      previous.messageCount === historyRecords.length &&
+      previous.maxOrderSeq === maxOrderSeq &&
+      previous.maxUpdatedAt === maxUpdatedAt &&
+      previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId)
+    ) {
+      return {
+        sessionId,
+        migrationState: 'ready',
+        messageCount: historyRecords.length,
+        maxOrderSeq,
+        appendedFactCount: 0,
+        historyRecords: this.facts.getMessageRecords(sessionId)
+      }
+    }
 
     table.ensureBootstrapAnchor(sessionId)
 
@@ -65,6 +104,21 @@ export class TapeReconcilerService {
       },
       idempotent: true
     })
+
+    // `updated_at` has millisecond resolution: a mutation landing in the same millisecond as the
+    // newest row we saw would be indistinguishable from it, so only remember snapshots whose newest
+    // write is already strictly in the past.
+    const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
+    if (tapeIncarnationId && maxUpdatedAt < observedAt) {
+      this.reconciled.set(sessionId, {
+        messageCount: historyRecords.length,
+        maxOrderSeq,
+        maxUpdatedAt,
+        tapeIncarnationId
+      })
+    } else {
+      this.reconciled.delete(sessionId)
+    }
 
     return {
       sessionId,

@@ -161,6 +161,7 @@ function createProjectionHarness() {
     deepchatUsageStatsTable: { upsert: vi.fn() },
     deepchatTapeEntriesTable: {
       ensureBootstrapAnchor: vi.fn(),
+      getBootstrapIncarnation: vi.fn(),
       append: vi.fn(appendTape),
       appendEvent: vi.fn(
         (input: {

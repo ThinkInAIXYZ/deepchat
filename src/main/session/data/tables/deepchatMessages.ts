@@ -47,6 +47,10 @@ const COMPACTION_RECOVERY_INDEX_SQL = `
     WHERE ${COMPACTION_RECOVERY_PREDICATE};
 `
 
+/**
+ * Every UPDATE here must stamp `updated_at = Date.now()`: the Tape reconciler treats an unchanged
+ * `(count, max(order_seq), max(updated_at))` as proof the session transcript did not change.
+ */
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_messages')
