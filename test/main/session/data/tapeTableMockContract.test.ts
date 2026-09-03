@@ -13,6 +13,7 @@ import { SUMMARY_ANCHOR_NAMES, TAPE_INCARNATION_META_KEY } from '@/tape/domain/e
 import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
+import { DeepChatContractStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 
 /**
  * `createTapeTableMock` is a second implementation of the Tape entry store. Every method it
@@ -37,6 +38,8 @@ function openStores() {
   return {
     real,
     mock,
+    // The Contract writer is a sibling store class over the same table.
+    realContract: new DeepChatContractStore(db),
     realLifecycle: new SqliteTapeLifecycleAdapter(db),
     close: () => {
       clock.mockRestore()
@@ -340,9 +343,17 @@ describe('Tape table mock contract', () => {
     }
   })
 
-  itIfSqlite('rejects reserved namespaces from generic appends with the same errors', () => {
+  itIfSqlite('rejects appends that cross a namespace boundary with the same errors', () => {
     const stores = openStores()
     try {
+      const outcome = (run: () => unknown) => {
+        try {
+          run()
+          return 'accepted'
+        } catch (error) {
+          return String(error)
+        }
+      }
       const reserved = [
         { kind: 'event', name: 'execution/run_started' },
         { kind: 'event', name: 'contract/task_frozen' },
@@ -353,18 +364,28 @@ describe('Tape table mock contract', () => {
         { kind: 'event', name: 'provider/attempt_completed' },
         { kind: 'event', name: 'compaction/model_call_completed' }
       ] as const
-      for (const { kind, name } of reserved) {
-        const failure = (store: Store) => {
-          try {
-            store.append({ sessionId: SESSION, kind, name, payload: {} })
-            return 'accepted'
-          } catch (error) {
-            return String(error)
-          }
-        }
-        expect(failure(stores.mock), `${kind}:${name}`).toBe(failure(stores.real))
-        expect(failure(stores.real), `${kind}:${name}`).not.toBe('accepted')
+      const offNamespace = { sessionId: SESSION, name: 'view/assembled', data: {} } as never
+      const crossings: Array<[string, (store: Store) => unknown]> = [
+        ...reserved.map(({ kind, name }): [string, (store: Store) => unknown] => [
+          `generic append of ${kind}:${name}`,
+          (store) => store.append({ sessionId: SESSION, kind, name, payload: {} })
+        ]),
+        ['journal writer', (store) => store.appendExecutionJournalEvent(offNamespace)],
+        ['tool-surface writer', (store) => store.appendToolSurfaceEvent(offNamespace)],
+        ['provider-attempt writer', (store) => store.appendProviderAttemptEvent(offNamespace)],
+        ['compaction-usage writer', (store) => store.appendCompactionModelCallEvent(offNamespace)]
+      ]
+      for (const [label, run] of crossings) {
+        const real = outcome(() => run(stores.real))
+        expect(
+          outcome(() => run(stores.mock)),
+          label
+        ).toBe(real)
+        expect(real, label).not.toBe('accepted')
       }
+      const contract = outcome(() => stores.realContract.appendContractEvent(offNamespace))
+      expect(outcome(() => stores.mock.appendContractEvent(offNamespace))).toBe(contract)
+      expect(contract).not.toBe('accepted')
       expectParity(stores, { session: (store) => store.getBySession(SESSION) })
     } finally {
       stores.close()

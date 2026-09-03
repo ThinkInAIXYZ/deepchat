@@ -22,24 +22,15 @@ import {
   type ExecutionJournalEventName,
   type ExecutionJournalRecoveryRow
 } from '@/tape/domain/executionJournal'
-import { CONTRACT_TAPE_EVENT_NAMES, type ContractTapeEventName } from '@/tape/domain/contractFacts'
-import {
-  TOOL_SURFACE_TAPE_EVENT_NAMES,
-  type ToolSurfaceTapeEventName
-} from '@/tape/domain/toolSurfaceFacts'
+import type { ContractTapeEventName } from '@/tape/domain/contractFacts'
+import type { ToolSurfaceTapeEventName } from '@/tape/domain/toolSurfaceFacts'
 import {
   assertTapeAppendAuthorized,
   type TapeReservedNamespace
 } from '@/tape/domain/reservedNamespaces'
 import { SKILL_MATERIALIZATION_NAME } from '@/tape/domain/skillMaterialization'
-import {
-  TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
-  type TapeProviderAttemptEventName
-} from '@/tape/domain/providerAttempt'
-import {
-  TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
-  type TapeCompactionModelCallEventName
-} from '@/tape/domain/compactionUsage'
+import type { TapeProviderAttemptEventName } from '@/tape/domain/providerAttempt'
+import type { TapeCompactionModelCallEventName } from '@/tape/domain/compactionUsage'
 import type {
   CompactionUsagePersistenceStore,
   ContractPersistenceStore,
@@ -974,9 +965,6 @@ export class DeepChatTapeEntriesTable
   appendProviderAttemptEvent(
     input: TapeEventAppendInput & { name: TapeProviderAttemptEventName }
   ): DeepChatTapeEntryRow {
-    if (input.name !== TAPE_PROVIDER_ATTEMPT_EVENT_NAME) {
-      throw new Error(`Unsupported provider-attempt event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -999,9 +987,6 @@ export class DeepChatTapeEntriesTable
   appendCompactionModelCallEvent(
     input: TapeEventAppendInput & { name: TapeCompactionModelCallEventName }
   ): DeepChatTapeEntryRow {
-    if (input.name !== TAPE_COMPACTION_MODEL_CALL_EVENT_NAME) {
-      throw new Error(`Unsupported compaction-usage event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -1024,9 +1009,6 @@ export class DeepChatTapeEntriesTable
   appendToolSurfaceEvent(
     input: TapeEventAppendInput & { name: ToolSurfaceTapeEventName }
   ): DeepChatTapeEntryRow {
-    if (!TOOL_SURFACE_TAPE_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported View Tool Surface event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -2274,9 +2256,6 @@ export class DeepChatExecutionJournalStore
   appendExecutionJournalEvent(
     input: TapeEventAppendInput & { name: ExecutionJournalEventName }
   ): DeepChatTapeEntryRow {
-    if (!EXECUTION_JOURNAL_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported Execution Journal event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -2304,9 +2283,6 @@ export class DeepChatContractStore
   appendContractEvent(
     input: TapeEventAppendInput & { name: ContractTapeEventName }
   ): DeepChatTapeEntryRow {
-    if (!CONTRACT_TAPE_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported Contract event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,

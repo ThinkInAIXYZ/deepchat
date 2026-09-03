@@ -223,6 +223,7 @@ function createTapeTableMock() {
       )
     ),
     appendExecutionJournalEvent: vi.fn(appendEventAs('execution')),
+    appendContractEvent: vi.fn(appendEventAs('contract')),
     appendToolSurfaceEvent: vi.fn(appendEventAs('tool-surface')),
     listUnterminatedRunEvents: vi.fn(() => {
       const unterminatedRuns = entries
