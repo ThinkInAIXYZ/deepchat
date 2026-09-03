@@ -500,7 +500,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     void this.generateSessionTitle(input)
   }
 
-  private requireSession(sessionId: string): SessionRecord {
+  requireSession(sessionId: string): SessionRecord {
     const session = this.dependencies.sessions.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     return session
