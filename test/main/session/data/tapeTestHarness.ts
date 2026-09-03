@@ -524,12 +524,6 @@ function createTapeTableMock() {
         })
         .sort((left, right) => left.session_id.localeCompare(right.session_id))
     ),
-    getBySessionUpToEntryIdExcludingContext: vi.fn((sessionId: string, maxEntryId: number) =>
-      entries.filter(
-        (entry) =>
-          entry.session_id === sessionId && entry.entry_id <= maxEntryId && entry.kind !== 'context'
-      )
-    ),
     getMaxEntryId: vi.fn((sessionId: string) =>
       Math.max(
         0,

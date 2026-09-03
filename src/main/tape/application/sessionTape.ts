@@ -106,14 +106,12 @@ import type {
   TapeAnchorResult,
   TapeBackfillResult,
   TapeContextOccupancyEvidence,
-  TapeForkHandle,
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
   TapeViewManifestAssemblySources
 } from './contracts'
 import { normalizeTapeHandoffState, TapeFactService } from './factService'
-import { TapeForkService } from './forkService'
 import { deleteTapeGeneration, resetTapeGeneration } from './generationLifecycle'
 import {
   AgentTapeViewError,
@@ -135,7 +133,6 @@ export type {
   AgentTapeViewErrorCode,
   TapeAnchorResult,
   TapeBackfillResult,
-  TapeForkHandle,
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
@@ -185,7 +182,6 @@ export class SessionTape
   private readonly executionJournal: ExecutionJournalService
   private readonly viewReplay: TapeViewReplayService
   private readonly toolSurfaceProvenance: ToolSurfaceProvenanceService
-  private readonly forks: TapeForkService
   private readonly skillMaterializations: TapeSkillMaterializationService
   private readonly traceInspector: TapeTraceInspectorService
 
@@ -202,7 +198,6 @@ export class SessionTape
     this.recall = new TapeRecallService(this.providers, this.lineage)
     this.viewReplay = new TapeViewReplayService(this.providers)
     this.toolSurfaceProvenance = new ToolSurfaceProvenanceService(this.providers, this.viewReplay)
-    this.forks = new TapeForkService(this.providers)
     this.skillMaterializations = new TapeSkillMaterializationService(this.providers)
     this.traceInspector = new TapeTraceInspectorService(this.providers)
   }
@@ -476,40 +471,6 @@ export class SessionTape
     meta: Record<string, unknown> = {}
   ): TapeAnchorResult {
     return this.facts.handoffResult(sessionId, name, state, meta)
-  }
-
-  createFork(parentSessionId: string, forkId?: string): TapeForkHandle {
-    return this.forks.createFork(parentSessionId, forkId)
-  }
-
-  appendForkMessageRecord(handle: TapeForkHandle, record: ChatMessageRecord): number {
-    return this.facts.appendMessageRecordForSession(handle.forkSessionId, record)
-  }
-
-  mergeFork(parentSessionId: string, forkId: string): number {
-    return this.forks.mergeFork(parentSessionId, forkId)
-  }
-
-  discardFork(parentSessionId: string, forkId: string): void {
-    this.forks.discardFork(parentSessionId, forkId)
-  }
-
-  recordExternalForkMerge(
-    parentSessionId: string,
-    forkSessionId: string,
-    forkId: string,
-    meta: Record<string, unknown> = {}
-  ): DeepChatTapeEntryRow {
-    return this.forks.recordExternalForkMerge(parentSessionId, forkSessionId, forkId, meta)
-  }
-
-  recordExternalForkDiscard(
-    parentSessionId: string,
-    forkSessionId: string,
-    forkId: string,
-    meta: Record<string, unknown> = {}
-  ): DeepChatTapeEntryRow {
-    return this.forks.recordExternalForkDiscard(parentSessionId, forkSessionId, forkId, meta)
   }
 
   linkSubagentTape(input: SubagentTapeLinkInput): SubagentTapeLinkReceipt {

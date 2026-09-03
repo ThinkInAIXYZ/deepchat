@@ -61,7 +61,6 @@
     "test/main/memory/agentMemoryPaginationNative.test.ts",
     "test/main/memory/agentMemoryTable.test.ts",
     "test/main/session/data/tables/deepchatTapeEntriesTable.test.ts",
-    "test/main/session/data/tapeFork.test.ts",
     "test/main/session/data/tapeLifecycle.test.ts",
     "test/main/session/data/tapeLineage.test.ts",
     "test/main/session/data/tapeRecall.test.ts",

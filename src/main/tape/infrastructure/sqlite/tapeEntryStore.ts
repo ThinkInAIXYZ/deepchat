@@ -1457,20 +1457,6 @@ export class DeepChatTapeEntriesTable
       .all(JSON.stringify(ids)) as DeepChatTapeEntryRow[]
   }
 
-  getBySessionUpToEntryIdExcludingContext(
-    sessionId: string,
-    maxEntryId: number
-  ): DeepChatTapeEntryRow[] {
-    return this.db
-      .prepare(
-        `SELECT *
-         FROM deepchat_tape_entries
-         WHERE session_id = ? AND entry_id <= ? AND kind != 'context'
-         ORDER BY entry_id ASC`
-      )
-      .all(sessionId, maxEntryId) as DeepChatTapeEntryRow[]
-  }
-
   listMemoryViewManifestAnchorsBySessions(
     sessionIds: string[],
     optionsOrLimit: number | { limit?: number; messageId?: string } = 100
