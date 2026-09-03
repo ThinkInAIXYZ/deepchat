@@ -12,7 +12,7 @@ import {
   type WatchHandle
 } from '@/platform/fileWatcher'
 import { readDirectoryShallow } from './directoryReader'
-import { listFileOpenApps, openFileWithApp } from './fileOpenApps'
+import { listFileOpenApps, openFileWithApp } from './openInApp'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
   createWorkspacePreviewFileUrl,
