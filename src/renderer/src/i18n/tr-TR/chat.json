@@ -299,6 +299,7 @@
         "openInApp": "{app} ile aç",
         "openInTerminalApp": "Klasörü {app} ile aç",
         "openFailed": "Dosya bu uygulamayla açılamadı",
+        "preferredAppUnavailable": "Tercih edilen uygulama şu anda kullanılamıyor. Sistem varsayılanıyla açılıyor.",
         "revealInFolder": "Dosya yöneticisinde göster",
         "insertPath": "Girişe ekle",
         "openWithSystemDefault": "Sistem varsayılan uygulamasıyla aç"

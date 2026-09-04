@@ -232,6 +232,7 @@
         "openInApp": "פתח ב־{app}",
         "openInTerminalApp": "פתח את התיקייה ב־{app}",
         "openFailed": "לא ניתן לפתוח את הקובץ באמצעות היישום הזה",
+        "preferredAppUnavailable": "היישום המועדף אינו זמין כרגע. נפתח באמצעות ברירת המחדל של המערכת.",
         "openWith": "פתח באמצעות",
         "openWithSystemDefault": "פתח באמצעות ברירת המחדל של המערכת",
         "revealInFolder": "פתח במנהל הקבצים"

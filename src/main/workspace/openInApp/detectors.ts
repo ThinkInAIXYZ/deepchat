@@ -52,9 +52,7 @@ function run(argv) {
   return JSON.stringify(result)
 }`
 
-async function detectDarwin(
-  definitions: WorkspaceFileOpenAppDefinition[]
-): Promise<DetectedApp[]> {
+async function detectDarwin(definitions: WorkspaceFileOpenAppDefinition[]): Promise<DetectedApp[]> {
   const bundleIds = [
     ...new Set(
       definitions.flatMap((definition) => {
@@ -116,12 +114,13 @@ async function readRegistryDefault(key: string): Promise<string | null> {
     })
 
     const match = stdout.match(/\s{2,}REG_(EXPAND_SZ|SZ)\s{2,}(.+)/i)
+    const registryType = match?.[1]
     const value = match?.[2]?.trim().replace(/^"|"$/g, '')
-    if (!value) {
+    if (!registryType || !value) {
       return null
     }
 
-    return match[1].toUpperCase() === 'EXPAND_SZ'
+    return registryType.toUpperCase() === 'EXPAND_SZ'
       ? expandWindowsEnvironmentVariables(value)
       : value
   } catch {
@@ -163,7 +162,7 @@ async function resolveWindowsExecutable(exeName: string): Promise<string | null>
 
 async function detectWin32(definitions: WorkspaceFileOpenAppDefinition[]): Promise<DetectedApp[]> {
   const results = await Promise.all(
-    definitions.map(async (definition) => {
+    definitions.map(async (definition): Promise<DetectedApp | null> => {
       const detect = definition.detect.win32
       if (detect?.type !== 'winExecutable') {
         return null
@@ -176,11 +175,10 @@ async function detectWin32(definitions: WorkspaceFileOpenAppDefinition[]): Promi
         }
 
         // On Windows the icon lives in the executable, so Electron can read it.
-        const icon = await app.getFileIcon(launchTarget, { size: 'normal' }).catch(() => null)
         return {
           definition,
           launchTarget,
-          iconDataUrl: icon && !icon.isEmpty() ? icon.toDataURL() : undefined
+          iconDataUrl: await readFileIconDataUrl(launchTarget)
         }
       }
 
@@ -189,6 +187,32 @@ async function detectWin32(definitions: WorkspaceFileOpenAppDefinition[]): Promi
   )
 
   return results.filter((entry): entry is DetectedApp => entry !== null)
+}
+
+async function readFileIconDataUrl(filePath: string): Promise<string | undefined> {
+  const icon = await app.getFileIcon(filePath, { size: 'normal' }).catch(() => null)
+  return icon && !icon.isEmpty() ? icon.toDataURL() : undefined
+}
+
+/** Icon for a PATH-resolved Linux binary: desktop entry first, then the binary itself. */
+async function readLinuxBinaryIcon(
+  binaryPath: string,
+  desktopIds?: string[]
+): Promise<string | undefined> {
+  for (const desktopId of desktopIds ?? []) {
+    const entryPath = findDesktopEntry(desktopId)
+    if (!entryPath) {
+      continue
+    }
+
+    const content = readDesktopEntry(entryPath)
+    const iconDataUrl = content ? readDesktopEntryIcon(content) : undefined
+    if (iconDataUrl) {
+      return iconDataUrl
+    }
+  }
+
+  return readFileIconDataUrl(binaryPath)
 }
 
 /** `command -v` lookup. The binary name is validated to keep it out of the shell. */
@@ -230,7 +254,11 @@ async function detectLinuxApp(
     if (binaryPath) {
       // No override: the registry's `exec` strategy carries the CLI flags that
       // terminals need for their working directory.
-      return { definition, launchTarget: binaryPath }
+      return {
+        definition,
+        launchTarget: binaryPath,
+        iconDataUrl: await readLinuxBinaryIcon(binaryPath, detect.desktopIds)
+      }
     }
   }
 

@@ -1,8 +1,42 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 
+const PREFERRED_OPEN_APP_STORAGE_KEY = 'workspace.openWith.preferredAppId'
+
+const textFilePreview = {
+  path: 'C:/repo/src/app.ts',
+  relativePath: 'src/app.ts',
+  name: 'app.ts',
+  mimeType: 'application/typescript',
+  kind: 'text',
+  content: 'export const app = 1',
+  language: 'ts',
+  metadata: {
+    fileName: 'app.ts',
+    fileSize: 18,
+    fileCreated: new Date('2024-01-01T00:00:00Z'),
+    fileModified: new Date('2024-01-02T00:00:00Z')
+  }
+} as const
+
+const textFileSession = {
+  selectedArtifactContext: null,
+  selectedFilePath: 'C:/repo/src/app.ts',
+  selectedDiffPath: null,
+  viewMode: 'preview',
+  sections: {
+    files: true,
+    git: false,
+    artifacts: true
+  }
+} as const
+
 describe('WorkspaceViewer', () => {
+  afterEach(() => {
+    localStorage.clear()
+  })
+
   const setup = async (options?: {
     sessionState?: {
       selectedArtifactContext: {
@@ -20,6 +54,8 @@ describe('WorkspaceViewer', () => {
       }
     }
     props?: Record<string, unknown>
+    preferredAppId?: string | null
+    fileOpenApps?: Array<{ id: string; name: string; kind: 'editor' | 'terminal' }>
   }) => {
     vi.resetModules()
 
@@ -47,6 +83,15 @@ describe('WorkspaceViewer', () => {
     }
 
     const openFileMock = vi.fn().mockResolvedValue(undefined)
+    const openFileWithAppMock = vi.fn().mockResolvedValue(undefined)
+    const listFileOpenAppsMock = vi.fn().mockResolvedValue(options?.fileOpenApps ?? [])
+    const notifyRenderer = vi.fn()
+
+    if (options?.preferredAppId) {
+      localStorage.setItem(PREFERRED_OPEN_APP_STORAGE_KEY, options.preferredAppId)
+    } else {
+      localStorage.removeItem(PREFERRED_OPEN_APP_STORAGE_KEY)
+    }
 
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -65,9 +110,15 @@ describe('WorkspaceViewer', () => {
       })
     }))
 
+    vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+      notifyRenderer
+    }))
+
     vi.doMock('@api/WorkspaceClient', () => ({
       createWorkspaceClient: () => ({
-        openFile: openFileMock
+        openFile: openFileMock,
+        listFileOpenApps: listFileOpenAppsMock,
+        openFileWithApp: openFileWithAppMock
       })
     }))
 
@@ -133,12 +184,40 @@ describe('WorkspaceViewer', () => {
             name: 'Button',
             emits: ['click'],
             template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>'
+          }),
+          DropdownMenu: defineComponent({
+            name: 'DropdownMenu',
+            template: '<div><slot /></div>'
+          }),
+          DropdownMenuTrigger: defineComponent({
+            name: 'DropdownMenuTrigger',
+            template: '<div><slot /></div>'
+          }),
+          DropdownMenuContent: defineComponent({
+            name: 'DropdownMenuContent',
+            template: '<div><slot /></div>'
+          }),
+          DropdownMenuSeparator: defineComponent({
+            name: 'DropdownMenuSeparator',
+            template: '<div />'
+          }),
+          DropdownMenuItem: defineComponent({
+            name: 'DropdownMenuItem',
+            emits: ['select'],
+            template: '<button type="button" @click="$emit(\'select\')"><slot /></button>'
           })
         }
       }
     })
 
-    return { wrapper, sidepanelStore, openFileMock }
+    return {
+      wrapper,
+      sidepanelStore,
+      openFileMock,
+      openFileWithAppMock,
+      listFileOpenAppsMock,
+      notifyRenderer
+    }
   }
 
   it('shows a maximize button and emits toggle-fullscreen', async () => {
@@ -406,5 +485,173 @@ describe('WorkspaceViewer', () => {
     )
     expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(false)
+  })
+
+  it('keeps a stored preference when a partial probe omits it', async () => {
+    const { wrapper, notifyRenderer } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      preferredAppId: 'vscode',
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    await flushPromises()
+
+    expect(localStorage.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)).toBe('vscode')
+    expect(notifyRenderer).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('opens with the system default without clearing a missing preference', async () => {
+    const { wrapper, openFileMock, notifyRenderer } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      preferredAppId: 'vscode',
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    await flushPromises()
+
+    const openButton = wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
+      )
+    expect(openButton).toBeTruthy()
+    await openButton!.trigger('click')
+    await flushPromises()
+
+    expect(openFileMock).toHaveBeenCalledWith('C:/repo/src/app.ts')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'info',
+      code: 'chat.workspace.preferredAppUnavailable',
+      title: 'chat.workspace.files.contextMenu.preferredAppUnavailable'
+    })
+    expect(localStorage.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)).toBe('vscode')
+
+    wrapper.unmount()
+  })
+
+  it('does not claim a system-default fallback when that open fails', async () => {
+    const { wrapper, openFileMock, notifyRenderer } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      preferredAppId: 'vscode',
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    openFileMock.mockRejectedValueOnce(new Error('open failed'))
+    await flushPromises()
+
+    const openButton = wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
+      )
+    expect(openButton).toBeTruthy()
+    await openButton!.trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'chat.workspace.openFileFailed'
+      })
+    )
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'chat.workspace.preferredAppUnavailable'
+      })
+    )
+
+    wrapper.unmount()
+  })
+
+  it('drops the legacy system-default sentinel without notifying', async () => {
+    const { wrapper, notifyRenderer } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      preferredAppId: '#system-default',
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    await flushPromises()
+
+    expect(localStorage.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)).toBeNull()
+    expect(notifyRenderer).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('remembers a preferred app only after a successful launch', async () => {
+    const { wrapper, openFileWithAppMock } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    await flushPromises()
+
+    const openInAppButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('chat.workspace.files.contextMenu.openInApp'))
+    expect(openInAppButton).toBeTruthy()
+    await openInAppButton!.trigger('click')
+    await flushPromises()
+
+    expect(openFileWithAppMock).toHaveBeenCalledWith('C:/repo/src/app.ts', 'cursor')
+    expect(localStorage.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)).toBe('cursor')
+
+    wrapper.unmount()
+  })
+
+  it('does not remember a preferred app when launch fails', async () => {
+    const { wrapper, openFileWithAppMock, notifyRenderer } = await setup({
+      sessionState: textFileSession,
+      props: {
+        artifact: null,
+        filePreview: textFilePreview
+      },
+      preferredAppId: 'vscode',
+      fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
+    })
+
+    openFileWithAppMock.mockRejectedValueOnce(new Error('launch failed'))
+    await flushPromises()
+
+    const openInAppButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('chat.workspace.files.contextMenu.openInApp'))
+    expect(openInAppButton).toBeTruthy()
+    await openInAppButton!.trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'chat.workspace.openFileFailed'
+      })
+    )
+    expect(localStorage.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)).toBe('vscode')
+
+    wrapper.unmount()
   })
 })

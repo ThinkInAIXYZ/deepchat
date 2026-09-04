@@ -232,6 +232,7 @@
         "openInApp": "{app} で開く",
         "openInTerminalApp": "{app} でフォルダを開く",
         "openFailed": "そのアプリでファイルを開けませんでした",
+        "preferredAppUnavailable": "優先アプリは現在利用できないため、システムの既定のアプリで開きます。",
         "openWith": "開き方",
         "openWithSystemDefault": "システムの既定のアプリで開く",
         "revealInFolder": "ファイルマネージャーで開く"

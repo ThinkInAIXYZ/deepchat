@@ -798,14 +798,10 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
 
     const normalizedPath = path.resolve(filePath)
+    const errorMessage = await shell.openPath(normalizedPath)
 
-    try {
-      const errorMessage = await shell.openPath(normalizedPath)
-      if (errorMessage) {
-        console.error(`[Workspace] Failed to open path: ${normalizedPath}`, errorMessage)
-      }
-    } catch (error) {
-      console.error(`[Workspace] Failed to open path: ${normalizedPath}`, error)
+    if (errorMessage) {
+      throw new Error(errorMessage)
     }
   }
 

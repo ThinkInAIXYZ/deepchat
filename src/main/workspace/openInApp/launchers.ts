@@ -44,12 +44,20 @@ export async function launchApp(
     return
   }
 
-  // An exec'd app stays attached, so detach instead of waiting: a timeout would
-  // otherwise kill the application the user just opened.
-  const [command, args]: [string, string[]] =
-    strategy.type === 'desktopEntry'
-      ? ['gio', ['launch', target.launchTarget, targetPath]]
-      : [target.launchTarget, buildLaunchArgs(strategy.args, targetPath)]
+  if (strategy.type === 'desktopEntry') {
+    // `gio launch` talks to DBus and then exits. Wait for that exit so a missing
+    // entry or portal error is not reported as success after a short spawn window.
+    await execFileAsync('gio', ['launch', target.launchTarget, targetPath], {
+      timeout: LAUNCH_TIMEOUT_MS
+    })
+    return
+  }
+
+  // A detached GUI process may stay alive for the whole app session. A successful
+  // `spawn` is therefore the only reliable handoff boundary; later exit codes are
+  // application runtime failures, not launcher failures.
+  const command = target.launchTarget
+  const args = buildLaunchArgs(strategy.args, targetPath)
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { detached: true, stdio: 'ignore' })

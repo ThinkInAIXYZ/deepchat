@@ -188,7 +188,11 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     bundleIds: ['com.jetbrains.rustrover'],
     exeNames: ['rustrover64.exe'],
     binary: 'rustrover',
-    desktopIds: ['rustrover.desktop', 'jetbrains-rustrover.desktop', 'com.jetbrains.RustRover.desktop']
+    desktopIds: [
+      'rustrover.desktop',
+      'jetbrains-rustrover.desktop',
+      'com.jetbrains.RustRover.desktop'
+    ]
   }),
   editor('clion', 'CLion', {
     bundleIds: ['com.jetbrains.CLion'],
@@ -332,7 +336,7 @@ export const WORKSPACE_FILE_OPEN_APPS: readonly WorkspaceFileOpenAppDefinition[]
     },
     // Hyper is the one terminal here that documents a positional directory
     // (`hyper <dir>`), so it needs no working-directory flag. Every other
-    // terminal must declare one; see the test that asserts this.
+    // terminal must declare one; see test/main/shared/fileOpenApps.test.ts.
     launch: {
       darwin: { type: 'macOpenA' },
       win32: { type: 'exec' },

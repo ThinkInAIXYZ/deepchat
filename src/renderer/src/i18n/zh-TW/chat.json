@@ -249,6 +249,7 @@
         "openInApp": "在 {app} 中開啟",
         "openInTerminalApp": "在 {app} 中開啟所在目錄",
         "openFailed": "無法用該應用開啟此檔案",
+        "preferredAppUnavailable": "首選應用程式暫時無法使用，本次改用系統預設方式開啟。",
         "openWith": "開啟方式",
         "openWithSystemDefault": "用系統預設方式開啟",
         "revealInFolder": "在文件管理器中打開"

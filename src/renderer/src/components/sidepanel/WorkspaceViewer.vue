@@ -363,14 +363,28 @@ const fullscreenToggleLabel = computed(() => {
 const PREFERRED_OPEN_APP_STORAGE_KEY = 'workspace.openWith.preferredAppId'
 const SYSTEM_DEFAULT_APP_ID = '#system-default'
 
+const readStoredPreferredAppId = (): string | null => {
+  const stored = globalThis.localStorage?.getItem(PREFERRED_OPEN_APP_STORAGE_KEY)
+  if (!stored || stored === SYSTEM_DEFAULT_APP_ID) {
+    if (stored === SYSTEM_DEFAULT_APP_ID) {
+      globalThis.localStorage?.removeItem(PREFERRED_OPEN_APP_STORAGE_KEY)
+    }
+    return null
+  }
+  return stored
+}
+
 const openApps = ref<WorkspaceFileOpenApp[]>([])
-const preferredAppId = ref<string | null>(
-  globalThis.localStorage?.getItem(PREFERRED_OPEN_APP_STORAGE_KEY) ?? null
-)
+const preferredAppId = ref<string | null>(readStoredPreferredAppId())
 
 const rememberPreferredApp = (appId: string) => {
   preferredAppId.value = appId
   globalThis.localStorage?.setItem(PREFERRED_OPEN_APP_STORAGE_KEY, appId)
+}
+
+const clearPreferredApp = () => {
+  preferredAppId.value = null
+  globalThis.localStorage?.removeItem(PREFERRED_OPEN_APP_STORAGE_KEY)
 }
 
 const editorApps = computed(() => openApps.value.filter((item) => item.kind === 'editor'))
@@ -431,20 +445,33 @@ const runOnOpenFile = async (action: (filePath: string) => Promise<unknown>) => 
 
 const handleRevealInFolder = () => runOnOpenFile(workspaceClient.revealFileInFolder)
 
-const handleOpenWithSystemDefault = () => {
-  rememberPreferredApp(SYSTEM_DEFAULT_APP_ID)
-  return runOnOpenFile(workspaceClient.openFile)
-}
+const handleOpenWithSystemDefault = () =>
+  runOnOpenFile(async (filePath) => {
+    await workspaceClient.openFile(filePath)
+    clearPreferredApp()
+  })
 
 const handleOpenFile = () =>
-  runOnOpenFile((filePath) =>
-    preferredApp.value
-      ? workspaceClient.openFileWithApp(filePath, preferredApp.value.id)
-      : workspaceClient.openFile(filePath)
-  )
+  runOnOpenFile(async (filePath) => {
+    if (preferredApp.value) {
+      await workspaceClient.openFileWithApp(filePath, preferredApp.value.id)
+      return
+    }
 
-const handleOpenWithApp = (openApp: WorkspaceFileOpenApp) => {
-  rememberPreferredApp(openApp.id)
-  return runOnOpenFile((filePath) => workspaceClient.openFileWithApp(filePath, openApp.id))
-}
+    // Keep the stored id: a missing probe is not proof the app was uninstalled.
+    await workspaceClient.openFile(filePath)
+    if (preferredAppId.value) {
+      notifyRenderer({
+        kind: 'info',
+        code: 'chat.workspace.preferredAppUnavailable',
+        title: t('chat.workspace.files.contextMenu.preferredAppUnavailable')
+      })
+    }
+  })
+
+const handleOpenWithApp = (openApp: WorkspaceFileOpenApp) =>
+  runOnOpenFile(async (filePath) => {
+    await workspaceClient.openFileWithApp(filePath, openApp.id)
+    rememberPreferredApp(openApp.id)
+  })
 </script>

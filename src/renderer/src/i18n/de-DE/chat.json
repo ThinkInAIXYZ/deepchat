@@ -299,6 +299,7 @@
         "openInApp": "In {app} öffnen",
         "openInTerminalApp": "Ordner in {app} öffnen",
         "openFailed": "Die Datei konnte nicht mit dieser Anwendung geöffnet werden",
+        "preferredAppUnavailable": "Die bevorzugte App ist gerade nicht verfügbar. Es wird mit der Systemstandard-App geöffnet.",
         "revealInFolder": "Im Dateimanager anzeigen",
         "insertPath": "In Eingabe einfügen",
         "openWithSystemDefault": "Mit Systemstandard öffnen"
