@@ -1,38 +1,58 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import type { DeepChatTapeEntryRow } from './entry'
+import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow } from './entry'
 
 const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])
 
 export const TAPE_MESSAGE_RETRACTED_EVENT_NAME = 'message/retracted'
 
 /**
- * Rows that can change effective message/tool state or anchor positions. Every other row
- * (ViewManifests, Journal, provider attempts, contracts, tool-surface provenance, indicators) is
- * evidence the effective view only passes through, so readers that need effective state can skip
- * it at the store. Must stay in sync with `TapeEntryStore.getEffectiveViewInputRows`.
+ * Kinds an effective-state reader may select wholesale. `event` is excluded because the only event
+ * the effective view acts on is `message/retracted`, which every input set already selects by
+ * name (listing `event` would return those rows twice); `context` rows are behavioural evidence
+ * the fold skips outright.
  */
-export function isEffectiveViewInputRow(row: { kind: string; name: string | null }): boolean {
-  switch (row.kind) {
-    case 'tool_call':
-    case 'tool_result':
-    case 'anchor':
-      return true
-    default:
-      return isEffectiveMessageInputRow(row)
-  }
-}
+export type EffectiveInputKind = Exclude<DeepChatTapeEntryKind, 'event' | 'context'>
 
 /**
- * The subset of `isEffectiveViewInputRow` that decides `messageRecords`/`messageEntries`: message
- * rows and the retraction events that remove them. Tool rows only join onto messages and anchors
- * only pass through, so readers that need effective messages alone can skip both at the store.
- * Must stay in sync with `TapeEntryStore.getEffectiveMessageInputRows`.
+ * Rows that can change effective message/tool state or anchor positions, plus `message/retracted`
+ * events. Every other row (ViewManifests, Journal, provider attempts, contracts, tool-surface
+ * provenance, indicators) is evidence the effective view only passes through, so readers that need
+ * effective state skip it at the store. `TapeEntryStore.getEffectiveViewInputRows` selects by the
+ * same constant.
  */
-export function isEffectiveMessageInputRow(row: { kind: string; name: string | null }): boolean {
+export const EFFECTIVE_VIEW_INPUT_KINDS = [
+  'message',
+  'tool_call',
+  'tool_result',
+  'anchor'
+] as const satisfies readonly EffectiveInputKind[]
+
+/**
+ * The subset that decides `messageRecords`/`messageEntries`: message rows plus the retraction
+ * events that remove them. Tool rows only join onto messages and anchors only pass through, so
+ * readers that need effective messages alone skip both at the store.
+ * `TapeEntryStore.getEffectiveMessageInputRows` selects by the same constant.
+ */
+export const EFFECTIVE_MESSAGE_INPUT_KINDS = [
+  'message'
+] as const satisfies readonly EffectiveInputKind[]
+
+function isEffectiveInputRow(
+  row: { kind: string; name: string | null },
+  kinds: readonly string[]
+): boolean {
   return (
-    row.kind === 'message' ||
+    kinds.includes(row.kind) ||
     (row.kind === 'event' && row.name === TAPE_MESSAGE_RETRACTED_EVENT_NAME)
   )
+}
+
+export function isEffectiveViewInputRow(row: { kind: string; name: string | null }): boolean {
+  return isEffectiveInputRow(row, EFFECTIVE_VIEW_INPUT_KINDS)
+}
+
+export function isEffectiveMessageInputRow(row: { kind: string; name: string | null }): boolean {
+  return isEffectiveInputRow(row, EFFECTIVE_MESSAGE_INPUT_KINDS)
 }
 
 export interface DeepChatTapeToolIdentity {

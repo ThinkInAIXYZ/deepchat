@@ -8,7 +8,6 @@ import {
   SUMMARY_ANCHOR_NAMES,
   TAPE_INCARNATION_META_KEY,
   type DeepChatTapeAppendInput,
-  type DeepChatTapeEntryKind,
   type DeepChatTapeEntryRow,
   type DeepChatTapeReadSource,
   type DeepChatTapeSearchInput,
@@ -18,8 +17,11 @@ import {
 } from '@/tape/domain/entry'
 import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
 import {
+  EFFECTIVE_MESSAGE_INPUT_KINDS,
+  EFFECTIVE_VIEW_INPUT_KINDS,
   TAPE_MESSAGE_RETRACTED_EVENT_NAME,
-  parseTapeJsonObject
+  parseTapeJsonObject,
+  type EffectiveInputKind
 } from '@/tape/domain/effectiveSemantics'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
@@ -266,9 +268,10 @@ interface EffectiveInputRowsQuery {
  * session touches. One range per kind on `idx_deepchat_tape_entries_session_kind` (retractions on
  * the partial event-name index) loads only the pages that hold the requested rows, and SQLite
  * merges the ordered ranges without a sort. On a 10k-entry encrypted session this halves the cold
- * read of the effective-view inputs.
+ * read of the effective-view inputs. The ranges are disjoint because `EffectiveInputKind` cannot
+ * name `event`; the kind lists are the same constants the JS predicates test.
  */
-function effectiveInputRowsQuery(kinds: readonly DeepChatTapeEntryKind[]): EffectiveInputRowsQuery {
+function effectiveInputRowsQuery(kinds: readonly EffectiveInputKind[]): EffectiveInputRowsQuery {
   const ranges = [
     ...kinds.map(
       (kind) => `SELECT * FROM deepchat_tape_entries WHERE session_id = ? AND kind = '${kind}'`
@@ -282,16 +285,8 @@ function effectiveInputRowsQuery(kinds: readonly DeepChatTapeEntryKind[]): Effec
   }
 }
 
-/** SQL mirror of `isEffectiveViewInputRow`. */
-const EFFECTIVE_VIEW_INPUT_ROWS_QUERY = effectiveInputRowsQuery([
-  'message',
-  'tool_call',
-  'tool_result',
-  'anchor'
-])
-
-/** SQL mirror of `isEffectiveMessageInputRow`. */
-const EFFECTIVE_MESSAGE_INPUT_ROWS_QUERY = effectiveInputRowsQuery(['message'])
+const EFFECTIVE_VIEW_INPUT_ROWS_QUERY = effectiveInputRowsQuery(EFFECTIVE_VIEW_INPUT_KINDS)
+const EFFECTIVE_MESSAGE_INPUT_ROWS_QUERY = effectiveInputRowsQuery(EFFECTIVE_MESSAGE_INPUT_KINDS)
 
 export const UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL = `
   WITH unterminated_runs AS (
