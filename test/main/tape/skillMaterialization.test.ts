@@ -845,7 +845,7 @@ describeSqlite('Tape Skill materialization SQLite capability', () => {
         name: 'custom/context',
         payload: {}
       })
-    ).toThrow('context entry kind is reserved')
+    ).toThrow('context entry kind')
     expect(table.search('session-1', 'hello 🌍')).toEqual([])
     expect(table.search('session-1', 'hello 🌍', { kinds: ['context'] })).toEqual([])
     expect(

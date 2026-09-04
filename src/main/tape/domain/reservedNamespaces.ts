@@ -31,18 +31,14 @@ interface TapeReservedNamespaceRule {
    * search unless a reader asks for audit events explicitly.
    */
   readonly auditEvents: boolean
-  /** Error for a generic append that lands in the slice by name. */
+  /** Error for a generic append that lands in the slice. */
   readonly genericRejection: string
-  /** Error for a generic append that lands in the slice by kind alone; defaults to the name error. */
-  readonly kindRejection?: string
   /** What the strict writer tried to append when it stepped outside its own facts. */
   readonly strictRejection: string
 }
 
 /** Declaration order is the order generic appends are checked in. */
-const TAPE_RESERVED_NAMESPACE_RULES: Readonly<
-  Record<TapeReservedNamespace, TapeReservedNamespaceRule>
-> = {
+const TAPE_RESERVED_NAMESPACE_RULES: Record<TapeReservedNamespace, TapeReservedNamespaceRule> = {
   execution: {
     names: EXECUTION_JOURNAL_EVENT_NAMES,
     reservesName: isExecutionJournalReservedName,
@@ -69,8 +65,8 @@ const TAPE_RESERVED_NAMESPACE_RULES: Readonly<
     kind: 'context',
     // `context` rows never reach effective views or search; readers skip the kind itself.
     auditEvents: false,
-    genericRejection: 'skill/materialized is reserved for the strict materialization writer.',
-    kindRejection: 'The context entry kind is reserved for the strict materialization writer.',
+    genericRejection:
+      'The context entry kind and skill/materialized are reserved for the strict materialization writer.',
     strictRejection: 'Skill materialization fact'
   },
   'provider-attempt': {
@@ -117,8 +113,7 @@ export function assertTapeAppendAuthorized(
     return
   }
   for (const rule of RULES_IN_ORDER) {
-    const rejection = genericAppendRejection(rule, kind, name)
-    if (rejection) throw new Error(rejection)
+    if (claimsGenericAppend(rule, kind, name)) throw new Error(rule.genericRejection)
   }
 }
 
@@ -132,17 +127,13 @@ function ownsFact(
   return rule.kind === undefined || kind === rule.kind
 }
 
-/** Names why a generic append lands in the slice: exact or reserved sibling name first, then kind. */
-function genericAppendRejection(
+/** A generic append lands in the slice by exact name, reserved sibling name, or reserved kind. */
+function claimsGenericAppend(
   rule: TapeReservedNamespaceRule,
   kind: DeepChatTapeEntryKind,
   name: DeepChatTapeAppendInput['name']
-): string | null {
-  if (typeof name === 'string' && (rule.names.includes(name) || rule.reservesName?.(name))) {
-    return rule.genericRejection
-  }
-  if (rule.kind !== undefined && kind === rule.kind) {
-    return rule.kindRejection ?? rule.genericRejection
-  }
-  return null
+): boolean {
+  if (rule.kind !== undefined && kind === rule.kind) return true
+  if (typeof name !== 'string') return false
+  return rule.names.includes(name) || rule.reservesName?.(name) === true
 }
