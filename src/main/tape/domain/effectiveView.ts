@@ -65,7 +65,6 @@ type EffectiveMessageCandidate = {
 /** A tool row with everything the fold needs already parsed, so no JSON is parsed twice. */
 type EffectiveToolCandidate = {
   row: DeepChatTapeEntryRow
-  key: string
   messageId: string
   rank: number
   /** `payload.orderSeq` as stored; when it already matches the message, projection is a no-op. */
@@ -86,20 +85,6 @@ export function projectTapeToolOrderSeq(
     ...row,
     payload_json: JSON.stringify({ ...payload, orderSeq: effectiveOrderSeq })
   }
-}
-
-function readEffectiveToolCandidate(
-  row: DeepChatTapeEntryRow,
-  includePending: boolean
-): EffectiveToolCandidate | null {
-  const payload = parseTapeJsonObject(row.payload_json)
-  const identity = readTapeToolIdentityFromPayload(row.kind, payload)
-  if (!identity) return null
-
-  const rank = tapeToolRankFromStatus(readTapeToolStatus(row), includePending)
-  if (rank === 0) return null
-
-  return { row, ...identity, rank, storedOrderSeq: payload.orderSeq }
 }
 
 function compareSqliteBinaryText(left: string, right: string): number {
@@ -244,9 +229,18 @@ export function buildEffectiveTapeView(
       continue
     }
 
-    const candidate = readEffectiveToolCandidate(row, includePending)
-    if (candidate && shouldReplaceToolRow(toolCandidates.get(candidate.key), candidate)) {
-      toolCandidates.set(candidate.key, candidate)
+    const payload = parseTapeJsonObject(row.payload_json)
+    const identity = readTapeToolIdentityFromPayload(row.kind, payload)
+    if (!identity) {
+      continue
+    }
+    const rank = tapeToolRankFromStatus(readTapeToolStatus(row), includePending)
+    if (rank === 0) {
+      continue
+    }
+    const candidate = { row, messageId: identity.messageId, rank, storedOrderSeq: payload.orderSeq }
+    if (shouldReplaceToolRow(toolCandidates.get(identity.key), candidate)) {
+      toolCandidates.set(identity.key, candidate)
     }
   }
 
