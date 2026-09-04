@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.2-beta.1 (2026-09-04)
+- Added an Open With picker for workspace files, with detected editors and terminals, remembered preferences, and system-default fallback
+- Restored DeepSeek Responses tool streaming, native web search, and follow-up replay
+- Added visible waiting feedback during provider retry delays
+- Made delegated sessions inherit the parent tool mode
+- Improved agent turn performance and session consistency with faster Tape reads and atomic message and fact writes
+- Refreshed the built-in model and ACP catalogs
+- 新增工作区文件“打开方式”选择器，支持检测编辑器与终端、记住所选应用，并在不可用时回退到系统默认应用
+- 恢复 DeepSeek Responses 的工具流式传输、原生网页搜索与后续对话回放
+- 在 Provider 重试等待期间显示明确反馈
+- 使委派会话继承父会话的工具模式
+- 通过更快的 Tape 读取以及消息与事实的原子写入，提升 Agent 回合性能与会话一致性
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.1 (2026-08-31)
 - Added Code and Minimal tool modes, on-demand tool discovery, and permission-scoped CLI tool access
 - Added a Tape Trace Inspector for Agent runs, provider requests, tool calls, and Skill usage
