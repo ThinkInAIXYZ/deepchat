@@ -852,11 +852,19 @@ describe('Execution Journal domain and strict persistence', () => {
     const { table, entries } = createTapeTableMock()
     const service = createTapeService(table)
 
-    const first = commitStarted(service, RUN_IDS.completed.toUpperCase())
-    const replay = commitStarted(service, RUN_IDS.completed)
+    // Hex letters, so the upper-case spelling really differs from the canonical one.
+    const canonical = 'abcdef01-2345-4678-8abc-def012345678'
+    const upperCase = canonical.toUpperCase()
+    expect(upperCase).not.toBe(canonical)
+
+    const first = commitStarted(service, upperCase)
+    const replay = commitStarted(service, canonical)
     expect(first.created).toBe(true)
     expect(replay).toEqual({ ...first, created: false })
-    expect(JSON.parse(entries[entries.length - 1].payload_json).data.runId).toBe(RUN_IDS.completed)
+    expect(JSON.parse(entries[entries.length - 1].payload_json).data.runId).toBe(canonical)
+    expect(entries[entries.length - 1].provenance_key).toBe(
+      buildExecutionRunProvenanceKey(canonical, 'started')
+    )
 
     for (const version of ['0', '9', 'f']) {
       expect(() => commitStarted(service, `55555555-5555-${version}555-8555-555555555555`)).toThrow(
