@@ -1,7 +1,7 @@
 import type { SessionContextOccupancySnapshot } from '@shared/types/agent-interface'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { SessionTape } from '@/tape/application/sessionTape'
+import type { TapeContextOccupancyReader } from '@/tape/ports/capabilities'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 import { resolveEffectiveContextBudget } from './contextBudget'
@@ -10,7 +10,7 @@ type ContextOccupancyDependencies = {
   runtime: Pick<DeepChatAgentRuntime, 'getOrHydrateScope'>
   sessionState: Pick<SessionStateResolver, 'getSummary'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'getEffectiveGenerationSettings'>
-  tape: Pick<SessionTape, 'getContextOccupancyEvidence'>
+  tape: TapeContextOccupancyReader
 }
 
 export function unavailableContextOccupancy(): SessionContextOccupancySnapshot {
