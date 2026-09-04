@@ -15,7 +15,11 @@ import type {
 } from '@shared/types/tape-replay'
 import { SUMMARY_ANCHOR_NAMES, type DeepChatTapeEntryRow } from '../domain/entry'
 import { buildEffectiveTapeView } from '../domain/effectiveView'
-import { readTapeMessageRetractionId, tapeEntryToMessageRecord } from '../domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  readTapeMessageRetractionId,
+  tapeEntryToMessageRecord
+} from '../domain/effectiveSemantics'
 import {
   collectEntryIds,
   hashString,
@@ -358,12 +362,10 @@ export class TapeViewReplayService {
       }
     }
 
-    const messageSourceRows = rows.filter(
-      (row) => row.kind === 'message' || (row.kind === 'event' && row.name === 'message/retracted')
-    )
-    for (const { entryId, record } of buildEffectiveTapeView(messageSourceRows, {
-      includePending: true
-    }).messageEntries) {
+    for (const { entryId, record } of buildEffectiveTapeView(
+      rows.filter(isEffectiveMessageInputRow),
+      { includePending: true }
+    ).messageEntries) {
       entryIdByMessageId.set(record.id, entryId)
       if (record.role === 'user') {
         messageContentHashByMessageId.set(record.id, hashJsonData(record.content))

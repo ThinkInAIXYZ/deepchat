@@ -11,7 +11,11 @@ import {
 } from '@/tape/domain/effectiveView'
 import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from '@/tape/domain/compactionUsage'
 import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
-import { messageRecordHasFinalToolUse, tapeToolRank } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  messageRecordHasFinalToolUse,
+  tapeToolRank
+} from '@/tape/domain/effectiveSemantics'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 
 function createTable() {
@@ -377,5 +381,44 @@ describe('buildEffectiveTapeView messageEntries (lineage pairing)', () => {
 
     const ids = buildEffectiveTapeView(table.rows).messageEntries.map((entry) => entry.record.id)
     expect(ids).toEqual(['u1'])
+  })
+
+  it('derives messageRecords from message and retraction rows alone', () => {
+    const table = createTable()
+    table.append({ sessionId: 's1', kind: 'anchor', name: 'session/start', payload: {} })
+    appendMessageRecordToTape(table as any, userRecord('u1', 1, 'first'), 'live')
+    appendMessageRecordToTape(
+      table as any,
+      assistantRecord([toolCallBlock('success', 'tc1', 'result')], { status: 'sent' }),
+      'live'
+    )
+    appendMessageRecordToTape(table as any, userRecord('u2', 3, 'retract me'), 'live')
+    table.append({
+      sessionId: 's1',
+      kind: 'event',
+      name: 'message/retracted',
+      payload: { data: { messageId: 'u2' } }
+    })
+    appendMessageRecordToTape(
+      table as any,
+      userRecord('u3', 4, 'pending', { status: 'pending' }),
+      'live'
+    )
+    table.append({ sessionId: 's1', kind: 'event', name: 'view/assembled', payload: {} })
+    expect(new Set(table.rows.map((row) => row.kind))).toEqual(
+      new Set(['anchor', 'message', 'tool_call', 'tool_result', 'event'])
+    )
+
+    for (const includePending of [true, false]) {
+      const full = buildEffectiveTapeView(table.rows, { includePending })
+      const messagesOnly = buildEffectiveTapeView(table.rows.filter(isEffectiveMessageInputRow), {
+        includePending
+      })
+      expect(messagesOnly.messageRecords).toEqual(full.messageRecords)
+      expect(messagesOnly.messageEntries).toEqual(full.messageEntries)
+    }
+    expect(
+      buildEffectiveTapeView(table.rows, { includePending: true }).messageRecords.map((r) => r.id)
+    ).toEqual(['u1', 'a1', 'u3'])
   })
 })

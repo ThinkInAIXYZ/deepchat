@@ -7,7 +7,6 @@ import {
 } from '@/tape/domain/facts'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { TapeBootstrapStore, TapeEntryStore } from '@/tape/ports/storage'
-import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import {
   parseAssistantBlocks,
   parseTapeJsonObject,
@@ -611,10 +610,4 @@ export function appendMessageRetractionToTape(
   })
 
   return 1
-}
-
-export function tapeEntriesToEffectiveMessageRecords(
-  rows: DeepChatTapeEntryRow[]
-): ChatMessageRecord[] {
-  return buildEffectiveTapeView(rows, { includePending: true }).messageRecords
 }

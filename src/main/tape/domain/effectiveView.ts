@@ -6,13 +6,15 @@ import { CONTRACT_TAPE_EVENT_NAMES, isContractTapeReservedName } from './contrac
 import { TOOL_SURFACE_TAPE_EVENT_NAMES } from './toolSurfaceFacts'
 import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
 import {
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
   parseNestedTapeJsonObject,
   parseTapeJsonObject,
   readTapeMessageRetractionId,
-  readTapeToolIdentity,
+  readTapeToolIdentityFromPayload,
+  readTapeToolStatus,
   tapeEntryToMessageRecord,
   tapeMessageRank,
-  tapeToolRank
+  tapeToolRankFromStatus
 } from './effectiveSemantics'
 import {
   parseTapeProviderAttemptEvent,
@@ -43,7 +45,7 @@ interface EffectiveTapeViewOptions {
 }
 
 export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES = [
-  'message/retracted',
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
   'message/compaction_indicator',
   'migration/backfill',
   TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
@@ -60,18 +62,25 @@ type EffectiveMessageCandidate = {
   record: ChatMessageRecord
 }
 
+/** A tool row with everything the fold needs already parsed, so no JSON is parsed twice. */
+type EffectiveToolCandidate = {
+  row: DeepChatTapeEntryRow
+  messageId: string
+  rank: number
+  /** `payload.orderSeq` as stored; when it already matches the message, projection is a no-op. */
+  storedOrderSeq: unknown
+}
+
 export function projectTapeToolOrderSeq(
   row: DeepChatTapeEntryRow,
   effectiveMessageOrderSeqById: ReadonlyMap<string, number>
 ): DeepChatTapeEntryRow {
-  const identity = readTapeToolIdentity(row)
+  const payload = parseTapeJsonObject(row.payload_json)
+  const identity = readTapeToolIdentityFromPayload(row.kind, payload)
   if (!identity) return row
 
   const effectiveOrderSeq = effectiveMessageOrderSeqById.get(identity.messageId)
-  if (effectiveOrderSeq === undefined) return row
-
-  const payload = parseTapeJsonObject(row.payload_json)
-  if (payload.orderSeq === effectiveOrderSeq) return row
+  if (effectiveOrderSeq === undefined || payload.orderSeq === effectiveOrderSeq) return row
   return {
     ...row,
     payload_json: JSON.stringify({ ...payload, orderSeq: effectiveOrderSeq })
@@ -132,23 +141,16 @@ function isAuditEvent(row: DeepChatTapeEntryRow): boolean {
 }
 
 function shouldReplaceToolRow(
-  current: DeepChatTapeEntryRow | undefined,
-  next: DeepChatTapeEntryRow,
-  includePending: boolean
+  current: EffectiveToolCandidate | undefined,
+  next: EffectiveToolCandidate
 ): boolean {
   if (!current) {
     return true
   }
-
-  const currentRank = tapeToolRank(current, includePending)
-  const nextRank = tapeToolRank(next, includePending)
-  if (nextRank > currentRank) {
-    return true
+  if (next.rank !== current.rank) {
+    return next.rank > current.rank
   }
-  if (nextRank < currentRank) {
-    return false
-  }
-  return next.entry_id > current.entry_id
+  return next.row.entry_id > current.row.entry_id
 }
 
 function matchesKinds(
@@ -184,7 +186,7 @@ export function buildEffectiveTapeView(
   const includeAuditEvents = options.includeAuditEvents === true
   const messageCandidates = new Map<string, EffectiveMessageCandidate>()
   const retractedMessageIds = new Set<string>()
-  const toolRows = new Map<string, { row: DeepChatTapeEntryRow; messageId: string }>()
+  const toolCandidates = new Map<string, EffectiveToolCandidate>()
   const anchorRows: DeepChatTapeEntryRow[] = []
   const eventRows: DeepChatTapeEntryRow[] = []
 
@@ -227,13 +229,18 @@ export function buildEffectiveTapeView(
       continue
     }
 
-    const identity = readTapeToolIdentity(row)
-    if (!identity || tapeToolRank(row, includePending) === 0) {
+    const payload = parseTapeJsonObject(row.payload_json)
+    const identity = readTapeToolIdentityFromPayload(row.kind, payload)
+    if (!identity) {
       continue
     }
-    const current = toolRows.get(identity.key)?.row
-    if (shouldReplaceToolRow(current, row, includePending)) {
-      toolRows.set(identity.key, { row, messageId: identity.messageId })
+    const rank = tapeToolRankFromStatus(readTapeToolStatus(row), includePending)
+    if (rank === 0) {
+      continue
+    }
+    const candidate = { row, messageId: identity.messageId, rank, storedOrderSeq: payload.orderSeq }
+    if (shouldReplaceToolRow(toolCandidates.get(identity.key), candidate)) {
+      toolCandidates.set(identity.key, candidate)
     }
   }
 
@@ -244,13 +251,21 @@ export function buildEffectiveTapeView(
         left.record.orderSeq - right.record.orderSeq ||
         compareSqliteBinaryText(left.record.id, right.record.id)
     )
-  const effectiveMessageIds = new Set(messageRows.map((candidate) => candidate.record.id))
   const effectiveMessageOrderSeqById = new Map(
     messageRows.map((candidate) => [candidate.record.id, candidate.record.orderSeq])
   )
-  const effectiveToolRows = [...toolRows.values()]
-    .filter((candidate) => effectiveMessageIds.has(candidate.messageId))
-    .map((candidate) => projectTapeToolOrderSeq(candidate.row, effectiveMessageOrderSeqById))
+  // Tool rows only survive when their message did; the stored orderSeq matches unless a
+  // compaction shift moved the message, so the re-serialising projection is the rare path.
+  const effectiveToolRows: DeepChatTapeEntryRow[] = []
+  for (const candidate of toolCandidates.values()) {
+    const effectiveOrderSeq = effectiveMessageOrderSeqById.get(candidate.messageId)
+    if (effectiveOrderSeq === undefined) continue
+    effectiveToolRows.push(
+      candidate.storedOrderSeq === effectiveOrderSeq
+        ? candidate.row
+        : projectTapeToolOrderSeq(candidate.row, effectiveMessageOrderSeqById)
+    )
+  }
   const effectiveRows = [
     ...anchorRows,
     ...eventRows,

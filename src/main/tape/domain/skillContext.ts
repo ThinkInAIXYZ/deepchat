@@ -16,8 +16,8 @@ import {
 } from './executionJournal'
 import { hashJsonData } from './canonicalJson'
 import { isBoundedSkillTapeIdentity } from './skillIdentity'
+import { SHA256_HEX_PATTERN } from './primitives'
 
-const HASH = /^[a-f0-9]{64}$/
 const MAX_SOURCE_REFS = 64
 export const MAX_SKILL_CONTEXTS_PER_VIEW = 64
 export const MAX_SKILL_VIEW_RESULT_FACT_BYTES = SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES
@@ -219,7 +219,7 @@ function validateMaterializationRef(
     !isSkillSourceType(ref.sourceType) ||
     !isBoundedSkillTapeIdentity(ref.sourceId) ||
     !isBoundedSkillTapeIdentity(ref.skillName) ||
-    !HASH.test(ref.effectiveContentHash) ||
+    !SHA256_HEX_PATTERN.test(ref.effectiveContentHash) ||
     (projectedContentHash !== undefined && projectedContentHash !== ref.effectiveContentHash) ||
     ref.agentId !== context.agentId ||
     ref.sourceType !== context.sourceType ||
@@ -270,7 +270,7 @@ function validateSkillContexts(
       !ref ||
       !positive(ref.entryId) ||
       typeof context.projectedContentHash !== 'string' ||
-      !HASH.test(context.projectedContentHash) ||
+      !SHA256_HEX_PATTERN.test(context.projectedContentHash) ||
       !positive(context.projectionVersion) ||
       !Array.isArray(context.sourceEntryIds) ||
       context.sourceEntryIds.length > MAX_SOURCE_REFS ||
@@ -296,7 +296,7 @@ function validateSkillContexts(
         context.providerRole !== 'tool' ||
         ref.kind !== 'tool_result' ||
         typeof ref.contentHash !== 'string' ||
-        !HASH.test(ref.contentHash) ||
+        !SHA256_HEX_PATTERN.test(ref.contentHash) ||
         context.projectedContentHash !== ref.contentHash ||
         context.deduplicationSource !== 'runtime_view'
       )

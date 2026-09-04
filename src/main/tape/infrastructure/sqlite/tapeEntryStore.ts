@@ -16,7 +16,13 @@ import {
   type TapeEventAppendInput
 } from '@/tape/domain/entry'
 import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
-import { parseTapeJsonObject } from '@/tape/domain/effectiveSemantics'
+import {
+  EFFECTIVE_MESSAGE_INPUT_KINDS,
+  EFFECTIVE_VIEW_INPUT_KINDS,
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
+  parseTapeJsonObject,
+  type EffectiveInputKind
+} from '@/tape/domain/effectiveSemantics'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   type ExecutionJournalEventName,
@@ -248,6 +254,32 @@ const TAPE_ENTRY_INDEX_SQL = `
 const EXECUTION_JOURNAL_EVENT_NAMES_SQL = EXECUTION_JOURNAL_EVENT_NAMES.map(
   (name) => `'${name}'`
 ).join(', ')
+
+/**
+ * One session's rows of the given kinds plus its `message/retracted` events (every effective-state
+ * reader needs the retractions), merged in entry_id order; bind `{ session }`. Written as
+ * `WHERE kind IN (...)` the planner walks the whole session by primary key and, under SQLCipher,
+ * decrypts every page the session touches. One range per kind on
+ * `idx_deepchat_tape_entries_session_kind` (retractions on the partial event-name index) loads only
+ * the pages that hold the requested rows, and SQLite merges the ordered ranges without a sort. On a
+ * 10k-entry encrypted session this halves the cold read of the effective-view inputs. The ranges
+ * are disjoint because `EffectiveInputKind` cannot name `event`; the kind lists are the same
+ * constants the JS predicates test.
+ */
+function effectiveInputRowsSql(kinds: readonly EffectiveInputKind[]): string {
+  const ranges = [
+    ...kinds.map(
+      (kind) =>
+        `SELECT * FROM deepchat_tape_entries WHERE session_id = $session AND kind = '${kind}'`
+    ),
+    `SELECT * FROM deepchat_tape_entries
+     WHERE session_id = $session AND kind = 'event' AND name = '${TAPE_MESSAGE_RETRACTED_EVENT_NAME}'`
+  ]
+  return `SELECT * FROM (${ranges.join(' UNION ALL ')}) ORDER BY entry_id ASC`
+}
+
+const EFFECTIVE_VIEW_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_VIEW_INPUT_KINDS)
+const EFFECTIVE_MESSAGE_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_MESSAGE_INPUT_KINDS)
 
 export const UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL = `
   WITH unterminated_runs AS (
@@ -1201,20 +1233,16 @@ export class DeepChatTapeEntriesTable
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
-  /** SQL mirror of `isEffectiveViewInputRow`; skips the bulky rows the effective view ignores. */
   getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
     return this.db
-      .prepare(
-        `SELECT *
-         FROM deepchat_tape_entries
-         WHERE session_id = ?
-           AND (
-             kind IN ('message', 'tool_call', 'tool_result', 'anchor')
-             OR (kind = 'event' AND name = 'message/retracted')
-           )
-         ORDER BY entry_id ASC`
-      )
-      .all(sessionId) as DeepChatTapeEntryRow[]
+      .prepare(EFFECTIVE_VIEW_INPUT_ROWS_SQL)
+      .all({ session: sessionId }) as DeepChatTapeEntryRow[]
+  }
+
+  getEffectiveMessageInputRows(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(EFFECTIVE_MESSAGE_INPUT_ROWS_SQL)
+      .all({ session: sessionId }) as DeepChatTapeEntryRow[]
   }
 
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[] {

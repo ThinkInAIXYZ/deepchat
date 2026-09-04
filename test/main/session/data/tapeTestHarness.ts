@@ -20,7 +20,10 @@ import {
   DeepChatTapeEntriesTable,
   MAX_TAPE_SEARCH_TOKEN_CLAUSES
 } from '@/tape/infrastructure/sqlite/tapeEntryStore'
-import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import { SUMMARY_ANCHOR_NAMES } from '@/tape/domain/entry'
 import { EXECUTION_JOURNAL_EVENT_NAMES } from '@/tape/domain/executionJournal'
 import {
@@ -439,6 +442,9 @@ function createTapeTableMock() {
     ),
     getEffectiveViewInputRows: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId && isEffectiveViewInputRow(entry))
+    ),
+    getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
+      entries.filter((entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry))
     ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const selected = new Set(entryIds)

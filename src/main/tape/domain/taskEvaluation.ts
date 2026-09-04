@@ -26,9 +26,9 @@ import {
 } from '@shared/types/task-contract'
 import { indexMarkdownLevelTwoSections } from '@shared/orchestration/liveDelegationMarkdown'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
+import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives'
 import { isDeepChatTaskContract } from './taskContract'
 
-const SHA_256_PATTERN = /^[0-9a-f]{64}$/u
 const SUCCESS_REASON_CODES = new Set<DeepChatTaskEvaluationReasonCode>([
   'required_sections_present'
 ])
@@ -105,7 +105,7 @@ export function buildTaskEvaluation(input: BuildTaskEvaluationInput): DeepChatTa
       : 'valid'
   const reasonCodes = [
     ...new Set(records.filter((record) => record.outcome !== 'valid').map((record) => record.code))
-  ].sort(compareCodePoints)
+  ].sort(compareUtf16)
 
   return finalizeEvaluation({
     schemaVersion: DEEPCHAT_TASK_EVALUATION_SCHEMA_VERSION,
@@ -179,11 +179,11 @@ export function isDeepChatEvaluationRef(value: unknown): value is DeepChatEvalua
     ref.sessionId.length > 0 &&
     ref.sessionId.length <= 256 &&
     typeof ref.tapeIdentity === 'string' &&
-    SHA_256_PATTERN.test(ref.tapeIdentity) &&
+    SHA256_HEX_PATTERN.test(ref.tapeIdentity) &&
     Number.isSafeInteger(ref.entryId) &&
     (ref.entryId as number) > 0 &&
     typeof ref.evaluationHash === 'string' &&
-    SHA_256_PATTERN.test(ref.evaluationHash)
+    SHA256_HEX_PATTERN.test(ref.evaluationHash)
   )
 }
 
@@ -345,7 +345,7 @@ function isCanonicalEvaluation(evaluation: DeepChatTaskEvaluation): boolean {
   if (evaluation.reasonCodes.some((code) => SUCCESS_REASON_CODES.has(code))) return false
   if (
     canonicalJsonStringifyData(evaluation.reasonCodes) !==
-    canonicalJsonStringifyData([...new Set(evaluation.reasonCodes)].sort(compareCodePoints))
+    canonicalJsonStringifyData([...new Set(evaluation.reasonCodes)].sort(compareUtf16))
   ) {
     return false
   }
@@ -353,7 +353,7 @@ function isCanonicalEvaluation(evaluation: DeepChatTaskEvaluation): boolean {
     ...new Set(
       evaluation.records.filter((record) => record.outcome !== 'valid').map((record) => record.code)
     )
-  ].sort(compareCodePoints)
+  ].sort(compareUtf16)
   if (
     evaluation.omittedRecordCount === 0 &&
     canonicalJsonStringifyData(evaluation.reasonCodes) !==
@@ -380,7 +380,7 @@ function isCanonicalLegacyEvaluation(evaluation: DeepChatLegacyTaskEvaluation): 
   if (evaluation.reasonCodes.some((code) => LEGACY_SUCCESS_REASON_CODES.has(code))) return false
   if (
     canonicalJsonStringifyData(evaluation.reasonCodes) !==
-    canonicalJsonStringifyData([...new Set(evaluation.reasonCodes)].sort(compareCodePoints))
+    canonicalJsonStringifyData([...new Set(evaluation.reasonCodes)].sort(compareUtf16))
   ) {
     return false
   }
@@ -390,7 +390,7 @@ function isCanonicalLegacyEvaluation(evaluation: DeepChatLegacyTaskEvaluation): 
         .filter((record) => record.outcome !== 'passed')
         .map((record) => record.code)
     )
-  ].sort(compareCodePoints)
+  ].sort(compareUtf16)
   if (
     evaluation.omittedRecordCount === 0 &&
     canonicalJsonStringifyData(evaluation.reasonCodes) !==
@@ -450,7 +450,7 @@ function legacyEvaluationMatchesWriterState(evaluation: DeepChatLegacyTaskEvalua
       record.requirementKind !== 'required_sections' ||
       requirementIds.has(record.requirementId) ||
       (previousRequirementId !== null &&
-        compareCodePoints(previousRequirementId, record.requirementId) >= 0)
+        compareUtf16(previousRequirementId, record.requirementId) >= 0)
     ) {
       return false
     }
@@ -531,14 +531,4 @@ function reasonCodeOutcome(
   if (SUCCESS_REASON_CODES.has(code)) return 'valid'
   if (code === 'required_sections_missing') return 'invalid'
   return 'indeterminate'
-}
-
-function compareCodePoints(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
-}
-
-function deepFreeze<T>(value: T): T {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
-  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested)
-  return Object.freeze(value)
 }

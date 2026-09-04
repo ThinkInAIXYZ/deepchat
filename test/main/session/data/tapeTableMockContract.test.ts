@@ -168,7 +168,7 @@ function seedConversation(store: Store) {
     sessionId: SESSION,
     name: 'message/retracted',
     source: { type: 'message', id: 'm2', seq: 0 },
-    data: { reason: 'user_delete' },
+    data: { messageId: 'm2', reason: 'user_delete' },
     createdAt: 150
   })
   store.appendAnchor({
@@ -256,6 +256,82 @@ function seedConversation(store: Store) {
     meta: { status: 'sent' },
     createdAt: 200
   })
+}
+
+const REVISION_SESSION = 's3'
+
+/**
+ * One assistant message written three times: a sent revision that is retracted, a sent revision
+ * at a shifted orderSeq that supersedes it, and a pending revision that must not. Its tool rows
+ * use the production payload shape (`messageId`/`orderSeq` in the payload, `toolCall` as an
+ * object for the first call and as legacy JSON text for the second) so the join, the orderSeq
+ * rewrite and both `toolCall` encodings are compared between the SQL and JS effective views.
+ */
+function seedRevisedAssistant(store: Store) {
+  bootstrap(store, REVISION_SESSION, '00000000-0000-4000-8000-000000000003')
+  const assistant = (orderSeq: number, text: string, status: 'sent' | 'pending', seq: number) =>
+    store.append({
+      sessionId: REVISION_SESSION,
+      kind: 'message',
+      name: 'message/assistant',
+      source: { type: 'message', id: 'a1', seq },
+      payload: {
+        record: createRecord({
+          id: 'a1',
+          sessionId: REVISION_SESSION,
+          role: 'assistant',
+          orderSeq,
+          status,
+          content: JSON.stringify([{ type: 'content', content: text }])
+        })
+      },
+      meta: { status },
+      createdAt: 100 + seq
+    })
+  const toolCall = (toolCallId: string, orderSeq: number, toolCall: unknown, createdAt: number) =>
+    store.append({
+      sessionId: REVISION_SESSION,
+      kind: 'tool_call',
+      name: 'read_file',
+      source: { type: 'tool_call', id: `a1:${toolCallId}`, seq: 0 },
+      payload: { messageId: 'a1', orderSeq, toolCall },
+      meta: { status: 'success' },
+      createdAt
+    })
+  const toolResult = (toolCallId: string, orderSeq: number, response: string, createdAt: number) =>
+    store.append({
+      sessionId: REVISION_SESSION,
+      kind: 'tool_result',
+      name: 'read_file',
+      source: { type: 'tool_result', id: `a1:${toolCallId}`, seq: 0 },
+      payload: { messageId: 'a1', orderSeq, toolCallId, response },
+      meta: { status: 'success' },
+      createdAt
+    })
+
+  assistant(2, 'draft one', 'sent', 0) // entry 2
+  toolCall('tc1', 2, { id: 'tc1', name: 'read_file' }, 110) // entry 3
+  toolResult('tc1', 2, 'needle one', 111) // entry 4
+  store.appendEvent({
+    sessionId: REVISION_SESSION,
+    name: 'message/retracted',
+    source: { type: 'message', id: 'a1', seq: 0 },
+    data: { messageId: 'a1', reason: 'edit' },
+    createdAt: 120
+  }) // entry 5
+  store.append({
+    sessionId: REVISION_SESSION,
+    kind: 'message',
+    name: 'message/user',
+    source: { type: 'message', id: 'u1', seq: 0 },
+    payload: { record: createRecord({ id: 'u1', sessionId: REVISION_SESSION, orderSeq: 1 }) },
+    meta: { status: 'sent' },
+    createdAt: 125
+  }) // entry 6
+  assistant(4, 'draft two', 'sent', 1) // entry 7, orderSeq shifted from 2 to 4
+  toolCall('tc2', 4, JSON.stringify({ id: 'tc2', name: 'read_file' }), 130) // entry 8
+  toolResult('tc2', 4, 'needle two', 131) // entry 9
+  assistant(4, 'draft three', 'pending', 2) // entry 10
 }
 
 describe('Tape table mock contract', () => {
@@ -442,6 +518,7 @@ describe('Tape table mock contract', () => {
         messageSourcesMissing: (store) => store.getMessageSourceEntries(SESSION, 'nope'),
         excludingContext: (store) => store.getBySessionExcludingContext(SESSION),
         effectiveViewInputs: (store) => store.getEffectiveViewInputRows(SESSION),
+        effectiveMessageInputs: (store) => store.getEffectiveMessageInputRows(SESSION),
         lineage: (store) => store.getSubagentLineageEvents(SESSION),
         effectiveSearchAtHeads: (store) =>
           store.searchEffectiveSourcesAtHeads(
@@ -459,13 +536,87 @@ describe('Tape table mock contract', () => {
             [2],
             { before: 1, after: 3, limit: 10 }
           ),
-        effectiveContextRetracted: (store) =>
+        // The retracted m2 (entry 8) neither anchors a window nor appears in its neighbour's.
+        retractedIsNotAnAnchor: (store) =>
           store.getEffectiveContextRowsAtHead(
             { sessionId: SESSION, maxEntryId: store.getMaxEntryId(SESSION) },
             [8],
             { before: 0, after: 0, limit: 10 }
+          ),
+        retractedLeavesTheWindow: (store) =>
+          store.getEffectiveContextRowsAtHead(
+            { sessionId: SESSION, maxEntryId: store.getMaxEntryId(SESSION) },
+            [5],
+            { before: 0, after: 2, limit: 10 }
           )
       })
+
+      const afterA1 = stores.real
+        .getEffectiveContextRowsAtHead(
+          { sessionId: SESSION, maxEntryId: stores.real.getMaxEntryId(SESSION) },
+          [5],
+          { before: 0, after: 2, limit: 10 }
+        )
+        .map((row) => row.entry_id)
+        .sort((left, right) => left - right)
+      expect(afterA1).toEqual([5, 10, 11])
+    } finally {
+      stores.close()
+    }
+  })
+
+  itIfSqlite('resolves revisions, retractions and tool joins identically', () => {
+    const stores = openStores()
+    try {
+      for (const store of [stores.real, stores.mock]) seedRevisedAssistant(store)
+
+      const head = (store: Store) => ({
+        sessionId: REVISION_SESSION,
+        maxEntryId: store.getMaxEntryId(REVISION_SESSION)
+      })
+      expectParity(stores, {
+        // The surviving a1 revision (entry 7) with every tool row joined onto it, each tool row's
+        // stored orderSeq rewritten to the revision's orderSeq.
+        effectiveWindow: (store) =>
+          store.getEffectiveContextRowsAtHead(head(store), [7], { before: 5, after: 5, limit: 20 }),
+        // The retracted first revision is not an effective row, so nothing anchors the window.
+        retractedRevision: (store) =>
+          store.getEffectiveContextRowsAtHead(head(store), [2], { before: 1, after: 1, limit: 20 }),
+        // Before the retraction the first revision and its object-form tool call are effective.
+        firstRevisionWindow: (store) =>
+          store.getEffectiveContextRowsAtHead({ sessionId: REVISION_SESSION, maxEntryId: 4 }, [2], {
+            before: 1,
+            after: 3,
+            limit: 20
+          }),
+        // Tool results of both revisions match; the pending third revision contributes nothing.
+        toolResultSearch: (store) => store.searchEffectiveSourcesAtHeads([head(store)], 'needle'),
+        pendingSearch: (store) => store.searchEffectiveSourcesAtHeads([head(store)], 'draft three')
+      })
+
+      // The reader lists requested rows before their neighbours; sort to assert the window's content.
+      const window = stores.real
+        .getEffectiveContextRowsAtHead(head(stores.real), [7], { before: 5, after: 5, limit: 20 })
+        .sort((left, right) => left.entry_id - right.entry_id)
+      expect(window.map((row) => [row.entry_id, row.kind])).toEqual([
+        [1, 'anchor'],
+        [3, 'tool_call'],
+        [4, 'tool_result'],
+        [6, 'message'],
+        [7, 'message'],
+        [8, 'tool_call'],
+        [9, 'tool_result']
+      ])
+      expect(
+        window
+          .filter((row) => row.kind === 'tool_call' || row.kind === 'tool_result')
+          .map((row) => JSON.parse(row.payload_json).orderSeq)
+      ).toEqual([4, 4, 4, 4])
+      expect(
+        stores.real
+          .searchEffectiveSourcesAtHeads([head(stores.real)], 'needle')
+          .map((row) => row.entry_id)
+      ).toEqual([9, 4])
     } finally {
       stores.close()
     }
