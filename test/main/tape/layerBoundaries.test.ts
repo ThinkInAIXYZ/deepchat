@@ -18,6 +18,7 @@ const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite
 const TAPE_CAPABILITIES_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
 const TAPE_SESSION_FACADE_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/application/sessionTape')
 const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
+const SESSION_DATA_ROOT = path.join(MAIN_SOURCE_ROOT, 'session/data')
 const TAPE_SQLITE_RELATIVE_ROOT = 'tape/infrastructure/sqlite/'
 const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
 
@@ -176,6 +177,19 @@ function findConcreteTapeFacadeImportViolations(source: string, file: string): s
   })
 }
 
+/** Session data may consume Tape ports, but it must not become an import path for Tape again. */
+function findTapeReexportViolations(source: string, file: string): string[] {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  return sourceFile.statements.flatMap((statement) =>
+    ts.isExportDeclaration(statement) &&
+    statement.moduleSpecifier &&
+    ts.isStringLiteral(statement.moduleSpecifier) &&
+    isTapeModuleImport(file, statement.moduleSpecifier.text)
+      ? [`Tape re-export: ${statement.moduleSpecifier.text}`]
+      : []
+  )
+}
+
 function findMemoryRouteTapeImportViolations(source: string, file: string): string[] {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
   const tapeReferences = ts
@@ -251,6 +265,17 @@ describe('Tape layer boundaries', () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const violations = CAPABILITY_SCOPED_CONSUMER_FILES.flatMap((file) =>
       findConcreteTapeFacadeImportViolations(fs.readFileSync(file, 'utf8'), file).map(
+        (violation) => `${relativeToMain(file)}: ${violation}`
+      )
+    )
+
+    expect(violations).toEqual([])
+  })
+
+  it('keeps session data from re-exporting Tape modules', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const violations = listTypeScriptSources(SESSION_DATA_ROOT, fs).flatMap((file) =>
+      findTapeReexportViolations(fs.readFileSync(file, 'utf8'), file).map(
         (violation) => `${relativeToMain(file)}: ${violation}`
       )
     )
@@ -492,6 +517,22 @@ describe('Tape layer boundaries', () => {
       expect(findConcreteTapeFacadeImportViolations(source, file)).not.toEqual([])
     }
   )
+
+  it.each([
+    ['value re-export', "export { SessionTape } from '@/tape/application/sessionTape'"],
+    ['type re-export', "export type { TapeInfo } from '../../tape/application/sessionTape'"],
+    ['star re-export', "export * from '@/tape/domain/effectiveView'"]
+  ])('detects a session data Tape %s', (_category, source) => {
+    const file = path.join(SESSION_DATA_ROOT, 'tape.ts')
+    expect(findTapeReexportViolations(source, file)).not.toEqual([])
+  })
+
+  it('allows session data to import Tape ports without re-exporting them', () => {
+    const file = path.join(SESSION_DATA_ROOT, 'transcript.ts')
+    const source =
+      "import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'\nexport type { SessionTranscriptPort } from './contracts'"
+    expect(findTapeReexportViolations(source, file)).toEqual([])
+  })
 
   it('allows physical Tape storage access only at explicit infrastructure boundaries', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
