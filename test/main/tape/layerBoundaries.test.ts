@@ -180,14 +180,45 @@ function findConcreteTapeFacadeImportViolations(source: string, file: string): s
 /** Session data may consume Tape ports, but it must not become an import path for Tape again. */
 function findTapeReexportViolations(source: string, file: string): string[] {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  return sourceFile.statements.flatMap((statement) =>
-    ts.isExportDeclaration(statement) &&
-    statement.moduleSpecifier &&
-    ts.isStringLiteral(statement.moduleSpecifier) &&
-    isTapeModuleImport(file, statement.moduleSpecifier.text)
-      ? [`Tape re-export: ${statement.moduleSpecifier.text}`]
+  const tapeBindings = new Set<string>()
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !isTapeModuleImport(file, statement.moduleSpecifier.text)
+    ) {
+      continue
+    }
+    const clause = statement.importClause
+    if (clause?.name) tapeBindings.add(clause.name.text)
+    if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+      tapeBindings.add(clause.namedBindings.name.text)
+    }
+    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) tapeBindings.add(element.name.text)
+    }
+  }
+  return sourceFile.statements.flatMap((statement) => {
+    if (ts.isExportDeclaration(statement)) {
+      if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+        return isTapeModuleImport(file, statement.moduleSpecifier.text)
+          ? [`Tape re-export: ${statement.moduleSpecifier.text}`]
+          : []
+      }
+      if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        return statement.exportClause.elements.flatMap((element) => {
+          const local = (element.propertyName ?? element.name).text
+          return tapeBindings.has(local) ? [`Tape re-export: ${local}`] : []
+        })
+      }
+      return []
+    }
+    return ts.isExportAssignment(statement) &&
+      ts.isIdentifier(statement.expression) &&
+      tapeBindings.has(statement.expression.text)
+      ? [`Tape re-export: default ${statement.expression.text}`]
       : []
-  )
+  })
 }
 
 function findMemoryRouteTapeImportViolations(source: string, file: string): string[] {
@@ -521,16 +552,43 @@ describe('Tape layer boundaries', () => {
   it.each([
     ['value re-export', "export { SessionTape } from '@/tape/application/sessionTape'"],
     ['type re-export', "export type { TapeInfo } from '../../tape/application/sessionTape'"],
-    ['star re-export', "export * from '@/tape/domain/effectiveView'"]
+    ['star re-export', "export * from '@/tape/domain/effectiveView'"],
+    [
+      'imported binding',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport { SessionTape }"
+    ],
+    [
+      'renamed binding',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport { SessionTape as LegacyTape }"
+    ],
+    [
+      'namespace binding',
+      "import * as effectiveView from '../../tape/domain/effectiveView'\nexport { effectiveView }"
+    ],
+    [
+      'type-only binding',
+      "import type { TapeInfo } from '@/tape/application/sessionTape'\nexport type { TapeInfo }"
+    ],
+    [
+      'default export',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport default SessionTape"
+    ]
   ])('detects a session data Tape %s', (_category, source) => {
     const file = path.join(SESSION_DATA_ROOT, 'tape.ts')
     expect(findTapeReexportViolations(source, file)).not.toEqual([])
   })
 
-  it('allows session data to import Tape ports without re-exporting them', () => {
+  it('allows session data to consume Tape ports without re-exporting them', () => {
     const file = path.join(SESSION_DATA_ROOT, 'transcript.ts')
-    const source =
-      "import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'\nexport type { SessionTranscriptPort } from './contracts'"
+    const source = [
+      "import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'",
+      "import { SessionTranscript } from './transcript'",
+      'export interface TranscriptDependencies {',
+      '  tape: TapeMessageFactWriter',
+      '}',
+      'export { SessionTranscript }',
+      "export type { SessionTranscriptPort } from './contracts'"
+    ].join('\n')
     expect(findTapeReexportViolations(source, file)).toEqual([])
   })
 
