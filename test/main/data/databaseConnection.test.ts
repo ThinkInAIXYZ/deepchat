@@ -46,6 +46,7 @@ describe('main database connection configuration', () => {
       `cipher='sqlcipher'`,
       'legacy=4',
       'journal_mode = WAL',
+      'synchronous = NORMAL',
       'cache_size = -65536'
     ])
     expect(mocks.key).toHaveBeenCalledWith(Buffer.from(password, 'utf8'))
@@ -61,7 +62,7 @@ describe('main database connection configuration', () => {
     expect(mocks.pragma).not.toHaveBeenCalledWith(expect.stringContaining(password))
   })
 
-  it('enables WAL and the page cache ceiling directly for unencrypted databases', async () => {
+  it('enables WAL, NORMAL sync and the page cache ceiling directly for unencrypted databases', async () => {
     const { openSQLiteDatabase } = await import('../../../src/main/data/databaseConnection')
     const dbPath = path.join(process.cwd(), 'agent.db')
 
@@ -69,6 +70,7 @@ describe('main database connection configuration', () => {
 
     expect(mocks.pragma.mock.calls.map(([statement]) => statement)).toEqual([
       'journal_mode = WAL',
+      'synchronous = NORMAL',
       'cache_size = -65536'
     ])
   })

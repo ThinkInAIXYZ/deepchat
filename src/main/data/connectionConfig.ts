@@ -18,6 +18,12 @@ export function configureSQLiteConnection(db: Database.Database, password?: stri
   }
 
   db.pragma('journal_mode = WAL')
+  // NORMAL is what every connection has been running with: the bundled
+  // better-sqlite3-multiple-ciphers build compiles in SQLITE_DEFAULT_WAL_SYNCHRONOUS=1, which
+  // applies only while the application never sets the pragma itself. Stating it here keeps the
+  // durability contract (commits survive a process crash, a power loss may drop the newest
+  // committed transactions but never corrupts the file) independent of that build flag.
+  db.pragma('synchronous = NORMAL')
   // 64 MiB page cache ceiling (negative = KiB) for every connection opened through this helper.
   // It is sized for the main database: SQLCipher decrypts every page it loads, so the whole-session
   // Tape reads before each provider request must stay resident to be cheap. Other connections
