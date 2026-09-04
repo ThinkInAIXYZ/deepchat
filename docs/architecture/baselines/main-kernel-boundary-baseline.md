@@ -1,6 +1,6 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-07-29.
+Generated on 2026-09-04.
 Current phase: P5.
 
 ## Metric Snapshot
@@ -18,7 +18,7 @@ Current phase: P5.
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
 | `hotpath.directEdge.count` | 2 |
-| `runtime.rawTimer.count` | 209 |
+| `runtime.rawTimer.count` | 246 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -80,20 +80,20 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 209
+- Total count: 246
 
 - `src/main/ocr/lightOcrProcessHost.ts`: 10
+- `src/main/tool/codeMode/runCodeRuntimeManager.ts`: 8
 - `src/main/provider/auth/githubCopilotDeviceFlow.ts`: 6
+- `src/main/agent/shared/process/backgroundExecSessionManager.ts`: 5
 - `src/main/desktop/browser/BrowserTab.ts`: 5
 - `src/main/provider/aiSdk/runtime.ts`: 5
 - `src/main/remote/index.ts`: 5
+- `src/main/app/splashWindow.ts`: 4
+- `src/main/cli/server.ts`: 4
 - `src/main/memory/infra/vectorStoreManager.ts`: 4
 - `src/main/memory/services/maintenanceService.ts`: 4
-- `src/main/agent/acp/launch/acpInitHelper.ts`: 3
-- `src/main/agent/shared/process/backgroundExecSessionManager.ts`: 3
-- `src/main/app/splashWindow.ts`: 3
-- `src/main/desktop/window/index.ts`: 3
-- `src/main/platform/fileWatcher/watcherHost.ts`: 3
+- `src/main/tape/application/traceInspectorHeadWatcher.ts`: 4
 
 ## Migrated Path Raw Channel Literals
 
