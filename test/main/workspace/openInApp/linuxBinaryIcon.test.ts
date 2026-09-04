@@ -37,7 +37,7 @@ function resolveBinary(binary: string, path: string | null) {
   execFileMock.mockImplementation((...args: unknown[]) => {
     const callback = args.at(-1) as (error: Error | null, result?: unknown) => void
     const commandArgs = args[1] as string[] | undefined
-    const command = commandArgs?.[2] ?? ''
+    const command = commandArgs?.[1] ?? ''
     if (path && command.includes(`"${binary}"`)) {
       callback(null, { stdout: `${path}\n`, stderr: '' })
       return

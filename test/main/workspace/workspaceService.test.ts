@@ -334,6 +334,7 @@ describe('WorkspaceService watchers', () => {
 
   it('rejects when opening an authorized path returns an error message', async () => {
     const filePath = path.join(workspacePath, 'example.txt')
+    fs.writeFileSync(filePath, '')
     await presenter.registerWorkspace(workspacePath)
     vi.mocked(shell.openPath).mockResolvedValueOnce('failed to open')
 

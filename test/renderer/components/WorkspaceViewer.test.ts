@@ -522,8 +522,7 @@ describe('WorkspaceViewer', () => {
     const openButton = wrapper
       .findAll('button')
       .find(
-        (button) =>
-          button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
+        (button) => button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
       )
     expect(openButton).toBeTruthy()
     await openButton!.trigger('click')
@@ -557,8 +556,7 @@ describe('WorkspaceViewer', () => {
     const openButton = wrapper
       .findAll('button')
       .find(
-        (button) =>
-          button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
+        (button) => button.attributes('tooltip') === 'chat.workspace.files.contextMenu.openFile'
       )
     expect(openButton).toBeTruthy()
     await openButton!.trigger('click')
