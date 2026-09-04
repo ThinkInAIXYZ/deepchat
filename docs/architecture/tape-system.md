@@ -9,8 +9,8 @@ payload 保持兼容读取；只存在于未合并开发分支的 schema 1 被�
 保留 fact name；DeepChat materializer 只获得冻结的窄 capability adapter。复用会在同步事务内验证
 canonical payload 全等和 hash。
 
-`context` 不进入 effective view、transcript、Tape search/context tool、search/Memory projection 或
-fork merge，Replay 导出即使显式请求普通 payload 也只暴露它的 hash/引用元数据。消息级和 Session
+`context` 不进入 effective view、transcript、Tape search/context tool 或 search/Memory projection，
+Replay 导出即使显式请求普通 payload 也只暴露它的 hash/引用元数据。消息级和 Session
 级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
 view occurrence。带 runtime `skill_view` 可执行权限的上下文由 schema 7/hash 5 同时绑定 provider
 可见的 `tool_result` 和 execution package。manifest 只保存引用与证明，不成为内容 sidecar；schemas
@@ -34,7 +34,7 @@ projection；Tape 保存历史事实，但不成为在线权限或编排状态�
 | --- | --- |
 | entry/fact/ref、effective semantics、ViewManifest/replay 纯逻辑 | `src/main/tape/domain/` |
 | 消费方能力和 storage ports | `src/main/tape/ports/` |
-| Fact、Execution Journal、Contract、Reconciler、Recall、Lineage、View/Replay、Fork services | `src/main/tape/application/` |
+| Fact、Execution Journal、Contract、Reconciler、Recall、Lineage、View/Replay services | `src/main/tape/application/` |
 | `SessionTape` 兼容 facade | `src/main/tape/application/sessionTape.ts` |
 | append/read/query store | `src/main/tape/infrastructure/sqlite/tapeEntryStore.ts` |
 | search projection | `src/main/tape/infrastructure/sqlite/tapeSearchProjectionStore.ts` |
@@ -55,9 +55,9 @@ flowchart TD
     Stores --> SQLite["Shared Session SQLite connection"]
 ```
 
-`src/main/session/data/tape*.ts` 和旧 table modules 只保留显式、冻结且标记 deprecated 的
-compatibility re-export。新代码必须从 `src/main/tape/` 或能力 port 导入，不能把兼容路径重新当作
-owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合同。
+Tape 代码只从 `src/main/tape/` 或能力 port 导入。`src/main/session/data/tape*.ts` 与旧 table
+modules 曾作为冻结的 deprecated compatibility re-export 存在，生产代码归零后已删除；不得再在
+`src/main/session/data/` 下重建 Tape 的转发路径或 owner。
 
 ## 能力端口和组合
 
@@ -84,15 +84,15 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 `TapeNonContextEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
 `TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
 `DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
-`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；两种历史
-`TapeViewManifestSourceMaps` 形状只在各自原有 compatibility path 作为 type alias 保留。
+`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；历史别名
+`TapeViewManifestSourceMaps` 已随 compatibility path 一起移除。
 `TapeAnchorReader` 只暴露 settings 实际使用的 latest reconstruction anchor；transcript/settings 必须
 由 composition 注入 port，不允许在 consumer 内隐式构造 concrete facade。
 
 ## 存储与事务边界
 
 - `TapeEntryStore` 只负责 append/read/query；物理删除由独立 lifecycle adapter 执行，只服务于
-  Session lifecycle（包含 fork Session cleanup），不属于运行中 Tape 语义。
+  Session lifecycle，不属于运行中 Tape 语义。
 - Execution Journal 使用同一个 SQLite connection 上的同步 transaction。事务内完成 prerequisite、
   identity collision、payload equality 和 append 检查；同 identity 同 payload 返回既有 receipt，同
   identity 异 payload 报 corruption。它记录已越过外部副作用边界的事实，所以必须独立提交并拒绝加入
@@ -113,9 +113,7 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
   summary/ref context。
 - search projection 升为 version 3，一次性拒绝可能来自 pre-atomic reset、恰好复用相同 head 的 version
   2 row；current search 按需重建，linked read-only search 在重建前沿用 effective-Tape fallback。
-- search projection 可以重建；projection 不可用或 coverage 不完整时回退 effective Tape search，fork
-  cleanup 的 projection 删除失败仍不阻断主流程，但 discard receipt 会使后续 merge 和相同 fork ID
-  的显式复用 fail closed。
+- search projection 可以重建；projection 不可用或 coverage 不完整时回退 effective Tape search。
 - legacy chat import 的全表删除是 migration-only 例外，但消息 fact writer 复用 composition 已创建的
   `SessionTape` capability，不再另建 facade；Memory ingestion projection 为避免并发窗口，可以在一条
   只读 SQL 中同时比较 Tape head 和 projection head。除此之外消费方不得访问物理 Tape 表。
@@ -273,7 +271,7 @@ run/request/incarnation binding、activation scope、source entry ref 与 projec
 代替内容，也不能用“最新 manifest”恢复某次 Run。同一 Run 的 retry、context recovery、tool loop 和
 进程内暂停续跑复用原 fact，禁止重读可变 Skill 文件；崩溃 Run 继续沿用现有 parked 语义，用户显式
 发起的新 Run 才 fresh resolve 当前内容。materialization fact 默认从 transcript、effective view、
-搜索、Memory、普通 renderer 和 fork merge 排除，避免历史行为指令通过召回或合并重新激活。
+搜索、Memory 和普通 renderer 排除，避免历史行为指令通过召回重新激活。
 
 新 attempt event 使用 schema version 2，记录 logicalRound、physicalAttempt、request/attempt origin、
 failure classification、retry decision、受限错误标识、终态、stop reason、最后一个 cumulative usage
@@ -398,7 +396,7 @@ capability；MCP 不能 shadow，持久化 disabled-tool 配置不能逐项关�
 availability gate。`skill_view`/`skill_run` 的 provider-visible 结果和执行权限仍必须遵守上文的
 materialization、ViewManifest、Journal 与 source fence，不因 reserved/exposure 身份获得额外 authority。
 
-## Fork 和 Subagent lineage
+## Subagent lineage
 
 Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一个 link，固定 child Tape head：
 
@@ -408,11 +406,13 @@ Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一�
   closed；
 - 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取。
 
-普通 fork merge 只把 fork head 相对基线的 delta 作为新 entry append 到父 Tape，并追加 merge receipt；
-不得改写父 Tape 旧 entry，也不得把整份 fork 历史重复复制。discard 和重复 merge 保持既有审计、幂等及
-best-effort projection cleanup 语义。discard cleanup 成功时与 receipt 一起提交；cleanup 失败时回滚本次
-cleanup、仍 append receipt 并记录 warning。此时残留 fork 是永久惰性数据，本阶段没有自动或后台重试
-路径；discard receipt 仍保证它不能再次 merge，也不能用相同 fork ID 显式复用。
+Tape 没有 `fork/*` 写入方。v1.0.5–v1.0.9 的 Subagent 收尾曾在父 Tape 写 `fork/merge` /
+`fork/discard` 事件（provenance `fork:<parent>:<child>:external-merge|external-discard:event`），lineage
+reader 对这些历史行只读兼容：`fork/merge` 解析为已完成的 child link，`fork/discard` 仅作审计，
+Inspector 仍把 `fork/*` 归入 lineage family。曾经的进程内 delta-merge fork（`fork/start` anchor、复制
+delta、merge receipt）从未接入产品路径，其 merge 语义也未覆盖后来新增的 reserved namespace，已整体
+移除；若将来需要同 Tape 内的并行探索，必须为每个 reserved namespace 重新定义合并语义，而不是恢复
+旧实现。
 
 ## 回放和兼容
 

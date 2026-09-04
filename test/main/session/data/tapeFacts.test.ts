@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import { appendMessageRecordToTape, appendToolFactsToTape } from '@/session/data/tapeFacts'
+import {
+  appendMessageRecordToTape,
+  appendToolFactsToTape
+} from '@/tape/application/factPersistence'
 import {
   buildEffectiveTapeView,
   projectTapeToolOrderSeq,
@@ -8,11 +11,8 @@ import {
 } from '@/tape/domain/effectiveView'
 import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from '@/tape/domain/compactionUsage'
 import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
-import {
-  messageRecordHasFinalToolUse,
-  tapeToolRank
-} from '@/session/data/tables/deepchatTapeEffectiveSemantics'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import { messageRecordHasFinalToolUse, tapeToolRank } from '@/tape/domain/effectiveSemantics'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 
 function createTable() {
   const rows: any[] = []

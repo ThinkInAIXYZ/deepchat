@@ -256,11 +256,7 @@ function viewProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRec
       ...(messageId ? { messageId } : {}),
       requestSeq: manifest.requestSeq,
       ...(runId ? { runId } : {}),
-      hashes: {
-        payloadHash: hashString(row.payload_json),
-        metaHash: hashString(row.meta_json),
-        manifestHash: manifest.hashes.manifestHash
-      },
+      hashes: { manifestHash: manifest.hashes.manifestHash },
       integrity: verifyTapeViewManifestHash(manifest)
     }
   }
@@ -275,11 +271,7 @@ function viewProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRec
       ...(runId ? { runId } : {}),
       ...(messageId ? { messageId } : {}),
       requestSeq: data.request.requestSeq,
-      hashes: {
-        payloadHash: hashString(row.payload_json),
-        metaHash: hashString(row.meta_json),
-        manifestHash: data.manifestHash
-      }
+      hashes: { manifestHash: data.manifestHash }
     }
   }
   if (
@@ -293,11 +285,7 @@ function viewProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRec
       ...(runId ? { runId } : {}),
       ...(messageId ? { messageId } : {}),
       requestSeq: data.request.requestSeq,
-      hashes: {
-        payloadHash: hashString(row.payload_json),
-        metaHash: hashString(row.meta_json),
-        manifestHash: data.manifestHash
-      }
+      hashes: { manifestHash: data.manifestHash }
     }
   }
   return null
@@ -713,12 +701,13 @@ function semanticProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFac
   )
 }
 
+/**
+ * List-row projection. Stored-string `payloadHash` / `metaHash` are a detail concern
+ * (`projectTapeInspectorDetail`); only View rows carry a hash here because the renderer keys the
+ * integrity section off `manifestHash` + `integrity` before any detail is loaded.
+ */
 export function projectTapeInspectorFact(row: DeepChatTapeEntryRow): TapeInspectorFactRecord {
   const semantic = semanticProjection(row)
-  const hashes = semantic.hashes ?? {
-    payloadHash: hashString(row.payload_json),
-    metaHash: hashString(row.meta_json)
-  }
   return {
     recordType: 'fact',
     key: `entry:${row.entry_id}`,
@@ -730,8 +719,7 @@ export function projectTapeInspectorFact(row: DeepChatTapeEntryRow): TapeInspect
     ...(boundedIdentity(row.source_id) ? { sourceId: boundedIdentity(row.source_id) } : {}),
     ...(row.source_seq === null ? {} : { sourceSeq: row.source_seq }),
     createdAt: row.created_at,
-    ...semantic,
-    hashes
+    ...semantic
   }
 }
 

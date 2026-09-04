@@ -36,13 +36,6 @@ export type TapeSearchResult = {
 
 export type TapeAnchorResult = AgentTapeAnchorResult
 
-export type TapeForkHandle = {
-  parentSessionId: string
-  forkId: string
-  forkSessionId: string
-  parentHeadEntryId: number
-}
-
 export type TapeContextOccupancyEvidence = {
   manifest: DeepChatTapeViewManifestRecord | null
   providerAttempt: TapeProviderAttemptRecord | null

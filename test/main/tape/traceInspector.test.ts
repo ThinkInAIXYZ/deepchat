@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { hashString } from '@/tape/domain/replay'
+import { TAPE_VIEW_MANIFEST_EVENT_NAME } from '@/tape/domain/viewManifest'
+import { createObservationManifest } from '../session/data/tapeTestHarness'
 import {
   buildTapeProviderAttemptProvenanceKey,
   buildTapeProviderAttemptEvent,
@@ -139,14 +141,37 @@ describe('Tape Trace Inspector projection', () => {
         status: 'error',
         retryDecision: 'retry_scheduled',
         errorCode: 'upstream_unavailable'
-      },
-      hashes: { payloadHash: hashString(payloadJson) }
+      }
     })
+    // Stored-string hashes are a detail concern; list rows do not pay for them.
+    expect(record.hashes).toBeUndefined()
+    expect(projectTapeInspectorDetail(attemptRow).hashes.payloadHash).toBe(hashString(payloadJson))
     expect(getTapeInspectorTraceBinding(record)).toEqual({
       scope: 'attempt',
       messageId: 'message-1',
       requestSeq: 3,
       physicalAttempt: 2
+    })
+  })
+
+  it('keeps only the manifest hash and integrity on View list rows', () => {
+    const manifest = createObservationManifest({ sessionId: 'session-1' })
+    const viewRow = row(8, {
+      name: TAPE_VIEW_MANIFEST_EVENT_NAME,
+      source_type: 'runtime_event',
+      source_id: manifest.messageId,
+      source_seq: manifest.requestSeq,
+      payload_json: JSON.stringify({ name: TAPE_VIEW_MANIFEST_EVENT_NAME, data: { manifest } })
+    })
+
+    const record = projectTapeInspectorFact(viewRow)
+
+    expect(record.family).toBe('view')
+    expect(record.hashes).toEqual({ manifestHash: manifest.hashes.manifestHash })
+    expect(record.integrity).toBe('valid')
+    expect(projectTapeInspectorDetail(viewRow).hashes).toEqual({
+      payloadHash: hashString(viewRow.payload_json),
+      metaHash: hashString(viewRow.meta_json)
     })
   })
 

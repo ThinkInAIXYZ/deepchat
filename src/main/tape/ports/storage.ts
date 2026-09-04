@@ -107,10 +107,6 @@ export interface TapeEntryStore {
   ): DeepChatTapeEntryRow | undefined
   getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[]
   getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
-  getBySessionUpToEntryIdExcludingContext(
-    sessionId: string,
-    maxEntryId: number
-  ): DeepChatTapeEntryRow[]
   listMemoryViewManifestAnchorsByAgent(
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }

@@ -30,7 +30,7 @@ import {
   estimateToolReserveTokens,
   getUsableContextLength
 } from '@/agent/deepchat/runtime/contextBudget'
-import { appendMessageRecordToTape } from '@/session/data/tapeFacts'
+import { appendMessageRecordToTape } from '@/tape/application/factPersistence'
 import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'

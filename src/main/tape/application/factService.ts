@@ -119,10 +119,6 @@ export class TapeFactService
     return appendMessageRecordToTape(this.table, record, 'live')
   }
 
-  appendMessageRecordForSession(sessionId: string, record: ChatMessageRecord): number {
-    return appendMessageRecordToTape(this.table, { ...record, sessionId }, 'live')
-  }
-
   appendMessageReplacement(
     record: ChatMessageRecord,
     options: TapeMessageReplacementOptions

@@ -8,7 +8,9 @@ import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule ? await import('@/session/data/tables/deepchatTapeEntries') : null
+const tableModule = sqliteModule
+  ? await import('@/tape/infrastructure/sqlite/tapeEntryStore')
+  : null
 const lifecycleModule = sqliteModule
   ? await import('@/tape/infrastructure/sqlite/tapeLifecycleAdapter')
   : null

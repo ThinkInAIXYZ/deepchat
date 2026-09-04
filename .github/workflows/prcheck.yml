@@ -167,14 +167,16 @@ jobs:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: >-
           pnpm exec vitest --config vitest.config.ts --run
+          test/main/tape/compactionUsage.test.ts
           test/main/tape/skillMaterialization.test.ts
           test/main/tape/executionJournal.test.ts
           test/main/tape/taskContractPersistence.test.ts
           test/main/tape/traceInspector.test.ts
-          test/main/session/data/tapeFork.test.ts
           test/main/session/data/tapeLifecycle.test.ts
           test/main/session/data/tapeLineage.test.ts
           test/main/session/data/tapeRecall.test.ts
+          test/main/session/data/tapeTableMockContract.test.ts
+          test/main/session/data/tapeToolSurfacePersistence.test.ts
           test/main/session/data/tapeViewReplay.test.ts
           test/main/session/data/tables/deepchatTapeEntriesTable.test.ts
           test/main/session/data/transcriptAtomicity.test.ts

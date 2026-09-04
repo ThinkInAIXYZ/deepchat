@@ -245,7 +245,7 @@ export class CommittedToolOutcomeProjectionError extends ExecutionJournalError {
   }
 }
 
-export function isExecutionJournalReservedName(name: unknown): name is string {
+export function isExecutionJournalReservedName(name: unknown): boolean {
   return typeof name === 'string' && name.startsWith('execution/')
 }
 

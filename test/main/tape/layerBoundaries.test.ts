@@ -18,158 +18,9 @@ const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite
 const TAPE_CAPABILITIES_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
 const TAPE_SESSION_FACADE_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/application/sessionTape')
 const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
+const SESSION_DATA_ROOT = path.join(MAIN_SOURCE_ROOT, 'session/data')
 const TAPE_SQLITE_RELATIVE_ROOT = 'tape/infrastructure/sqlite/'
 const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
-
-interface LegacyTapeCompatibilityContract {
-  target: string
-  valueExports: readonly string[]
-  typeExports: readonly string[]
-  typeAliases?: Readonly<Record<string, string>>
-}
-
-const LEGACY_TAPE_COMPATIBILITY_MODULES = new Map<string, LegacyTapeCompatibilityContract>([
-  [
-    'session/data/tape',
-    {
-      target: '@/tape/application/sessionTape',
-      valueExports: [
-        'AgentTapeViewError',
-        'normalizeSubagentTapeLinkInput',
-        'normalizeTapeHandoffState',
-        'SessionTape'
-      ],
-      typeExports: [
-        'AgentTapeViewErrorCode',
-        'TapeAnchorResult',
-        'TapeBackfillResult',
-        'TapeForkHandle',
-        'TapeInfo',
-        'TapeMigrationState',
-        'TapeSearchResult'
-      ],
-      typeAliases: { TapeViewManifestSourceMaps: 'TapeViewManifestAssemblySources' }
-    }
-  ],
-  [
-    'session/data/tapeEffectiveView',
-    {
-      target: '@/tape/domain/effectiveView',
-      valueExports: [
-        'buildEffectiveTapeView',
-        'getLastEffectiveTokenUsage',
-        'searchEffectiveTapeRows'
-      ],
-      typeExports: ['EffectiveMessageEntry', 'EffectiveTapeView']
-    }
-  ],
-  [
-    'session/data/tapeFacts',
-    {
-      target: '@/tape/application/factPersistence',
-      valueExports: [
-        'appendMessageRecordToTape',
-        'appendMessageReplacementToTape',
-        'appendMessageRetractionToTape',
-        'appendTapeToolFact',
-        'appendToolFactsToTape',
-        'buildTapeToolFactInputs',
-        'tapeEntriesToEffectiveMessageRecords',
-        'tapeEntryToMessageRecord'
-      ],
-      typeExports: ['TapeFactSource']
-    }
-  ],
-  [
-    'session/data/tapeViewManifest',
-    {
-      target: '@/tape/domain/viewManifest',
-      valueExports: [
-        'buildExcludedRefs',
-        'buildIncludedRefs',
-        'buildRequestRefs',
-        'createTapeViewManifest',
-        'hashJson',
-        'isCompactionRecord',
-        'resolveTapeViewManifestPolicy',
-        'stableJsonStringify',
-        'TAPE_VIEW_CONTEXT_BUILDER_VERSION',
-        'TAPE_VIEW_MANIFEST_EVENT_NAME',
-        'TAPE_VIEW_MANIFEST_HASH_VERSION',
-        'verifyTapeViewManifestHash'
-      ],
-      typeExports: [
-        'ContextSummaryCursorMetadata',
-        'TapeViewContextSelection',
-        'TapeViewManifestBuildInput',
-        'TapeViewManifestPolicyInput',
-        'TapeViewManifestPolicyResult'
-      ],
-      typeAliases: { TapeViewManifestSourceMaps: 'TapeViewManifestLookupMaps' }
-    }
-  ],
-  [
-    'session/data/tables/deepchatTapeEffectiveSemantics',
-    {
-      target: '@/tape/domain/effectiveSemantics',
-      valueExports: [
-        'messageRecordHasFinalToolUse',
-        'parseAssistantBlocks',
-        'parseNestedTapeJsonObject',
-        'parseTapeJsonObject',
-        'readTapeMessageRetractionId',
-        'readTapeToolIdentity',
-        'readTapeToolStatus',
-        'tapeEntryToMessageRecord',
-        'tapeMessageRank',
-        'tapeToolRank'
-      ],
-      typeExports: ['DeepChatTapeToolIdentity']
-    }
-  ],
-  [
-    'session/data/tables/deepchatTapeEntries',
-    {
-      target: '@/tape/infrastructure/sqlite/tapeEntryStore',
-      valueExports: [
-        'buildDeepChatTapeFtsMatch',
-        'buildDeepChatTapeLikeSearchPredicate',
-        'DeepChatTapeEntriesTable',
-        'normalizeDeepChatTapeReadSources',
-        'serializeDeepChatTapeReadSources',
-        'SUMMARY_ANCHOR_NAMES',
-        'TAPE_INCARNATION_META_KEY'
-      ],
-      typeExports: [
-        'DeepChatTapeAppendInput',
-        'DeepChatTapeEntryKind',
-        'DeepChatTapeEntryRow',
-        'DeepChatTapeMutationProjection',
-        'DeepChatTapeReadSource',
-        'DeepChatTapeSearchInput',
-        'DeepChatTapeSourceInput',
-        'DeepChatTapeSourceType'
-      ]
-    }
-  ],
-  [
-    'session/data/tables/deepchatTapeSearchProjection',
-    {
-      target: '@/tape/infrastructure/sqlite/tapeSearchProjectionStore',
-      valueExports: [
-        'DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION',
-        'DeepChatTapeSearchProjectionTable'
-      ],
-      typeExports: [
-        'DeepChatTapeSearchProjectionInput',
-        'DeepChatTapeSearchProjectionMeta',
-        'DeepChatTapeSearchProjectionReadResult',
-        'DeepChatTapeSearchProjectionResultRow',
-        'DeepChatTapeSearchProjectionRow'
-      ]
-    }
-  ]
-])
 
 const CAPABILITY_SCOPED_CONSUMER_FILES = [
   'agent/acp/compatibility/adapters.ts',
@@ -233,20 +84,6 @@ const ALLOWED_STORAGE_EXCEPTIONS = new Map<string, StorageBoundaryException>([
     {
       physicalName: 'SQLite adapter compatibility getters',
       sqliteImport: 'SQLite adapter composition'
-    }
-  ],
-  [
-    'session/data/tables/deepchatTapeEntries.ts',
-    {
-      physicalName: 'frozen legacy compatibility export',
-      sqliteImport: 'legacy import-path compatibility re-export'
-    }
-  ],
-  [
-    'session/data/tables/deepchatTapeSearchProjection.ts',
-    {
-      physicalName: 'frozen legacy compatibility export',
-      sqliteImport: 'legacy import-path compatibility re-export'
     }
   ],
   ['tape/ports/application.ts', { physicalName: 'legacy database-shape compatibility adapter' }]
@@ -326,13 +163,6 @@ function getDomainImportViolation(importingFile: string, specifier: string): str
   return null
 }
 
-function isLegacyTapeCompatibilityImport(importingFile: string, specifier: string): boolean {
-  const target = resolveMainImport(importingFile, specifier)
-  if (!target) return false
-  const relativeTarget = relativeToMain(withoutTypeScriptExtension(target))
-  return LEGACY_TAPE_COMPATIBILITY_MODULES.has(relativeTarget)
-}
-
 function isTapeModuleImport(importingFile: string, specifier: string): boolean {
   const target = resolveMainImport(importingFile, specifier)
   return Boolean(target && isInside(TAPE_ROOT, target))
@@ -343,6 +173,50 @@ function findConcreteTapeFacadeImportViolations(source: string, file: string): s
     const target = resolveMainImport(file, specifier)
     return target && withoutTypeScriptExtension(target) === TAPE_SESSION_FACADE_MODULE
       ? [`Concrete Tape facade import: ${specifier}`]
+      : []
+  })
+}
+
+/** Session data may consume Tape ports, but it must not become an import path for Tape again. */
+function findTapeReexportViolations(source: string, file: string): string[] {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  const tapeBindings = new Set<string>()
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !isTapeModuleImport(file, statement.moduleSpecifier.text)
+    ) {
+      continue
+    }
+    const clause = statement.importClause
+    if (clause?.name) tapeBindings.add(clause.name.text)
+    if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+      tapeBindings.add(clause.namedBindings.name.text)
+    }
+    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) tapeBindings.add(element.name.text)
+    }
+  }
+  return sourceFile.statements.flatMap((statement) => {
+    if (ts.isExportDeclaration(statement)) {
+      if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+        return isTapeModuleImport(file, statement.moduleSpecifier.text)
+          ? [`Tape re-export: ${statement.moduleSpecifier.text}`]
+          : []
+      }
+      if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        return statement.exportClause.elements.flatMap((element) => {
+          const local = (element.propertyName ?? element.name).text
+          return tapeBindings.has(local) ? [`Tape re-export: ${local}`] : []
+        })
+      }
+      return []
+    }
+    return ts.isExportAssignment(statement) &&
+      ts.isIdentifier(statement.expression) &&
+      tapeBindings.has(statement.expression.text)
+      ? [`Tape re-export: default ${statement.expression.text}`]
       : []
   })
 }
@@ -396,46 +270,6 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
   return [...new Set(violations)]
 }
 
-function compatibilityExportDescriptors(contract: LegacyTapeCompatibilityContract): string[] {
-  return [
-    ...contract.valueExports.map((name) => `value:${name}:${name}`),
-    ...contract.typeExports.map((name) => `type:${name}:${name}`),
-    ...Object.entries(contract.typeAliases ?? {}).map(
-      ([exportedName, importedName]) => `type:${importedName}:${exportedName}`
-    )
-  ].sort()
-}
-
-function isFrozenCompatibilityReexport(
-  source: string,
-  contract: LegacyTapeCompatibilityContract
-): boolean {
-  if (!source.includes('@deprecated')) return false
-  const sourceFile = ts.createSourceFile('compatibility.ts', source, ts.ScriptTarget.Latest, true)
-  const descriptors = sourceFile.statements.flatMap((statement) => {
-    if (
-      !ts.isExportDeclaration(statement) ||
-      !statement.exportClause ||
-      !ts.isNamedExports(statement.exportClause) ||
-      !statement.moduleSpecifier ||
-      !ts.isStringLiteral(statement.moduleSpecifier) ||
-      statement.moduleSpecifier.text !== contract.target
-    ) {
-      return ['invalid']
-    }
-    return statement.exportClause.elements.map((element) => {
-      const importedName = element.propertyName?.text ?? element.name.text
-      const exportedName = element.name.text
-      const kind = statement.isTypeOnly || element.isTypeOnly ? 'type' : 'value'
-      return `${kind}:${importedName}:${exportedName}`
-    })
-  })
-  return (
-    sourceFile.statements.length > 0 &&
-    JSON.stringify(descriptors.sort()) === JSON.stringify(compatibilityExportDescriptors(contract))
-  )
-}
-
 describe('Tape layer boundaries', () => {
   it('keeps the Tape domain independent from other main-process layers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -452,37 +286,6 @@ describe('Tape layer boundaries', () => {
     expect(violations).toEqual([])
   })
 
-  it('keeps production code off legacy Tape compatibility imports', async () => {
-    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const violations = listTypeScriptSources(MAIN_SOURCE_ROOT, fs).flatMap((file) => {
-      const source = fs.readFileSync(file, 'utf8')
-      return ts
-        .preProcessFile(source, true, true)
-        .importedFiles.flatMap(({ fileName: specifier }) =>
-          isLegacyTapeCompatibilityImport(file, specifier)
-            ? [`${relativeToMain(file)} -> ${specifier}`]
-            : []
-        )
-    })
-
-    expect(violations).toEqual([])
-  })
-
-  it('keeps legacy Tape compatibility modules on frozen deprecated export contracts', async () => {
-    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const violations = [...LEGACY_TAPE_COMPATIBILITY_MODULES.entries()].flatMap(
-      ([relativeModule, contract]) => {
-        const file = path.join(MAIN_SOURCE_ROOT, `${relativeModule}.ts`)
-        const source = fs.readFileSync(file, 'utf8')
-        return isFrozenCompatibilityReexport(source, contract)
-          ? []
-          : [`${relativeModule}.ts must match its frozen ${contract.target} export contract`]
-      }
-    )
-
-    expect(violations).toEqual([])
-  })
-
   it('keeps Memory routes on the Tape inspection DTO port', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const source = fs.readFileSync(MEMORY_ROUTES_FILE, 'utf8')
@@ -493,6 +296,17 @@ describe('Tape layer boundaries', () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const violations = CAPABILITY_SCOPED_CONSUMER_FILES.flatMap((file) =>
       findConcreteTapeFacadeImportViolations(fs.readFileSync(file, 'utf8'), file).map(
+        (violation) => `${relativeToMain(file)}: ${violation}`
+      )
+    )
+
+    expect(violations).toEqual([])
+  })
+
+  it('keeps session data from re-exporting Tape modules', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const violations = listTypeScriptSources(SESSION_DATA_ROOT, fs).flatMap((file) =>
+      findTapeReexportViolations(fs.readFileSync(file, 'utf8'), file).map(
         (violation) => `${relativeToMain(file)}: ${violation}`
       )
     )
@@ -699,22 +513,6 @@ describe('Tape layer boundaries', () => {
   })
 
   it.each([
-    [path.join(MAIN_SOURCE_ROOT, 'agent/example.ts'), '@/session/data/tape'],
-    [path.join(MAIN_SOURCE_ROOT, 'session/data/index.ts'), './tapeFacts'],
-    [
-      path.join(MAIN_SOURCE_ROOT, 'memory/example.ts'),
-      '@/session/data/tables/deepchatTapeEffectiveSemantics'
-    ],
-    [path.join(MAIN_SOURCE_ROOT, 'memory/example.ts'), '@/session/data/tables/deepchatTapeEntries'],
-    [
-      path.join(MAIN_SOURCE_ROOT, 'app/example.ts'),
-      '@/session/data/tables/deepchatTapeSearchProjection'
-    ]
-  ])('detects legacy Tape compatibility import %s -> %s', (importingFile, specifier) => {
-    expect(isLegacyTapeCompatibilityImport(importingFile, specifier)).toBe(true)
-  })
-
-  it.each([
     [
       'raw reader capability',
       "import type { TapeRawEntryReader } from '@/tape/ports/capabilities'"
@@ -742,25 +540,6 @@ describe('Tape layer boundaries', () => {
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
 
-  it.each([
-    ['star export', "/** @deprecated */\nexport * from '@/tape/domain/effectiveView'"],
-    [
-      'extra export',
-      "/** @deprecated */\nexport { buildEffectiveTapeView, getLastEffectiveTokenUsage, searchEffectiveTapeRows, unexpected } from '@/tape/domain/effectiveView'\nexport type { EffectiveMessageEntry, EffectiveTapeView } from '@/tape/domain/effectiveView'"
-    ],
-    [
-      'missing export',
-      "/** @deprecated */\nexport { buildEffectiveTapeView } from '@/tape/domain/effectiveView'\nexport type { EffectiveMessageEntry, EffectiveTapeView } from '@/tape/domain/effectiveView'"
-    ],
-    [
-      'missing deprecation marker',
-      "export { buildEffectiveTapeView, getLastEffectiveTokenUsage, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'\nexport type { EffectiveMessageEntry, EffectiveTapeView } from '@/tape/domain/effectiveView'"
-    ]
-  ])('rejects a legacy compatibility contract with a %s', (_case, source) => {
-    const contract = LEGACY_TAPE_COMPATIBILITY_MODULES.get('session/data/tapeEffectiveView')!
-    expect(isFrozenCompatibilityReexport(source, contract)).toBe(false)
-  })
-
   it.each(['@/tape/application/sessionTape', '../../tape/application/sessionTape'])(
     'detects concrete Tape facade import %s in a capability-scoped consumer',
     (specifier) => {
@@ -769,6 +548,49 @@ describe('Tape layer boundaries', () => {
       expect(findConcreteTapeFacadeImportViolations(source, file)).not.toEqual([])
     }
   )
+
+  it.each([
+    ['value re-export', "export { SessionTape } from '@/tape/application/sessionTape'"],
+    ['type re-export', "export type { TapeInfo } from '../../tape/application/sessionTape'"],
+    ['star re-export', "export * from '@/tape/domain/effectiveView'"],
+    [
+      'imported binding',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport { SessionTape }"
+    ],
+    [
+      'renamed binding',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport { SessionTape as LegacyTape }"
+    ],
+    [
+      'namespace binding',
+      "import * as effectiveView from '../../tape/domain/effectiveView'\nexport { effectiveView }"
+    ],
+    [
+      'type-only binding',
+      "import type { TapeInfo } from '@/tape/application/sessionTape'\nexport type { TapeInfo }"
+    ],
+    [
+      'default export',
+      "import { SessionTape } from '@/tape/application/sessionTape'\nexport default SessionTape"
+    ]
+  ])('detects a session data Tape %s', (_category, source) => {
+    const file = path.join(SESSION_DATA_ROOT, 'tape.ts')
+    expect(findTapeReexportViolations(source, file)).not.toEqual([])
+  })
+
+  it('allows session data to consume Tape ports without re-exporting them', () => {
+    const file = path.join(SESSION_DATA_ROOT, 'transcript.ts')
+    const source = [
+      "import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'",
+      "import { SessionTranscript } from './transcript'",
+      'export interface TranscriptDependencies {',
+      '  tape: TapeMessageFactWriter',
+      '}',
+      'export { SessionTranscript }',
+      "export type { SessionTranscriptPort } from './contracts'"
+    ].join('\n')
+    expect(findTapeReexportViolations(source, file)).toEqual([])
+  })
 
   it('allows physical Tape storage access only at explicit infrastructure boundaries', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')

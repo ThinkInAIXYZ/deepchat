@@ -1,8 +1,8 @@
 import { expect } from 'vitest'
 
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
-import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
+import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 
 import { createMemoryPerfObserver } from './performanceObserver'
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
