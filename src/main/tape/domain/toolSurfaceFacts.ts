@@ -12,7 +12,7 @@ import type { DeepChatExecutionToolTargetIdentity } from '@shared/types/executio
 import type { DeepChatTaskContractRef } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
 import { buildExecutionToolTargetKey, isDetachedStoredToolTarget } from './executionContract'
-import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives'
+import { CANONICAL_UUID_PATTERN, compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives'
 import { isDeepChatTaskContractRef } from './taskContract'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
@@ -63,7 +63,6 @@ const MAX_VERSION_BYTES = 256
 const MAX_PROGRAMMATIC_POLICY_VERSION_BYTES = MAX_IDENTITY_BYTES
 const MAX_PLAIN_DATA_DEPTH = 64
 const MAX_PLAIN_DATA_NODES = 100_000
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const MODEL_EXPOSURES = new Set<AgentToolExposure>(['user-configurable', 'system-model'])
 const TOOL_SURFACE_ADAPTER_MODES = new Set<TapeToolSurfaceAdapterMode>([
   'direct-native',
@@ -458,7 +457,7 @@ function isHash(value: unknown): value is string {
 }
 
 function isUuid(value: unknown): value is string {
-  return typeof value === 'string' && UUID_PATTERN.test(value)
+  return typeof value === 'string' && CANONICAL_UUID_PATTERN.test(value)
 }
 
 function isToolSurfaceAdapterMode(value: unknown): value is TapeToolSurfaceAdapterMode {

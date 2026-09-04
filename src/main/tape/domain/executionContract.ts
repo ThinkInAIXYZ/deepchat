@@ -31,7 +31,13 @@ import {
 } from '@shared/types/execution-contract'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
-import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN, utf8Length } from './primitives'
+import {
+  canonicalUuid,
+  compareUtf16,
+  deepFreeze,
+  SHA256_HEX_PATTERN,
+  utf8Length
+} from './primitives'
 import { isDeepChatTaskContract, isDeepChatTaskContractRef } from './taskContract'
 import {
   isWorkspacePathWithin,
@@ -50,7 +56,6 @@ const MAX_SOURCE_REF_BYTES = 2_048
 const MAX_WORKSPACE_PATH_BYTES = 32 * 1_024
 const MAX_ASSEMBLER_VERSION_BYTES = 256
 const MAX_SECTION_DEGRADATION_CODES = 16
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const JSON_HASH_OPTIONS = Object.freeze({ omitUndefinedProperties: true })
 const PROMPT_SECTION_KINDS = new Set<string>(DEEPCHAT_PROMPT_SECTION_KINDS)
 const PROMPT_SECTION_INCLUSIONS = new Set<string>(DEEPCHAT_PROMPT_SECTION_INCLUSIONS)
@@ -242,11 +247,11 @@ function requireString(
 }
 
 function requireUuid(value: unknown, label: string): string {
-  const uuid = requireString(value, label, MAX_IDENTITY_BYTES)
-  if (!UUID_PATTERN.test(uuid)) {
+  const uuid = canonicalUuid(requireString(value, label, MAX_IDENTITY_BYTES))
+  if (!uuid) {
     throw new ExecutionContractError(`${label} must be a UUID.`, 'invalid_input')
   }
-  return uuid.toLowerCase()
+  return uuid
 }
 
 function requireSha256(value: unknown, label: string): string {

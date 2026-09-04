@@ -848,6 +848,24 @@ describe('Execution Journal domain and strict persistence', () => {
     ])
   })
 
+  it('canonicalises the Run ID and only accepts UUID versions 1-8', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+
+    const first = commitStarted(service, RUN_IDS.completed.toUpperCase())
+    const replay = commitStarted(service, RUN_IDS.completed)
+    expect(first.created).toBe(true)
+    expect(replay).toEqual({ ...first, created: false })
+    expect(JSON.parse(entries[entries.length - 1].payload_json).data.runId).toBe(RUN_IDS.completed)
+
+    for (const version of ['0', '9', 'f']) {
+      expect(() => commitStarted(service, `55555555-5555-${version}555-8555-555555555555`)).toThrow(
+        /runId must be a UUID/
+      )
+    }
+    expect(entries.filter((entry) => entry.name?.startsWith('execution/'))).toHaveLength(1)
+  })
+
   it('rejects non-JSON arguments and invalid timestamps before append', () => {
     const { table, entries } = createTapeTableMock()
     const service = createTapeService(table)
