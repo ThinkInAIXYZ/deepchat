@@ -536,13 +536,30 @@ describe('Tape table mock contract', () => {
             [2],
             { before: 1, after: 3, limit: 10 }
           ),
-        effectiveContextRetracted: (store) =>
+        // The retracted m2 (entry 8) neither anchors a window nor appears in its neighbour's.
+        retractedIsNotAnAnchor: (store) =>
           store.getEffectiveContextRowsAtHead(
             { sessionId: SESSION, maxEntryId: store.getMaxEntryId(SESSION) },
             [8],
             { before: 0, after: 0, limit: 10 }
+          ),
+        retractedLeavesTheWindow: (store) =>
+          store.getEffectiveContextRowsAtHead(
+            { sessionId: SESSION, maxEntryId: store.getMaxEntryId(SESSION) },
+            [5],
+            { before: 0, after: 2, limit: 10 }
           )
       })
+
+      const afterA1 = stores.real
+        .getEffectiveContextRowsAtHead(
+          { sessionId: SESSION, maxEntryId: stores.real.getMaxEntryId(SESSION) },
+          [5],
+          { before: 0, after: 2, limit: 10 }
+        )
+        .map((row) => row.entry_id)
+        .sort((left, right) => left - right)
+      expect(afterA1).toEqual([5, 10, 11])
     } finally {
       stores.close()
     }
