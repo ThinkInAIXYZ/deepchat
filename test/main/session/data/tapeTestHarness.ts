@@ -17,7 +17,8 @@ import {
 } from '@/tape/application/factPersistence'
 import {
   DeepChatExecutionJournalStore,
-  DeepChatTapeEntriesTable
+  DeepChatTapeEntriesTable,
+  MAX_TAPE_SEARCH_TOKEN_CLAUSES
 } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
 import { SUMMARY_ANCHOR_NAMES } from '@/tape/domain/entry'
@@ -588,23 +589,24 @@ function createTapeTableMock() {
         entries.filter((entry) => entry.session_id === sessionId && entry.entry_id > entryId).length
     ),
     search: vi.fn((sessionId: string, query: string, options: any = {}) => {
-      // Mirrors the store's LIKE predicate: the whole phrase, or every whitespace token,
-      // matched case-insensitively against payload, meta and name.
-      const normalizedQuery = query.trim().toLowerCase()
+      // Mirrors the store's LIKE predicate: the whole phrase, or every whitespace token when the
+      // token count fits the clause cap, matched against payload, meta and name. SQLite's LIKE
+      // folds ASCII case only, so the mock must not fold the rest of Unicode.
+      const foldAscii = (value: string) => value.replace(/[A-Z]/g, (char) => char.toLowerCase())
+      const normalizedQuery = foldAscii(query.trim())
       if (!normalizedQuery) {
         return []
       }
       const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+      const matchTokens = tokens.length > 1 && tokens.length <= MAX_TAPE_SEARCH_TOKEN_CLAUSES
       const matchesQuery = (haystack: string) =>
         haystack.includes(normalizedQuery) ||
-        (tokens.length > 1 && tokens.every((token) => haystack.includes(token)))
+        (matchTokens && tokens.every((token) => haystack.includes(token)))
       const limit = Number.isFinite(options.limit) ? Math.floor(options.limit) : 20
       return entries
         .filter((entry) => entry.session_id === sessionId && entry.kind !== 'context')
         .filter((entry) =>
-          matchesQuery(
-            `${entry.payload_json}\n${entry.meta_json}\n${entry.name ?? ''}`.toLowerCase()
-          )
+          matchesQuery(foldAscii(`${entry.payload_json}\n${entry.meta_json}\n${entry.name ?? ''}`))
         )
         .filter((entry) => !options.kinds?.length || options.kinds.includes(entry.kind))
         .filter(

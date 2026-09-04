@@ -380,7 +380,7 @@ function escapeLikePattern(value: string): string {
 
 // Three LIKE parameters per field group stay below SQLite's portable 999-variable floor after
 // source, filter, and limit bindings.
-const MAX_TAPE_SEARCH_TOKEN_CLAUSES = 256
+export const MAX_TAPE_SEARCH_TOKEN_CLAUSES = 256
 
 function tokenizeDeepChatTapeSearchQuery(value: string): string[] {
   return value

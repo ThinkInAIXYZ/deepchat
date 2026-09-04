@@ -13,7 +13,10 @@ import { SUMMARY_ANCHOR_NAMES, TAPE_INCARNATION_META_KEY } from '@/tape/domain/e
 import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
-import { DeepChatContractStore } from '@/tape/infrastructure/sqlite/tapeEntryStore'
+import {
+  DeepChatContractStore,
+  MAX_TAPE_SEARCH_TOKEN_CLAUSES
+} from '@/tape/infrastructure/sqlite/tapeEntryStore'
 
 /**
  * `createTapeTableMock` is a second implementation of the Tape entry store. Every method it
@@ -27,6 +30,8 @@ type Store = DeepChatExecutionJournalStore | MockTable
 
 const SESSION = 's1'
 const OTHER_SESSION = 's2'
+/** One token more than the store's LIKE clause cap, so a reversed query cannot phrase-match. */
+const SEARCH_TOKENS = Array.from({ length: MAX_TAPE_SEARCH_TOKEN_CLAUSES + 1 }, (_, i) => `t${i}`)
 
 function openStores() {
   const db = new DatabaseCtor(':memory:')
@@ -232,6 +237,14 @@ function seedConversation(store: Store) {
       }
     }
   ])
+  // Search edge cases: non-ASCII case and a token list at the LIKE clause cap.
+  store.appendEvent({
+    sessionId: SESSION,
+    name: 'search/fixture',
+    source: { type: 'runtime_event', id: 'search-fixture', seq: 0 },
+    data: { pastry: 'Éclair', tokens: SEARCH_TOKENS.join(' ') },
+    createdAt: 195
+  })
 
   bootstrap(store, OTHER_SESSION, '00000000-0000-4000-8000-000000000002')
   store.append({
@@ -475,7 +488,14 @@ describe('Tape table mock contract', () => {
         limit: (store) => store.search(SESSION, 'a1', { limit: 2 }),
         emptyQuery: (store) => store.search(SESSION, '   '),
         noMatch: (store) => store.search(SESSION, 'definitely-absent'),
-        contextHidden: (store) => store.search(SESSION, 'hidden skill')
+        contextHidden: (store) => store.search(SESSION, 'hidden skill'),
+        // SQLite's LIKE folds ASCII case only: 'éclair' must not find 'Éclair'.
+        unicodeCaseKept: (store) => store.search(SESSION, 'éclair'),
+        unicodeExact: (store) => store.search(SESSION, 'Éclair'),
+        // Reversed token lists cannot phrase-match; only the token clause finds them, and the
+        // store drops that clause above the cap.
+        tokensAtCap: (store) => store.search(SESSION, SEARCH_TOKENS.slice(1).reverse().join(' ')),
+        tokensOverCap: (store) => store.search(SESSION, [...SEARCH_TOKENS].reverse().join(' '))
       })
     } finally {
       stores.close()
