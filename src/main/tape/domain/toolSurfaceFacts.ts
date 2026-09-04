@@ -12,6 +12,7 @@ import type { DeepChatExecutionToolTargetIdentity } from '@shared/types/executio
 import type { DeepChatTaskContractRef } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
 import { buildExecutionToolTargetKey, isDetachedStoredToolTarget } from './executionContract'
+import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives'
 import { isDeepChatTaskContractRef } from './taskContract'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
@@ -63,7 +64,6 @@ const MAX_PROGRAMMATIC_POLICY_VERSION_BYTES = MAX_IDENTITY_BYTES
 const MAX_PLAIN_DATA_DEPTH = 64
 const MAX_PLAIN_DATA_NODES = 100_000
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-const SHA_256_PATTERN = /^[a-f0-9]{64}$/
 const MODEL_EXPOSURES = new Set<AgentToolExposure>(['user-configurable', 'system-model'])
 const TOOL_SURFACE_ADAPTER_MODES = new Set<TapeToolSurfaceAdapterMode>([
   'direct-native',
@@ -454,7 +454,7 @@ function isNormalizedBoundedString(value: unknown, maxBytes = MAX_IDENTITY_BYTES
 }
 
 function isHash(value: unknown): value is string {
-  return typeof value === 'string' && SHA_256_PATTERN.test(value)
+  return typeof value === 'string' && SHA256_HEX_PATTERN.test(value)
 }
 
 function isUuid(value: unknown): value is string {
@@ -534,10 +534,6 @@ function cloneCatalogEntry(entry: TapeToolCatalogSourceEntry): TapeToolCatalogSo
     throw new TypeError('Tool catalog fact contains an invalid entry.')
   }
   return cloneCatalogEntryFields(entry)
-}
-
-function compareCodePoints(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function catalogProjectionHash(input: {
@@ -633,12 +629,6 @@ function findLargestFittingPrefix(maximum: number, build: (length: number) => un
   return lower
 }
 
-function deepFreeze<T>(value: T): T {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
-  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested)
-  return Object.freeze(value)
-}
-
 export function createTapeToolCatalogFact(
   input: CreateTapeToolCatalogFactInput
 ): TapeToolCatalogFact {
@@ -662,7 +652,7 @@ function createTapeToolCatalogFactFromData(
 
   const entries = input.entries
     .map(cloneCatalogEntry)
-    .sort((left, right) => compareCodePoints(left.stableTargetKey, right.stableTargetKey))
+    .sort((left, right) => compareUtf16(left.stableTargetKey, right.stableTargetKey))
   const targetByVisibleName = new Map<string, string>()
   for (let index = 0; index < entries.length; index += 1) {
     if (index > 0 && entries[index - 1].stableTargetKey === entries[index].stableTargetKey) {
@@ -749,7 +739,7 @@ function isCatalogFactShape(value: unknown): value is TapeToolCatalogFact {
   for (let index = 0; index < value.entries.length; index += 1) {
     if (
       index > 0 &&
-      compareCodePoints(
+      compareUtf16(
         value.entries[index - 1].stableTargetKey,
         value.entries[index].stableTargetKey
       ) >= 0
@@ -1102,7 +1092,7 @@ function compareSearchRefs(
     left.originRequestSeq - right.originRequestSeq ||
     left.toolCallOrdinalWithinBatch - right.toolCallOrdinalWithinBatch ||
     left.resultRank - right.resultRank ||
-    compareCodePoints(left.stableTargetKey, right.stableTargetKey)
+    compareUtf16(left.stableTargetKey, right.stableTargetKey)
   )
 }
 
@@ -1201,8 +1191,8 @@ function requireCompleteAcceptedSearchProvenance(
   const expectedTargets = activeEntries
     .filter((entry) => entry.reason === 'search-result')
     .map((entry) => entry.stableTargetKey)
-    .sort(compareCodePoints)
-  const actualTargets = searchResultRefs.map((ref) => ref.stableTargetKey).sort(compareCodePoints)
+    .sort(compareUtf16)
+  const actualTargets = searchResultRefs.map((ref) => ref.stableTargetKey).sort(compareUtf16)
   if (canonicalJsonStringifyData(expectedTargets) !== canonicalJsonStringifyData(actualTargets)) {
     throw new TypeError('Tool surface is missing accepted ToolSearch result provenance.')
   }
@@ -1717,7 +1707,7 @@ function validateProgrammaticEntries(entries: readonly TapeToolCatalogSourceEntr
       )
     }
     if (index > 0) {
-      const order = compareCodePoints(entries[index - 1].stableTargetKey, entry.stableTargetKey)
+      const order = compareUtf16(entries[index - 1].stableTargetKey, entry.stableTargetKey)
       if (order === 0) {
         throw new TypeError('Programmatic Tool Surface contains a duplicate stable target.')
       }
@@ -1785,7 +1775,7 @@ export function createTapeProgrammaticToolSurfaceFact(
   }
   const entries = data.entries
     .map(cloneCatalogEntry)
-    .sort((left, right) => compareCodePoints(left.stableTargetKey, right.stableTargetKey))
+    .sort((left, right) => compareUtf16(left.stableTargetKey, right.stableTargetKey))
   validateProgrammaticEntries(entries)
   if (
     buildProgrammaticToolSurfaceHashV1({

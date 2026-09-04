@@ -23,6 +23,7 @@ import type {
 import { validateSchema6SkillContexts, validateSchema7SkillContexts } from './skillContext'
 import { estimateMessagesTokens } from '@shared/utils/messageTokens'
 import { hashJson, hashJsonData } from './canonicalJson'
+import { SHA256_HEX_PATTERN } from './primitives'
 import {
   buildProviderMessagesHash,
   buildProviderVisibleToolDefinitionsHash,
@@ -50,7 +51,6 @@ export function isCompactionRecord(record: ChatMessageRecord): boolean {
 /** Stable event name persisted for deterministic view reconstruction. */
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
 export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'cache-aware-v2' as const
-const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/
 
 export function getTapeViewManifestExecutionContract(
   manifest: DeepChatTapeViewManifest

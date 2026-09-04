@@ -1,5 +1,6 @@
 import type { DeepChatTapeEntryRow } from './entry'
 import { hashJson, hashJsonData, stableJsonStringify } from './canonicalJson'
+import { SHA256_HEX_PATTERN } from './primitives'
 export const EXECUTION_JOURNAL_PROTOCOL_VERSION = 1 as const
 export const EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION = 2 as const
 export const MAX_EXECUTION_JOURNAL_NESTED_CHILDREN = 128
@@ -33,7 +34,6 @@ const MAX_IDENTITY_CHARS = 1_024
 export const MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS = 512
 const MAX_TARGET_FIELD_CHARS = 1_024
 const MAX_STOP_REASON_CHARS = 1_024
-const SHA_256_PATTERN = /^[0-9a-f]{64}$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export interface ExecutionOperationIdentity {
@@ -435,7 +435,7 @@ function requireProtocolVersion(value: unknown): ExecutionJournalProtocolVersion
 }
 
 function requireHash(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !SHA_256_PATTERN.test(value)) {
+  if (typeof value !== 'string' || !SHA256_HEX_PATTERN.test(value)) {
     throw new ExecutionJournalError(`${label} must be a lowercase SHA-256 hash.`, 'invalid_fact')
   }
   return value
