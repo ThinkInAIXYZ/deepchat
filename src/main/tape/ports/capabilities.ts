@@ -14,6 +14,7 @@ import type {
 } from '../domain/facts'
 import type {
   TapeProviderAttemptInput,
+  TapeProviderAttemptRecord,
   TapeProviderContextPressureRecord
 } from '../domain/providerAttempt'
 import type {
@@ -343,6 +344,17 @@ export interface TapeAnchorReader {
     sessionId: string,
     compactionAttemptId: string
   ): DeepChatTapeEntryRow | undefined
+}
+
+export type TapeContextOccupancyEvidence = {
+  manifest: DeepChatTapeViewManifestRecord | null
+  providerAttempt: TapeProviderAttemptRecord | null
+  latestReconstructionAnchorEntryId: number | null
+}
+
+/** Context occupancy reads the latest View manifest, its provider attempt and the anchor cursor. */
+export interface TapeContextOccupancyReader {
+  getContextOccupancyEvidence(sessionId: string): TapeContextOccupancyEvidence
 }
 
 export interface TapeAnchorWriter {

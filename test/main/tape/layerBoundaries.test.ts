@@ -26,6 +26,7 @@ const CAPABILITY_SCOPED_CONSUMER_FILES = [
   'agent/acp/compatibility/adapters.ts',
   'agent/acp/compatibility/dependencies.ts',
   'agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+  'agent/deepchat/runtime/contextOccupancyCoordinator.ts',
   'agent/deepchat/runtime/deepChatLoopRunner.ts',
   'agent/deepchat/runtime/turnCoordinator.ts',
   'app/startupMigrations/legacyChatImportService.ts',
