@@ -8,7 +8,10 @@ import {
 } from '@/agent/acp/compatibility/adapters'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
-import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import type { MainDatabase } from '@/data/mainDatabase'
 
 const publishDeepchatEvent = vi.fn()
@@ -188,6 +191,9 @@ function createProjectionHarness() {
       ),
       getEffectiveViewInputRows: vi.fn((sessionId: string) =>
         tapeRows.filter((row) => row.session_id === sessionId && isEffectiveViewInputRow(row))
+      ),
+      getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
+        tapeRows.filter((row) => row.session_id === sessionId && isEffectiveMessageInputRow(row))
       )
     }
   } as unknown as MainDatabase

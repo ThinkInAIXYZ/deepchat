@@ -3,6 +3,8 @@ import type { DeepChatTapeEntryRow } from './entry'
 
 const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])
 
+export const TAPE_MESSAGE_RETRACTED_EVENT_NAME = 'message/retracted'
+
 /**
  * Rows that can change effective message/tool state or anchor positions. Every other row
  * (ViewManifests, Journal, provider attempts, contracts, tool-surface provenance, indicators) is
@@ -11,16 +13,26 @@ const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])
  */
 export function isEffectiveViewInputRow(row: { kind: string; name: string | null }): boolean {
   switch (row.kind) {
-    case 'message':
     case 'tool_call':
     case 'tool_result':
     case 'anchor':
       return true
-    case 'event':
-      return row.name === 'message/retracted'
     default:
-      return false
+      return isEffectiveMessageInputRow(row)
   }
+}
+
+/**
+ * The subset of `isEffectiveViewInputRow` that decides `messageRecords`/`messageEntries`: message
+ * rows and the retraction events that remove them. Tool rows only join onto messages and anchors
+ * only pass through, so readers that need effective messages alone can skip both at the store.
+ * Must stay in sync with `TapeEntryStore.getEffectiveMessageInputRows`.
+ */
+export function isEffectiveMessageInputRow(row: { kind: string; name: string | null }): boolean {
+  return (
+    row.kind === 'message' ||
+    (row.kind === 'event' && row.name === TAPE_MESSAGE_RETRACTED_EVENT_NAME)
+  )
 }
 
 export interface DeepChatTapeToolIdentity {
@@ -130,7 +142,7 @@ export function tapeMessageRank(record: ChatMessageRecord, includePending: boole
 }
 
 export function readTapeMessageRetractionId(row: DeepChatTapeEntryRow): string | null {
-  if (row.kind !== 'event' || row.name !== 'message/retracted') {
+  if (row.kind !== 'event' || row.name !== TAPE_MESSAGE_RETRACTED_EVENT_NAME) {
     return null
   }
 
@@ -144,38 +156,46 @@ export function readTapeToolStatus(row: DeepChatTapeEntryRow): string | null {
   return typeof meta.status === 'string' ? meta.status : null
 }
 
-export function tapeToolRank(row: DeepChatTapeEntryRow, includePending: boolean): number {
-  const status = readTapeToolStatus(row)
+export function tapeToolRankFromStatus(status: string | null, includePending: boolean): number {
   if (status === 'pending') {
     return includePending ? 1 : 0
   }
   return status !== null && TERMINAL_TAPE_TOOL_STATUSES.has(status) ? 2 : 0
 }
 
-export function readTapeToolIdentity(row: DeepChatTapeEntryRow): DeepChatTapeToolIdentity | null {
-  if (row.kind !== 'tool_call' && row.kind !== 'tool_result') {
+export function tapeToolRank(row: DeepChatTapeEntryRow, includePending: boolean): number {
+  return tapeToolRankFromStatus(readTapeToolStatus(row), includePending)
+}
+
+/** `readTapeToolIdentity` for a caller that has already parsed `payload_json`. */
+export function readTapeToolIdentityFromPayload(
+  kind: DeepChatTapeEntryRow['kind'],
+  payload: Record<string, unknown>
+): DeepChatTapeToolIdentity | null {
+  if (kind !== 'tool_call' && kind !== 'tool_result') {
     return null
   }
 
-  const payload = parseTapeJsonObject(row.payload_json)
   const messageId = payload.messageId
   if (typeof messageId !== 'string' || messageId.length === 0) {
     return null
   }
 
-  let toolCallId: unknown
-  if (row.kind === 'tool_call') {
-    toolCallId = parseNestedTapeJsonObject(payload.toolCall).id
-  } else {
-    toolCallId = payload.toolCallId
-  }
-
+  const toolCallId =
+    kind === 'tool_call' ? parseNestedTapeJsonObject(payload.toolCall).id : payload.toolCallId
   if (typeof toolCallId !== 'string' || toolCallId.length === 0) {
     return null
   }
 
   return {
-    key: `${row.kind}:${messageId}:${toolCallId}`,
+    key: `${kind}:${messageId}:${toolCallId}`,
     messageId
   }
+}
+
+export function readTapeToolIdentity(row: DeepChatTapeEntryRow): DeepChatTapeToolIdentity | null {
+  if (row.kind !== 'tool_call' && row.kind !== 'tool_result') {
+    return null
+  }
+  return readTapeToolIdentityFromPayload(row.kind, parseTapeJsonObject(row.payload_json))
 }

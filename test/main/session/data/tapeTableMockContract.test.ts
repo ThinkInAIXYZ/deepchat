@@ -442,6 +442,7 @@ describe('Tape table mock contract', () => {
         messageSourcesMissing: (store) => store.getMessageSourceEntries(SESSION, 'nope'),
         excludingContext: (store) => store.getBySessionExcludingContext(SESSION),
         effectiveViewInputs: (store) => store.getEffectiveViewInputRows(SESSION),
+        effectiveMessageInputs: (store) => store.getEffectiveMessageInputRows(SESSION),
         lineage: (store) => store.getSubagentLineageEvents(SESSION),
         effectiveSearchAtHeads: (store) =>
           store.searchEffectiveSourcesAtHeads(

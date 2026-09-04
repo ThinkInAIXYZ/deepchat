@@ -4,7 +4,10 @@ import {
   TOOL_SURFACE_TAPE_EVENT_NAMES
 } from '@/tape/domain/toolSurfaceFacts'
 import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
-import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -814,6 +817,11 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
 
     expect(effective.map((row) => row.entry_id)).toEqual([2, 3, 4, 5, 7])
     expect(effective).toEqual(table.getBySession('s1').filter(isEffectiveViewInputRow))
+
+    const messages = table.getEffectiveMessageInputRows('s1')
+
+    expect(messages.map((row) => row.entry_id)).toEqual([2, 5])
+    expect(messages).toEqual(table.getBySession('s1').filter(isEffectiveMessageInputRow))
 
     db.close()
   })

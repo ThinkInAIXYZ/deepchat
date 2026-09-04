@@ -31,7 +31,10 @@ import {
   getUsableContextLength
 } from '@/agent/deepchat/runtime/contextBudget'
 import { appendMessageRecordToTape } from '@/tape/application/factPersistence'
-import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun, type LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
@@ -561,6 +564,11 @@ function createMockSqlitePresenter() {
       getEffectiveViewInputRows: vi.fn((sessionId: string) =>
         tapeEntries.filter(
           (entry) => entry.session_id === sessionId && isEffectiveViewInputRow(entry)
+        )
+      ),
+      getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
+        tapeEntries.filter(
+          (entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry)
         )
       ),
       getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {

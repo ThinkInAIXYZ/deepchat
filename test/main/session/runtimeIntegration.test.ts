@@ -14,7 +14,10 @@ import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
-import { isEffectiveViewInputRow } from '@/tape/domain/effectiveSemantics'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import { createPassthroughModelRequestPolicy } from '@shared/modelRequestPolicy'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 
@@ -177,6 +180,11 @@ function createMockSqlitePresenter() {
     getEffectiveViewInputRows: vi.fn((sessionId: string) =>
       tapeEntries.filter(
         (entry) => entry.session_id === sessionId && isEffectiveViewInputRow(entry)
+      )
+    ),
+    getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
+      tapeEntries.filter(
+        (entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry)
       )
     ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {

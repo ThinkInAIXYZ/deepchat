@@ -281,7 +281,7 @@ export class TapeFactService
   }
 
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
-    return buildEffectiveTapeView(this.table.getEffectiveViewInputRows(sessionId), {
+    return buildEffectiveTapeView(this.table.getEffectiveMessageInputRows(sessionId), {
       includePending: true
     }).messageRecords
   }
