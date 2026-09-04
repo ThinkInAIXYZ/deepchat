@@ -808,8 +808,14 @@ declare module 'vue-i18n' {
         }
         contextMenu: {
           openFile: string
+          openWith: string
+          openInApp: string
+          openInTerminalApp: string
+          openFailed: string
+          preferredAppUnavailable: string
           revealInFolder: string
           insertPath: string
+          openWithSystemDefault: string
         }
         watchStatus: {
           degraded: string

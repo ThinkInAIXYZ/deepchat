@@ -295,8 +295,14 @@
       },
       "contextMenu": {
         "openFile": "buka fail",
+        "openWith": "Buka dengan",
+        "openInApp": "Buka dalam {app}",
+        "openInTerminalApp": "Buka folder dalam {app}",
+        "openFailed": "Tidak dapat membuka fail dengan aplikasi tersebut",
+        "preferredAppUnavailable": "Aplikasi pilihan tidak tersedia buat masa ini. Membuka dengan aplikasi lalai sistem.",
         "revealInFolder": "Buka dalam pengurus fail",
-        "insertPath": "Masukkan ke dalam kotak input"
+        "insertPath": "Masukkan ke dalam kotak input",
+        "openWithSystemDefault": "Buka dengan aplikasi lalai sistem"
       },
       "watchStatus": {
         "degraded": "Pemantauan berjalan dalam mod sandaran. Perubahan mungkin dimuat semula dengan lebih perlahan.",
