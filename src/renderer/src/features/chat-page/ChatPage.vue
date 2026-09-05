@@ -289,7 +289,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
+import {
+  ref,
+  computed,
+  watch,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUnmounted,
+  inject
+} from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
@@ -1380,9 +1389,12 @@ onMounted(() => {
   })
 })
 
+onBeforeUnmount(() => {
+  disposeComposerSubmit()
+})
+
 onUnmounted(() => {
   deactivateSessionRestore()
-  disposeComposerSubmit()
   cacheCurrentMessageMeasurements()
   cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()

@@ -99,7 +99,7 @@
           <ChatInputBox
             ref="chatInputRef"
             :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
-            v-model="message"
+            :model-value="message"
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
             :agent-id="selectedAgent.id"
@@ -109,8 +109,10 @@
             :editable="!isSubmittingInput"
             :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput || isAcpAuthRequired"
             :is-attachment-preparation-pending="isPreparingAttachments"
+            @update:model-value="onMessageChange"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
+            @draft-change="recordComposerChange"
             @command-submit="onCommandSubmit"
             @submit="onSubmit"
             @switch-vision-model="switchToVisionModel"
@@ -196,6 +198,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { JSONContent } from '@tiptap/core'
 import { useRouter } from 'vue-router'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
@@ -226,6 +229,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
+import { useNewThreadComposerDraft } from '@/composables/useNewThreadComposerDraft'
+import type { ComposerSubmissionSnapshot } from '@/features/chat-page/model/composerDraftState'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
 import { createModelClient } from '@api/ModelClient'
@@ -279,13 +284,12 @@ const firstChatGuide = useGuidedOnboardingStep('first-chat')
 type SubmissionModelSelection = { providerId: string; modelId: string }
 type ActiveNewThreadSubmission = {
   submissionId: string
+  agentId: string
+  draft: ComposerSubmissionSnapshot
   cancelled: boolean
   mainDispatched: boolean
 }
 
-const message = ref('')
-const attachedFiles = ref<MessageFile[]>([])
-const pendingSkills = ref<string[]>([])
 const isSubmittingInput = ref(false)
 const isPreparingAttachments = ref(false)
 const acpAuthChallenge = ref<AcpAuthChallenge | null>(null)
@@ -309,9 +313,21 @@ const chatInputRef = ref<{
   insertRecognizedText?: (text: string) => void
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
+  setPendingSkills?: (skills: string[]) => void
   clearPendingSkills?: () => void
+  getDocumentSnapshot?: () => JSONContent
+  restoreDocumentSnapshot?: (document: JSONContent) => void
   focusInput?: () => void
 } | null>(null)
+const {
+  message,
+  attachedFiles,
+  onMessageChange,
+  onPendingSkillsChange,
+  recordComposerChange,
+  captureDraft,
+  acceptSubmission
+} = useNewThreadComposerDraft(() => agentStore.selectedAgentId, chatInputRef)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
@@ -965,6 +981,12 @@ async function onSubmit() {
   if (shouldIgnoreManualCompactionDraft(text)) return
   const submission: ActiveNewThreadSubmission = {
     submissionId: nanoid(),
+    agentId: selectedAgent.value.id,
+    draft: {
+      ...captureDraft(),
+      inlineItems: chatInputRef.value?.getInlineItemsSnapshot?.() ?? [],
+      clearText: true
+    },
     cancelled: false,
     mainDispatched: false
   }
@@ -975,11 +997,11 @@ async function onSubmit() {
     !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
 
   try {
-    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    const files = (await prepareFilesForCurrentModel(submission.draft.files)).map((f) => toRaw(f))
     if (submission.cancelled) return
+    submission.draft.files = files
     if (await submitText(text, files, submission, search)) {
-      message.value = ''
-      attachedFiles.value = []
+      acceptSubmission(submission.agentId, submission.draft)
     }
   } catch (e) {
     if (!(submission.cancelled && isAbortError(e))) {
@@ -1007,6 +1029,12 @@ async function onCommandSubmit(command: string) {
   if (shouldIgnoreManualCompactionDraft(text)) return
   const submission: ActiveNewThreadSubmission = {
     submissionId: nanoid(),
+    agentId: selectedAgent.value.id,
+    draft: {
+      ...captureDraft(),
+      inlineItems: chatInputRef.value?.getInlineItemsSnapshot?.() ?? [],
+      clearText: false
+    },
     cancelled: false,
     mainDispatched: false
   }
@@ -1016,10 +1044,11 @@ async function onCommandSubmit(command: string) {
   isPreparingAttachments.value =
     !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
   try {
-    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    const files = (await prepareFilesForCurrentModel(submission.draft.files)).map((f) => toRaw(f))
     if (submission.cancelled) return
+    submission.draft.files = files
     if (await submitText(text, files, submission, search)) {
-      attachedFiles.value = []
+      acceptSubmission(submission.agentId, submission.draft)
     }
   } catch (e) {
     if (!(submission.cancelled && isAbortError(e))) {
@@ -1057,7 +1086,9 @@ async function submitText(
 
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
-  const agentId = selectedAgent.value.id
+  const agentId = submission.agentId
+  const projectDir = selectedSessionProjectDir.value
+  const targetAcpSessionId = acpDraftSessionId.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
   const draftOrchestrationPolicy = draftStore.orchestrationPolicy
@@ -1065,10 +1096,8 @@ async function submitText(
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
-    const pendingSkillsSnapshot =
-      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-    const inlineItems = chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
+    const dedupedPendingSkills = Array.from(new Set(submission.draft.activeSkills))
+    const inlineItems = submission.draft.inlineItems
     const messagePayload = {
       text,
       files,
@@ -1077,14 +1106,13 @@ async function submitText(
       ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
 
-    if (isAcp && acpDraftSessionId.value) {
-      await sessionStore.selectSession(acpDraftSessionId.value)
+    if (isAcp && targetAcpSessionId) {
+      await sessionStore.selectSession(targetAcpSessionId)
       if (submission.cancelled) {
         if (preparedHeroFlight) cancelChatInputHeroFlight()
         return false
       }
-      await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
-      chatInputRef.value?.clearPendingSkills?.()
+      await sessionStore.sendMessage(targetAcpSessionId, messagePayload)
       return true
     }
 
@@ -1117,7 +1145,7 @@ async function submitText(
       files: messagePayload.files,
       ...(messagePayload.search ? { search: true } : {}),
       inlineItems: messagePayload.inlineItems,
-      projectDir: selectedSessionProjectDir.value,
+      projectDir,
       agentId,
       providerId,
       modelId,
@@ -1141,7 +1169,6 @@ async function submitText(
     } else {
       await sessionStore.createSession(createInput)
     }
-    chatInputRef.value?.clearPendingSkills?.()
     return true
   } catch (error) {
     if (preparedHeroFlight) {
@@ -1341,16 +1368,13 @@ async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<Messag
 
 async function onFilesChange(files: MessageFile[]) {
   const token = ++attachmentFilterToken
+  attachedFiles.value = files
   const filteredFiles = await prepareFilesForCurrentModel(files)
   if (token !== attachmentFilterToken) {
     return
   }
 
   attachedFiles.value = filteredFiles
-}
-
-function onPendingSkillsChange(skills: string[]) {
-  pendingSkills.value = [...skills]
 }
 
 function clearSelectedProject() {
@@ -1512,6 +1536,19 @@ async function handleAcpAuthSucceeded() {
 }
 
 watch(
+  () => selectedAgent.value.id,
+  () => {
+    attachmentFilterToken += 1
+    cancelSubmissionPreparation()
+    if (activeSubmission.value) activeSubmission.value.cancelled = true
+    activeSubmission.value = null
+    isSubmittingInput.value = false
+    isPreparingAttachments.value = false
+  },
+  { flush: 'sync' }
+)
+
+watch(
   [
     () => selectedAgent.value.id,
     () => selectedAgent.value.type,
@@ -1556,6 +1593,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  attachmentFilterToken += 1
   cancelSubmissionPreparation()
   searchCapabilityToken += 1
   resolvedSearchCapabilityKey = ''
