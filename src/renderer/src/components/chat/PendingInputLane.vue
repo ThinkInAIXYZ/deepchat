@@ -292,7 +292,7 @@ const props = withDefaults(
     retryingItemId?: string | null
   }>(),
   {
-    activeLimit: 5,
+    activeLimit: 10,
     disableSteerAction: false,
     disableQueueSteerAction: false,
     showResumeAction: false,

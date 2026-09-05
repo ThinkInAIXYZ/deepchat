@@ -32,6 +32,47 @@ describe('DeepChatPendingInputsTable migrations', () => {
   })
 })
 
+describeIfNativeSqlite('SessionPendingInputs queue capacity', () => {
+  it('accepts new inputs after a full queue is claimed or an item is deleted', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const pending = data.pendingInputs
+      const queued = Array.from({ length: 10 }, (_, index) =>
+        pending.queuePendingInput('s1', { text: String(index + 1), files: [] })
+      )
+      const enqueue = () => pending.queuePendingInput('s1', { text: 'next', files: [] })
+
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.claimQueuedInput('s1', queued[0].id)
+      expect(pending.listPendingInputs('s1')).toHaveLength(9)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      const next = enqueue()
+      expect(pending.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        ...queued.slice(1).map((item) => item.id),
+        next.id
+      ])
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[1].id)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      expect(enqueue().state).toBe('pending')
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.getInput('s1', queued[0].id)?.state).toBe('claimed')
+    } finally {
+      connection.close()
+    }
+  })
+})
+
 describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
   function createStore() {
     const db = new DatabaseCtor(':memory:')

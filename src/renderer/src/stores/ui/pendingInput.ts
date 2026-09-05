@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { createSessionClient } from '@api/SessionClient'
 import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
 
-const MAX_PENDING_INPUTS = 5
+const MAX_PENDING_INPUTS = 10
 
 export const usePendingInputStore = defineStore('pendingInput', () => {
   const sessionClient = createSessionClient()
