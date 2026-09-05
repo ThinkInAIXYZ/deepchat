@@ -248,7 +248,12 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     projectDir: sessionSettings,
     memoryPromptContributor: memory
   })
-  const hookSink = new RuntimeHookSink({ observer: hookObserver, identity, sessionSettings })
+  const hookSink = new RuntimeHookSink({
+    observer: hookObserver,
+    identity,
+    sessionSettings,
+    onSessionCompleted: deps.onSessionCompleted
+  })
   const pendingInputWakeup = createPendingInputWakeupBinding()
   const runLifecycle = new RunLifecycleCoordinator({
     runtime,

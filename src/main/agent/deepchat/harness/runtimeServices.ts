@@ -70,6 +70,7 @@ export interface DeepChatHarnessDependencies {
   sessionData: SessionData
   toolService: ToolServicePort
   hookObserver: HookObserver
+  onSessionCompleted?: (sessionId: string) => void
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
