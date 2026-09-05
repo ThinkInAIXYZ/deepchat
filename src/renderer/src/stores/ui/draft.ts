@@ -1,5 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, toRaw } from 'vue'
+import { ref, shallowReactive, shallowRef, toRaw } from 'vue'
+import {
+  copyComposerDraft,
+  createEmptyComposerDraft,
+  type ComposerSessionDraft
+} from '@/features/chat-page/model/composerDraftState'
+import { loadComposerDraftFromStorage } from '@/features/chat-page/model/composerDraftPersistence'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
@@ -26,6 +32,7 @@ export interface StartDeeplinkPayload {
 
 export const useDraftStore = defineStore('draft', () => {
   // --- State ---
+  const newThreadComposerDrafts = shallowReactive(new Map<string, ComposerSessionDraft>())
   const providerId = ref<string | undefined>(undefined)
   const modelId = ref<string | undefined>(undefined)
   const projectDir = ref<string | undefined>(undefined)
@@ -57,6 +64,19 @@ export const useDraftStore = defineStore('draft', () => {
   let nextStartToken = 0
 
   // --- Actions ---
+
+  function getNewThreadComposerDraft(agentId: string): ComposerSessionDraft {
+    let draft = newThreadComposerDrafts.get(agentId)
+    if (!draft) {
+      draft = loadComposerDraftFromStorage(`new-thread:${agentId}`) ?? createEmptyComposerDraft()
+      newThreadComposerDrafts.set(agentId, draft)
+    }
+    return draft
+  }
+
+  function setNewThreadComposerDraft(agentId: string, draft: ComposerSessionDraft): void {
+    newThreadComposerDrafts.set(agentId, copyComposerDraft(draft))
+  }
 
   function normalizeDraftImageGeneration(
     value: SessionGenerationSettings['imageGeneration']
@@ -201,6 +221,9 @@ export const useDraftStore = defineStore('draft', () => {
   }
 
   return {
+    newThreadComposerDrafts,
+    getNewThreadComposerDraft,
+    setNewThreadComposerDraft,
     providerId,
     modelId,
     projectDir,

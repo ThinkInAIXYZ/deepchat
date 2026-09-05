@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 import type { ToolModeOverride } from '../../../src/shared/toolMode'
+import type { JSONContent } from '@tiptap/core'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -16,6 +17,7 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
   chatInputPendingSkillsSnapshotRef.value = []
 })
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
+const chatInputDocumentSnapshotRef: { value: JSONContent | undefined } = { value: undefined }
 const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
 
 const createChatInputBoxStub = () =>
@@ -37,12 +39,20 @@ const createChatInputBoxStub = () =>
       'submit',
       'command-submit',
       'pending-skills-change',
+      'draft-change',
       'switch-vision-model'
     ],
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
+        setPendingSkills: (skills: string[]) => {
+          chatInputPendingSkillsSnapshotRef.value = [...skills]
+        },
+        getDocumentSnapshot: () => chatInputDocumentSnapshotRef.value,
+        restoreDocumentSnapshot: (document: JSONContent) => {
+          chatInputDocumentSnapshotRef.value = document
+        },
         clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
@@ -120,9 +130,11 @@ const setup = async (options?: {
   >
 }) => {
   vi.resetModules()
+  vi.doMock('pinia', () => vi.importActual('pinia'))
   chatInputTriggerAttachMock.mockReset()
   chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
+  chatInputDocumentSnapshotRef.value = undefined
   chatStatusBarOpenModelPickerMock.mockClear()
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
@@ -223,7 +235,10 @@ const setup = async (options?: {
     })
   })
 
-  const draftStore = reactive({
+  const { createPinia } = await import('pinia')
+  const { useDraftStore } =
+    await vi.importActual<typeof import('@/stores/ui/draft')>('@/stores/ui/draft')
+  const draftStore = Object.assign(useDraftStore(createPinia()), {
     projectDir: projectStore.selectedProject?.path ?? undefined,
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
@@ -370,28 +385,31 @@ const setup = async (options?: {
   }))
 
   const NewThreadPage = (await import('@/pages/NewThreadPage.vue')).default
-  const wrapper = mount(NewThreadPage, {
-    global: {
-      stubs: {
-        TooltipProvider: passthrough('TooltipProvider'),
-        DcButton: passthrough('Button'),
-        DropdownMenu: passthrough('DropdownMenu'),
-        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
-        DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: passthrough('DropdownMenuItem'),
-        DropdownMenuLabel: passthrough('DropdownMenuLabel'),
-        DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
-        Icon: true,
-        AcpAuthDialog: true,
-        ChatInputToolbar: true
+  const mountPage = () =>
+    mount(NewThreadPage, {
+      global: {
+        stubs: {
+          TooltipProvider: passthrough('TooltipProvider'),
+          DcButton: passthrough('Button'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: passthrough('DropdownMenuItem'),
+          DropdownMenuLabel: passthrough('DropdownMenuLabel'),
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          Icon: true,
+          AcpAuthDialog: true,
+          ChatInputToolbar: true
+        }
       }
-    }
-  })
+    })
+  const wrapper = mountPage()
 
   await flushPromises()
 
   return {
     wrapper,
+    mountPage,
     projectStore,
     sessionStore,
     agentStore,
@@ -417,6 +435,174 @@ const setup = async (options?: {
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('restores separate agent drafts with attachments, skills and inline references', async () => {
+    const { wrapper, agentStore } = await setup()
+    const input = wrapper.getComponent({ name: 'ChatInputBox' })
+    const file = { name: 'plan.md', path: '/tmp/plan.md', mimeType: 'text/markdown' }
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'review ' },
+            { type: 'mention', attrs: { id: 'workspace-file', label: 'src/main.ts' } },
+            {
+              type: 'fileAttachment',
+              attrs: { fileName: file.name, filePath: file.path, mimeType: file.mimeType }
+            },
+            { type: 'skillChip', attrs: { skillName: 'review' } }
+          ]
+        }
+      ]
+    }
+    chatInputDocumentSnapshotRef.value = document
+    chatInputPendingSkillsSnapshotRef.value = ['review']
+    input.vm.$emit('update:modelValue', 'review ')
+    input.vm.$emit('pending-skills-change', ['review'])
+    input.vm.$emit('update:files', [file])
+    await flushPromises()
+
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('')
+    expect(input.props('files')).toEqual([])
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual([])
+    ;(wrapper.vm as any).message = 'draft B'
+    await flushPromises()
+
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('review ')
+    expect(input.props('files')).toEqual([file])
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual(['review'])
+    expect(chatInputDocumentSnapshotRef.value).toEqual(document)
+
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('draft B')
+    expect(input.props('files')).toEqual([])
+  })
+
+  it('flushes a complete draft before unmount and restores it with a fresh store', async () => {
+    const first = await setup()
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'unfinished' },
+            { type: 'mention', attrs: { id: 'reference' } }
+          ]
+        }
+      ]
+    }
+    chatInputDocumentSnapshotRef.value = document
+    chatInputPendingSkillsSnapshotRef.value = ['review']
+    first.wrapper.getComponent({ name: 'ChatInputBox' }).vm.$emit('update:modelValue', 'unfinished')
+    first.wrapper.unmount()
+
+    const second = await setup()
+    expect(second.wrapper.getComponent({ name: 'ChatInputBox' }).props('modelValue')).toBe(
+      'unfinished'
+    )
+    expect(chatInputDocumentSnapshotRef.value).toEqual(document)
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual(['review'])
+  })
+
+  it('persists edits after debounce and flushes pending edits on window close', async () => {
+    const { wrapper } = await setup()
+    vi.useFakeTimers()
+    ;(wrapper.vm as any).message = 'debounced draft'
+    await vi.advanceTimersByTimeAsync(400)
+    const key = 'deepchat.composerDraft.v1.new-thread:acp-agent'
+    expect(JSON.parse(localStorage.getItem(key)!).rawMessage).toBe('debounced draft')
+
+    ;(wrapper.vm as any).message = 'latest edit'
+    window.dispatchEvent(new Event('beforeunload'))
+    expect(JSON.parse(localStorage.getItem(key)!).rawMessage).toBe('latest edit')
+  })
+
+  it('does not clear newer edits when a send resolves after unmount and remount', async () => {
+    const { wrapper, mountPage, sessionStore } = await setup()
+    let resolveSend!: () => void
+    sessionStore.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve
+        })
+    )
+    ;(wrapper.vm as any).message = 'submitted draft'
+    await flushPromises()
+    const sending = (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    wrapper.unmount()
+
+    const second = mountPage()
+    await flushPromises()
+    ;(second.vm as any).message = 'newer draft'
+    await flushPromises()
+    resolveSend()
+    await sending
+    await flushPromises()
+    expect(second.getComponent({ name: 'ChatInputBox' }).props('modelValue')).toBe('newer draft')
+    expect(
+      JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.new-thread:acp-agent')!).rawMessage
+    ).toBe('newer draft')
+  })
+
+  it('clears only the originating draft after a send succeeds on another agent', async () => {
+    const { wrapper, sessionStore, agentStore } = await setup()
+    let resolveSend!: () => void
+    sessionStore.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve
+        })
+    )
+    ;(wrapper.vm as any).message = 'submitted draft'
+    await flushPromises()
+    const sending = (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    ;(wrapper.vm as any).message = 'draft B'
+    await flushPromises()
+    resolveSend()
+    await sending
+    await flushPromises()
+    expect((wrapper.vm as any).message).toBe('draft B')
+    expect(localStorage.getItem('deepchat.composerDraft.v1.new-thread:acp-agent')).toBeNull()
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect((wrapper.vm as any).message).toBe('')
+  })
+
+  it('keeps pending attachments with their agent when capability checks finish late', async () => {
+    const { wrapper, agentStore, modelClient } = await setup()
+    let resolveCapabilities!: (value: { supportsAudioInput: boolean }) => void
+    modelClient.getCapabilities.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCapabilities = resolve
+        })
+    )
+    const file = { name: 'plan.md', path: '/tmp/plan.md', mimeType: 'text/markdown' }
+    const filtering = (wrapper.vm as any).onFilesChange([file])
+    await flushPromises()
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    resolveCapabilities({ supportsAudioInput: true })
+    await filtering
+    expect((wrapper.vm as any).attachedFiles).toEqual([])
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect((wrapper.vm as any).attachedFiles).toEqual([file])
+  })
+
   it('defers ACP draft session bootstrap until startup deferred tasks are released', async () => {
     const { sessionClient, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true
@@ -1321,15 +1507,17 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     const { wrapper, sessionStore, agentStore, modelStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
     modelStore.enabledModels = [
       {
         providerId: 'openai',
         models: [{ id: 'gpt-4', name: 'GPT-4' }]
       }
     ]
+    ;(wrapper.vm as any).message = 'hello deepchat'
+    await flushPromises()
     ;(wrapper.vm as any).onPendingSkillsChange(['stale-skill'])
     chatInputPendingSkillsSnapshotRef.value = ['live-skill', 'live-skill']
-    ;(wrapper.vm as any).message = 'hello deepchat'
 
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
