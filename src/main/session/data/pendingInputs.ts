@@ -9,7 +9,7 @@ import type {
 import { SessionPendingInputStore } from './pendingInputStore'
 import type { SessionTranscript } from './transcript'
 
-const MAX_ACTIVE_PENDING_INPUTS = 5
+const MAX_ACTIVE_PENDING_INPUTS = 10
 
 export interface PendingInputRestartRecovery {
   affectedSessionIds: Set<string>
