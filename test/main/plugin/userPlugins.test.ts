@@ -42,8 +42,14 @@ function fixture(manifest: Record<string, unknown> = {}) {
 }
 function tape() {
   const rows: DeepChatTapeEntryRow[] = []
+  let incarnationId = randomUUID()
   return {
     rows,
+    getTapeIncarnationId: () => incarnationId,
+    reset: () => {
+      rows.length = 0
+      incarnationId = randomUUID()
+    },
     getBySession: (sessionId: string) => rows.filter((row) => row.session_id === sessionId),
     appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
       const row: DeepChatTapeEntryRow = {
@@ -65,13 +71,47 @@ function tape() {
   }
 }
 function commandHook(event: UserPluginHook['event'], timeout = 5): UserPluginHook {
-  return { id: event, event, command: `"${process.execPath}" "\${PLUGIN_ROOT}/hook.cjs"`, timeout }
+  return {
+    id: event,
+    event,
+    command: `"${process.execPath}" "\${PLUGIN_ROOT}/hook.cjs"`,
+    commandWindows: `"${process.execPath}" "%PLUGIN_ROOT%/hook.cjs"`,
+    timeout
+  }
 }
 afterEach(() => {
+  vi.restoreAllMocks()
   for (const root of temporary.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
 describe('portable plugin package contract', () => {
+  it('rejects executable Skill metadata during inspection without evaluating it', async () => {
+    const root = fixture({ skills: './skills' })
+    write(
+      root,
+      'skills/unsafe/SKILL.md',
+      '---js\n(globalThis.deepchatPluginInspectionExecuted = true, {name: "unsafe", description: "Unsafe"})\n---\nBody'
+    )
+    const host = new UserPluginSources(directory())
+    await expect(host.inspect({ kind: 'directory', path: root }, randomUUID())).rejects.toThrow(
+      'JavaScript front matter'
+    )
+    expect(Reflect.get(globalThis, 'deepchatPluginInspectionExecuted')).toBeUndefined()
+  })
+
+  it.each([
+    ['https://example.com/mcp', true],
+    ['http://localhost:8080/mcp', true],
+    ['http://127.0.0.1:8080/mcp', true],
+    ['http://[::1]:8080/mcp', true],
+    ['http://example.com/mcp', false],
+    ['http://localhost.example.com/mcp', false]
+  ])('enforces encrypted remote MCP transport for %s', (url, allowed) => {
+    const root = fixture({ mcpServers: { remote: { url } } })
+    if (allowed) expect(readUserPluginPackage(root).mcpServers).toHaveLength(1)
+    else expect(() => readUserPluginPackage(root)).toThrow('Invalid MCP URL')
+  })
+
   it('reads Codex metadata, existing Skills and direct/wrapped MCP configurations without executing commands', () => {
     const root = fixture({ skills: './skills/', hooks: './hooks.json' })
     write(root, 'plugin.json', JSON.stringify({ name: 'wrong-host' }))
@@ -176,6 +216,152 @@ describe('portable plugin package contract', () => {
 })
 
 describe('reviewed context hook execution', () => {
+  it('reuses only the matching prompt and restarts hooks after the Tape is cleared', async () => {
+    const root = fixture()
+    write(
+      root,
+      'hook.cjs',
+      `let input='';process.stdin.on('data', c=>input+=c);process.stdin.on('end',()=>{const data=JSON.parse(input);console.log(JSON.stringify({hookSpecificOutput:{hookEventName:data.hook_event_name,additionalContext:data.prompt||data.source}}))})`
+    )
+    const history = tape()
+    history.appendAnchor({ sessionId: 's', name: 'plugin/context-hook', state: {} })
+    history.rows[0].payload_json = '{broken'
+    const host = new UserPluginHooks(history)
+    const owner = {
+      pluginId: 'user.edit',
+      digest: 'a'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('SessionStart'), commandHook('UserPromptSubmit')]
+    }
+    host.register(owner)
+    const input = { sessionId: 's', messageId: 'm', prompt: 'First', model: 'test', cwd: root }
+    await host.accept(input)
+    await host.accept({ ...input, prompt: 'Edited' })
+    expect(host.getContext('s', 'm').map((item) => item.content)).toEqual(['startup', 'Edited'])
+    const count = history.rows.length
+    await host.accept(input)
+    expect(history.rows).toHaveLength(count)
+    expect(host.getContext('s', 'm').map((item) => item.content)).toEqual(['startup', 'First'])
+    const restored = new UserPluginHooks(history)
+    restored.register(owner)
+    await restored.accept({ ...input, prompt: 'Edited' })
+    expect(history.rows).toHaveLength(count)
+    expect(restored.getContext('s', 'm').map((item) => item.content)).toEqual(['startup', 'Edited'])
+    history.reset()
+    expect(host.getContext('s', 'm')).toEqual([])
+    expect(host.diagnostics(owner.pluginId)).toEqual([])
+    await host.accept(input)
+    expect(history.rows).toHaveLength(4)
+    expect(host.getContext('s', 'm').map((item) => item.content)).toEqual(['startup', 'First'])
+  })
+
+  it('starts the boundary budget after queue admission and records cancellation', async () => {
+    const root = fixture()
+    write(
+      root,
+      'hook.cjs',
+      `console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:'ready'}}))`
+    )
+    const deadlines: AbortController[] = []
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      const controller = new AbortController()
+      deadlines.push(controller)
+      return controller.signal
+    })
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const admission = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const host = new UserPluginHooks(tape())
+    host.register({
+      pluginId: 'user.queue',
+      digest: 'a'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('UserPromptSubmit')],
+      verify: async () => {
+        entered()
+        await gate
+      }
+    })
+    const input = { sessionId: 's', messageId: 'm', prompt: 'Task', model: 'test', cwd: root }
+    const first = host.accept(input)
+    await admission
+    const second = host.accept({ ...input, sessionId: 'queued' })
+    for (const deadline of deadlines) deadline.abort()
+    release()
+    await Promise.all([first, second])
+    expect(host.getContext('s', 'm')).toEqual([])
+    expect(host.getContext('queued', 'm').map((item) => item.content)).toEqual(['ready'])
+    await host.accept({ ...input, sessionId: 'cancelled', signal: AbortSignal.abort() })
+    expect(host.diagnostics('user.queue')).toContainEqual(
+      expect.objectContaining({ sessionId: 'cancelled', status: 'failed' })
+    )
+  })
+
+  it('does not publish an in-flight result or subsequent hooks into a cleared Tape', async () => {
+    const root = fixture()
+    write(
+      root,
+      'hook.cjs',
+      `console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'SessionStart',additionalContext:'stale'}}))`
+    )
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const admission = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const history = tape()
+    const host = new UserPluginHooks(history)
+    host.register({
+      pluginId: 'user.clear',
+      digest: 'a'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('SessionStart'), commandHook('UserPromptSubmit')],
+      verify: async () => {
+        entered()
+        await gate
+      }
+    })
+    const input = { sessionId: 's', messageId: 'm', prompt: 'Task', model: 'test', cwd: root }
+    const running = host.accept(input)
+    await admission
+    const queued = host.accept({ ...input, messageId: 'queued' })
+    history.reset()
+    release()
+    await Promise.all([running, queued])
+    expect(history.rows).toEqual([])
+    expect(host.getContext('s', 'm')).toEqual([])
+  })
+
+  it('decodes UTF-8 output split across process chunks', async () => {
+    const root = fixture()
+    write(
+      root,
+      'hook.cjs',
+      `const data=Buffer.from(JSON.stringify({hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:'中文上下文'}}));const offset=data.indexOf(Buffer.from('中'))+1;process.stdout.write(data.subarray(0,offset));setTimeout(()=>process.stdout.write(data.subarray(offset)),30)`
+    )
+    const host = new UserPluginHooks(tape())
+    host.register({
+      pluginId: 'user.utf8',
+      digest: 'a'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('UserPromptSubmit')]
+    })
+    await host.accept({ sessionId: 's', messageId: 'm', prompt: 'Task', model: 'test', cwd: root })
+    expect(host.getContext('s', 'm').map((item) => item.content)).toEqual(['中文上下文'])
+  })
+
   it('orders startup before the initial prompt, reuses output on retries, isolates children and revokes provider context', async () => {
     const root = fixture()
     write(

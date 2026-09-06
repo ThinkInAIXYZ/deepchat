@@ -125,7 +125,7 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
   const dirName = path.basename(path.dirname(skillPath))
   try {
     const content = fs.readFileSync(skillPath, 'utf-8')
-    const parsed = matter(content)
+    const parsed = matter(content, { engines: { javascript: () => { throw new Error('JavaScript front matter is not supported') } } })
     const data = parsed.data || {}
 
     if (

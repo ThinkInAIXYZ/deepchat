@@ -1,4 +1,5 @@
 import type { PluginContextPort } from '@shared/types/userPlugin'
+import logger from '@shared/logger'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   SessionCompactionSnapshot,
@@ -410,11 +411,15 @@ export class CompactionRuntimeCoordinator {
     if (result.anchorCommitted && result.outcome !== 'unchanged' && scope.isCurrent() && this.deps.pluginContext?.hasHooks()) {
       const state = expectedInstance.getRuntimeState()
       if (state && state.providerId !== 'acp') {
-        await this.deps.pluginContext.accept({
-          sessionId, messageId: compactionMessageId, prompt: '', model: state.modelId,
-          cwd: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, expectedInstance),
-          source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
-        })
+        try {
+          await this.deps.pluginContext.accept({
+            sessionId, messageId: compactionMessageId, prompt: '', model: state.modelId,
+            cwd: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, expectedInstance),
+            source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
+          })
+        } catch (error) {
+          logger.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
+        }
       }
     }
 

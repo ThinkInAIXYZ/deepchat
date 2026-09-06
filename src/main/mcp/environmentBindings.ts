@@ -1,4 +1,7 @@
 /** Resolve only explicitly named bindings. Values remain outside persisted configuration. */
+import { createHash } from 'node:crypto'
+import type { MCPServerConfig } from '@shared/types/mcp'
+
 export function resolveMcpEnvironmentBinding(
   value: string,
   variables: unknown,
@@ -12,4 +15,21 @@ export function resolveMcpEnvironmentBinding(
     if (!resolved) throw new Error(`MCP configuration requires environment variable ${name}`)
     return resolved
   })
+}
+export function mcpVariableBindingScope(config: Partial<MCPServerConfig>): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        config.ownerPluginId,
+        config.type,
+        config.baseUrl,
+        config.command,
+        config.args,
+        config.cwd,
+        config.env,
+        config.customHeaders,
+        config.environmentVariables
+      ])
+    )
+    .digest('hex')
 }

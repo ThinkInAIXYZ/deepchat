@@ -41,7 +41,7 @@ export async function startMainProcess(
     const secretStore = new SecretStore(settingsStore)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
-    const mcpSettings = new McpSettings()
+    const mcpSettings = new McpSettings(secretStore)
     const mcpAppSandboxRegistry = new McpAppSandboxRegistry()
     const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
     const databaseSecurityService = new DatabaseSecurityService()

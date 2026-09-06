@@ -34,7 +34,8 @@ example-plugin/
 }
 ```
 
-`skills/focused-review/SKILL.md` uses DeepChat's existing Skill format:
+`skills/focused-review/SKILL.md` uses DeepChat's existing Skill format. Metadata is declarative;
+JavaScript front matter is rejected during inspection, import and discovery:
 
 ```markdown
 ---
@@ -166,13 +167,16 @@ For an independently authenticated HTTP server, use your actual service endpoint
 }
 ```
 
-The variable name is disclosed during review. The value can come from DeepChat's process
-environment or be entered in the plugin's MCP setup form. Values entered in that form stay with
-MCP configuration; they are not copied into plugin metadata or package files. OAuth uses the
+The variable name and header template are disclosed during review. Enter its value in the plugin's
+MCP setup form; user plugins cannot read that value from DeepChat's process environment. Values are
+encrypted in the existing SecretStore, separately from MCP configuration. Configuration retains
+placeholders, and the same form accepts replacement values for credential rotation without revealing
+saved values. Changes to the destination or command/binding configuration require fresh setup. OAuth uses the
 existing MCP authentication controls and credential binding. OpenAI `.app.json` connector IDs
 are not public MCP endpoints and cannot reuse a Codex login inside DeepChat.
 
-Supported transport configurations are stdio, HTTP and explicitly declared legacy SSE.
+Supported transport configurations are stdio, HTTP and explicitly declared legacy SSE. Remote
+endpoints require HTTPS; plain HTTP is allowed only for `localhost`, `127.0.0.1` and `[::1]`.
 `headers`, `http_headers`, `env_http_headers`, `bearer_token_env_var`, `env`, `env_vars`, `args` and `cwd`
 are imported where applicable. Unknown operational or restrictive fields make that server
 unavailable with an inspection finding. `autoApprove` never grants tool permission.
@@ -184,10 +188,11 @@ unavailable with an inspection finding. `autoApprove` never grants tool permissi
 - `SessionStart/resume` runs before new input in an existing session after an application
   restart. Retrying an already admitted input reuses its previous results. Page navigation does
   not constitute a resume boundary.
-- `SessionStart/compact` runs after a successful committed compaction. `clear` is unavailable
-  because DeepChat has no equivalent reset boundary.
+- `SessionStart/compact` runs after a successful committed compaction. Clearing messages invalidates
+  cached hook history and runs startup on the next input; it does not emit a Codex `clear` event.
 - `UserPromptSubmit` receives the accepted `prompt` and runs once for that input, including
-  accepted steering. Context remains available through its tool loop and provider retries.
+  accepted steering. Editing the prompt on the same message creates a new input boundary.
+  Context remains available through its tool loop and provider retries.
 - `SubagentStart` runs for a child DeepChat session. `session_id` identifies its parent;
   `agent_id` identifies the child and `agent_type` identifies the selected agent. A child does
   not run a top-level startup hook.
@@ -201,7 +206,7 @@ asynchronous handlers, prompt handlers and agent handlers are unsupported.
 Commands run through the platform shell. POSIX environment syntax is not translated into
 Windows syntax; supply `commandWindows` when necessary. A hook has a default timeout of five
 seconds, a maximum configured timeout of thirty seconds, and a shared ten-second boundary
-budget. Input is limited to 1 MiB, stdout/stderr to 64 KiB each, and accepted context to 8 KiB
+budget starting after queue admission. Input is limited to 1 MiB, stdout/stderr to 64 KiB each, and accepted context to 8 KiB
 per boundary. Failures are visible in **Recent hook activity** and do not stop model work unless
 its cancellation or a persistence failure requires stopping it.
 
@@ -238,6 +243,31 @@ revision and its MCP configuration on restart. Endpoint changes invalidate the o
 binding; signing in again may be necessary after an update or rollback. A hook left started by a
 crash has an uncertain outcome and is not automatically rerun. **Run hook again** explicitly
 repeats it and may repeat external side effects.
+
+For local development, the typed renderer IPC API also accepts directory snapshots. Run this in
+DeepChat's renderer developer console, replacing the absolute path and reviewing `prepared` before
+submitting the installation call:
+
+```js
+const { prepared } = await window.deepchat.invoke('plugins.inspectSource', {
+  source: { kind: 'directory', path: '/absolute/path/to/plugin' },
+  requestId: crypto.randomUUID()
+})
+console.log(prepared)
+```
+
+```js
+const { result } = await window.deepchat.invoke('plugins.installUser', {
+  operationId: prepared.operationId,
+  selection: { skills: true, hooks: false, mcp: false }
+})
+console.log(result)
+```
+
+Select only reviewed components, then enable the installed plugin in its detail page. Directory
+sources are copied into a private immutable snapshot with the same file-kind and path checks as ZIP
+sources; edits are not live. Inspect again and pass the installed `pluginId` to `installUser` for an
+update. The end-user installation UI offers Git and ZIP.
 
 Archive limits are 200 MiB compressed, 4096 entries, 64 MiB per file, and 256 MiB extracted.
 Reject links, special files, traversal paths and case/Unicode path collisions. Git installation

@@ -6,6 +6,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { UserPlugins, type UserPluginRecord, type UserPluginStore } from '@/plugin/userPlugins'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
 import { McpSettings } from '@/mcp/settings'
+import { SecretStore } from '@/config/secretStore'
+import { safeStorage } from 'electron'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
 
 vi.unmock('fs')
@@ -34,6 +36,7 @@ vi.mock('electron-store', () => ({
 
 const temporary: string[] = []
 afterEach(() => {
+  vi.restoreAllMocks()
   for (const root of temporary.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 function fixture() {
@@ -73,15 +76,24 @@ function fixture() {
     }
   }
   const hooks = new UserPluginHooks({
+    getTapeIncarnationId: () => 'test-incarnation',
     getBySession: () => [],
     appendAnchor: (_input: TapeAnchorAppendInput) => {
       throw new Error('Unexpected hook execution')
     }
   } as {
+    getTapeIncarnationId: () => string
     getBySession: () => DeepChatTapeEntryRow[]
     appendAnchor: (input: TapeAnchorAppendInput) => DeepChatTapeEntryRow
   })
-  const mcpSettings = new McpSettings()
+  const wrappedSecrets = new Map<string, string>()
+  vi.spyOn(safeStorage, 'isEncryptionAvailable').mockReturnValue(true)
+  const secrets = new SecretStore({
+    get: (key: string) => wrappedSecrets.get(key),
+    set: (key: string, value: string) => wrappedSecrets.set(key, value),
+    delete: (key: string) => wrappedSecrets.delete(key)
+  } as never)
+  const mcpSettings = new McpSettings(secrets)
   const skills = new Map<string, string>()
   const supervisor = {
     registerServer: vi.fn(),
@@ -112,7 +124,20 @@ function fixture() {
     }
   }
   const service = new UserPlugins(deps)
-  return { service, deps, root, source, manifest, store, hooks, mcpSettings, supervisor, skills }
+  return {
+    service,
+    deps,
+    root,
+    source,
+    manifest,
+    store,
+    hooks,
+    mcpSettings,
+    supervisor,
+    skills,
+    secrets,
+    wrappedSecrets
+  }
 }
 
 it('installs disabled, preserves host MCP identities across enable cycles, and removes only owned resources', async () => {
@@ -146,7 +171,18 @@ it('installs disabled, preserves host MCP identities across enable cycles, and r
   expect((await f.service.enable(id)).ok).toBe(true)
   const current = (await f.mcpSettings.getMcpServers())[key]
   expect(current.serverId).toBe(first.serverId)
-  expect(current.customHeaders).toEqual({ Authorization: 'Bearer private-token' })
+  expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' })
+  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({
+    EXAMPLE_PLUGIN_TOKEN: 'private-token'
+  })
+  expect(JSON.stringify(f.mcpSettings.getMigrationSnapshot())).not.toContain('private-token')
+  expect(JSON.stringify([...f.wrappedSecrets.values()])).not.toContain('private-token')
+  expect(
+    (await f.service.configureMcp(id, key, { EXAMPLE_PLUGIN_TOKEN: 'rotated-token' })).ok
+  ).toBe(true)
+  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({
+    EXAMPLE_PLUGIN_TOKEN: 'rotated-token'
+  })
   const unrelated = Object.entries(await f.mcpSettings.getMcpServers()).find(
     ([, config]) => !config.ownerPluginId
   )!
@@ -156,6 +192,7 @@ it('installs disabled, preserves host MCP identities across enable cycles, and r
   ).toBe(false)
   expect((await f.mcpSettings.getMcpServers())[unrelated[0]]).toEqual(unrelated[1])
   expect(f.store.read()).toEqual([])
+  expect(f.wrappedSecrets.size).toBe(0)
 })
 
 it('blocks active-turn updates and rolls failed publication back with the previous MCP setup', async () => {
@@ -193,8 +230,11 @@ it('blocks active-turn updates and rolls failed publication back with the previo
   expect((await f.service.get(id)).userPlugin?.digest).toBe(inspected.digest)
   expect((await f.mcpSettings.getMcpServers())[`${id}.remote`]).toMatchObject({
     baseUrl: 'https://old.example/mcp',
-    customHeaders: { Authorization: 'Bearer kept-secret' }
+    customHeaders: { Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' }
   })
+  expect(
+    f.mcpSettings.getMcpVariableBindings((await f.mcpSettings.getMcpServers())[`${id}.remote`])
+  ).toEqual({ EXAMPLE_PLUGIN_TOKEN: 'kept-secret' })
   expect(f.store.pending()).toBeNull()
   const success = await f.service.install({
     operationId: update.operationId,
@@ -230,8 +270,11 @@ it('restores an interrupted update and lets a concurrent disable cancel publicat
   expect(f.store.pending()).toBeNull()
   expect((await f.mcpSettings.getMcpServers())[`${id}.remote`]).toMatchObject({
     baseUrl: 'https://old.example/mcp',
-    customHeaders: { Authorization: 'Bearer recovered-secret' }
+    customHeaders: { Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' }
   })
+  expect(
+    f.mcpSettings.getMcpVariableBindings((await f.mcpSettings.getMcpServers())[`${id}.remote`])
+  ).toEqual({ EXAMPLE_PLUGIN_TOKEN: 'recovered-secret' })
   f.manifest('https://new.example/mcp')
   const update = await recovered.inspect({ kind: 'directory', path: f.source }, randomUUID())
   let disable: Promise<unknown> | undefined
@@ -255,4 +298,65 @@ it('restores an interrupted update and lets a concurrent disable cancel publicat
       .filter((config) => config.ownerPluginId === id)
       .every((config) => !config.enabled)
   ).toBe(true)
+})
+
+it.each(['publication', 'cleanup'])(
+  'releases the update lock when %s and rollback both fail',
+  async (failure) => {
+    const f = fixture()
+    const inspected = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
+    const installed = await f.service.install({
+      operationId: inspected.operationId,
+      selection: { skills: true, hooks: false, mcp: true }
+    })
+    const id = installed.status!.id
+    await f.service.enable(id)
+    f.manifest('https://new.example/mcp')
+    const update = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
+    const failing =
+      failure === 'publication'
+        ? f.supervisor.commitPluginRegistration
+        : f.supervisor.unregisterPlugin
+    failing.mockImplementation(() => {
+      throw new Error('Persistent runtime failure')
+    })
+    const result = await f.service.install({
+      operationId: update.operationId,
+      pluginId: id,
+      selection: { skills: true, hooks: false, mcp: true }
+    })
+    expect(result.ok).toBe(false)
+    expect(f.store.pending()).toBeNull()
+    expect((await f.service.get(id)).enabled).toBe(false)
+    expect(f.skills.size).toBe(0)
+    failing.mockReset()
+    const unrelated = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
+    expect(
+      (
+        await f.service.install({
+          operationId: unrelated.operationId,
+          selection: { skills: false, hooks: false, mcp: true }
+        })
+      ).ok
+    ).toBe(true)
+  }
+)
+
+it('clears interrupted-update state even when restoring MCP settings fails', async () => {
+  const f = fixture()
+  const inspected = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
+  const installed = await f.service.install({
+    operationId: inspected.operationId,
+    selection: { skills: true, hooks: false, mcp: true }
+  })
+  await f.service.enable(installed.status!.id)
+  const previous = f.store.read()[0]
+  f.store.writePending({ previous, next: { ...previous, digest: 'f'.repeat(64) } })
+  vi.spyOn(f.mcpSettings, 'restorePluginUpdate').mockRejectedValue(new Error('Restore failed'))
+  const recovered = new UserPlugins(f.deps)
+  await recovered.initialize()
+  expect(f.store.pending()).toBeNull()
+  expect((await recovered.get(previous.pluginId)).enabled).toBe(false)
+  await new UserPlugins(f.deps).initialize()
+  expect(f.store.pending()).toBeNull()
 })

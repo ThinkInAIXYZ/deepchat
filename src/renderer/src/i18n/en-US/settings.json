@@ -3360,7 +3360,7 @@
     "executionNotice": "Hooks and stdio MCP servers run local code with your account’s filesystem and network access. Enable only code you trust. Commands such as npx or uvx may download dependencies when the server starts.",
     "useSkills": "Use bundled Skills",
     "allowHooks": "I reviewed these commands and allow automatic context hooks",
-    "allowMcp": "I reviewed these commands and endpoints and allow MCP connections",
+    "allowMcp": "I reviewed these commands, endpoints and variable bindings and allow MCP connections",
     "sharedData": "Plugin data is shared by this installation across sessions.",
     "requiredVariables": "Required environment or credential variables",
     "applyUpdate": "Apply reviewed update",
@@ -3373,7 +3373,7 @@
     "diagnostics": "Recent hook activity",
     "noInvocations": "No hook invocations recorded in this app run.",
     "retryHook": "Run hook again",
-    "mcpSetupDescription": "Enable the plugin to register its servers. Supply missing variables here, or manage independent authentication in MCP settings.",
+    "mcpSetupDescription": "Enable the plugin to register its servers. Enter or replace variable values here; host environment variables are never shared automatically. Manage authentication in MCP settings.",
     "saveMcp": "Save and reconnect",
     "manageMcp": "Open MCP settings",
     "uninstallDescription": "Remove this plugin, its private data, Skill assignments and owned MCP servers. Conversation history is kept.",
@@ -3386,6 +3386,7 @@
       "failed": "Failed",
       "uncertain": "Interrupted; outcome unknown"
     },
-    "technicalDetails": "Technical details"
+    "technicalDetails": "Technical details",
+    "hooks": "Hooks"
   }
 }

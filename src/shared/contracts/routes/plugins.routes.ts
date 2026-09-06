@@ -63,7 +63,7 @@ export const UserPluginSourceSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('git'),
-      url: z.string().url().max(8192),
+      url: z.url({ protocol: /^https$/ }).max(8192),
       ref: z.string().max(256).optional(),
       subdirectory: z.string().max(1024).optional()
     })
@@ -95,7 +95,7 @@ export const pluginsInstallUserRoute = defineRouteContract({
   input: z
     .object({
       operationId: z.string().uuid(),
-      pluginId: z.string().max(128).optional(),
+      pluginId: z.string().min(1).max(128).optional(),
       selection: z.object({ skills: z.boolean(), hooks: z.boolean(), mcp: z.boolean() }).strict()
     })
     .strict(),
@@ -118,8 +118,8 @@ export const pluginsConfigureMcpRoute = defineRouteContract({
   name: 'plugins.configureMcp',
   input: z
     .object({
-      pluginId: z.string().max(128),
-      serverName: z.string().max(256),
+      pluginId: z.string().min(1).max(128),
+      serverName: z.string().min(1).max(256),
       values: z
         .record(z.string().max(128), z.string().max(32768))
         .refine((values) => Object.keys(values).length <= 64)
@@ -131,7 +131,10 @@ export const pluginsConfigureMcpRoute = defineRouteContract({
 export const pluginsRetryHookRoute = defineRouteContract({
   name: 'plugins.retryHook',
   input: z
-    .object({ pluginId: z.string().max(128), invocationId: z.string().regex(/^[a-f0-9]{64}$/) })
+    .object({
+      pluginId: z.string().min(1).max(128),
+      invocationId: z.string().regex(/^[a-f0-9]{64}$/)
+    })
     .strict(),
   output: z.object({})
 })

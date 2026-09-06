@@ -153,7 +153,7 @@ function parseHooks(value: unknown, findings: string[]): UserPluginHook[] {
       )
     )
       findings.push(
-        'SessionStart clear is unavailable: DeepChat has no equivalent context-reset lifecycle boundary'
+        'SessionStart clear is unavailable; clearing messages starts a new hook history on the next input'
       )
   }
   if (
@@ -266,7 +266,12 @@ function parseMcp(value: unknown, findings: string[]): UserPluginMcpServer[] {
       if (normalized.url.includes('${'))
         throw new Error('MCP URL must be literal; put environment-bound credentials in headers')
       const url = new URL(normalized.url)
-      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
+      const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname.toLowerCase())
+      if (
+        (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
+        url.username ||
+        url.password
+      )
         throw new Error(`Invalid MCP URL: ${name}`)
     }
     const variables = [
@@ -311,7 +316,13 @@ export function readUserPluginPackage(root: string): UserPluginPackage {
       const filename = pluginRelativePath(root, `${skillRoot}/SKILL.md`)
       if (!fs.existsSync(filename)) continue
       if (fs.statSync(filename).size > 1024 * 1024) throw new Error('SKILL.md exceeds 1 MiB')
-      const metadata = matter(fs.readFileSync(filename, 'utf8')).data
+      const metadata = matter(fs.readFileSync(filename, 'utf8'), {
+        engines: {
+          javascript: () => {
+            throw new Error('JavaScript front matter is not supported')
+          }
+        }
+      }).data
       const skillName = text(metadata.name, 'Skill name')
       text(metadata.description, 'Skill description')
       if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(skillName))

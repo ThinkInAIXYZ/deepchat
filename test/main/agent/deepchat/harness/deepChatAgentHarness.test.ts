@@ -81,6 +81,7 @@ import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
 import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import { MAX_PROGRAMMATIC_TOOL_INPUT_BYTES } from '@/agent/deepchat/runtime/programmaticToolSurface'
+import { DeepChatLoopRunner } from '@/agent/deepchat/runtime/deepChatLoopRunner'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -1506,7 +1507,8 @@ describe('DeepChatAgentHarness', () => {
     })
 
   const recreateAgentWithToolSurfaceRunMode = (
-    resolve: NonNullable<DeepChatHarnessDependencies['toolSurfaceRunMode']>['resolve']
+    resolve: NonNullable<DeepChatHarnessDependencies['toolSurfaceRunMode']>['resolve'],
+    pluginContext?: DeepChatHarnessDependencies['pluginContext']
   ): void => {
     agent = createDeepChatAgentHarness({
       ...runtimeDependencies,
@@ -1518,6 +1520,7 @@ describe('DeepChatAgentHarness', () => {
       toolService,
       hookObserver: createHookObserver(hookDispatcher),
       toolSurfaceRunMode: { resolve },
+      pluginContext,
       programmaticToolParents,
       runJournalObserver,
       diagnosticNow
@@ -8699,6 +8702,49 @@ describe('DeepChatAgentHarness', () => {
       expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(3)
     })
 
+    it('retains the accepted user context when the loop caller omits optional view metadata', async () => {
+      installSessionRows([])
+      let acceptedId = ''
+      const pluginContext = {
+        hasHooks: () => true,
+        accept: vi.fn(async (input: { messageId: string }) => {
+          acceptedId = input.messageId
+        }),
+        getContext: vi.fn((_sessionId: string, messageId: string) =>
+          messageId === acceptedId && acceptedId
+            ? [
+                {
+                  pluginId: 'user.context',
+                  digest: 'a'.repeat(64),
+                  invocationId: 'invocation',
+                  content: 'ACCEPTED_PLUGIN_CONTEXT'
+                }
+              ]
+            : []
+        )
+      }
+      recreateAgentWithToolSurfaceRunMode(() => 'legacy', pluginContext)
+      const run = DeepChatLoopRunner.prototype.run
+      vi.spyOn(DeepChatLoopRunner.prototype, 'run').mockImplementation(function (args) {
+        return run.call(this, { ...args, viewContext: undefined })
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'User task')
+      expect(acceptedId).not.toBe('')
+      const callArgs = vi.mocked(processStream).mock.calls[0][0]
+      for await (const _event of callArgs.coreStream(
+        callArgs.run.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+      }
+      expect(JSON.stringify(callArgs.run.messages)).toContain('ACCEPTED_PLUGIN_CONTEXT')
+      expect(pluginContext.getContext.mock.calls.every(([, id]) => id === acceptedId)).toBe(true)
+    })
+
     it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp-subagent',
@@ -8730,10 +8776,25 @@ describe('DeepChatAgentHarness', () => {
         }
       ])
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
-      recreateAgentWithToolSurfaceRunMode(() => ({
-        mode: 'automatic',
-        cliProgrammaticCapability: 'proven'
-      }))
+      const pluginContext = {
+        hasHooks: () => true,
+        accept: vi.fn(),
+        getContext: vi.fn(() => [
+          {
+            pluginId: 'user.context',
+            digest: 'a'.repeat(64),
+            invocationId: 'invocation',
+            content: 'EXCLUDED_PLUGIN_CONTEXT'
+          }
+        ])
+      }
+      recreateAgentWithToolSurfaceRunMode(
+        () => ({
+          mode: 'automatic',
+          cliProgrammaticCapability: 'proven'
+        }),
+        pluginContext
+      )
 
       await agent.initSession('s-acp-subagent', {
         agentId: 'acp-reviewer',
@@ -8777,6 +8838,8 @@ describe('DeepChatAgentHarness', () => {
       })
       expect(runtimeDependencies.taskContractContext.prepare).not.toHaveBeenCalled()
       expect(agent.getToolSurfaceShadowDiagnostics('s-acp-subagent')).toBeNull()
+      expect(pluginContext.getContext).not.toHaveBeenCalled()
+      expect(JSON.stringify(callArgs.run.messages)).not.toContain('EXCLUDED_PLUGIN_CONTEXT')
     })
 
     it('keeps local tool injection for regular ACP sessions', async () => {

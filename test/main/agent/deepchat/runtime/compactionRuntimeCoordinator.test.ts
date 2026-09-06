@@ -638,6 +638,21 @@ describe('CompactionRuntimeCoordinator', () => {
     ])
   })
 
+  it('finishes compaction projection after a post-commit hook dispatch rejects', async () => {
+    const f = createHarness()
+    f.prepareForManualCompaction.mockResolvedValueOnce(createIntent())
+    f.deps.pluginContext = {
+      hasHooks: () => true,
+      accept: vi.fn().mockRejectedValue(new Error('Hook history unavailable')),
+      getContext: () => []
+    }
+    await expect(f.coordinator.compact(SESSION_ID)).resolves.toMatchObject({ compacted: true, state: { status: 'compacted' } })
+    expect(f.deps.pluginContext.accept).toHaveBeenCalled()
+    expect(f.messageStore.updateCompactionMessage).toHaveBeenCalledWith('compaction-message', 'compacted', 1, expect.any(Object))
+    expect(f.initialInstance?.getCompactionState().status).toBe('compacted')
+    expect(f.publishedEvents.at(-1)?.payload).toMatchObject({ status: 'compacted' })
+  })
+
   it('persists each observed summary call against the compaction marker identity', async () => {
     const { applyCompaction, coordinator, messageStore } = createHarness()
     const intent = createIntent()

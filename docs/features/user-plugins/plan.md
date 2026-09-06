@@ -13,7 +13,7 @@ existing Skill integration and MCP configuration import. No marketplace/server i
 
 - [x] Trace accepted input, provider retries, committed compaction and child session ownership.
 - [x] Keep existing asynchronous notification hooks unchanged; add the awaited context port.
-- [x] Define startup/resume/compact ordering and explicitly unavailable clear semantics.
+- [x] Define startup/resume/compact ordering and invalidate history when messages are cleared.
 - [x] Persist invocation identity and accepted/failed/uncertain results in existing Tape anchors.
 - [x] Project contributions with the user input's ID, revision and Tape provenance; revoke them
       before subsequent provider dispatch. Keep context out of ordinary conversation summaries.
@@ -51,7 +51,7 @@ Ponytail default configuration are documented rather than presented as isolated 
 - [x] Add typed cwd/named environment binding only; retain existing transport/authentication owners.
 - [x] Register stable owned server identities and eager discovery; show missing setup independently.
 - [x] Ignore auto-approval grants and reject unsupported restrictions instead of weakening them.
-- [x] Invalidate connection/App authority on endpoint change and keep rollback secrets in MCP storage.
+- [x] Invalidate connection/App authority on endpoint change and keep encrypted rollback bindings with MCP storage.
 
 Completion: Skills and MCP remain under their existing owners; unrelated resources are unaffected.
 
@@ -103,10 +103,14 @@ or native Windows/Linux compatibility for Ponytail's POSIX commands.
 - `test/main/plugin/userPlugins.test.ts`: parsing/wrappers, restrictive fields, private snapshots,
   links/traversal, executable ZIP flags, startup/input/child ordering, revocation, uncertain crash,
   limits, named environment variables, isolated explicit retry and resume-only lifecycle persistence.
+  Also covers non-executable metadata, remote HTTPS, edited/reverted prompts, cleared Tape history,
+  queued cancellation, stale in-flight output and split UTF-8 process output.
 - `test/main/plugin/userPluginLifecycle.test.ts`: install-disabled, stable MCP identity/setup,
   owner-safe uninstall, active-turn update rejection, publication rollback, interrupted recovery
-  and concurrent disable.
+  concurrent disable, encrypted credential rotation and repeated recovery/cleanup failures.
 - Skill suites: preserved assignment/overrides, owner collision and stale source execution rejection.
+- Runtime suites: compaction projection survives hook dispatch failure; ACP dispatch excludes plugin
+  context; callers without optional view metadata retain the accepted user's context.
 - `test/e2e/specs/34-user-plugin-install.smoke.spec.ts`: real Electron ZIP review/install/enable/
   disable/uninstall with working stdio MCP; independent HTTP bearer authentication; accepted hook
   output in actual provider requests, next-input replacement and disable revocation.
@@ -117,6 +121,17 @@ E2E user data is isolated from the user's existing DeepChat configuration.
 
 ## Repository gates
 
+### Runtime and credential invariants
+
+- [x] Parse Skill front matter without executable engines across inspection, import and discovery.
+- [x] Require explicit, encrypted MCP variable bindings; preserve templates and credential rotation.
+- [x] Bind hook reuse and cached history to prompt content and Tape incarnation; bound the cache.
+- [x] Preserve compaction projection, ACP exclusion and current-input context across runtime paths.
+- [x] Recover failed updates without a global mutation lock or an incorrect enabled state.
+- [x] Preserve official Skill collision handling and shared installation paths.
+- [x] Localize consent, expose binding declarations and use the standard confirmation/checkbox UI.
+- [x] Validate security, recovery, persistence and platform-independent regression contracts.
+
 Results on the completed implementation:
 
 | Check | Result |
@@ -126,19 +141,20 @@ Results on the completed implementation:
 | Lint and repository guards | Passed |
 | Main/renderer typecheck | Passed |
 | Full app and CLI build | Passed; existing bundle-size warnings only |
-| Relevant Vitest suites | 55 files passed, 4 skipped; 1,589 tests passed, 73 skipped |
+| Relevant Vitest suites | 61 files passed, 1 skipped; 1,455 tests passed, 2 native MCP tests skipped under Node |
 | Native Tape suites under Electron | 23 files passed, 1 skipped; 488 tests passed, 1 standalone worker fixture skipped |
+| Native MCP settings under Electron | 2 tests passed |
 | Real Electron acceptance | 3 tests passed: plugin lifecycle, HTTP MCP/hooks and prompt scrolling |
 | Original Ponytail Git/ZIP and hooks | Passed at the pinned commit above |
 | Static portable CLI validation | Passed on Node 24 |
 | Document links / diff whitespace | Passed |
 
-The 800 × 620 Electron window was visually inspected in light and dark appearances. Review
+The 800 × 620 Electron window was visually inspected in dark appearance. Review
 commands and long paths wrap inside the scrolling dialog; detail actions remain reachable.
-The Node test run skips native SQLite cases because its ABI differs from the installed Electron
-binding. The native Tape run requires SQLite support and covers these cases, including real
-SIGKILL recovery; its standalone worker fixture runs through the crash-recovery tests.
-The new regression suite also verifies resume-only handlers when no startup matcher ran.
+The Node run skips two native MCP settings cases because its ABI differs from the installed
+Electron binding; both pass in the Electron run. Native Tape validation requires SQLite support
+and includes real SIGKILL recovery; its standalone worker fixture runs through the crash-recovery
+tests.
 Temporary acceptance probes were removed. Normal build-generated provider/ACP registry changes
 are retained. There are no package dependency changes.
 
@@ -154,6 +170,8 @@ pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-
 ELECTRON_RUN_AS_NODE=1 DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 pnpm exec electron \
   node_modules/vitest/vitest.mjs run --config vitest.config.ts --project main \
   test/main/session/data/tape test/main/tape
+ELECTRON_RUN_AS_NODE=1 pnpm exec electron node_modules/vitest/vitest.mjs run \
+  --config vitest.config.ts --project main test/main/mcp/data/settingsTable.test.ts
 ```
 
 Run the affected plugin, Skill, notification-hook, MCP, runtime/context and renderer suites.

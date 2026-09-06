@@ -130,6 +130,27 @@ describe('SkillService shared Skills', () => {
     vi.restoreAllMocks()
   })
 
+  it('keeps official plugin activation available when a user Skill has the same name', async () => {
+    writeSkill(skillsRoot, 'computer-use', '# User computer skill')
+    await migrate()
+    const skillRoot = writeSkill(
+      path.join(temporaryRoot, 'official'),
+      'computer-use',
+      '# Official computer skill'
+    )
+    await expect(
+      service.registerPluginSkill({ ownerPluginId: 'deepchat.cua', id: 'computer-use', skillRoot })
+    ).resolves.toBeUndefined()
+    const skills = await service.getMetadataList('writer')
+    expect(skills.filter((skill) => skill.name === 'computer-use')).toHaveLength(1)
+    expect(skills.find((skill) => skill.name === 'computer-use')?.skillRoot).toBe(
+      path.join(skillsRoot, 'computer-use')
+    )
+    await expect(
+      service.registerPluginSkill({ ownerPluginId: 'user.cua', id: 'computer-use', skillRoot })
+    ).rejects.toThrow('another source')
+  })
+
   it('preserves plugin assignments while disabled and rejects execution from a revoked revision', async () => {
     await migrate()
     const root = writeSkill(

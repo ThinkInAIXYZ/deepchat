@@ -695,8 +695,14 @@ export class DeepChatLoopRunner {
       onRunRegistered,
       abortController: providedAbortController
     } = args
+    const anchorMessage = !viewContext && this.ports.pluginContext
+      ? this.ports.messageStore.getMessage(messageId)
+      : undefined
     const pluginInputMessageId = viewContext?.selection.newUserMessageId ??
-      viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')?.record.id ?? ''
+      viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')?.record.id ??
+      (anchorMessage?.sessionId === sessionId
+        ? this.ports.messageStore.getLastUserMessageBeforeOrAt(sessionId, anchorMessage.orderSeq)?.id
+        : undefined) ?? ''
     let activeContextContributions = contextContributions
     const getOrCreateContextContributions = (): ContextRuntimeContributions => {
       activeContextContributions ??= createEmptyContextRuntimeContributions()
@@ -1934,7 +1940,7 @@ export class DeepChatLoopRunner {
             },
             authority: {
               assertCurrent: ({ authority, messages, tools }) => {
-                if (ports.pluginContext && loopRun.resources.promptAssembly) {
+                if (!acpBackedSubagent && state.providerId !== 'acp' && ports.pluginContext && loopRun.resources.promptAssembly) {
                   const current = projectPluginContext(loopRun.resources.promptAssembly, ports.pluginContext, sessionId, pluginInputMessageId)
                   if (current.prompt !== loopRun.resources.promptAssembly.prompt) throw new Error('Plugin context changed before provider dispatch; retry this input')
                 }

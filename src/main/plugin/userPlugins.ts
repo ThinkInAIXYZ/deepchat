@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import logger from '@shared/logger'
+import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import type { MCPServerConfig, McpServicePort } from '@shared/types/mcp'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
@@ -52,6 +54,8 @@ interface UserPluginDependencies {
     | 'preparePluginUpdate'
     | 'restorePluginUpdate'
     | 'commitPluginUpdate'
+    | 'getMcpVariableBindings'
+    | 'setMcpVariableBindings'
   >
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
     revokeMcpAppsByServer?(serverId: string): void
@@ -95,7 +99,13 @@ export class UserPlugins {
   private root(record: UserPluginRecord): string {
     if (!/^user\.[a-f0-9-]{36}$/.test(record.pluginId) || !/^[a-f0-9]{64}$/.test(record.digest))
       throw new Error('Invalid installed plugin identity')
-    return path.join(this.deps.root, 'user', record.pluginId.slice(5), 'versions', record.digest)
+    return path.join(
+      this.deps.root,
+      USER_PLUGIN_INSTALL_DIRECTORY,
+      record.pluginId.slice(5),
+      'versions',
+      record.digest
+    )
   }
 
   private data(record: UserPluginRecord): string {
@@ -119,23 +129,28 @@ export class UserPlugins {
           ...pending.previous,
           error: 'An interrupted update was rolled back; inspect and apply the update again'
         })
-        this.deps.store.writePending(null)
         this.deps.mcpSettings.commitPluginUpdate(pending.previous.pluginId)
       } catch (error) {
         this.save({
           ...pending.previous,
           enabled: false,
+          mcpDigests: {},
           error: `Plugin update recovery failed: ${error instanceof Error ? error.message : String(error)}`
         })
+      } finally {
+        this.deps.store.writePending(null)
       }
     }
     for (const record of this.deps.store.read()) {
       try {
         await this.deactivate(record, false)
-        if (record.enabled && this.deps.store.pending()?.previous.pluginId !== record.pluginId)
-          await this.activate(record)
+        if (record.enabled) await this.activate(record)
       } catch (error) {
-        this.save({ ...record, error: error instanceof Error ? error.message : String(error) })
+        this.save({
+          ...record,
+          enabled: false,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
   }
@@ -212,17 +227,30 @@ export class UserPlugins {
           this.save(record)
           this.deps.store.writePending(null)
         } catch (error) {
-          await this.deactivate(record, false)
-          if (previous) {
-            await this.deps.mcpSettings.restorePluginUpdate(previous.pluginId)
-            const restored = {
-              ...previous,
-              enabled: previous.enabled && !this.revoked.has(previous.pluginId)
-            }
-            this.save(restored)
+          const restored = {
+            ...(previous ?? record),
+            enabled: Boolean(previous?.enabled && !this.revoked.has(record.pluginId))
+          }
+          this.save({ ...restored, enabled: false })
+          try {
+            await this.deactivate(record, false)
+            if (previous) await this.deps.mcpSettings.restorePluginUpdate(previous.pluginId)
             if (restored.enabled) await this.activate(restored)
-          } else this.save({ ...record, enabled: false })
-          this.deps.store.writePending(null)
+            this.save(restored)
+            if (previous) this.deps.mcpSettings.commitPluginUpdate(previous.pluginId)
+          } catch (recoveryError) {
+            const message = `Plugin update recovery failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`
+            this.save({ ...restored, enabled: false, mcpDigests: {}, error: message })
+            await this.deactivate(restored, false).catch((cleanupError) => {
+              logger.warn('[UserPlugins] Recovery cleanup failed', {
+                pluginId: record.pluginId,
+                error: cleanupError
+              })
+            })
+            throw new Error(message, { cause: error })
+          } finally {
+            this.deps.store.writePending(null)
+          }
           throw error
         }
         if (previous) this.deps.mcpSettings.commitPluginUpdate(previous.pluginId)
@@ -243,16 +271,19 @@ export class UserPlugins {
         )
       const record = this.record(pluginId)
       this.revoked.delete(pluginId)
-      await this.deactivate(record, false)
+      this.save({ ...record, enabled: false })
       try {
+        await this.deactivate(record, false)
         await this.activate(record)
         this.save({ ...record, enabled: true, error: undefined, updatedAt: Date.now() })
       } catch (error) {
-        await this.deactivate(record, false)
         this.save({
           ...record,
           enabled: false,
           error: error instanceof Error ? error.message : String(error)
+        })
+        await this.deactivate(record, false).catch((cleanupError) => {
+          logger.warn('[UserPlugins] Activation cleanup failed', { pluginId, error: cleanupError })
         })
         throw error
       }
@@ -345,7 +376,12 @@ export class UserPlugins {
               (_all, name: string) => variables[name]
             )
           const config: MCPServerConfig =
-            record.mcpDigests[key] === record.digest && current
+            record.mcpDigests[key] === record.digest &&
+            current &&
+            server.requiredVariables.every((name) => {
+              const serialized = JSON.stringify(current)
+              return serialized.includes(`\${${name}}`) || serialized.includes(`\${env:${name}}`)
+            })
               ? { ...current, enabled: false }
               : {
                   type: server.type,
@@ -425,27 +461,38 @@ export class UserPlugins {
 
   private async deactivate(record: UserPluginRecord, remove: boolean): Promise<void> {
     this.deps.hooks.unregister(record.pluginId)
-    let stopError: unknown
+    const errors: unknown[] = []
     try {
       await this.deps.supervisor.unregisterPlugin(record.pluginId)
     } catch (error) {
-      stopError = error
+      errors.push(error)
     }
-    await this.deps.skillService.unregisterPluginSkillsByOwner(record.pluginId, {
-      preserveAssignments: !remove
-    })
+    try {
+      await this.deps.skillService.unregisterPluginSkillsByOwner(record.pluginId, {
+        preserveAssignments: !remove
+      })
+    } catch (error) {
+      errors.push(error)
+    }
     const servers = await this.deps.mcpSettings.getMcpServers()
     for (const [name, server] of Object.entries(servers)) {
       if (server.ownerPluginId !== record.pluginId) continue
-      if (server.serverId) this.deps.mcpService.revokeMcpAppsByServer?.(server.serverId)
-      if (
-        remove ||
-        !record.package.mcpServers.some((item) => name === `${record.pluginId}.${item.name}`)
-      )
-        await this.deps.mcpSettings.removeMcpServer(name)
-      else await this.deps.mcpSettings.updateMcpServer(name, { enabled: false })
+      try {
+        if (server.serverId) this.deps.mcpService.revokeMcpAppsByServer?.(server.serverId)
+        if (
+          remove ||
+          !record.package.mcpServers.some((item) => name === `${record.pluginId}.${item.name}`)
+        )
+          await this.deps.mcpSettings.removeMcpServer(name)
+        else await this.deps.mcpSettings.updateMcpServer(name, { enabled: false })
+      } catch (error) {
+        errors.push(error)
+      }
     }
-    if (stopError) throw stopError
+    if (errors.length)
+      throw new Error(
+        errors.map((error) => (error instanceof Error ? error.message : String(error))).join('; ')
+      )
   }
 
   async list(): Promise<PluginListItem[]> {
@@ -462,12 +509,8 @@ export class UserPlugins {
       record.package.mcpServers.map(async (server) => {
         const key = `${record.pluginId}.${server.name}`
         const config = configs[key]
-        const unresolved = JSON.stringify(config ?? server)
-        setup[key] = server.requiredVariables.filter(
-          (name) =>
-            !process.env[name] &&
-            (unresolved.includes(`\${${name}}`) || unresolved.includes(`\${env:${name}}`))
-        )
+        const bindings = config ? this.deps.mcpSettings.getMcpVariableBindings(config) : {}
+        setup[key] = server.requiredVariables.filter((name) => !bindings[name])
         const state = this.deps.supervisor.getState(key)
         return {
           serverId: key,
@@ -526,28 +569,9 @@ export class UserPlugins {
         throw new Error('MCP configuration is unavailable; enable the plugin first')
       if (Object.keys(values).some((name) => !declared.requiredVariables.includes(name)))
         throw new Error('Undeclared MCP variable')
-      const expand = (value: string) =>
-        value.replace(
-          /\$\{(?:env:)?([A-Za-z_][A-Za-z0-9_]*)\}/g,
-          (match, name: string) => values[name] ?? match
-        )
+      this.deps.mcpSettings.setMcpVariableBindings(current, values)
       await this.deps.supervisor.unregisterPlugin(pluginId)
       if (current.serverId) this.deps.mcpService.revokeMcpAppsByServer?.(current.serverId)
-      await this.deps.mcpSettings.updateMcpServer(serverName, {
-        command: expand(current.command),
-        args: current.args.map(expand),
-        cwd: current.cwd ? expand(current.cwd) : undefined,
-        baseUrl: current.baseUrl ? expand(current.baseUrl) : undefined,
-        env: Object.fromEntries(
-          Object.entries(current.env).map(([name, value]) => [
-            name,
-            typeof value === 'string' ? expand(value) : value
-          ])
-        ),
-        customHeaders: Object.fromEntries(
-          Object.entries(current.customHeaders ?? {}).map(([name, value]) => [name, expand(value)])
-        )
-      })
       if (record.enabled) await this.activate(record)
       return pluginId
     })

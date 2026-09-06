@@ -4,7 +4,8 @@ import fs from 'fs'
 import { execFile } from 'node:child_process'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
-import matter from 'gray-matter'
+import { parseSkillFrontmatter as matter, stringifySkillFrontmatter } from '@/skill/frontmatter'
+import { PLUGIN_INSTALL_DIRECTORY, USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import type { SkillSettingsPort } from './settings'
 import { extractSkillArchive } from './archive'
 import { downloadSkillArchive } from './archiveDownload'
@@ -3761,8 +3762,9 @@ export class SkillService implements SkillServicePort {
     const existing = this.metadataCache.get(candidate)
     const reserved = this.getStoredManagementState().skills[candidate]
     if (
-      (existing && existing.ownerPluginId !== input.ownerPluginId) ||
-      (reserved?.ownerPluginId && reserved.ownerPluginId !== input.ownerPluginId)
+      input.ownerPluginId.startsWith('user.') &&
+      ((existing && existing.ownerPluginId !== input.ownerPluginId) ||
+        (reserved?.ownerPluginId && reserved.ownerPluginId !== input.ownerPluginId))
     ) {
       throw new Error(`Skill "${candidate}" already belongs to another source`)
     }
@@ -4209,7 +4211,11 @@ export class SkillService implements SkillServicePort {
     const skillPath = path.join(skillDir, 'SKILL.md')
     const raw = fs.readFileSync(skillPath, 'utf-8')
     const parsed = matter(raw)
-    fs.writeFileSync(skillPath, matter.stringify(parsed.content, { ...parsed.data, name }), 'utf-8')
+    fs.writeFileSync(
+      skillPath,
+      stringifySkillFrontmatter(parsed.content, { ...parsed.data, name }),
+      'utf-8'
+    )
   }
 
   private createTargetLockedFailure(
@@ -5293,7 +5299,11 @@ export class SkillService implements SkillServicePort {
   ): Promise<Record<string, string>> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const ownerPluginId = this.getStoredManagementState().skills[name]?.ownerPluginId
-    const userPluginRoot = path.join(app.getPath('userData'), 'plugins', 'user')
+    const userPluginRoot = path.join(
+      app.getPath('userData'),
+      PLUGIN_INSTALL_DIRECTORY,
+      USER_PLUGIN_INSTALL_DIRECTORY
+    )
     const relativeSource = expectedSourceId ? path.relative(userPluginRoot, expectedSourceId) : null
     const userPluginSource =
       relativeSource !== null &&

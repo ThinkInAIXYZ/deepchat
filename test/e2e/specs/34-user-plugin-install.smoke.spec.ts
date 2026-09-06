@@ -23,6 +23,7 @@ test('ZIP review installs a disabled user plugin and imports a working MCP serve
       smoke: {
         command: process.execPath,
         args: ['${PLUGIN_ROOT}/server.cjs'],
+        env: { PORTABLE_REVIEW: 'visible-binding-declaration' },
         cwd: '${PLUGIN_ROOT}'
       }
     }
@@ -55,11 +56,14 @@ test('ZIP review installs a disabled user plugin and imports a working MCP serve
   await app.page.evaluate(() => {
     window.location.hash = '#/plugins'
   })
-  await app.page.getByRole('button', { name: /Install from ZIP|从 ZIP 安装/ }).click()
+  await app.page.getByRole('button', { name: /Install from ZIP|从 ZIP 安装|從 ZIP 安裝/ }).click()
   const dialog = app.page.getByRole('dialog')
-  await dialog.getByRole('button', { name: /Choose ZIP|选择 ZIP/ }).click()
-  await dialog.getByRole('button', { name: /Inspect package|检查插件包/ }).click()
+  await dialog.getByRole('button', { name: /Choose ZIP|选择 ZIP|選擇 ZIP 檔案/ }).click()
+  await dialog.getByRole('button', { name: /Inspect package|检查插件包|檢查外掛套件/ }).click()
   await expect(dialog.getByText('portable-smoke · 1.0.0')).toBeVisible()
+  await expect(
+    dialog.locator('pre').filter({ hasText: 'visible-binding-declaration' })
+  ).toBeVisible()
   const checkboxes = dialog.getByRole('checkbox')
   await expect(checkboxes).toHaveCount(3)
   await expect(checkboxes.nth(0)).toBeChecked()
@@ -81,7 +85,7 @@ test('ZIP review installs a disabled user plugin and imports a working MCP serve
   await app.page.evaluate(async () => {
     await window.deepchat.invoke('mcp.setEnabled', { enabled: true })
   })
-  await app.page.getByRole('button', { name: /^(Enable|启用)$/ }).click()
+  await app.page.getByRole('button', { name: /^(Enable|启用|啟用)$/ }).click()
   await expect
     .poll(
       async () =>
@@ -106,10 +110,10 @@ test('ZIP review installs a disabled user plugin and imports a working MCP serve
       }, installed.id)
     )
     .toBe(true)
-  await app.page.getByRole('button', { name: /^(Uninstall|卸载)$/ }).click()
+  await app.page.getByRole('button', { name: /^(Uninstall|卸载|解除安裝)$/ }).click()
   await app.page
-    .getByRole('dialog')
-    .getByRole('button', { name: /^(Uninstall|卸载)$/ })
+    .getByRole('alertdialog')
+    .getByRole('button', { name: /^(Uninstall|卸载|解除安裝)$/ })
     .click()
   await expect
     .poll(async () =>
@@ -131,9 +135,10 @@ test('reviewed hooks reach provider requests and HTTP MCP uses host-owned creden
     await import('@modelcontextprotocol/sdk/server/streamableHttp.js')
   const requests: Array<{ messages: Array<{ role: string; content: unknown }> }> = []
   let authenticatedRequests = 0
+  let expectedToken = 'fixture-token'
   const remote = createServer(async (req, res) => {
     if (req.url === '/mcp') {
-      if (req.headers.authorization !== 'Bearer fixture-token') {
+      if (req.headers.authorization !== `Bearer ${expectedToken}`) {
         res.writeHead(401).end()
         return
       }
@@ -242,6 +247,20 @@ test('reviewed hooks reach provider requests and HTTP MCP uses host-owned creden
       )
       .toBe(true)
     expect(authenticatedRequests).toBeGreaterThan(0)
+    const previousRequests = authenticatedRequests
+    expectedToken = 'rotated-token'
+    const rotated = await app.page.evaluate(async (pluginId) => {
+      const { result } = await window.deepchat.invoke('plugins.configureMcp', {
+        pluginId,
+        serverName: `${pluginId}.remote`,
+        values: { FIXTURE_TOKEN: 'rotated-token' }
+      })
+      const { servers } = await window.deepchat.invoke('mcp.getServers', {})
+      return { result, headers: servers[`${pluginId}.remote`].customHeaders }
+    }, id)
+    expect(rotated.result.ok).toBe(true)
+    expect(rotated.headers).toEqual({ Authorization: 'Bearer ${FIXTURE_TOKEN}' })
+    await expect.poll(() => authenticatedRequests).toBeGreaterThan(previousRequests)
     const sessionId = await app.page.evaluate(async (baseUrl) => {
       const providerId = `custom-${crypto.randomUUID()}`
       const { provider } = await window.deepchat.invoke('providers.add', {

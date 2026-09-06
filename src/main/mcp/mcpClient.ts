@@ -190,6 +190,7 @@ interface ServerStatusChangedOptions {
 }
 
 export type McpClientRuntime = {
+  resolveMcpBindings?(config: Partial<MCPServerConfig>): Record<string, string>
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
   elicitation: Pick<McpServicePort, 'handleElicitationRequest' | 'cancelElicitationRequest'>
   completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
@@ -467,11 +468,26 @@ export class McpClient {
 
       // Handle customHeaders and AuthProvider
       let authProvider: SimpleOAuthProvider | null = null
+      const userPlugin =
+        typeof this.serverConfig.ownerPluginId === 'string' &&
+        this.serverConfig.ownerPluginId.startsWith('user.')
+      const bindingEnvironment = userPlugin
+        ? (this.runtime.resolveMcpBindings?.(this.serverConfig as Partial<MCPServerConfig>) ?? {})
+        : process.env
       const resolveBinding = (value: string) =>
-        resolveMcpEnvironmentBinding(value, this.serverConfig.environmentVariables)
-      const customHeaders = Object.fromEntries(
-        Object.entries(normalizeCustomHeaders(this.serverConfig.customHeaders)).map(
-          ([name, value]) => [name, resolveBinding(value)]
+        resolveMcpEnvironmentBinding(
+          value,
+          this.serverConfig.environmentVariables,
+          bindingEnvironment
+        )
+      if (userPlugin && Array.isArray(this.serverConfig.environmentVariables)) {
+        for (const name of this.serverConfig.environmentVariables) resolveBinding(`\${${name}}`)
+      }
+      const customHeaders = normalizeCustomHeaders(
+        Object.fromEntries(
+          Object.entries(normalizeCustomHeaders(this.serverConfig.customHeaders)).map(
+            ([name, value]) => [name, resolveBinding(value)]
+          )
         )
       )
 

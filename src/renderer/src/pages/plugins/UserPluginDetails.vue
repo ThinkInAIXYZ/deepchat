@@ -4,14 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@shadcn/components/ui/dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { createPluginClient } from '@api/PluginClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import type { PluginListItem, PluginActionResult } from '@shared/types/plugin'
@@ -126,7 +119,7 @@ async function retry(invocationId: string): Promise<void> {
     </section>
     <section v-if="details.package.hooks.length" class="space-y-3 border-t pt-4">
       <h2 class="font-semibold">
-        Hooks ·
+        {{ t('settings.userPlugins.hooks') }} ·
         {{
           t(
             details.selection.hooks
@@ -188,17 +181,11 @@ async function retry(invocationId: string): Promise<void> {
           server.url ?? [server.command, ...(server.args ?? [])].join(' ')
         }}</pre>
         <form
-          v-if="details.setup[`${plugin.id}.${server.name}`]?.length"
+          v-if="server.requiredVariables.length"
           class="space-y-2"
-          @submit.prevent="
-            configure(`${plugin.id}.${server.name}`, details.setup[`${plugin.id}.${server.name}`])
-          "
+          @submit.prevent="configure(`${plugin.id}.${server.name}`, server.requiredVariables)"
         >
-          <label
-            v-for="name in details.setup[`${plugin.id}.${server.name}`]"
-            :key="name"
-            class="block space-y-1"
-          >
+          <label v-for="name in server.requiredVariables" :key="name" class="block space-y-1">
             <span>{{ name }}</span>
             <Input
               v-model="values[`${plugin.id}.${server.name}:${name}`]"
@@ -228,30 +215,20 @@ async function retry(invocationId: string): Promise<void> {
       :plugin-id="plugin.id"
       @installed="catalog.commitPluginMutation"
     />
-    <Dialog
+    <DcConfirmDialog
       :open="uninstallOpen"
+      :title="`${t('settings.userPlugins.uninstall')} ${plugin.name}`"
+      :description="t('settings.userPlugins.uninstallDescription')"
+      :confirm-label="t('settings.userPlugins.uninstall')"
+      :cancel-label="t('common.cancel')"
+      :busy="pending"
+      :danger="true"
+      @confirm="uninstall"
       @update:open="
         (value) => {
           if (!pending) uninstallOpen = value
         }
       "
-    >
-      <DialogContent>
-        <DialogHeader
-          ><DialogTitle>{{ t('settings.userPlugins.uninstall') }} {{ plugin.name }}</DialogTitle
-          ><DialogDescription>{{
-            t('settings.userPlugins.uninstallDescription')
-          }}</DialogDescription></DialogHeader
-        >
-        <DialogFooter
-          ><DcButton variant="outline" :disabled="pending" @click="uninstallOpen = false">{{
-            t('common.cancel')
-          }}</DcButton
-          ><DcButton :disabled="pending" @click="uninstall">{{
-            t('settings.userPlugins.uninstall')
-          }}</DcButton></DialogFooter
-        >
-      </DialogContent>
-    </Dialog>
+    />
   </div>
 </template>

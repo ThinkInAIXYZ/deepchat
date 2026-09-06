@@ -15,6 +15,27 @@ afterEach(async () => {
 })
 
 describe('discoverSkillMetadataInWorker', () => {
+  it('does not evaluate JavaScript metadata in the discovery worker', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const os = await vi.importActual<typeof import('node:os')>('node:os')
+    const path = await vi.importActual<typeof import('node:path')>('node:path')
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-worker-metadata-'))
+    tempDirs.push(root)
+    const marker = path.join(root, 'executed')
+    fs.mkdirSync(path.join(root, 'unsafe'))
+    fs.writeFileSync(
+      path.join(root, 'unsafe', 'SKILL.md'),
+      `---js\n(require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed'), {name: 'unsafe', description: 'Unsafe'})\n---\nBody`
+    )
+    const result = await discoverSkillMetadataInWorker({
+      skillsDir: root,
+      sidecarDirName: '.deepchat-meta',
+      maxDepth: 10
+    })
+    expect(result.skills).toEqual([])
+    expect(fs.existsSync(marker)).toBe(false)
+  })
+
   it('discovers skill manifests off-main and preserves derived categories', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const os = await vi.importActual<typeof import('node:os')>('node:os')

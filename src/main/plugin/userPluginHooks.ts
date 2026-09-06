@@ -3,7 +3,11 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
-import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
+import type {
+  TapeAnchorWriter,
+  TapeNonContextEntryReader,
+  TapeIncarnationReader
+} from '@/tape/ports/capabilities'
 import type {
   PluginContextContribution,
   PluginContextEvent,
@@ -33,13 +37,17 @@ interface Invocation extends UserPluginHookDiagnostic {
   entryId?: number
   input?: Omit<PluginContextInput, 'signal'>
   source?: string
+  promptHash?: string
 }
 
-type HookTape = TapeAnchorWriter & TapeNonContextEntryReader
+type HookTape = TapeAnchorWriter & TapeNonContextEntryReader & TapeIncarnationReader
 
 export class UserPluginHooks implements PluginContextPort {
   private readonly owners = new Map<string, HookOwner>()
-  private readonly sessions = new Map<string, Map<string, Invocation>>()
+  private readonly sessions = new Map<
+    string,
+    { incarnationId: string; history: Map<string, Invocation> }
+  >()
   private readonly launchId = randomUUID()
   private queue: Promise<void> = Promise.resolve()
   private activeRuns = new Map<string, number>()
@@ -86,20 +94,38 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   private history(sessionId: string): Map<string, Invocation> {
-    let history = this.sessions.get(sessionId)
+    const incarnationId = this.tape.getTapeIncarnationId(sessionId)
+    const cached = this.sessions.get(sessionId)
+    let history = cached?.incarnationId === incarnationId ? cached.history : undefined
     if (!history) {
       history = new Map()
       for (const row of this.tape.getBySession(sessionId)) {
         if (row.name !== 'plugin/context-hook') continue
-        const invocation = JSON.parse(row.payload_json).state as Invocation
-        if (!invocation || typeof invocation.invocationId !== 'string') continue
+        let invocation: Invocation
+        try {
+          invocation = JSON.parse(row.payload_json)?.state
+          if (!invocation || typeof invocation.invocationId !== 'string') continue
+        } catch {
+          continue
+        }
         history.set(invocation.invocationId, {
           ...invocation,
+          promptHash:
+            invocation.promptHash ??
+            (typeof invocation.input?.prompt === 'string'
+              ? createHash('sha256').update(invocation.input.prompt).digest('hex')
+              : undefined),
+          input: invocation.status === 'completed' ? undefined : invocation.input,
           entryId: row.entry_id,
           status: invocation.status === 'started' ? 'uncertain' : invocation.status
         })
       }
-      this.sessions.set(sessionId, history)
+    }
+    this.sessions.delete(sessionId)
+    this.sessions.set(sessionId, { incarnationId, history })
+    // Keep recent sessions only; completed invocations do not retain retry payloads.
+    while (this.sessions.size > 16) {
+      this.sessions.delete(this.sessions.keys().next().value!)
     }
     return history
   }
@@ -119,22 +145,46 @@ export class UserPluginHooks implements PluginContextPort {
     })
     this.history(invocation.sessionId).set(invocation.invocationId, {
       ...invocation,
+      input: invocation.status === 'completed' ? undefined : invocation.input,
       entryId: row.entry_id
     })
   }
 
   async accept(input: PluginContextInput): Promise<void> {
     if (!this.hasHooks()) return
-    const deadline = AbortSignal.timeout(10000)
-    const signal = input.signal ? AbortSignal.any([deadline, input.signal]) : deadline
+    const incarnationId = this.tape.getTapeIncarnationId(input.sessionId)
     const operation = this.queue.then(async () => {
-      if (signal.aborted) return
+      if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
+      const deadline = AbortSignal.timeout(10000)
+      const signal = input.signal ? AbortSignal.any([deadline, input.signal]) : deadline
+      const promptHash = createHash('sha256').update(input.prompt).digest('hex')
       const history = this.history(input.sessionId)
       for (const owner of this.owners.values()) {
         const previous = [...history.values()].filter(
           (item) => item.pluginId === owner.pluginId && item.digest === owner.digest
         )
-        if (!input.source && previous.some((item) => item.messageId === input.messageId)) continue
+        if (
+          !input.source &&
+          previous.some(
+            (item) =>
+              item.event === 'UserPromptSubmit' &&
+              item.messageId === input.messageId &&
+              item.promptHash === promptHash
+          )
+        ) {
+          // An edit can return to an earlier prompt on the same message.
+          for (const item of previous) {
+            if (
+              item.event === 'UserPromptSubmit' &&
+              item.messageId === input.messageId &&
+              item.promptHash === promptHash
+            ) {
+              history.delete(item.invocationId)
+              history.set(item.invocationId, item)
+            }
+          }
+          continue
+        }
         if (input.source === 'compact') {
           await this.event(
             owner,
@@ -144,6 +194,7 @@ export class UserPluginHooks implements PluginContextPort {
             'compact',
             signal
           )
+          if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
           continue
         }
         if (input.parentSessionId) {
@@ -160,14 +211,16 @@ export class UserPluginHooks implements PluginContextPort {
             signal
           )
         }
+        if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
         await this.event(
           owner,
           input,
           'UserPromptSubmit',
-          `input:${input.messageId}`,
+          `input:${input.messageId}:${promptHash}`,
           undefined,
           signal
         )
+        if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
         // Remember admission even when every handler matcher skips this boundary.
         if (
           ![...history.values()].some(
@@ -225,6 +278,7 @@ export class UserPluginHooks implements PluginContextPort {
         .digest('hex')
       if (this.history(input.sessionId).has(invocationId)) continue
       const { signal: _signal, ...storedInput } = input
+      const incarnationId = this.tape.getTapeIncarnationId(input.sessionId)
       const invocation: Invocation = {
         invocationId,
         pluginId: owner.pluginId,
@@ -237,6 +291,7 @@ export class UserPluginHooks implements PluginContextPort {
         at: Date.now(),
         status: 'started',
         source: this.launchId,
+        promptHash: createHash('sha256').update(input.prompt).digest('hex'),
         ...(Buffer.byteLength(input.prompt) <= 1024 * 1024 ? { input: storedInput } : {})
       }
       this.persist(invocation)
@@ -269,8 +324,14 @@ export class UserPluginHooks implements PluginContextPort {
         )
         if (this.owners.get(owner.pluginId) !== owner || signal.aborted)
           throw new Error('Hook owner revoked or boundary cancelled')
+        if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
         const consumed = [...this.history(input.sessionId).values()]
-          .filter((item) => item.messageId === input.messageId && item.status === 'completed')
+          .filter(
+            (item) =>
+              item.messageId === input.messageId &&
+              item.promptHash === invocation.promptHash &&
+              item.status === 'completed'
+          )
           .reduce((sum, item) => sum + Buffer.byteLength(item.content ?? ''), 0)
         if (consumed + Buffer.byteLength(result.content ?? '') > 8192)
           throw new Error('Hook context exceeded its 8 KiB boundary budget')
@@ -282,6 +343,7 @@ export class UserPluginHooks implements PluginContextPort {
           at: Date.now()
         })
       } catch (error) {
+        if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
         this.persist({
           ...invocation,
           status: 'failed',
@@ -313,8 +375,8 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   diagnostics(pluginId: string): UserPluginHookDiagnostic[] {
-    return [...this.sessions.values()]
-      .flatMap((history) => [...history.values()])
+    return [...this.sessions.keys()]
+      .flatMap((sessionId) => [...this.history(sessionId).values()])
       .filter((item) => item.pluginId === pluginId && item.hookId !== '$session')
       .sort((a, b) => b.at - a.at)
       .slice(0, 20)
@@ -329,8 +391,8 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   async retry(pluginId: string, invocationId: string): Promise<void> {
-    const invocation = [...this.sessions.values()]
-      .map((history) => history.get(invocationId))
+    const invocation = [...this.sessions.keys()]
+      .map((sessionId) => this.history(sessionId).get(invocationId))
       .find(Boolean)
     const owner = this.owners.get(pluginId)
     if (
@@ -390,7 +452,7 @@ async function runContextHook(
         DEEPCHAT_PLUGIN_ID: owner.pluginId
       }
     })
-    let out = ''
+    const out: Buffer[] = []
     let outBytes = 0
     let errBytes = 0
     let settled = false
@@ -407,7 +469,7 @@ async function runContextHook(
         }
       }
       if (error) void terminateProcessTree(child, { graceMs: 100 }).finally(() => reject(error))
-      else resolve(out)
+      else resolve(Buffer.concat(out).toString('utf8'))
     }
     const abort = () => finish(new Error('Hook cancelled'))
     const timer = setTimeout(
@@ -418,7 +480,7 @@ async function runContextHook(
     child.stdout.on('data', (chunk: Buffer) => {
       outBytes += chunk.length
       if (outBytes > 65536) finish(new Error('Hook stdout exceeds 64 KiB'))
-      else out += chunk.toString('utf8')
+      else out.push(chunk)
     })
     child.stderr.on('data', (chunk: Buffer) => {
       errBytes += chunk.length

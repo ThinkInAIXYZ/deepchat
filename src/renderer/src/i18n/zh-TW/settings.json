@@ -3360,7 +3360,7 @@
     "executionNotice": "Hooks 和 stdio MCP 服務會執行本機程式碼，具有您帳號的檔案系統與網絡存取權限。請只啟用您信任的程式碼。npx 或 uvx 等指令可能在服務啟動時下載依賴套件。",
     "useSkills": "使用內含的 Skills",
     "allowHooks": "我已檢閱這些指令，允許自動執行上下文 hooks",
-    "allowMcp": "我已檢閱這些指令和端點，允許 MCP 連線",
+    "allowMcp": "我已檢閱這些指令、端點及變數綁定，允許建立 MCP 連線",
     "sharedData": "此外掛安裝的資料會在不同對話間共用。",
     "requiredVariables": "所需的環境或憑證變數",
     "applyUpdate": "套用已檢閱的更新",
@@ -3373,7 +3373,7 @@
     "diagnostics": "最近的 hook 活動",
     "noInvocations": "本次應用程式執行中尚無 hook 呼叫記錄。",
     "retryHook": "重新執行 hook",
-    "mcpSetupDescription": "啟用外掛後註冊 MCP 服務。可在此填寫缺少的變數，或前往 MCP 設定完成獨立驗證。",
+    "mcpSetupDescription": "啟用外掛以註冊伺服器。在此填寫或更換變數值；主機環境變數不會自動共用。驗證方式可在 MCP 設定中管理。",
     "saveMcp": "儲存並重新連線",
     "manageMcp": "開啟 MCP 設定",
     "uninstallDescription": "刪除此外掛、私有資料、Skill 分配及所屬 MCP 服務。對話歷史會保留。",
@@ -3386,6 +3386,7 @@
       "completed": "已完成",
       "failed": "失敗",
       "uncertain": "已中斷，結果未知"
-    }
+    },
+    "hooks": "自動掛鉤"
   }
 }

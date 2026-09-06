@@ -2,7 +2,12 @@ import { ToolchainService } from '@/toolchains'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { UserPlugins, type UserPluginRecord } from './userPlugins'
 import { UserPluginHooks } from './userPluginHooks'
-import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
+import type {
+  TapeAnchorWriter,
+  TapeNonContextEntryReader,
+  TapeIncarnationReader
+} from '@/tape/ports/capabilities'
+import { PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import type {
   UserPluginSource,
   UserPluginInstallInput,
@@ -78,7 +83,7 @@ export interface PluginSettingsWindowPort {
 }
 
 type PluginServiceDeps = {
-  contextTape?: TapeAnchorWriter & TapeNonContextEntryReader
+  contextTape?: TapeAnchorWriter & TapeNonContextEntryReader & TapeIncarnationReader
   mcpSettings: McpSettings
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
     checkPluginRuntimePermissions(serverName: string): Promise<unknown>
@@ -1872,7 +1877,7 @@ export class PluginService implements PluginServicePort {
   }
 
   private getPluginInstallRoot(): string {
-    return path.join(app.getPath('userData'), 'plugins')
+    return path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY)
   }
 
   private getInstalledPluginRoot(pluginId: string): string {

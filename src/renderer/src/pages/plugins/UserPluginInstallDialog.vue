@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -220,7 +221,13 @@ async function install(): Promise<void> {
           <li v-for="finding in prepared.package.findings" :key="finding">{{ finding }}</li>
         </ul>
         <label v-if="prepared.package.skills.length" class="flex items-start gap-2">
-          <input v-model="selection.skills" type="checkbox" :disabled="busy" class="mt-1" />
+          <Checkbox
+            :model-value="selection.skills"
+            @update:model-value="selection.skills = $event === true"
+            :aria-label="t('settings.userPlugins.useSkills')"
+            :disabled="busy"
+            class="mt-1"
+          />
           <span
             >{{ t('settings.userPlugins.useSkills') }}:
             {{ prepared.package.skills.map((skill) => skill.name).join(', ') }}</span
@@ -228,9 +235,10 @@ async function install(): Promise<void> {
         </label>
         <div v-if="prepared.package.hooks.length" class="space-y-2 border-t pt-3">
           <label class="flex items-start gap-2"
-            ><input
-              v-model="selection.hooks"
-              type="checkbox"
+            ><Checkbox
+              :model-value="selection.hooks"
+              @update:model-value="selection.hooks = $event === true"
+              :aria-label="t('settings.userPlugins.allowHooks')"
               :disabled="busy"
               class="mt-1"
             /><span>{{ t('settings.userPlugins.allowHooks') }}</span></label
@@ -246,9 +254,13 @@ async function install(): Promise<void> {
         </div>
         <div v-if="prepared.package.mcpServers.length" class="space-y-2 border-t pt-3">
           <label class="flex items-start gap-2"
-            ><input v-model="selection.mcp" type="checkbox" :disabled="busy" class="mt-1" /><span>{{
-              t('settings.userPlugins.allowMcp')
-            }}</span></label
+            ><Checkbox
+              :model-value="selection.mcp"
+              @update:model-value="selection.mcp = $event === true"
+              :aria-label="t('settings.userPlugins.allowMcp')"
+              :disabled="busy"
+              class="mt-1"
+            /><span>{{ t('settings.userPlugins.allowMcp') }}</span></label
           >
           <div v-for="server in prepared.package.mcpServers" :key="server.name" class="space-y-1">
             <p class="font-medium">{{ server.name }} · {{ server.type }}</p>
@@ -256,14 +268,11 @@ async function install(): Promise<void> {
               >{{ server.url ?? [server.command, ...(server.args ?? [])].join(' ')
               }}{{ server.cwd ? `\nCWD: ${server.cwd}` : '' }}</pre
             >
-            <details v-if="server.env || server.headers" class="text-xs">
-              <summary class="cursor-pointer">
-                {{ t('settings.userPlugins.technicalDetails') }}
-              </summary>
-              <pre class="whitespace-pre-wrap break-all">{{
-                JSON.stringify({ env: server.env, headers: server.headers }, null, 2)
-              }}</pre>
-            </details>
+            <pre
+              v-if="server.env || server.headers"
+              class="whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs"
+              >{{ JSON.stringify({ env: server.env, headers: server.headers }, null, 2) }}</pre
+            >
             <p v-if="server.requiredVariables.length">
               {{ t('settings.userPlugins.requiredVariables') }}:
               {{ server.requiredVariables.join(', ') }}

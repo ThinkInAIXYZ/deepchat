@@ -3360,7 +3360,7 @@
     "executionNotice": "Hooks 和 stdio MCP 会以你的账户权限运行本地代码，能够访问文件和网络。请只启用你信任的代码。npx、uvx 等命令可能在服务启动时下载依赖。",
     "useSkills": "使用附带的 Skills",
     "allowHooks": "我已审阅这些命令，允许运行自动上下文 hooks",
-    "allowMcp": "我已审阅这些命令和地址，允许 MCP 连接",
+    "allowMcp": "我已审阅这些命令、端点和变量绑定，允许建立 MCP 连接",
     "sharedData": "此安装的插件数据在不同会话间共享。",
     "requiredVariables": "需要的环境变量或凭据",
     "applyUpdate": "应用已审阅的更新",
@@ -3373,7 +3373,7 @@
     "diagnostics": "最近的 hook 活动",
     "noInvocations": "本次应用运行中暂无 hook 调用记录。",
     "retryHook": "重新执行 hook",
-    "mcpSetupDescription": "启用插件后注册 MCP 服务。可在此填写缺失变量，或前往 MCP 设置完成独立认证。",
+    "mcpSetupDescription": "启用插件以注册服务器。在此填写或更换变量值；宿主环境变量不会自动共享。认证方式可在 MCP 设置中管理。",
     "saveMcp": "保存并重新连接",
     "manageMcp": "打开 MCP 设置",
     "uninstallDescription": "删除此插件、私有数据、Skill 分配及所属 MCP 服务。会话历史会保留。",
@@ -3386,6 +3386,7 @@
       "failed": "失败",
       "uncertain": "中断，结果未知"
     },
-    "technicalDetails": "技术详情"
+    "technicalDetails": "技术详情",
+    "hooks": "自动钩子"
   }
 }

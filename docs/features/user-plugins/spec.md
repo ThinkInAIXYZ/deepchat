@@ -150,7 +150,7 @@ matches owner identity, so unrelated official plugins and manually configured MC
 | `SessionStart`, `source: startup` | First accepted input for an eligible top-level session and installation revision, before its prompt hook | Latest successful result of that handler within the session |
 | `SessionStart`, `source: resume` | First new input after application restart for a session with persisted plugin invocation history; page navigation is not resume | Replaces that handler's session contribution |
 | `SessionStart`, `source: compact` | Successful committed compaction with a stable compaction-attempt boundary | Replaces that handler's session contribution |
-| `SessionStart`, `source: clear` | Unavailable; no equivalent context-reset lifecycle boundary | No synthetic event |
+| `SessionStart`, `source: clear` | No Codex clear event; clearing messages invalidates hook history | Startup runs on the next input |
 | `UserPromptSubmit` | Full accepted input text, including accepted steering, before provider assembly | That user input's provider requests and tool loop, including retries |
 | `SubagentStart` | Child DeepChat session's first accepted input; parent session ID plus child/agent identity | That child session; no top-level startup reset |
 
@@ -188,7 +188,7 @@ or abort an otherwise usable chat turn.
 | --- | --- |
 | Declared hooks | 64 per package |
 | Handler timeout | Default 5 seconds; explicit positive value at most 30 seconds |
-| Entire accepted boundary, including queue wait | 10 seconds |
+| Entire accepted boundary, after queue admission | 10 seconds |
 | stdin JSON | 1 MiB |
 | stdout / stderr | 64 KiB each |
 | accepted context per input/compaction boundary | 8 KiB |
@@ -199,15 +199,20 @@ owned process tree. POSIX process-group cleanup also removes descendants after n
 
 ### Durable execution and projection
 
-Invocation identity hashes installation, digest, session, handler and boundary. The host writes
+Invocation identity hashes installation, digest, session, handler and boundary. Input boundaries
+include the user message ID and prompt-content hash, so edits receive fresh results while retries
+reuse matching results. Cached history is tied to the Tape incarnation; clearing messages invalidates
+old results, discards in-flight output and permits startup on the next input. This does not emit a
+Codex `clear` event. The host writes
 `plugin/context-hook` Tape anchors before execution and after acceptance/failure. When no handler
 matches an admitted session, a host-only observation anchor preserves the resume boundary; it
 is excluded from hook diagnostics and contributes no model instructions. A started
 invocation with no result after restart is `uncertain`, and is not automatically rerun. Explicit
 retry is allowed for an active revision's failed/uncertain handler; it executes only that handler,
 has a new invocation identity, and can repeat external effects. Retry waits until active turns
-and updates finish. Diagnostics show the latest twenty invocations from sessions loaded in this
-application run, and refresh on demand.
+and updates finish. Diagnostics show the latest twenty invocations from up to sixteen recently loaded
+sessions. Evicted sessions reload their durable history on demand. Completed in-memory entries omit
+retry input payloads; Tape retains the audit record. Malformed persisted JSON is skipped.
 
 Projection reads persisted accepted results; it never executes a hook or performs source/network
 inspection. `plugin_context` is a distinct attributed prompt-assembly section. Each contribution
@@ -263,10 +268,12 @@ operational/restrictive fields make that server unavailable instead of weakening
 | `env_http_headers` | Named environment references in headers |
 | `bearer_token_env_var` | `Authorization: Bearer ${NAME}` binding |
 | `${PLUGIN_ROOT}` and root/data aliases | Installed paths, never mutable source paths |
-| `${NAME}`, `${env:NAME}` | Explicitly named process environment or host setup values |
+| `${NAME}`, `${env:NAME}` | Explicitly supplied, per-server setup values |
 
-Remote URLs are literal and cannot contain environment placeholders; credentials belong in
-header bindings. Relative stdio cwd values resolve against the installed plugin root after
+Remote URLs require HTTPS, with HTTP allowed only for loopback endpoints (`localhost`, `127.0.0.1`
+and `[::1]`). URLs are literal and cannot contain environment placeholders; credentials belong in
+header bindings. Resolved header values must satisfy the same byte and CR/LF limits as literal
+headers. Relative stdio cwd values resolve against the installed plugin root after
 variable expansion.
 
 Server names become `<installation-id>.<declared-name>`. Existing host-generated server identity
@@ -274,12 +281,17 @@ and configuration generation remain authoritative. Portable servers register wit
 for tools/prompts/resources, since packages do not have to ship a static tool catalog. Existing
 global MCP enablement still applies. A selected but disconnected server never reports as running.
 
-Missing variables are listed in the plugin details. Values supplied through setup are stored in
-existing MCP settings, not plugin metadata, packages or hook records. Runtime environment bindings
-resolve only declared variable names; they do not implicitly inherit all process secrets. OAuth
-and MCP App authorization use existing settings/credential owners. Disable preserves setup;
-endpoint/revision changes revoke old App/connection authority. Update backups remain in the MCP
-store and are deleted after commit/recovery. There is no OpenAI account or connector-ID adapter.
+Missing variables are listed in the plugin details. User plugins never resolve declared variables
+from the host process environment. Setup values are encrypted through the existing SecretStore,
+separate from MCP configuration, plugin metadata, packages and hook records. MCP settings retain
+templates; connection setup substitutes only explicit bindings for that server. Details keep the
+setup form available for credential rotation without displaying saved values. Bindings are scoped
+to the owner, transport, endpoint/command, arguments, working directory and variable/header templates.
+Changing that scope requires fresh setup; disable preserves bindings. OAuth and MCP App authorization
+use existing owners. Rotation and endpoint/revision changes revoke old App/connection authority.
+Update backups contain wrapped ciphertext alongside MCP configuration and are deleted after successful
+commit/recovery. Recovery failures disable the plugin and release the mutation lock. There is no
+OpenAI account or connector-ID adapter.
 
 ## 8. Source/process bounds
 
@@ -326,6 +338,7 @@ Install
   [x] Skills
   [ ] Reviewed automatic hooks      commands and limits
   [ ] Reviewed MCP connections      commands / endpoints / setup variables
+      Environment and headers       visible template declarations
   [Cancel]                          [Install]
 
 Details
@@ -334,7 +347,8 @@ Details
   Source                            > Technical details
   Skills / Hooks / MCP              selected state
   Hook activity                     retry failures explicitly
-  MCP setup and connection state    [Open MCP settings]
+  MCP setup and connection state    [Save replacement values] [Open MCP settings]
+  Uninstall confirmation            [Cancel] [Uninstall]
 ```
 
 The install dialog owns temporary form/review state. Generation guards discard stale inspection
