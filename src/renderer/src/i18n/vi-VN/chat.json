@@ -197,7 +197,8 @@
   "mode": {
     "current": "Chế độ hiện tại: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Không thể lưu lựa chọn chế độ"
   },
   "topbar": {
     "backToParent": "Quay lại trang gốc",

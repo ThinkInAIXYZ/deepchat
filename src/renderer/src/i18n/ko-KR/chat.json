@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "current": "현재 모드: {mode}"
+    "current": "현재 모드: {mode}",
+    "saveFailed": "모드 선택을 저장하지 못했습니다"
   },
   "topbar": {
     "share": "공유",

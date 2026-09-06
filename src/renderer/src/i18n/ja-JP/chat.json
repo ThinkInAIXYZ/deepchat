@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "current": "現在のモード: {mode}"
+    "current": "現在のモード: {mode}",
+    "saveFailed": "モードの選択を保存できませんでした"
   },
   "topbar": {
     "share": "共有",

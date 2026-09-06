@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "סוכן ACP",
     "agent": "סוֹכֵן",
-    "current": "מצב נוכחי: {mode}"
+    "current": "מצב נוכחי: {mode}",
+    "saveFailed": "שמירת בחירת המצב נכשלה"
   },
   "topbar": {
     "share": "שיתוף",

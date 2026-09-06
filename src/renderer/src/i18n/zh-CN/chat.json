@@ -282,7 +282,8 @@
   "mode": {
     "current": "当前模式：{mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "无法保存模式选择"
   },
   "topbar": {
     "backToParent": "返回父会话",

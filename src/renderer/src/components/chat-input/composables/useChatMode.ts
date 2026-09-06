@@ -75,7 +75,7 @@ export function useChatMode() {
           kind: 'error',
           code: 'chat.mode.saveFailed',
           title: t('common.error.operationFailed'),
-          description: t('common.notifications.actionFailed')
+          description: t('chat.mode.saveFailed')
         })
       }
       console.error('Failed to save chat mode:', error)

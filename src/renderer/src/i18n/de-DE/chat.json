@@ -197,7 +197,8 @@
   "mode": {
     "current": "Aktueller Modus: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Modusauswahl konnte nicht gespeichert werden"
   },
   "topbar": {
     "backToParent": "Zur übergeordneten Sitzung zurück",

@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",
-    "current": "Aktuel tilstand: {mode}"
+    "current": "Aktuel tilstand: {mode}",
+    "saveFailed": "Kunne ikke gemme tilstandsvalget"
   },
   "topbar": {
     "share": "Del",

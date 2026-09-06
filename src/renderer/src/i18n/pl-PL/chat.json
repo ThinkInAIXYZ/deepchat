@@ -197,7 +197,8 @@
   "mode": {
     "current": "Bieżący tryb: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Nie udało się zapisać wyboru trybu"
   },
   "topbar": {
     "backToParent": "Powrót do Rodzica",

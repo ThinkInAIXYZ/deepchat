@@ -197,7 +197,8 @@
   "mode": {
     "current": "Mod semasa: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Gagal menyimpan pilihan mod"
   },
   "topbar": {
     "backToParent": "Kembali ke sesi ibu bapa",
