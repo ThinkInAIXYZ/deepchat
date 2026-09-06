@@ -6,6 +6,7 @@ import {
   applyAcceptedComposerSubmission,
   composerDocumentsMatch,
   composerDraftFingerprint,
+  copyComposerDocument,
   copyComposerDraft,
   createComposerTextDocument,
   type ComposerSessionDraft,
@@ -16,7 +17,7 @@ import {
   saveComposerDraftToStorage
 } from '@/features/chat-page/model/composerDraftPersistence'
 
-type ComposerHandle = {
+export type ComposerHandle = {
   getDocumentSnapshot?: () => JSONContent
   restoreDocumentSnapshot?: (document: JSONContent) => void
   getPendingSkillsSnapshot?: () => string[]
@@ -117,20 +118,22 @@ export function useNewThreadComposerDraft(
     () => {
       const handle = input.value
       if (!handle || disposed) return
-      const snapshot = copyComposerDraft(draft.value)
+      const snapshot = draft.value
+      const skills = handle.getPendingSkillsSnapshot?.()
       if (
-        JSON.stringify(handle.getPendingSkillsSnapshot?.()) !==
-        JSON.stringify(snapshot.activeSkills)
+        !skills ||
+        skills.length !== snapshot.activeSkills.length ||
+        skills.some((skill, index) => skill !== snapshot.activeSkills[index])
       ) {
         if (snapshot.activeSkills.length === 0) {
           handle.clearPendingSkills?.()
         } else {
-          handle.setPendingSkills?.(snapshot.activeSkills)
+          handle.setPendingSkills?.([...snapshot.activeSkills])
         }
       }
       const document = handle.getDocumentSnapshot?.()
       if (!document || !composerDocumentsMatch(document, snapshot.document)) {
-        handle.restoreDocumentSnapshot?.(snapshot.document)
+        handle.restoreDocumentSnapshot?.(copyComposerDocument(snapshot.document))
       }
       restoring = false
     },
@@ -149,13 +152,17 @@ export function useNewThreadComposerDraft(
     saveComposerDraftToStorage(`new-thread:${targetAgentId}`, next)
   }
 
-  window.addEventListener('pagehide', persistDraft)
-  window.addEventListener('beforeunload', persistDraft)
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', persistDraft)
+    window.addEventListener('beforeunload', persistDraft)
+  }
   onBeforeUnmount(() => {
     persistDraft()
     disposed = true
-    window.removeEventListener('pagehide', persistDraft)
-    window.removeEventListener('beforeunload', persistDraft)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', persistDraft)
+      window.removeEventListener('beforeunload', persistDraft)
+    }
   })
 
   return {

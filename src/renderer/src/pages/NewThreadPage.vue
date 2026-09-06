@@ -198,7 +198,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { JSONContent } from '@tiptap/core'
 import { useRouter } from 'vue-router'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
@@ -229,7 +228,10 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
-import { useNewThreadComposerDraft } from '@/composables/useNewThreadComposerDraft'
+import {
+  useNewThreadComposerDraft,
+  type ComposerHandle
+} from '@/composables/useNewThreadComposerDraft'
 import type { ComposerSubmissionSnapshot } from '@/features/chat-page/model/composerDraftState'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
@@ -308,17 +310,15 @@ const isSearchAvailable = computed(
   () => !isAcpSelectedAgent.value && isProviderSearchAvailable.value
 )
 const isSearchEnabled = computed(() => isSearchAvailable.value && searchIntent.value)
-const chatInputRef = ref<{
-  triggerAttach: () => void
-  insertRecognizedText?: (text: string) => void
-  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
-  getPendingSkillsSnapshot?: () => string[]
-  setPendingSkills?: (skills: string[]) => void
-  clearPendingSkills?: () => void
-  getDocumentSnapshot?: () => JSONContent
-  restoreDocumentSnapshot?: (document: JSONContent) => void
-  focusInput?: () => void
-} | null>(null)
+const chatInputRef = ref<
+  | (ComposerHandle & {
+      triggerAttach: () => void
+      insertRecognizedText?: (text: string) => void
+      getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+      focusInput?: () => void
+    })
+  | null
+>(null)
 const {
   message,
   attachedFiles,
