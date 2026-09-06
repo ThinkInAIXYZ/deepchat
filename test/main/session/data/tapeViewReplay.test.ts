@@ -28,6 +28,7 @@ import {
   itIfSqlite,
   createTapeTableMock,
   createRecord,
+  createTranscriptProjectionMock,
   createTraceRow,
   createMessageRow,
   createObservationManifest,
@@ -905,9 +906,7 @@ describe('SessionTape view and replay', () => {
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -995,9 +994,7 @@ describe('SessionTape view and replay', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const original = createRecord({ id: 'u1', orderSeq: 1, content: 'original task' })
-    service.ensureSessionTapeReady('s1', {
-      getMessages: vi.fn().mockReturnValue([original])
-    } as any)
+    service.ensureSessionTapeReady('s1', createTranscriptProjectionMock([original]) as any)
 
     const initialSources = service.getViewManifestSourceMaps('s1')
     const initialEntryId = initialSources.entryIdByMessageId.get('u1')
@@ -1335,9 +1332,7 @@ describe('SessionTape view and replay', () => {
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
     const manifest = createTapeViewManifest({
@@ -1388,9 +1383,7 @@ describe('SessionTape view and replay', () => {
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
     const manifest = createTapeViewManifest({
@@ -1438,9 +1431,7 @@ describe('SessionTape view and replay', () => {
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
     const baseInput = {
@@ -1576,9 +1567,7 @@ describe('SessionTape view and replay', () => {
   it('bounds replay slices to the selected view instead of pre-cursor history', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -1641,9 +1630,7 @@ describe('SessionTape view and replay', () => {
   it('exports replay slices with metadata-only payloads by default', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table, [createTraceRow()])
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -1785,9 +1772,7 @@ describe('SessionTape view and replay', () => {
         body_json: '{"messages":[{"role":"tool","content":"done"}]}'
       })
     ])
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -1874,9 +1859,7 @@ describe('SessionTape view and replay', () => {
         body_json: '{"messages":[{"role":"tool","content":"second-request"}]}'
       })
     ])
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
-    }
+    const messageStore = createTranscriptProjectionMock([createRecord({ id: 'u1', orderSeq: 1 })])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')

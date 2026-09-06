@@ -161,7 +161,8 @@ const backfillNormalizedMessageRow = (
   } else {
     sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(
       row.id,
-      parseAssistantBlocks(row.content)
+      parseAssistantBlocks(row.content),
+      row.updated_at
     )
   }
 

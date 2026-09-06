@@ -10,12 +10,8 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTranscript, type TranscriptTapePort } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
-import type {
-  TapeCompactionModelCallWriter,
-  TapeMessageFactWriter
-} from '@/tape/ports/capabilities'
 import type { ProjectDatabase } from '@/project/data/database'
 import type { AppDatabase } from '@/app/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'
@@ -49,7 +45,7 @@ export class LegacyChatImportService {
     sessionDatabase: SessionDatabase,
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
-    tapeFacts: TapeMessageFactWriter & TapeCompactionModelCallWriter,
+    tapeFacts: TranscriptTapePort,
     sourceDbPath?: string,
     notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {
@@ -178,6 +174,7 @@ export class LegacyChatImportService {
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_tape_entries;
+        DELETE FROM deepchat_transcript_projection_meta;
         DELETE FROM deepchat_memory_ingestion_projection;
         DELETE FROM deepchat_memory_ingestion_projection_meta;
         DELETE FROM deepchat_tape_search_projection;
@@ -549,21 +546,7 @@ export class LegacyChatImportService {
             this.pickNumber(row, ['created_at']) ??
             Date.now()
 
-          this.sessionDatabase.deepchatMessagesTable.insert({
-            id: messageId,
-            sessionId,
-            orderSeq: nextOrderSeq,
-            role: role as 'user' | 'assistant',
-            content: normalizedContent,
-            status,
-            isContextEdge: this.pickNumber(selectedVariant, ['is_context_edge']) === 1 ? 1 : 0,
-            metadata: this.normalizeMetadata(
-              this.pickString(selectedVariant, ['metadata']) || '{}'
-            ),
-            createdAt,
-            updatedAt: createdAt
-          })
-          this.messageStore.backfillMessageRow({
+          this.messageStore.importMessageRow({
             id: messageId,
             session_id: sessionId,
             order_seq: nextOrderSeq,

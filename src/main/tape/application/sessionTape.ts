@@ -91,7 +91,9 @@ import type {
   TapeReconciliationPort,
   TapeToolFactAppendReceipt,
   TapeToolFactWriter,
-  TapeTranscriptReader,
+  TapeProjectionCursor,
+  TapeProjectionHeadReader,
+  TapeTranscriptProjection,
   TapeMemoryViewManifestInspection,
   CommitTapeToolSurfaceViewInput,
   TapeToolSurfaceViewCommitReceipt,
@@ -148,6 +150,7 @@ export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandof
  */
 export type SessionTapeCapabilities = TapeToolFactWriter &
   TapeMessageFactWriter &
+  TapeProjectionHeadReader &
   TapeProviderAttemptReader &
   TapeProviderAttemptWriter &
   TapeCompactionModelCallReader &
@@ -210,7 +213,7 @@ export class SessionTape implements SessionTapeCapabilities {
 
   ensureSessionTapeReady(
     sessionId: string,
-    messageStore: TapeTranscriptReader
+    messageStore: TapeTranscriptProjection
   ): TapeBackfillResult {
     return this.reconciler.ensureSessionTapeReady(sessionId, messageStore)
   }
@@ -228,6 +231,10 @@ export class SessionTape implements SessionTapeCapabilities {
 
   appendMessageRetraction(record: ChatMessageRecord, reason: string): number {
     return this.facts.appendMessageRetraction(record, reason)
+  }
+
+  getProjectionHead(sessionId: string): TapeProjectionCursor | null {
+    return this.facts.getProjectionHead(sessionId)
   }
 
   appendToolFact(input: TapeToolFactInput): Promise<TapeToolFactAppendReceipt> {

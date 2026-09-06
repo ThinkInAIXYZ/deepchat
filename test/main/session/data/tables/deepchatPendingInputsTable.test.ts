@@ -9,7 +9,6 @@ import {
 } from '@/session/data/tables/deepchatPendingInputs'
 import { createSessionData } from '@/session/data'
 import { SessionDatabase } from '@/session/data/database'
-import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
@@ -636,16 +635,15 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       )
       const database = new SessionDatabase(connection)
       const tapeCountBeforeRecovery = database.deepchatTapeEntriesTable.getBySession('s1').length
-      const originalUpdateStatus = DeepChatMessagesTable.prototype.updateStatus
-      let failedStatusUpdates = 0
-      const updateStatus = vi
-        .spyOn(DeepChatMessagesTable.prototype, 'updateStatus')
-        .mockImplementation(function (messageId, status) {
-          originalUpdateStatus.call(this, messageId, status)
-          if (status === 'error' && ++failedStatusUpdates === 1) {
-            throw new Error('terminalization failed')
-          }
-        })
+      connection.getDatabase().exec(`
+        CREATE TRIGGER fail_steer_terminalization
+        AFTER UPDATE OF status ON deepchat_messages
+        WHEN NEW.status = 'error'
+          AND (SELECT COUNT(*) FROM deepchat_messages WHERE status = 'error') = 2
+        BEGIN
+          SELECT RAISE(ABORT, 'terminalization failed');
+        END;
+      `)
 
       expect(() => data.pendingInputs.recoverInputsAfterRestart()).toThrow('terminalization failed')
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
@@ -658,7 +656,7 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         tapeCountBeforeRecovery
       )
 
-      updateStatus.mockRestore()
+      connection.getDatabase().exec('DROP TRIGGER fail_steer_terminalization')
       data.pendingInputs.recoverInputsAfterRestart()
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
         'error',
