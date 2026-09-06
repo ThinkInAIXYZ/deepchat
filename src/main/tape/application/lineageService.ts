@@ -11,7 +11,8 @@ import {
 } from '../domain/entry'
 import type { TapeApplicationProviders } from '../ports/application'
 import { parseJsonObject, parseJsonValue } from './common'
-import { computeTapeIdentity, TAPE_IDENTITY_PATTERN } from '../domain/tapeIdentity'
+import { SHA256_HEX_PATTERN } from '../domain/primitives'
+import { computeTapeIdentity } from '../domain/tapeIdentity'
 
 type TapeLineageProviders = Pick<
   TapeApplicationProviders,
@@ -141,7 +142,7 @@ function parseSubagentTapeLink(row: DeepChatTapeEntryRow): ParsedSubagentTapeLin
     (linkVersion === 1 && childTapeIdentity === undefined) ||
     (linkVersion === SUBAGENT_TAPE_LINK_VERSION &&
       typeof childTapeIdentity === 'string' &&
-      TAPE_IDENTITY_PATTERN.test(childTapeIdentity))
+      SHA256_HEX_PATTERN.test(childTapeIdentity))
   if (
     row.kind !== 'event' ||
     row.name !== SUBAGENT_TAPE_LINK_EVENT_NAME ||

@@ -7,6 +7,7 @@ import { createAzure } from '@ai-sdk/azure'
 import { createGoogle } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
@@ -27,6 +28,7 @@ import { fetchWithProviderHeaders } from '../providerHeaders'
 export type AiSdkProviderKind =
   | 'openai-compatible'
   | 'openai-responses'
+  | 'deepseek-open-responses'
   | 'openai-codex'
   | 'azure'
   | 'anthropic'
@@ -52,6 +54,7 @@ export interface AiSdkProviderContext {
   apiType:
     | 'openai_chat'
     | 'openai_responses'
+    | 'open_responses'
     | 'azure_responses'
     | 'anthropic'
     | 'google'
@@ -621,6 +624,24 @@ export function createAiSdkProviderContext(
         embeddingModel: provider.embedding(params.modelId),
         imageModel: provider.image(params.modelId),
         endpoint: buildOpenAIEndpoint(baseUrl || 'https://api.openai.com/v1', '/responses')
+      }
+    }
+
+    case 'deepseek-open-responses': {
+      const endpoint = buildOpenAIEndpoint(baseUrl, '/responses')
+      const provider = createOpenResponses({
+        name: 'deepseek',
+        url: endpoint,
+        apiKey: params.provider.apiKey,
+        headers: params.defaultHeaders,
+        fetch
+      })
+
+      return {
+        providerOptionsKey: 'deepseek',
+        apiType: 'open_responses',
+        model: maybeWrapModel(provider(params.modelId) as any),
+        endpoint
       }
     }
 

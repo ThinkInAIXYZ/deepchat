@@ -91,7 +91,8 @@ describe('YoBrowserToolHandler', () => {
       undefined,
       'agent',
       'run-a',
-      expect.any(Function)
+      expect.any(Function),
+      undefined
     )
   })
 
@@ -174,8 +175,37 @@ describe('YoBrowserToolHandler', () => {
       { type: 'mousePressed', x: 24, y: 48 },
       'agent',
       'run-a',
-      expect.any(Function)
+      expect.any(Function),
+      undefined
     )
+  })
+
+  it('cancels browser status resolution without dispatching a delayed CDP command', async () => {
+    const presenter = createPresenter()
+    const controller = new AbortController()
+    let finishStatus!: (status: typeof readyStatus) => void
+    presenter.getBrowserStatus.mockImplementationOnce(
+      () =>
+        new Promise<typeof readyStatus>((resolve) => {
+          finishStatus = resolve
+        })
+    )
+    const handler = new YoBrowserToolHandler(presenter)
+    const command = handler.callTool(
+      'cdp_send',
+      { method: 'Runtime.evaluate' },
+      'session-a',
+      'run-a',
+      undefined,
+      controller.signal
+    )
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishStatus(readyStatus)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(presenter.sendCdpCommand).not.toHaveBeenCalled()
   })
 
   it('rejects old tool names as unknown tools', async () => {

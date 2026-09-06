@@ -295,8 +295,14 @@
       },
       "contextMenu": {
         "openFile": "membuka berkas",
+        "openWith": "Buka dengan",
+        "openInApp": "Buka di {app}",
+        "openInTerminalApp": "Buka folder di {app}",
+        "openFailed": "Tidak dapat membuka file dengan aplikasi tersebut",
+        "preferredAppUnavailable": "Aplikasi pilihan sedang tidak tersedia. Membuka dengan aplikasi bawaan sistem.",
         "revealInFolder": "Buka di pengelola file",
-        "insertPath": "Masukkan ke dalam kotak masukan"
+        "insertPath": "Masukkan ke dalam kotak masukan",
+        "openWithSystemDefault": "Buka dengan aplikasi bawaan sistem"
       },
       "watchStatus": {
         "degraded": "Pemantauan berjalan dalam mode cadangan. Perubahan mungkin dimuat ulang lebih lambat.",

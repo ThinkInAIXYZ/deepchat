@@ -32,6 +32,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'runinfra',
+    name: 'RunInfra',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.runinfra.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://runinfra.ai/',
+      apiKey: 'https://runinfra.ai/settings/api-keys',
+      docs: 'https://runinfra.ai/docs/api-reference/model-apis-quickstart',
+      models: 'https://runinfra.ai/inference-api',
+      defaultBaseUrl: 'https://api.runinfra.ai/v1'
+    }
+  },
+  {
     id: 'greenpt',
     name: 'GreenPT',
     apiType: 'openai-completions',

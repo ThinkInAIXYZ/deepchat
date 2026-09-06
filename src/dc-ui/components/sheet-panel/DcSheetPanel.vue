@@ -25,7 +25,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  appearance: 'panel'
+  appearance: 'panel',
+  scrollBody: undefined
 })
 
 const emit = defineEmits<{
@@ -49,7 +50,7 @@ const shouldScrollBody = computed(() => props.scrollBody ?? !isPlain.value)
         <SheetDescription>{{ description }}</SheetDescription>
       </SheetHeader>
 
-      <ScrollArea v-if="shouldScrollBody" class="flex-1 overflow-hidden">
+      <ScrollArea v-if="shouldScrollBody" class="min-h-0 flex-1 overflow-hidden">
         <slot />
       </ScrollArea>
       <slot v-else />
@@ -76,7 +77,7 @@ const shouldScrollBody = computed(() => props.scrollBody ?? !isPlain.value)
         <SheetDescription v-if="description">{{ description }}</SheetDescription>
       </SheetHeader>
 
-      <ScrollArea v-if="shouldScrollBody" class="flex-1 overflow-hidden">
+      <ScrollArea v-if="shouldScrollBody" class="min-h-0 flex-1 overflow-hidden">
         <slot />
       </ScrollArea>
       <slot v-else />

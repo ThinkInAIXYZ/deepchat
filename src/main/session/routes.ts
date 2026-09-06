@@ -101,6 +101,7 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
     | 'listLightweight'
     | 'getLightweightByIds'
     | 'getSearchResults'
+    | 'requireSession'
     | 'getTapeContext'
     | 'listTapeInspectorPage'
     | 'listTapeInspectorEvidence'
@@ -490,6 +491,7 @@ export function createSessionRoutes(deps: {
       async (rawInput, context) => {
         const input = sessionsSubscribeTapeInspectorHeadRoute.input.parse(rawInput)
         const caller = requireRendererCaller(context)
+        deps.projection.requireSession(input.sessionId)
         return sessionsSubscribeTapeInspectorHeadRoute.output.parse({
           subscribed: true,
           ...deps.tapeInspectorHeadWatcher.subscribe({

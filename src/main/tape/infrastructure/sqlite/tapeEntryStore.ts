@@ -17,30 +17,26 @@ import {
 } from '@/tape/domain/entry'
 import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
 import {
+  EFFECTIVE_MESSAGE_INPUT_KINDS,
+  EFFECTIVE_VIEW_INPUT_KINDS,
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
+  parseTapeJsonObject,
+  type EffectiveInputKind
+} from '@/tape/domain/effectiveSemantics'
+import {
   EXECUTION_JOURNAL_EVENT_NAMES,
-  isExecutionJournalReservedName,
   type ExecutionJournalEventName,
   type ExecutionJournalRecoveryRow
 } from '@/tape/domain/executionJournal'
+import type { ContractTapeEventName } from '@/tape/domain/contractFacts'
+import type { ToolSurfaceTapeEventName } from '@/tape/domain/toolSurfaceFacts'
 import {
-  CONTRACT_TAPE_EVENT_NAMES,
-  isContractTapeReservedName,
-  type ContractTapeEventName
-} from '@/tape/domain/contractFacts'
-import {
-  isToolSurfaceTapeReservedName,
-  TOOL_SURFACE_TAPE_EVENT_NAMES,
-  type ToolSurfaceTapeEventName
-} from '@/tape/domain/toolSurfaceFacts'
+  assertTapeAppendAuthorized,
+  type TapeReservedNamespace
+} from '@/tape/domain/reservedNamespaces'
 import { SKILL_MATERIALIZATION_NAME } from '@/tape/domain/skillMaterialization'
-import {
-  TAPE_PROVIDER_ATTEMPT_EVENT_NAME,
-  type TapeProviderAttemptEventName
-} from '@/tape/domain/providerAttempt'
-import {
-  TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
-  type TapeCompactionModelCallEventName
-} from '@/tape/domain/compactionUsage'
+import type { TapeProviderAttemptEventName } from '@/tape/domain/providerAttempt'
+import type { TapeCompactionModelCallEventName } from '@/tape/domain/compactionUsage'
 import type {
   CompactionUsagePersistenceStore,
   ContractPersistenceStore,
@@ -259,6 +255,32 @@ const EXECUTION_JOURNAL_EVENT_NAMES_SQL = EXECUTION_JOURNAL_EVENT_NAMES.map(
   (name) => `'${name}'`
 ).join(', ')
 
+/**
+ * One session's rows of the given kinds plus its `message/retracted` events (every effective-state
+ * reader needs the retractions), merged in entry_id order; bind `{ session }`. Written as
+ * `WHERE kind IN (...)` the planner walks the whole session by primary key and, under SQLCipher,
+ * decrypts every page the session touches. One range per kind on
+ * `idx_deepchat_tape_entries_session_kind` (retractions on the partial event-name index) loads only
+ * the pages that hold the requested rows, and SQLite merges the ordered ranges without a sort. On a
+ * 10k-entry encrypted session this halves the cold read of the effective-view inputs. The ranges
+ * are disjoint because `EffectiveInputKind` cannot name `event`; the kind lists are the same
+ * constants the JS predicates test.
+ */
+function effectiveInputRowsSql(kinds: readonly EffectiveInputKind[]): string {
+  const ranges = [
+    ...kinds.map(
+      (kind) =>
+        `SELECT * FROM deepchat_tape_entries WHERE session_id = $session AND kind = '${kind}'`
+    ),
+    `SELECT * FROM deepchat_tape_entries
+     WHERE session_id = $session AND kind = 'event' AND name = '${TAPE_MESSAGE_RETRACTED_EVENT_NAME}'`
+  ]
+  return `SELECT * FROM (${ranges.join(' UNION ALL ')}) ORDER BY entry_id ASC`
+}
+
+const EFFECTIVE_VIEW_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_VIEW_INPUT_KINDS)
+const EFFECTIVE_MESSAGE_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_MESSAGE_INPUT_KINDS)
+
 export const UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL = `
   WITH unterminated_runs AS (
     SELECT DISTINCT started.session_id, started.source_id AS run_id
@@ -390,7 +412,7 @@ function escapeLikePattern(value: string): string {
 
 // Three LIKE parameters per field group stay below SQLite's portable 999-variable floor after
 // source, filter, and limit bindings.
-const MAX_TAPE_SEARCH_TOKEN_CLAUSES = 256
+export const MAX_TAPE_SEARCH_TOKEN_CLAUSES = 256
 
 function tokenizeDeepChatTapeSearchQuery(value: string): string[] {
   return value
@@ -827,48 +849,9 @@ export class DeepChatTapeEntriesTable
 
   protected appendInternal(
     input: DeepChatTapeAppendInput,
-    authorizedNamespace:
-      | 'execution'
-      | 'contract'
-      | 'tool-surface'
-      | 'skill-materialized'
-      | 'provider-attempt'
-      | 'compaction-usage'
-      | null
+    authorizedNamespace: TapeReservedNamespace | null
   ): DeepChatTapeEntryRow {
-    if (authorizedNamespace !== 'execution' && isExecutionJournalReservedName(input.name)) {
-      throw new Error(
-        'The execution/* namespace is reserved for the strict Execution Journal writer.'
-      )
-    }
-    if (authorizedNamespace !== 'contract' && isContractTapeReservedName(input.name)) {
-      throw new Error('The contract/* namespace is reserved for the strict Contract writer.')
-    }
-    if (authorizedNamespace !== 'tool-surface' && isToolSurfaceTapeReservedName(input.name)) {
-      throw new Error('The View Tool Surface namespace is reserved for its provenance writer.')
-    }
-    if (authorizedNamespace !== 'skill-materialized' && input.name === SKILL_MATERIALIZATION_NAME) {
-      throw new Error('skill/materialized is reserved for the strict materialization writer.')
-    }
-    if (authorizedNamespace !== 'skill-materialized' && input.kind === 'context') {
-      throw new Error('The context entry kind is reserved for the strict materialization writer.')
-    }
-    if (
-      authorizedNamespace !== 'provider-attempt' &&
-      input.name === TAPE_PROVIDER_ATTEMPT_EVENT_NAME
-    ) {
-      throw new Error(
-        'provider/attempt_completed is reserved for the strict provider-attempt writer.'
-      )
-    }
-    if (
-      authorizedNamespace !== 'compaction-usage' &&
-      input.name === TAPE_COMPACTION_MODEL_CALL_EVENT_NAME
-    ) {
-      throw new Error(
-        'compaction/model_call_completed is reserved for the strict compaction-usage writer.'
-      )
-    }
+    assertTapeAppendAuthorized(input, authorizedNamespace)
     const append = this.db.transaction(() => {
       const provenanceKey = buildProvenanceKey(input)
       if (input.idempotent && provenanceKey) {
@@ -1014,9 +997,6 @@ export class DeepChatTapeEntriesTable
   appendProviderAttemptEvent(
     input: TapeEventAppendInput & { name: TapeProviderAttemptEventName }
   ): DeepChatTapeEntryRow {
-    if (input.name !== TAPE_PROVIDER_ATTEMPT_EVENT_NAME) {
-      throw new Error(`Unsupported provider-attempt event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -1039,9 +1019,6 @@ export class DeepChatTapeEntriesTable
   appendCompactionModelCallEvent(
     input: TapeEventAppendInput & { name: TapeCompactionModelCallEventName }
   ): DeepChatTapeEntryRow {
-    if (input.name !== TAPE_COMPACTION_MODEL_CALL_EVENT_NAME) {
-      throw new Error(`Unsupported compaction-usage event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -1064,9 +1041,6 @@ export class DeepChatTapeEntriesTable
   appendToolSurfaceEvent(
     input: TapeEventAppendInput & { name: ToolSurfaceTapeEventName }
   ): DeepChatTapeEntryRow {
-    if (!TOOL_SURFACE_TAPE_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported View Tool Surface event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -1259,6 +1233,18 @@ export class DeepChatTapeEntriesTable
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(EFFECTIVE_VIEW_INPUT_ROWS_SQL)
+      .all({ session: sessionId }) as DeepChatTapeEntryRow[]
+  }
+
+  getEffectiveMessageInputRows(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(EFFECTIVE_MESSAGE_INPUT_ROWS_SQL)
+      .all({ session: sessionId }) as DeepChatTapeEntryRow[]
+  }
+
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[] {
     const normalizedIds = [...new Set(entryIds)]
       .filter((entryId) => Number.isSafeInteger(entryId) && entryId > 0)
@@ -1337,10 +1323,9 @@ export class DeepChatTapeEntriesTable
       )
       .get(sessionId) as { meta_json: string } | undefined
     if (!row) return undefined
-    const value = JSON.parse(row.meta_json) as Record<string, unknown>
-    return typeof value[TAPE_INCARNATION_META_KEY] === 'string'
-      ? value[TAPE_INCARNATION_META_KEY]
-      : undefined
+    // Callers treat `undefined` as "bootstrap missing or invalid"; unreadable meta is the latter.
+    const value = parseTapeJsonObject(row.meta_json)[TAPE_INCARNATION_META_KEY]
+    return typeof value === 'string' ? value : undefined
   }
 
   getMaxEventSourceSeq(
@@ -1439,20 +1424,6 @@ export class DeepChatTapeEntriesTable
          ORDER BY tape.session_id ASC`
       )
       .all(JSON.stringify(ids)) as DeepChatTapeEntryRow[]
-  }
-
-  getBySessionUpToEntryIdExcludingContext(
-    sessionId: string,
-    maxEntryId: number
-  ): DeepChatTapeEntryRow[] {
-    return this.db
-      .prepare(
-        `SELECT *
-         FROM deepchat_tape_entries
-         WHERE session_id = ? AND entry_id <= ? AND kind != 'context'
-         ORDER BY entry_id ASC`
-      )
-      .all(sessionId, maxEntryId) as DeepChatTapeEntryRow[]
   }
 
   listMemoryViewManifestAnchorsBySessions(
@@ -2313,9 +2284,6 @@ export class DeepChatExecutionJournalStore
   appendExecutionJournalEvent(
     input: TapeEventAppendInput & { name: ExecutionJournalEventName }
   ): DeepChatTapeEntryRow {
-    if (!EXECUTION_JOURNAL_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported Execution Journal event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,
@@ -2343,9 +2311,6 @@ export class DeepChatContractStore
   appendContractEvent(
     input: TapeEventAppendInput & { name: ContractTapeEventName }
   ): DeepChatTapeEntryRow {
-    if (!CONTRACT_TAPE_EVENT_NAMES.includes(input.name)) {
-      throw new Error(`Unsupported Contract event name: ${input.name}.`)
-    }
     return this.appendInternal(
       {
         sessionId: input.sessionId,

@@ -110,6 +110,7 @@ export interface BuildProviderOptionsParams {
   apiType:
     | 'openai_chat'
     | 'openai_responses'
+    | 'open_responses'
     | 'azure_responses'
     | 'anthropic'
     | 'google'
@@ -197,7 +198,7 @@ export function buildProviderOptions(
   const promptCachePlan = resolvePromptCachePlan({
     providerId: params.providerId,
     apiType:
-      params.apiType === 'openai_responses'
+      params.apiType === 'openai_responses' || params.apiType === 'open_responses'
         ? 'openai_responses'
         : params.apiType === 'anthropic' || params.apiType === 'bedrock'
           ? 'anthropic'
@@ -210,6 +211,15 @@ export function buildProviderOptions(
   })
 
   switch (params.apiType) {
+    case 'open_responses': {
+      if (modelConfig.reasoningEffort) {
+        providerOptions[params.providerOptionsKey] = {
+          reasoningEffort: modelConfig.reasoningEffort
+        }
+      }
+      break
+    }
+
     case 'openai_chat':
     case 'openai_responses': {
       const config: Record<string, unknown> = {}

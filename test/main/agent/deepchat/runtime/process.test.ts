@@ -1039,7 +1039,7 @@ describe('processStream', () => {
       expect(messageStore.setMessageError).not.toHaveBeenCalled()
     })
 
-    it('persists each tool round before entering the next provider round', async () => {
+    it('persists each tool round once before entering the next provider round', async () => {
       const order: string[] = []
       observeCommitOrder(order)
       let providerRound = 0
@@ -1090,14 +1090,13 @@ describe('processStream', () => {
         'message:update',
         'tape:tool_call',
         'tape:tool_result',
-        'tape:tool_call',
-        'tape:tool_result',
         'journal:terminal',
         'message:complete',
         'renderer:update',
         'renderer:complete'
       ])
-      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(6)
+      // Round 2 replays the whole message but must not re-append the facts round 1 settled.
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(4)
       expect(
         tapeToolFactWriter.appendToolFact.mock.calls.map(([input]) => [
           input.provenance.source,
@@ -1105,8 +1104,6 @@ describe('processStream', () => {
           input.provenance.sequence
         ])
       ).toEqual([
-        ['tool_call', 'm1:tc1', 0],
-        ['tool_result', 'm1:tc1', 0],
         ['tool_call', 'm1:tc1', 0],
         ['tool_result', 'm1:tc1', 0],
         ['tool_call', 'm1:tc2', 1],
@@ -1129,6 +1126,58 @@ describe('processStream', () => {
       expect(result.status).toBe('completed')
       expect(coreStream).toHaveBeenCalledTimes(2)
       expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(1)
+    })
+
+    it('retries a tool fact in the next round when its earlier append failed', async () => {
+      tapeToolFactWriter.appendToolFact
+        .mockImplementationOnce(async (input) => tapeToolFactReceipt(input))
+        .mockRejectedValueOnce(new Error('tape unavailable'))
+      let providerRound = 0
+      const coreStream = vi.fn(() => {
+        providerRound += 1
+        if (providerRound <= 2) {
+          const toolCallId = `tc${providerRound}`
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: toolCallId,
+              tool_call_name: 'action'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: toolCallId,
+              tool_call_arguments_complete: '{}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'ok' })),
+          tools: [makeTool('action')]
+        })
+      )
+
+      expect(result.status).toBe('completed')
+      expect(
+        tapeToolFactWriter.appendToolFact.mock.calls.map(([input]) => [
+          input.provenance.source,
+          input.provenance.sourceId
+        ])
+      ).toEqual([
+        ['tool_call', 'm1:tc1'],
+        ['tool_result', 'm1:tc1'], // round 1: rejected
+        ['tool_result', 'm1:tc1'], // round 2: retried, tool_call not repeated
+        ['tool_call', 'm1:tc2'],
+        ['tool_result', 'm1:tc2']
+      ])
     })
 
     it('releases ToolSearch candidates only after the settled round is persisted', async () => {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
   WorkspaceFileNodeSchema,
+  WorkspaceFileOpenAppSchema,
   WorkspaceFilePreviewSchema,
   WorkspaceGitDiffSchema,
   WorkspaceGitStateSchema,
@@ -86,6 +87,27 @@ export const workspaceOpenFileRoute = defineRouteContract({
   name: 'workspace.openFile',
   input: z.object({
     path: z.string().min(1)
+  }),
+  output: z.object({
+    opened: z.boolean()
+  })
+})
+
+export const workspaceListFileOpenAppsRoute = defineRouteContract({
+  name: 'workspace.listFileOpenApps',
+  input: z.object({
+    path: z.string().min(1)
+  }),
+  output: z.object({
+    apps: z.array(WorkspaceFileOpenAppSchema)
+  })
+})
+
+export const workspaceOpenFileWithAppRoute = defineRouteContract({
+  name: 'workspace.openFileWithApp',
+  input: z.object({
+    path: z.string().min(1),
+    appId: z.string().min(1)
   }),
   output: z.object({
     opened: z.boolean()

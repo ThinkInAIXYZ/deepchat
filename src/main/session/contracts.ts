@@ -422,6 +422,7 @@ export interface SubagentAssignmentInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  toolModeOverride?: ToolModeOverride
 }
 
 export interface ResolvedSubagentAssignment {
@@ -433,6 +434,7 @@ export interface ResolvedSubagentAssignment {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools: string[]
   activeSkills: string[]
+  toolModeOverride: ToolModeOverride
 }
 
 export interface ResolvedTransferTarget {
@@ -584,6 +586,7 @@ export interface SessionLifecycleSubagentInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  toolModeOverride?: ToolModeOverride
   liveDelegationContext?: LiveDelegationSubagentContext
 }
 

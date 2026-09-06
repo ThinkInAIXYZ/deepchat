@@ -444,6 +444,21 @@ describe('AI SDK provider factory', () => {
       'https://api.openai.com/v1/chat/completions'
     ],
     [
+      'DeepSeek Open Responses',
+      'deepseek-open-responses',
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'openai-responses',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.deepseek.com',
+        enable: true
+      },
+      'deepseek',
+      'open_responses',
+      'https://api.deepseek.com/responses'
+    ],
+    [
       'GitHub Copilot',
       'openai-compatible',
       {

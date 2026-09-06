@@ -311,7 +311,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
-      activeSkills: input.activeSkills
+      activeSkills: input.activeSkills,
+      toolModeOverride: input.toolModeOverride
     })
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
       runtimeConfig.agentId,
@@ -352,6 +353,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
           isDraft: false,
           disabledAgentTools: runtimeConfig.disabledAgentTools,
           orchestrationPolicy: DEFAULT_ORCHESTRATION_POLICY,
+          toolModeOverride: runtimeConfig.toolModeOverride,
           sessionKind: 'subagent',
           parentSessionId,
           subagentMeta

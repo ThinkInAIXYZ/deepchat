@@ -101,8 +101,8 @@ Steer: user message (Unread) -> claim (Read) -> new assistant message
 ## Tape boundary
 
 Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `SessionTapePort`，并按每个 IPC
-操作原有的条件和时序调用 `ensureSessionTapeReady`。`src/main/session/data/tape*.ts` 和旧 table path
-只是显式冻结并标记 deprecated 的 compatibility re-export，不再拥有 Tape policy 或 persistence。
+操作原有的条件和时序调用 `ensureSessionTapeReady`。Tape policy 与 persistence 全部位于
+`src/main/tape/`；`src/main/session/data/` 下不再有 Tape 的 compatibility re-export 或 table path。
 
 - transcript 只接收 `TapeMessageFactWriter`；message replace/retract 与对应 Tape fact 继续共享调用方
   SQLite transaction；

@@ -1,6 +1,5 @@
 import { TAPE_INCARNATION_META_KEY, type DeepChatTapeEntryRow } from '../domain/entry'
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+import { CANONICAL_UUID_PATTERN } from '../domain/primitives'
 
 export function parseJsonObject(raw: string): Record<string, unknown> {
   try {
@@ -24,7 +23,7 @@ export function readCanonicalTapeIncarnationId(row: DeepChatTapeEntryRow): strin
     return null
   }
   const value = parseJsonObject(row.meta_json)[TAPE_INCARNATION_META_KEY]
-  return typeof value === 'string' && UUID_PATTERN.test(value) ? value : null
+  return typeof value === 'string' && CANONICAL_UUID_PATTERN.test(value) ? value : null
 }
 
 export function parseJsonValue(raw: string): unknown {

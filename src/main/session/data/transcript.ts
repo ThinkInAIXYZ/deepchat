@@ -245,18 +245,20 @@ export class SessionTranscript {
   ): string {
     const id = nanoid()
     const serializedContent = JSON.stringify(content)
-    this.database.deepchatMessagesTable.insert({
-      id,
-      sessionId,
-      orderSeq,
-      role: 'user',
-      content: serializedContent,
-      status: options?.status ?? 'sent',
-      ...(options?.metadata ? { metadata: JSON.stringify(options.metadata) } : {})
+    this.runInDatabaseTransaction(() => {
+      this.database.deepchatMessagesTable.insert({
+        id,
+        sessionId,
+        orderSeq,
+        role: 'user',
+        content: serializedContent,
+        status: options?.status ?? 'sent',
+        ...(options?.metadata ? { metadata: JSON.stringify(options.metadata) } : {})
+      })
+      this.persistUserContent(id, content)
+      this.upsertMessageSearchDocument(sessionId, id, 'user', serializedContent)
+      this.appendLiveTapeFacts(id)
     })
-    this.persistUserContent(id, content)
-    this.upsertMessageSearchDocument(sessionId, id, 'user', serializedContent)
-    this.appendLiveTapeFacts(id)
     return id
   }
 
@@ -462,16 +464,18 @@ export class SessionTranscript {
     blocks: AssistantMessageBlock[],
     metadata: string
   ): void {
-    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
-    this.database.deepchatMessagesTable.updateContentAndStatus(
-      messageId,
-      JSON.stringify(blocks),
-      'sent',
-      metadata
-    )
-    this.upsertAssistantSearchDocument(messageId, blocks)
-    this.persistUsageStats(messageId, metadata, 'live')
-    this.appendLiveTapeFacts(messageId)
+    this.runInDatabaseTransaction(() => {
+      this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+      this.database.deepchatMessagesTable.updateContentAndStatus(
+        messageId,
+        JSON.stringify(blocks),
+        'sent',
+        metadata
+      )
+      this.upsertAssistantSearchDocument(messageId, blocks)
+      this.persistUsageStats(messageId, metadata, 'live')
+      this.appendLiveTapeFacts(messageId)
+    })
   }
 
   updateCompactionMessage(
@@ -512,27 +516,29 @@ export class SessionTranscript {
   }
 
   setMessageError(messageId: string, blocks: AssistantMessageBlock[], metadata?: string): void {
-    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
-    const serializedBlocks = JSON.stringify(blocks)
-    if (metadata === undefined) {
+    this.runInDatabaseTransaction(() => {
+      this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+      const serializedBlocks = JSON.stringify(blocks)
+      if (metadata === undefined) {
+        this.database.deepchatMessagesTable.updateContentAndStatus(
+          messageId,
+          serializedBlocks,
+          'error'
+        )
+        this.upsertAssistantSearchDocument(messageId, blocks)
+        this.appendLiveTapeFacts(messageId)
+        return
+      }
       this.database.deepchatMessagesTable.updateContentAndStatus(
         messageId,
         serializedBlocks,
-        'error'
+        'error',
+        metadata
       )
       this.upsertAssistantSearchDocument(messageId, blocks)
+      this.persistUsageStats(messageId, metadata, 'live')
       this.appendLiveTapeFacts(messageId)
-      return
-    }
-    this.database.deepchatMessagesTable.updateContentAndStatus(
-      messageId,
-      serializedBlocks,
-      'error',
-      metadata
-    )
-    this.upsertAssistantSearchDocument(messageId, blocks)
-    this.persistUsageStats(messageId, metadata, 'live')
-    this.appendLiveTapeFacts(messageId)
+    })
   }
 
   getMessages(sessionId: string): ChatMessageRecord[] {
@@ -631,6 +637,10 @@ export class SessionTranscript {
   }
 
   updateMessageContent(messageId: string, content: string): void {
+    this.runInDatabaseTransaction(() => this.applyMessageContentUpdate(messageId, content))
+  }
+
+  private applyMessageContentUpdate(messageId: string, content: string): void {
     this.database.deepchatMessagesTable.updateContent(messageId, content)
     const row = this.database.deepchatMessagesTable.get(messageId)
     if (!row) {

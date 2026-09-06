@@ -295,8 +295,14 @@
       },
       "contextMenu": {
         "openFile": "Apri file",
+        "openWith": "Apri con",
+        "openInApp": "Apri in {app}",
+        "openInTerminalApp": "Apri la cartella in {app}",
+        "openFailed": "Impossibile aprire il file con quell’applicazione",
+        "preferredAppUnavailable": "L’app preferita non è disponibile in questo momento. Apertura con l’app predefinita di sistema.",
         "revealInFolder": "Mostra nel file manager",
-        "insertPath": "Inserisci nell'input"
+        "insertPath": "Inserisci nell'input",
+        "openWithSystemDefault": "Apri con l’app predefinita di sistema"
       },
       "watchStatus": {
         "degraded": "Il monitoraggio è in modalità di fallback. Le modifiche potrebbero aggiornarsi più lentamente.",

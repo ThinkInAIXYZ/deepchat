@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
 import { BrowserPageStatus, type YoBrowserStatus } from '@shared/types/browser'
@@ -24,9 +25,11 @@ export class YoBrowserToolHandler {
     args: Record<string, unknown>,
     conversationId?: string,
     runId?: string,
-    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => void
+    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => void,
+    signal?: AbortSignal
   ): Promise<string> {
     try {
+      signal?.throwIfAborted()
       const sessionId = conversationId?.trim()
       if (!sessionId) {
         throw new Error('conversationId is required for YoBrowser tools')
@@ -34,7 +37,9 @@ export class YoBrowserToolHandler {
 
       switch (toolName) {
         case 'get_browser_status':
-          return JSON.stringify(await this.presenter.getBrowserStatus(sessionId))
+          return JSON.stringify(
+            await awaitWithAbort(this.presenter.getBrowserStatus(sessionId), signal)
+          )
         case 'load_url': {
           const url = typeof args.url === 'string' ? args.url : ''
           if (!url) {
@@ -42,7 +47,7 @@ export class YoBrowserToolHandler {
           }
           const beforeDispatch = beforeInvoke ? () => beforeInvoke({ url }) : undefined
           return JSON.stringify(
-            runId || beforeDispatch
+            runId || beforeDispatch || signal
               ? await this.presenter.loadUrl(
                   sessionId,
                   url,
@@ -50,7 +55,8 @@ export class YoBrowserToolHandler {
                   undefined,
                   'agent',
                   runId,
-                  beforeDispatch
+                  beforeDispatch,
+                  signal
                 )
               : await this.presenter.loadUrl(sessionId, url, undefined, undefined, 'agent')
           )
@@ -61,7 +67,7 @@ export class YoBrowserToolHandler {
             throw new Error('CDP method is required')
           }
 
-          const status = await this.presenter.getBrowserStatus(sessionId)
+          const status = await awaitWithAbort(this.presenter.getBrowserStatus(sessionId), signal)
           const page = status.page
           if (!status.initialized || !page || page.status === BrowserPageStatus.Closed) {
             throw await this.createUnavailableError(sessionId, method, status)
@@ -71,14 +77,15 @@ export class YoBrowserToolHandler {
             const params = this.normalizeCdpParams(args.params)
             const beforeDispatch = beforeInvoke ? () => beforeInvoke({ method, params }) : undefined
             const response =
-              runId || beforeDispatch
+              runId || beforeDispatch || signal
                 ? await this.presenter.sendCdpCommand(
                     sessionId,
                     method,
                     params,
                     'agent',
                     runId,
-                    beforeDispatch
+                    beforeDispatch,
+                    signal
                   )
                 : await this.presenter.sendCdpCommand(sessionId, method, params, 'agent')
             return JSON.stringify(response ?? {})

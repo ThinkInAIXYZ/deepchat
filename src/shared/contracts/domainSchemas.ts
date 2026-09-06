@@ -848,6 +848,13 @@ export const WorkspaceFileNodeSchema: z.ZodType<{
   })
 )
 
+export const WorkspaceFileOpenAppSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(['editor', 'terminal']),
+  iconDataUrl: z.string().optional()
+})
+
 export const WorkspaceFileMetadataSchema = z.object({
   fileName: z.string(),
   fileSize: z.number(),

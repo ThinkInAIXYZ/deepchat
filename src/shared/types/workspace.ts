@@ -3,6 +3,8 @@
  * Types for the unified right sidepanel workspace experience.
  */
 
+import type { WorkspaceFileOpenAppKind } from '@shared/workspace/fileOpenApps'
+
 export type SidePanelTab = 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
 
 export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
@@ -23,6 +25,13 @@ export type WorkspaceFileNode = {
   children?: WorkspaceFileNode[]
   /** Whether expanded (frontend state) */
   expanded?: boolean
+}
+
+export type WorkspaceFileOpenApp = {
+  id: string
+  name: string
+  kind: WorkspaceFileOpenAppKind
+  iconDataUrl?: string
 }
 
 export type WorkspaceFilePreviewKind =
@@ -187,6 +196,10 @@ export interface WorkspaceServicePort {
    * @param filePath Path to open
    */
   openFile(filePath: string): Promise<void>
+
+  listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]>
+
+  openFileWithApp(filePath: string, appId: string): Promise<void>
 
   /**
    * Read a workspace file and normalize it to a preview-friendly payload.

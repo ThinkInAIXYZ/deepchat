@@ -1595,6 +1595,7 @@ export async function createMainProcessControl(dependencies: {
           projectDir: session.projectDir ?? null,
           permissionMode,
           orchestrationPolicy: session.orchestrationPolicy,
+          toolModeOverride: session.toolModeOverride ?? null,
           generationSettings,
           disabledAgentTools,
           activeSkills,
@@ -1856,6 +1857,13 @@ export async function createMainProcessControl(dependencies: {
     toolService,
     hookObserver: hookService,
     pluginContext: pluginService.contextHooks,
+    onSessionCompleted: (sessionId) => {
+      const session = appSessionService.get(sessionId)
+      if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
+      void notificationService.showSessionCompletion(session).catch((error) => {
+        logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
+      })
+    },
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: (update) => {
       sessionRuntimeEvents.publish(update)

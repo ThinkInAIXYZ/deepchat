@@ -251,6 +251,7 @@ export function createAcpCompatibilityDependencies(
             projectDir: input.workdir
           })
           .terminal({
+            completed: input.status === 'completed',
             reason: input.stopReason,
             userStop: input.status === 'aborted',
             error: input.errorMessage ? { message: input.errorMessage } : null

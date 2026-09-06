@@ -1041,6 +1041,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service.start()
     harness.parent.providerId = 'openai'
     harness.parent.modelId = 'model-frozen'
+    harness.parent.toolModeOverride = 'code'
     harness.parent.generationSettings = {
       systemPrompt: 'Frozen prompt',
       temperature: 0.2,
@@ -1056,6 +1057,7 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     harness.parent.providerId = 'anthropic'
     harness.parent.modelId = 'model-later'
+    harness.parent.toolModeOverride = 'agent'
     harness.parent.generationSettings!.systemPrompt = 'Changed after scheduling'
     harness.parent.permissionMode = 'full_access'
     harness.parent.projectDir = '/repo-later'
@@ -1068,6 +1070,7 @@ describeIfSqlite('LiveDelegationService', () => {
         providerId: 'openai',
         modelId: 'model-frozen',
         permissionMode: 'full_access',
+        toolModeOverride: 'code',
         projectDir: '/repo-later',
         generationSettings: expect.objectContaining({ systemPrompt: 'Frozen prompt' })
       })
@@ -2986,6 +2989,7 @@ function createSessionInfo(
     projectDir: '/repo',
     permissionMode: 'default',
     orchestrationPolicy: 'explicit',
+    toolModeOverride: null,
     generationSettings: null,
     disabledAgentTools: [],
     activeSkills: [],

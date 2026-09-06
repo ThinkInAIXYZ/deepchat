@@ -19,12 +19,14 @@ function createHarness(observed = true) {
   }
   const getAgentId = vi.fn().mockReturnValue('agent-id')
   const resolveProjectDir = vi.fn().mockReturnValue('/workspace')
+  const onSessionCompleted = vi.fn()
   const sink = new RuntimeHookSink({
     observer,
+    onSessionCompleted,
     identity: { getAgentId },
     sessionSettings: { resolveProjectDir }
   })
-  return { events, getAgentId, observer, resolveProjectDir, sink }
+  return { events, getAgentId, observer, onSessionCompleted, resolveProjectDir, sink }
 }
 
 describe('RuntimeHookSink scope', () => {
@@ -132,6 +134,37 @@ describe('RuntimeHookSink scope', () => {
 describe('RuntimeHookSink terminal projection', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('notifies successful turns even when no command hooks are configured', () => {
+    const { events, sink, onSessionCompleted } = createHarness(false)
+
+    sink.observeTerminal('native', STATE, { status: 'completed' })
+    sink.scope({ sessionId: 'acp', providerId: 'acp' }).terminal({
+      completed: true,
+      reason: 'complete',
+      userStop: false
+    })
+    sink.observeTerminal('paused', STATE, { status: 'paused' })
+    sink.observeTerminal('aborted', STATE, { status: 'aborted' })
+    sink.observeTerminal('failed', STATE, { status: 'error' })
+    sink.observeTerminal('tool-error', STATE, {
+      status: 'completed',
+      terminalError: 'Tool failed'
+    })
+
+    expect(onSessionCompleted.mock.calls).toEqual([['native'], ['acp']])
+    expect(events).toEqual([])
+  })
+
+  it('isolates completion notification failures from turn settlement', () => {
+    const { sink, onSessionCompleted } = createHarness(false)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    onSessionCompleted.mockImplementation(() => {
+      throw new Error('Notification unavailable')
+    })
+
+    expect(() => sink.observeTerminal('session', STATE, { status: 'completed' })).not.toThrow()
   })
 
   it('maps a completed result to Stop then SessionEnd', () => {

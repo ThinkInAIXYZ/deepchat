@@ -3,7 +3,9 @@ import {
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
   workspaceGetGitStatusRoute,
+  workspaceListFileOpenAppsRoute,
   workspaceOpenFileRoute,
+  workspaceOpenFileWithAppRoute,
   workspaceReadDirectoryRoute,
   workspaceReadFilePreviewRoute,
   workspaceRegisterRoute,
@@ -82,6 +84,23 @@ export function createWorkspaceRoutes(service: WorkspaceServicePort): DeepchatRo
         const input = workspaceOpenFileRoute.input.parse(rawInput)
         await service.openFile(input.path)
         return workspaceOpenFileRoute.output.parse({ opened: true })
+      }
+    ],
+    [
+      workspaceListFileOpenAppsRoute.name,
+      async (rawInput) => {
+        const input = workspaceListFileOpenAppsRoute.input.parse(rawInput)
+        return workspaceListFileOpenAppsRoute.output.parse({
+          apps: await service.listFileOpenApps(input.path)
+        })
+      }
+    ],
+    [
+      workspaceOpenFileWithAppRoute.name,
+      async (rawInput) => {
+        const input = workspaceOpenFileWithAppRoute.input.parse(rawInput)
+        await service.openFileWithApp(input.path, input.appId)
+        return workspaceOpenFileWithAppRoute.output.parse({ opened: true })
       }
     ],
     [

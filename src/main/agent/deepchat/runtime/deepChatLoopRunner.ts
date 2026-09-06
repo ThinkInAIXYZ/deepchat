@@ -1101,6 +1101,8 @@ export class DeepChatLoopRunner {
     }
     let toolSurfaceController: ToolSurfaceRunController | null = null
     let frozenSkillRequirementByName: ReadonlyMap<string, RunSkillToolRequirements> | null = null
+    let removeProviderRetryAbortListener: (() => void) | undefined
+    let clearProviderRetryWaitingMessage: (() => void) | undefined
     try {
       if (toolSurfaceMode !== 'legacy') {
       const universe = await awaitWithAbort(
@@ -1568,6 +1570,7 @@ export class DeepChatLoopRunner {
       const commitTapeProviderView = this.commitTapeProviderView.bind(this)
       const persistMessageTrace = this.persistMessageTrace.bind(this)
       const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
+      const emitProviderRetryWaitingMessage = this.emitProviderRetryWaitingMessage.bind(this)
       const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
       const toolSurfaceAdapterHistory = this.toolSurfaceAdapterHistory
       const hooks = this.ports.hookSink.scope({
@@ -1582,6 +1585,23 @@ export class DeepChatLoopRunner {
 
       let reviewConversationMessages = messages
       let activeProviderAttemptIdentity: DeepChatProviderAttemptIdentity | null = null
+      let providerRetryWaiting = false
+      const clearProviderRetryWaiting = () => {
+        if (!providerRetryWaiting) return
+        clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
+        providerRetryWaiting = false
+      }
+      clearProviderRetryWaitingMessage = clearProviderRetryWaiting
+      activeGeneration.abortController.signal.addEventListener(
+        'abort',
+        clearProviderRetryWaiting,
+        { once: true }
+      )
+      removeProviderRetryAbortListener = () =>
+        activeGeneration.abortController.signal.removeEventListener(
+          'abort',
+          clearProviderRetryWaiting
+        )
       const result = await processStream({
         run: loopRun,
         onConversationMessagesChange: (nextMessages) => {
@@ -2074,6 +2094,21 @@ export class DeepChatLoopRunner {
                 )
             },
             retryObserver: (event) => {
+              if (event.type === 'retry_scheduled') {
+                providerRetryWaiting = true
+                emitProviderRetryWaitingMessage(
+                  sessionId,
+                  rateLimitMessageId,
+                  activeGeneration.runId,
+                  state.providerId,
+                  event.delayMs
+                )
+              } else if (
+                event.type === 'retry_started' ||
+                (event.type === 'retry_finished' && event.retryDecision !== 'retry_scheduled')
+              ) {
+                clearProviderRetryWaiting()
+              }
               logger.info('[DeepChatAgent] Provider retry lifecycle', {
                 sessionId,
                 messageId,
@@ -2419,6 +2454,8 @@ export class DeepChatLoopRunner {
       throw errorToPropagate
     } finally {
       if (pluginRunStarted) this.ports.pluginContext?.endRun?.(sessionId)
+      clearProviderRetryWaitingMessage?.()
+      removeProviderRetryAbortListener?.()
       if (
         toolSurfaceCanaryIdentity &&
         toolSurfaceMode !== 'legacy' &&
@@ -2612,6 +2649,29 @@ export class DeepChatLoopRunner {
     requestId: string,
     snapshot: RateLimitQueueSnapshot
   ): void {
+    this.emitRateLimitWaitingBlock(sessionId, messageId, requestId, snapshot)
+  }
+
+  private emitProviderRetryWaitingMessage(
+    sessionId: string,
+    messageId: string,
+    requestId: string,
+    providerId: string,
+    estimatedWaitTime: number
+  ): void {
+    this.emitRateLimitWaitingBlock(sessionId, messageId, requestId, {
+      providerId,
+      estimatedWaitTime
+    })
+  }
+
+  private emitRateLimitWaitingBlock(
+    sessionId: string,
+    messageId: string,
+    requestId: string,
+    snapshot: Pick<RateLimitQueueSnapshot, 'providerId' | 'estimatedWaitTime'> &
+      Partial<Pick<RateLimitQueueSnapshot, 'qpsLimit' | 'currentQps' | 'queueLength'>>
+  ): void {
     const block: AssistantMessageBlock = {
       type: 'action',
       action_type: 'rate_limit',
@@ -2620,9 +2680,11 @@ export class DeepChatLoopRunner {
       timestamp: Date.now(),
       extra: {
         providerId: snapshot.providerId,
-        qpsLimit: snapshot.qpsLimit,
-        currentQps: snapshot.currentQps,
-        queueLength: snapshot.queueLength,
+        ...(snapshot.qpsLimit === undefined ? {} : { qpsLimit: snapshot.qpsLimit }),
+        ...(snapshot.currentQps === undefined
+          ? {}
+          : { currentQps: snapshot.currentQps }),
+        ...(snapshot.queueLength === undefined ? {} : { queueLength: snapshot.queueLength }),
         estimatedWaitTime: snapshot.estimatedWaitTime
       }
     }

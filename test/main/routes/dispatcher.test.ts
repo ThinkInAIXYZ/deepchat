@@ -427,6 +427,10 @@ function createRuntime() {
     }),
     getLightweightByIds: vi.fn().mockResolvedValue([]),
     getSearchResults: vi.fn().mockResolvedValue([]),
+    requireSession: vi.fn((sessionId: string) => {
+      if (sessionId !== 'session-1') throw new Error(`Session not found: ${sessionId}`)
+      return sessionSnapshot
+    }),
     getTapeContext: vi.fn().mockResolvedValue({ entries: [] }),
     listTapeInspectorPage: vi.fn().mockResolvedValue({
       status: 'ok',
@@ -5187,6 +5191,16 @@ describe('dispatchDeepchatRoute', () => {
         cliContext
       )
     ).rejects.toThrow('Route requires a renderer caller')
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledOnce()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'missing-session', subscriptionId: 'subscription-3' },
+        renderer
+      )
+    ).rejects.toThrow('Session not found: missing-session')
     expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledOnce()
   })
 

@@ -19,14 +19,20 @@
 - [x] Run the full required validation and complete the severity-ordered pre-commit review.
 - [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
   and `open_page` items.
-- [ ] Before merge, confirm with a real key that a second independent user turn retains the first
-  turn's replayed search context.
+- [x] Before merge, confirm with a real key that DeepSeek emits reasoning `summary: []`, accepts an
+  id-less plaintext reasoning replay, and completes the second independent user turn.
+- [x] Before merge, confirm with a real key that multiple reasoning items and a same-turn MCP tool
+  round complete, including replay of the provider-returned function-call item ID.
+- [x] Before merge, confirm with a real key that DeepSeek accepts `low` and `max` reasoning efforts
+  without unsupported-effort warnings; serializer conformance tests assert both wire values.
 - [x] Capture normalized AI SDK URL sources in search blocks and the existing result table.
 - [x] Hide provider-owned search markers and wrap completed search targets without truncation.
 - [x] Preserve queued search intent during edits and keep replay-bearing turns atomic in emergency
   truncation.
-- [x] Cover production-runtime replay, SDK default store behavior, persisted OpenAI item-ID removal,
-  request-scope isolation, and SQLite opaque-envelope round trips.
+- [x] Cover production-runtime replay, stateless Open Responses wire shape, id-less plaintext
+  reasoning, request-scope isolation, and SQLite opaque-envelope round trips.
+- [x] Preserve incremental MCP argument streaming on search-enabled and replay-only Responses routes
+  without duplicating the final canonical tool call.
 - [x] Keep legacy MCP search blocks and opaque replay payloads out of provider-native renderer UI.
 - [x] Keep ordinary V4 Flash requests on Chat Completions while routing search and replay requests
   through Responses.

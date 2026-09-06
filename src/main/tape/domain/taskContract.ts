@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer'
 import {
   DEEPCHAT_TASK_CONTRACT_HASH_VERSION,
   DEEPCHAT_TASK_CONTRACT_SCHEMA_VERSION,
@@ -11,6 +10,7 @@ import {
   type DeepChatTaskWorkspaceCeiling
 } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
+import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN, utf8Length } from './primitives'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
 const MAX_IDENTITY_BYTES = 1_024
@@ -20,7 +20,6 @@ const MAX_SECTION_NAME_BYTES = 256
 const MAX_WORKSPACE_PATH_BYTES = 32 * 1024
 const MAX_TASK_INPUT_BYTES = 64 * 1024
 const MAX_SUBAGENT_DEPTH = 1
-const SHA_256_PATTERN = /^[0-9a-f]{64}$/u
 
 const TASK_CONTRACT_KEYS = [
   'schemaVersion',
@@ -69,10 +68,6 @@ export class TaskContractError extends Error {
   }
 }
 
-function utf8Length(value: string): number {
-  return Buffer.byteLength(value, 'utf8')
-}
-
 function requireString(
   value: unknown,
   label: string,
@@ -111,10 +106,6 @@ function requireNonNegativeSafeInteger(value: unknown, label: string): number {
   return value as number
 }
 
-function compareCodePoints(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
-}
-
 function normalizeWorkspace(workspace: DeepChatTaskWorkspaceCeiling): DeepChatTaskWorkspaceCeiling {
   if (workspace?.kind === 'runtime_default') return { kind: 'runtime_default' }
   if (workspace?.kind !== 'path' || typeof workspace.path !== 'string') {
@@ -143,8 +134,8 @@ function normalizeEvaluationRef(value: DeepChatEvaluationRef | null): DeepChatEv
   const entryId = requirePositiveSafeInteger(value?.entryId, 'predecessorEvaluationRef.entryId')
   if (
     value?.schemaVersion !== 1 ||
-    !SHA_256_PATTERN.test(value.tapeIdentity) ||
-    !SHA_256_PATTERN.test(value.evaluationHash)
+    !SHA256_HEX_PATTERN.test(value.tapeIdentity) ||
+    !SHA256_HEX_PATTERN.test(value.evaluationHash)
   ) {
     throw new TaskContractError('predecessorEvaluationRef is invalid.', 'invalid_input')
   }
@@ -207,16 +198,10 @@ function normalizeHandoffFormat(
     if (sections.length === 0 || sections.length > MAX_TASK_CONTRACT_REQUIREMENTS) {
       throw new TaskContractError(`${label}.sections has an invalid size.`, 'invalid_input')
     }
-    sections.sort(compareCodePoints)
+    sections.sort(compareUtf16)
     return { id, kind: 'required_sections' as const, level: 2 as const, sections }
   })
-  return normalized.sort((left, right) => compareCodePoints(left.id, right.id))
-}
-
-function deepFreeze<T>(value: T): T {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
-  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested)
-  return Object.freeze(value)
+  return normalized.sort((left, right) => compareUtf16(left.id, right.id))
 }
 
 function hasExactKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
@@ -319,7 +304,7 @@ export function isDeepChatTaskContract(value: unknown): value is DeepChatTaskCon
     value.schemaVersion !== DEEPCHAT_TASK_CONTRACT_SCHEMA_VERSION ||
     value.hashVersion !== DEEPCHAT_TASK_CONTRACT_HASH_VERSION ||
     typeof value.contractHash !== 'string' ||
-    !SHA_256_PATTERN.test(value.contractHash)
+    !SHA256_HEX_PATTERN.test(value.contractHash)
   ) {
     return false
   }
@@ -365,9 +350,9 @@ export function isDeepChatTaskContractRef(value: unknown): value is DeepChatTask
       requireString(value.sessionId, 'TaskContractRef.sessionId', MAX_IDENTITY_BYTES, 256) ===
         value.sessionId &&
       typeof value.tapeIdentity === 'string' &&
-      SHA_256_PATTERN.test(value.tapeIdentity) &&
+      SHA256_HEX_PATTERN.test(value.tapeIdentity) &&
       typeof value.contractHash === 'string' &&
-      SHA_256_PATTERN.test(value.contractHash) &&
+      SHA256_HEX_PATTERN.test(value.contractHash) &&
       requirePositiveSafeInteger(value.entryId, 'TaskContractRef.entryId') === value.entryId
     )
   } catch {

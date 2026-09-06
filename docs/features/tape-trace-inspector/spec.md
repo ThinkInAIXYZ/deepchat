@@ -319,6 +319,9 @@ versions.
 
 - Generic row `payloadHash` is SHA-256 over the exact stored `payload_json` string.
 - Generic row `metaHash` is SHA-256 over the exact stored `meta_json` string.
+- Generic hashes are computed by the detail projection only; page-list rows carry no
+  `payloadHash`/`metaHash`, and View rows carry `manifestHash` plus `integrity` so the detail pane
+  can announce the integrity section before the detail loads.
 - The Inspector reuses `hashString`; it does not canonicalize or parse before hashing.
 - Manifest hashes and integrity use the existing manifest verifier.
 - Other artifact integrity is exposed only when an existing authoritative verifier owns it.

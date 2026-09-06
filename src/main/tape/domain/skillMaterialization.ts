@@ -18,6 +18,7 @@ import {
 } from '@shared/types/skill'
 import type { DeepChatTapeEntryRow } from './entry'
 import { isBoundedSkillTapeIdentity, MAX_SKILL_TAPE_IDENTITY_BYTES } from './skillIdentity'
+import { SHA256_HEX_PATTERN } from './primitives'
 
 export const SKILL_MATERIALIZATION_NAME = 'skill/materialized' as const
 export const SKILL_MATERIALIZATION_SCHEMA_VERSION = 3 as const
@@ -31,8 +32,6 @@ export const MAX_SKILL_MATERIALIZATION_PACKAGE_BATCH_ENCODED_BYTES =
   SKILL_EXECUTION_PACKAGE_MAX_BATCH_ENCODED_BYTES
 const MAX_SKILL_MATERIALIZATION_STORED_PAYLOAD_BYTES =
   SKILL_EFFECTIVE_CONTENT_MAX_BYTES * 6 + SKILL_EXECUTION_PACKAGE_MAX_ENCODED_BYTES + 64 * 1024
-
-const SHA256 = /^[a-f0-9]{64}$/
 
 export interface TapeSkillIdentity {
   agentId: string
@@ -99,7 +98,7 @@ function requireIdentity(value: unknown, field: string): string {
 }
 
 function requireHash(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !SHA256.test(value)) {
+  if (typeof value !== 'string' || !SHA256_HEX_PATTERN.test(value)) {
     throw new TypeError(`${field} must be a lowercase SHA-256 hash.`)
   }
   return value

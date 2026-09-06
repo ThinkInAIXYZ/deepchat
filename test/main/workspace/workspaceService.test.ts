@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '../../../src/shared/contracts/events'
@@ -329,6 +330,16 @@ describe('WorkspaceService watchers', () => {
 
     expect(contentWatcher.close).toHaveBeenCalledTimes(1)
     expect(gitWatcher.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects when opening an authorized path returns an error message', async () => {
+    const filePath = path.join(workspacePath, 'example.txt')
+    fs.writeFileSync(filePath, '')
+    await presenter.registerWorkspace(workspacePath)
+    vi.mocked(shell.openPath).mockResolvedValueOnce('failed to open')
+
+    await expect(presenter.openFile(filePath)).rejects.toThrow('failed to open')
+    expect(shell.openPath).toHaveBeenCalledWith(filePath)
   })
 })
 

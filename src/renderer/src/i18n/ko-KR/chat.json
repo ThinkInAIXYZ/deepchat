@@ -229,6 +229,12 @@
       "contextMenu": {
         "insertPath": "입력창에 삽입",
         "openFile": "파일 열기",
+        "openInApp": "{app}에서 열기",
+        "openInTerminalApp": "{app}에서 폴더 열기",
+        "openFailed": "해당 앱으로 파일을 열 수 없습니다",
+        "preferredAppUnavailable": "기본 앱을 지금은 사용할 수 없어 시스템 기본 앱으로 엽니다.",
+        "openWith": "연결 프로그램",
+        "openWithSystemDefault": "시스템 기본 앱으로 열기",
         "revealInFolder": "파일 관리자에서 열기"
       },
       "empty": "아직 파일이 없습니다",

@@ -172,7 +172,10 @@ describe('RunCodeRuntimeManager', () => {
     await manager.shutdown()
   })
 
-  it('expires unresolved async execution despite healthy heartbeats', async () => {
+  it.each([
+    { timeoutMs: undefined, deadlineMs: 300000 },
+    { timeoutMs: 600000, deadlineMs: 600000 }
+  ])('expires at $deadlineMs ms despite healthy heartbeats', async ({ timeoutMs, deadlineMs }) => {
     vi.useFakeTimers()
     try {
       const host = new FakeUtilityProcess(false)
@@ -183,6 +186,7 @@ describe('RunCodeRuntimeManager', () => {
         toolCallId: 'call-1',
         frontend: 'function',
         source: 'await new Promise(() => {})',
+        timeoutMs,
         executionCatalog: [tool('exec')],
         outerDispatch: outerDispatch(),
         options: {}
@@ -204,7 +208,9 @@ describe('RunCodeRuntimeManager', () => {
           now: Date.now()
         })
       }, 1_000)
-      await vi.advanceTimersByTimeAsync(5 * 60_000 + 1)
+      await vi.advanceTimersByTimeAsync(deadlineMs - 1)
+      expect(host.messages.some((message) => message.type === 'STOP')).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
       clearInterval(heartbeat)
 
       await executionFailure
@@ -219,6 +225,91 @@ describe('RunCodeRuntimeManager', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it.each(['spawn', 'ready', 'ready race'])(
+    'cancels utility startup during %s and reclaims the process without running code',
+    async (stage) => {
+      const host = new FakeUtilityProcess(false)
+      const controller = new AbortController()
+      let resolveHost!: (host: FakeUtilityProcess) => void
+      const spawning = new Promise<FakeUtilityProcess>((resolve) => {
+        resolveHost = resolve
+      })
+      const manager = new RunCodeRuntimeManager({
+        spawnHost: () => spawning,
+        executeNested: vi.fn()
+      })
+      const execution = manager.execute({
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        frontend: 'function',
+        source: 'return true',
+        executionCatalog: [],
+        outerDispatch: outerDispatch(),
+        options: { signal: controller.signal }
+      })
+      const cancellation = expect(execution).rejects.toMatchObject({ name: 'AbortError' })
+      if (stage !== 'spawn') {
+        resolveHost(host)
+        await vi.waitFor(() => expect(host.listenerCount('message')).toBe(1))
+      }
+      if (stage === 'ready race') host.becomeReady()
+
+      controller.abort()
+      if (stage === 'spawn') resolveHost(host)
+      await cancellation
+      await vi.waitFor(() => expect(host.kill).toHaveBeenCalledOnce())
+
+      expect(host.messages).toEqual([])
+      expect(host.listenerCount('message')).toBe(0)
+      expect(host.listenerCount('exit')).toBe(0)
+      expect(host.listenerCount('error')).toBe(0)
+      await manager.shutdown()
+    }
+  )
+
+  it('discards a late utility result after cancellation instead of changing the session store', async () => {
+    const host = new FakeUtilityProcess(false)
+    const nextHost = new FakeUtilityProcess(true)
+    const hosts = [host, nextHost]
+    const manager = new RunCodeRuntimeManager({
+      spawnHost: async () => {
+        const current = hosts.shift()!
+        setTimeout(() => current.becomeReady(), 0)
+        return current
+      },
+      executeNested: vi.fn()
+    })
+    const controller = new AbortController()
+    const input = {
+      sessionId: 'session-1',
+      toolCallId: 'call-1',
+      frontend: 'function' as const,
+      source: 'return true',
+      executionCatalog: [],
+      outerDispatch: outerDispatch(),
+      options: { signal: controller.signal }
+    }
+    const execution = manager.execute(input)
+    const cancellation = expect(execution).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() => expect(host.messages[0]?.type).toBe('START'))
+    const start = host.messages[0] as Extract<RunCodeParentMessage, { type: 'START' }>
+
+    controller.abort()
+    host.emit('message', {
+      type: 'RESULT',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      output: [],
+      returnValue: 'late result',
+      store: { canceled: true }
+    })
+    await cancellation
+    await manager.execute({ ...input, toolCallId: 'call-2', options: {} })
+
+    expect(nextHost.messages[0]).toMatchObject({ type: 'START', store: {} })
+    await manager.shutdown()
   })
 
   it('normalizes Codex binding names and serializes mutating tools', async () => {
@@ -808,51 +899,60 @@ describe('RunCodeRuntimeManager', () => {
     }
   })
 
-  it('aborts an in-flight nested call when its session is cancelled', async () => {
-    const host = new FakeUtilityProcess(false)
-    let nestedSignal: AbortSignal | undefined
-    const executeNested = vi.fn(
-      async (input: RunCodeNestedExecutionInput) =>
-        await new Promise<never>((_resolve, reject) => {
-          nestedSignal = input.options.signal
-          input.options.signal?.addEventListener(
-            'abort',
-            () => reject(input.options.signal?.reason),
-            { once: true }
-          )
+  it.each(['session', 'run signal'])(
+    'cancels an extended cell through %s even when a nested call ignores cancellation',
+    async (source) => {
+      const host = new FakeUtilityProcess(false)
+      let nestedSignal: AbortSignal | undefined
+      const controller = new AbortController()
+      let finishNested!: () => void
+      const executeNested = vi.fn(async (input: RunCodeNestedExecutionInput) => {
+        nestedSignal = input.options.signal
+        await new Promise<void>((resolve) => {
+          finishNested = resolve
         })
-    )
-    const manager = createManager(host, executeNested)
-    const execution = manager.execute({
-      sessionId: 'session-1',
-      toolCallId: 'call-1',
-      frontend: 'function',
-      source: 'return await tools.exec({ command: "pwd" })',
-      executionCatalog: [tool('exec')],
-      outerDispatch: outerDispatch(),
-      options: {}
-    })
-    await vi.waitFor(() =>
-      expect(host.messages.some((message) => message.type === 'START')).toBe(true)
-    )
-    const start = host.messages.find(
-      (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
-        message.type === 'START'
-    )!
-    host.emit('message', {
-      type: 'NESTED_CALL',
-      version: RUN_CODE_PROTOCOL_VERSION,
-      cellId: start.cellId,
-      callId: 'nested-1',
-      bindingId: start.bindings[0].id,
-      arguments: { command: 'pwd' }
-    })
-    await vi.waitFor(() => expect(executeNested).toHaveBeenCalledOnce())
+        return { content: 'late result', rawData: { content: 'late result' } }
+      })
+      const manager = createManager(host, executeNested)
+      const execution = manager.execute({
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        frontend: 'function',
+        source: 'return await tools.exec({ command: "pwd" })',
+        timeoutMs: 600000,
+        executionCatalog: [tool('exec')],
+        outerDispatch: outerDispatch(),
+        options: { signal: controller.signal }
+      })
+      const cancellation = expect(execution).rejects.toThrow(
+        source === 'session' ? 'test cancellation' : 'Aborted'
+      )
+      await vi.waitFor(() =>
+        expect(host.messages.some((message) => message.type === 'START')).toBe(true)
+      )
+      const start = host.messages.find(
+        (message): message is Extract<RunCodeParentMessage, { type: 'START' }> =>
+          message.type === 'START'
+      )!
+      host.emit('message', {
+        type: 'NESTED_CALL',
+        version: RUN_CODE_PROTOCOL_VERSION,
+        cellId: start.cellId,
+        callId: 'nested-1',
+        bindingId: start.bindings[0].id,
+        arguments: { command: 'pwd' }
+      })
+      await vi.waitFor(() => expect(executeNested).toHaveBeenCalledOnce())
 
-    manager.cancelSession('session-1', 'test cancellation')
+      if (source === 'session') manager.cancelSession('session-1', 'test cancellation')
+      else controller.abort()
 
-    await expect(execution).rejects.toThrow('test cancellation')
-    expect(nestedSignal?.aborted).toBe(true)
-    await manager.shutdown()
-  })
+      await cancellation
+      expect(nestedSignal?.aborted).toBe(true)
+      finishNested()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(host.messages.some((message) => message.type === 'NESTED_RESULT')).toBe(false)
+      await manager.shutdown()
+    }
+  )
 })

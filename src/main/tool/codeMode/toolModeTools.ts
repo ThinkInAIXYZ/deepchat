@@ -4,7 +4,11 @@ import {
   formatExecCommandDescription,
   type ResolvedCommandShell
 } from '@shared/commandShell'
-import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
+import {
+  CODE_MODE_TOOL_SERVER_NAME,
+  RUN_CODE_DEFAULT_TIMEOUT_MS,
+  RUN_CODE_MAX_TIMEOUT_MS
+} from '@shared/codeModeProtocol'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
 import { QUESTION_TOOL_NAME } from '../agentTools/questionTool'
@@ -73,6 +77,9 @@ const RUN_CODE_DESCRIPTION =
 const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION =
   'Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: "Count TODO markers across packages"; "Read failing test and its fixture"; "Rename config key in every cordis.yml".'
 
+const CODE_MODE_TIMEOUT_DESCRIPTION =
+  "`timeout_ms` is an optional maximum wall-clock execution time for this code cell, including awaited subtools, in milliseconds. Defaults to 300000 ms (5 minutes). Omit it for routine work; provide a larger value only when you expect the current operation to take longer than 5 minutes. It does not extend a subtool's own timeout. User cancellation still stops the cell regardless of this value."
+
 const CODE_MODE_EXEC_DESCRIPTION = `Run JavaScript code to orchestrate/compose tool calls
 - Evaluates the provided JavaScript code in a fresh V8 isolate as an async module.
 - Invoke SDK-declared subtools only inside this program on the global \`tools\` object through \`await tools.name(args)\`. Subtool names are exposed as normalized JavaScript identifiers, for example \`await tools.mcp__ologs__get_profile(...)\`.
@@ -83,6 +90,7 @@ const CODE_MODE_EXEC_DESCRIPTION = `Run JavaScript code to orchestrate/compose t
 - You may optionally start the tool input with a first-line pragma like \`// @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}\`.
 - \`yield_time_ms\` asks \`exec\` to yield early if the script is still running. Defaults to 10000 ms.
 - \`max_output_tokens\` sets the token budget for direct \`exec\` results. Defaults to 10000 tokens.
+- ${CODE_MODE_TIMEOUT_DESCRIPTION} Set it in the first-line pragma when needed. Yielding or calling \`wait\` does not reset or extend the cell's execution timeout.
 - When the JS code is fully evaluated, the isolate's lifetime ends and unawaited promises are silently discarded.
 
 - Global helpers:
@@ -200,7 +208,7 @@ export function createRunCodeToolDefinition(): MCPToolDefinition {
     providerPresentation: { type: 'function' },
     function: {
       name: RUN_CODE_TOOL_NAME,
-      description: RUN_CODE_DESCRIPTION,
+      description: `${RUN_CODE_DESCRIPTION} ${CODE_MODE_TIMEOUT_DESCRIPTION}`,
       parameters: {
         type: 'object',
         properties: {
@@ -211,6 +219,13 @@ export function createRunCodeToolDefinition(): MCPToolDefinition {
           description: {
             type: 'string',
             description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION
+          },
+          timeout_ms: {
+            type: 'integer',
+            minimum: 1,
+            maximum: RUN_CODE_MAX_TIMEOUT_MS,
+            default: RUN_CODE_DEFAULT_TIMEOUT_MS,
+            description: CODE_MODE_TIMEOUT_DESCRIPTION
           }
         },
         required: ['code', 'description']
@@ -500,6 +515,8 @@ ${toolBoundary}
 
 The top-level \`exec\` starts a Code Mode cell; \`tools.exec\` inside that cell runs the selected Shell command subtool.
 
+${CODE_MODE_TIMEOUT_DESCRIPTION} Set it in the first-line \`// @exec: {...}\` pragma when needed. Yielding or calling \`wait\` does not reset or extend the cell's execution timeout.
+
 ${progressPrompt}
 
 \`\`\`ts
@@ -517,7 +534,11 @@ declare function yield_control(): Promise<void>
 
 ${toolBoundary}
 
-\`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. Inside the program:
+\`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does.
+
+${CODE_MODE_TIMEOUT_DESCRIPTION}
+
+Inside the program:
 
 - Call subtools as \`await tools.name(args)\` — quoted access for exotic names: \`tools["my-tool"](args)\`. Every call resolves to the subtool's typed canonical JSON value. Subtool arguments must be lossless JSON.
 - A FAILED subtool call rejects with \`ToolCallError\`, whose \`toolName\` identifies the failed subtool and whose \`message\` is human-readable — \`try/catch\` it to handle and continue.

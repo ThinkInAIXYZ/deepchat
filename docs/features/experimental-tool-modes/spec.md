@@ -40,8 +40,8 @@ Agent Mode 是兼容基线。工具 registry、disabled-tool 配置、权限、�
 Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发送给模型：
 
 - `openai-codex` 路由使用 Codex 风格的 raw JavaScript `exec` 和续跑 `wait`；
-- 其他 function-tool 路由只发送 `run_code`，参数固定为
-  `{ code: string, description: string }`；
+- Function-tool routes expose `run_code` with
+  `{ code: string, description: string, timeout_ms?: number }`;
 - 两种入口都进入同一个 `RunCodeRuntimeManager`，不存在 `transport` 或第二套 runtime；
 - function-tool 路由把当前目录生成成 TypeScript SDK，Codex 路由把嵌套声明写入 `exec`
   描述；
@@ -188,10 +188,17 @@ IPC allowlist、V8 内存限制、heartbeat 和强制回收的组合。
 | READY | 5 秒 |
 | heartbeat 丢失 | 约 3.5 秒后终止 |
 | VM 同步执行 slice | 2 秒 |
-| cell 总执行时间 | 5 分钟 |
+| cell 总执行时间 | Default 5 minutes; optional `timeout_ms` override |
 | yielded / permission cell lease | 60 秒 |
 | RSS hard ceiling | 512 MiB |
 | STOP grace | 500 ms 后 `kill()` |
+
+`timeout_ms` is a positive integer in milliseconds, up to `2147483647`. Function-tool routes pass
+it as an optional `run_code` argument; Codex routes use the first-line `exec` pragma. Models omit
+it for routine work and request a larger value only when the operation is expected to exceed five
+minutes. The deadline covers the cell and its awaited subtools, is not reset by `wait` or permission
+continuation, and does not extend a subtool's own timeout. User cancellation remains independent
+of the selected duration. Invalid timeout values fail before dispatch.
 
 成功、异常、取消、超时、进程退出、会话清理和应用退出都进入同一个幂等 cleanup：取消嵌套
 调用，清理 timer/listener/active map，发送 `STOP`，超时后强制 `kill()`。失败 cell 不自动

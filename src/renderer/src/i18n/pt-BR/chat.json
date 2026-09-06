@@ -229,6 +229,12 @@
       "contextMenu": {
         "insertPath": "Insira na caixa de entrada",
         "openFile": "abrir arquivo",
+        "openInApp": "Abrir no {app}",
+        "openInTerminalApp": "Abrir a pasta no {app}",
+        "openFailed": "Não foi possível abrir o arquivo com esse aplicativo",
+        "preferredAppUnavailable": "O aplicativo preferido não está disponível agora. Abrindo com o aplicativo padrão do sistema.",
+        "openWith": "Abrir com",
+        "openWithSystemDefault": "Abrir com o aplicativo padrão do sistema",
         "revealInFolder": "Abrir no gerenciador de arquivos"
       },
       "empty": "Nenhum arquivo ainda",

@@ -132,8 +132,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     hostWindowId?: number,
     activitySource?: YoBrowserActivitySource,
     agentRunId?: string,
-    beforeDispatch?: () => void
+    beforeDispatch?: () => void,
+    signal?: AbortSignal
   ): Promise<YoBrowserStatus> {
+    signal?.throwIfAborted()
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) {
       throw new Error('sessionId is required')
@@ -201,17 +203,24 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
           normalizedSessionId,
           { kind: 'navigation', action: 'navigate' },
           (startActivity) =>
-            state.page.navigateUntilDomReady(url, timeoutMs ?? 30000, beforeDispatch, () => {
-              projectDispatch()
-              startActivity()
-            })
+            state.page.navigateUntilDomReady(
+              url,
+              timeoutMs ?? 30000,
+              beforeDispatch,
+              () => {
+                projectDispatch()
+                startActivity()
+              },
+              signal
+            )
         )
       } else {
         await state.page.navigateUntilDomReady(
           url,
           timeoutMs ?? 30000,
           beforeDispatch,
-          projectDispatch
+          projectDispatch,
+          signal
         )
       }
 
@@ -532,7 +541,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     params?: Record<string, unknown>,
     activitySource?: YoBrowserActivitySource,
     agentRunId?: string,
-    beforeDispatch?: () => void
+    beforeDispatch?: () => void,
+    signal?: AbortSignal
   ): Promise<unknown> {
     const state = this.sessionBrowsers.get(sessionId)
     if (!state) {
@@ -557,14 +567,20 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
     if (activitySource === 'agent' && descriptor) {
       return await this.runAgentActivity(sessionId, descriptor, (startActivity) =>
-        state.page.sendCdpCommand(method, params, beforeDispatch, () => {
-          projectDispatch()
-          startActivity()
-        })
+        state.page.sendCdpCommand(
+          method,
+          params,
+          beforeDispatch,
+          () => {
+            projectDispatch()
+            startActivity()
+          },
+          signal
+        )
       )
     }
 
-    return await state.page.sendCdpCommand(method, params, beforeDispatch, projectDispatch)
+    return await state.page.sendCdpCommand(method, params, beforeDispatch, projectDispatch, signal)
   }
 
   async startDownload(url: string, savePath?: string): Promise<DownloadInfo> {

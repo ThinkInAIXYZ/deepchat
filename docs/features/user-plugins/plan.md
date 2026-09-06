@@ -1,7 +1,7 @@
 # User Plugins Implementation and Verification
 
 Status: implemented and validated on 2026-09-06.
-Branch: `codex/user-plugin-compatibility-plan`, based on `dev` at `8dada4b3b`.
+Branch: `codex/user-plugin-compatibility-plan`, including `dev` at `e9f909519`.
 
 The final contract is [spec.md](spec.md); author instructions are in [authoring.md](authoring.md).
 This is the only execution tracker. D1 includes Git/ZIP installation, working context hooks,
@@ -126,14 +126,18 @@ Results on the completed implementation:
 | Lint and repository guards | Passed |
 | Main/renderer typecheck | Passed |
 | Full app and CLI build | Passed; existing bundle-size warnings only |
-| Relevant Vitest suites | 35 files passed, 1 skipped; 754 tests passed, 2 existing tests skipped |
-| Real Electron acceptance | 2 tests passed against the completed build |
+| Relevant Vitest suites | 55 files passed, 4 skipped; 1,589 tests passed, 73 skipped |
+| Native Tape suites under Electron | 23 files passed, 1 skipped; 488 tests passed, 1 standalone worker fixture skipped |
+| Real Electron acceptance | 3 tests passed: plugin lifecycle, HTTP MCP/hooks and prompt scrolling |
 | Original Ponytail Git/ZIP and hooks | Passed at the pinned commit above |
 | Static portable CLI validation | Passed on Node 24 |
 | Document links / diff whitespace | Passed |
 
 The 800 × 620 Electron window was visually inspected in light and dark appearances. Review
 commands and long paths wrap inside the scrolling dialog; detail actions remain reachable.
+The Node test run skips native SQLite cases because its ABI differs from the installed Electron
+binding. The native Tape run requires SQLite support and covers these cases, including real
+SIGKILL recovery; its standalone worker fixture runs through the crash-recovery tests.
 The new regression suite also verifies resume-only handlers when no startup matcher ran.
 Temporary acceptance probes were removed. Normal build-generated provider/ACP registry changes
 are retained. There are no package dependency changes.
@@ -146,7 +150,10 @@ pnpm run i18n
 pnpm run lint
 pnpm run typecheck
 pnpm run build
-pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-install
+pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-install 34-prompt-editor-scroll
+ELECTRON_RUN_AS_NODE=1 DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 pnpm exec electron \
+  node_modules/vitest/vitest.mjs run --config vitest.config.ts --project main \
+  test/main/session/data/tape test/main/tape
 ```
 
 Run the affected plugin, Skill, notification-hook, MCP, runtime/context and renderer suites.

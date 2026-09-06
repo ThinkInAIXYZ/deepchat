@@ -14,7 +14,7 @@ import {
   hashJson,
   resolveTapeViewManifestPolicy,
   verifyTapeViewManifestHash
-} from '@/session/data/tapeViewManifest'
+} from '@/tape/domain/viewManifest'
 import { normalizeStoredTapeViewManifest } from '@/tape/domain/replay'
 
 function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {

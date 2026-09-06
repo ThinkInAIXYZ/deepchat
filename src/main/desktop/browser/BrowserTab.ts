@@ -1,5 +1,6 @@
 import { WebContents } from 'electron'
 import { nanoid } from 'nanoid'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   BrowserPageStatus,
   type BrowserPageInfo,
@@ -72,10 +73,13 @@ export class BrowserTab {
     url: string,
     timeoutMs: number = 30000,
     beforeDispatch?: () => void,
-    onDispatched?: () => void
+    onDispatched?: () => void,
+    signal?: AbortSignal
   ): Promise<void> {
+    signal?.throwIfAborted()
     this.ensureAvailable()
     beforeDispatch?.()
+    signal?.throwIfAborted()
     this.beginMainFrameNavigation(url)
 
     const loadPromise = this.webContents.loadURL(url)
@@ -90,13 +94,15 @@ export class BrowserTab {
     onDispatched?.()
 
     try {
-      await Promise.race([this.waitForInteractiveReady(timeoutMs), loadPromise])
+      await Promise.race([this.waitForInteractiveReady(timeoutMs, signal), loadPromise])
+      signal?.throwIfAborted()
       if (!this.interactiveReady) {
         throw new Error(`Navigation finished before dom-ready for ${url}`)
       }
       this.title = this.webContents.getTitle() || url
       this.updatedAt = Date.now()
     } catch (error) {
+      signal?.throwIfAborted()
       this.markNavigationError(error)
       throw error
     }
@@ -118,19 +124,24 @@ export class BrowserTab {
     method: string,
     params?: Record<string, unknown>,
     beforeDispatch?: () => void,
-    onDispatched?: () => void
+    onDispatched?: () => void,
+    signal?: AbortSignal
   ): Promise<unknown> {
+    signal?.throwIfAborted()
     if (NAVIGATION_CDP_METHODS.has(method)) {
       this.ensureAvailable()
     } else {
-      await this.ensureInteractiveReadyOrWait(`send CDP command ${method}`)
+      await this.ensureInteractiveReadyOrWait(`send CDP command ${method}`, undefined, signal)
     }
 
-    const session = await this.ensureSession()
+    const session = await awaitWithAbort(this.ensureSession(), signal)
+    signal?.throwIfAborted()
     beforeDispatch?.()
+    signal?.throwIfAborted()
     const responsePromise = session.sendCommand(method, params ?? {})
     onDispatched?.()
-    const response = await responsePromise
+    const response = await awaitWithAbort(responsePromise, signal)
+    signal?.throwIfAborted()
 
     if (method === 'Page.navigate') {
       const navigationResponse = response as {
@@ -558,8 +569,10 @@ export class BrowserTab {
 
   private async ensureInteractiveReadyOrWait(
     action: string,
-    timeoutMs: number = INTERACTIVE_READY_WAIT_TIMEOUT_MS
+    timeoutMs: number = INTERACTIVE_READY_WAIT_TIMEOUT_MS,
+    signal?: AbortSignal
   ): Promise<void> {
+    signal?.throwIfAborted()
     this.ensureAvailable()
 
     if (this.interactiveReady) {
@@ -568,7 +581,7 @@ export class BrowserTab {
 
     if (this.awaitingMainFrameInteractive || this.status === BrowserPageStatus.Loading) {
       try {
-        await this.waitForInteractiveReady(timeoutMs)
+        await this.waitForInteractiveReady(timeoutMs, signal)
       } catch (error) {
         if (!this.isInteractiveReadyTimeoutError(error)) {
           throw error
@@ -579,7 +592,7 @@ export class BrowserTab {
         return
       }
 
-      if (await this.probeInteractiveReadiness()) {
+      if (await this.probeInteractiveReadiness(signal)) {
         return
       }
     }
@@ -790,7 +803,8 @@ export class BrowserTab {
     })
   }
 
-  private async waitForInteractiveReady(timeoutMs: number): Promise<void> {
+  private async waitForInteractiveReady(timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     if (this.interactiveReady) {
       return
     }
@@ -808,6 +822,7 @@ export class BrowserTab {
         this.webContents.removeListener('dom-ready', onDomReady)
         this.webContents.removeListener('did-fail-load', onFailLoad as any)
         this.webContents.removeListener('destroyed', onDestroyed)
+        signal?.removeEventListener('abort', onAbort)
       }
 
       const onDomReady = () => {
@@ -834,6 +849,11 @@ export class BrowserTab {
         reject(new Error('Page was destroyed before dom-ready'))
       }
 
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+      }
+
       timeoutId = setTimeout(() => {
         cleanup()
         reject(new Error(`${INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX} ${this.url}`))
@@ -842,6 +862,8 @@ export class BrowserTab {
       this.webContents.once('dom-ready', onDomReady)
       this.webContents.on('did-fail-load', onFailLoad as any)
       this.webContents.once('destroyed', onDestroyed)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
   }
 
@@ -851,12 +873,15 @@ export class BrowserTab {
     )
   }
 
-  private async probeInteractiveReadiness(): Promise<boolean> {
+  private async probeInteractiveReadiness(signal?: AbortSignal): Promise<boolean> {
     try {
-      const session = await this.ensureSession()
-      const probe = (await this.cdpManager.evaluateScript(
-        session,
-        `(() => {
+      signal?.throwIfAborted()
+      const session = await awaitWithAbort(this.ensureSession(), signal)
+      signal?.throwIfAborted()
+      const probe = (await awaitWithAbort(
+        this.cdpManager.evaluateScript(
+          session,
+          `(() => {
           try {
             return {
               readyState: document.readyState,
@@ -867,7 +892,10 @@ export class BrowserTab {
             return null
           }
         })()`
+        ),
+        signal
       )) as { readyState?: unknown; hasBody?: unknown; href?: unknown } | null
+      signal?.throwIfAborted()
 
       const readyState = typeof probe?.readyState === 'string' ? probe.readyState : ''
       const hasBody = probe?.hasBody === true
@@ -888,6 +916,7 @@ export class BrowserTab {
       }
       return true
     } catch {
+      signal?.throwIfAborted()
       return false
     }
   }

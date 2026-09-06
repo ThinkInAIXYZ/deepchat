@@ -110,7 +110,12 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
       return true
     }
 
-    await workspaceClient.openFile(resolution.path)
+    try {
+      await workspaceClient.openFile(resolution.path)
+    } catch (error) {
+      console.warn('[markdown-links] Failed to open local file:', resolution.path, error)
+      return false
+    }
     return true
   }
 

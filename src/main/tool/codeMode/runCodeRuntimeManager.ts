@@ -7,6 +7,7 @@ import type { MCPToolDefinition, MCPToolResponse, ToolDispatchCommitInput } from
 import type { ToolCallOptions } from '@shared/types/tool'
 import {
   RUN_CODE_MAX_NESTED_CALLS,
+  RUN_CODE_DEFAULT_TIMEOUT_MS,
   RUN_CODE_PROTOCOL_VERSION,
   RUN_CODE_SOURCE_MAX_BYTES,
   type RunCodeFrontend,
@@ -16,6 +17,7 @@ import {
 } from '@shared/codeModeProtocol'
 import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
 import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJournal'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { normalizeCodexToolName } from './toolModeTools'
 
 type CodeModeUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
@@ -49,6 +51,7 @@ export interface RunCodeExecutionInput {
   toolCallId: string
   frontend: RunCodeFrontend
   source: string
+  timeoutMs?: number
   yieldTimeMs?: number
   maxOutputTokens?: number
   executionCatalog: readonly MCPToolDefinition[]
@@ -120,6 +123,7 @@ type ActiveCell = {
   waiter: DeferredResult | null
   yieldTimeMs: number
   maxOutputTokens: number
+  timeoutMs: number
   yieldTimer: NodeJS.Timeout | null
   pausedAtYield: boolean
   pendingYieldOutput: unknown[] | null
@@ -147,7 +151,6 @@ type ActiveCell = {
 
 const READY_TIMEOUT_MS = 5_000
 const HEARTBEAT_TIMEOUT_MS = 3_500
-const CELL_EXECUTION_DEADLINE_MS = 5 * 60_000
 const YIELD_LEASE_MS = 60_000
 const MAX_JOURNALED_NESTED_CALLS = Math.min(
   RUN_CODE_MAX_NESTED_CALLS,
@@ -316,7 +319,13 @@ export class RunCodeRuntimeManager {
     }
 
     input.options.commitDispatch?.(input.outerDispatch)
-    const host = await this.spawnReadyHost()
+    const host = await this.spawnReadyHost(input.options.signal)
+    if (input.options.signal?.aborted) {
+      try {
+        host.kill()
+      } catch {}
+      input.options.signal.throwIfAborted()
+    }
 
     const cell = this.createCell({
       id: cellId,
@@ -329,6 +338,7 @@ export class RunCodeRuntimeManager {
       capabilityHash: canonicalCatalog.fullCatalogHash,
       yieldTimeMs: input.yieldTimeMs ?? 10_000,
       maxOutputTokens: input.maxOutputTokens ?? 10_000,
+      timeoutMs: input.timeoutMs ?? RUN_CODE_DEFAULT_TIMEOUT_MS,
       options: input.options,
       committedDispatchToolCallId: input.toolCallId
     })
@@ -461,6 +471,7 @@ export class RunCodeRuntimeManager {
     bindings: ActiveCell['bindings']
     yieldTimeMs: number
     maxOutputTokens: number
+    timeoutMs: number
     options: ToolCallOptions
     capabilityHash: string
     committedDispatchToolCallId: string | null
@@ -516,7 +527,7 @@ export class RunCodeRuntimeManager {
     cell.rssTimer = setInterval(() => this.inspectRss(cell), 1_000)
     cell.executionDeadlineTimer = setTimeout(
       () => this.failAndCleanup(cell, new Error('Code cell execution deadline exceeded.')),
-      CELL_EXECUTION_DEADLINE_MS
+      cell.timeoutMs
     )
     cell.executionDeadlineTimer.unref?.()
 
@@ -759,6 +770,7 @@ export class RunCodeRuntimeManager {
   }
 
   private handleCellMessage(cell: ActiveCell, rawMessage: unknown): void {
+    if (cell.terminal || cell.state === 'stopping') return
     const message = unwrapMessage(rawMessage)
     if (!isHostMessage(message)) return
     if (message.type === 'READY') return
@@ -1059,10 +1071,18 @@ export class RunCodeRuntimeManager {
       })
   }
 
-  private async spawnReadyHost(): Promise<CodeModeUtilityProcess> {
-    const host = this.managerOptions.spawnHost
-      ? await this.managerOptions.spawnHost()
-      : await this.spawnDefaultHost()
+  private async spawnReadyHost(signal?: AbortSignal): Promise<CodeModeUtilityProcess> {
+    signal?.throwIfAborted()
+    const spawning = this.managerOptions.spawnHost
+      ? this.managerOptions.spawnHost()
+      : this.spawnDefaultHost()
+    let host: CodeModeUtilityProcess
+    try {
+      host = await awaitWithAbort(spawning, signal)
+    } catch (error) {
+      void spawning.then((abandonedHost) => abandonedHost.kill()).catch(() => undefined)
+      throw error
+    }
     return await new Promise<CodeModeUtilityProcess>((resolve, reject) => {
       let settled = false
       const settle = (callback: () => void) => {
@@ -1072,6 +1092,7 @@ export class RunCodeRuntimeManager {
         host.off('message', onMessage)
         host.off('exit', onExit)
         host.off('error', onError)
+        signal?.removeEventListener('abort', onAbort)
         callback()
       }
       const onMessage = (rawMessage: unknown) => {
@@ -1090,6 +1111,13 @@ export class RunCodeRuntimeManager {
         settle(() =>
           reject(new Error(`Code mode utility failed before ready: ${type} at ${location}`))
         )
+      const onAbort = () =>
+        settle(() => {
+          try {
+            host.kill()
+          } catch {}
+          reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+        })
       const timeout = setTimeout(() => {
         settle(() => {
           try {
@@ -1101,6 +1129,8 @@ export class RunCodeRuntimeManager {
       host.on('message', onMessage)
       host.on('exit', onExit)
       host.on('error', onError)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
   }
 

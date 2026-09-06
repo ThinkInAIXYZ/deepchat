@@ -7,7 +7,11 @@ import {
   AcpRequestTraceAdapter
 } from '@/agent/acp/compatibility/adapters'
 import { SessionTranscript } from '@/session/data/transcript'
-import { SessionTape } from '@/session/data/tape'
+import { SessionTape } from '@/tape/application/sessionTape'
+import {
+  isEffectiveMessageInputRow,
+  isEffectiveViewInputRow
+} from '@/tape/domain/effectiveSemantics'
 import type { MainDatabase } from '@/data/mainDatabase'
 
 const publishDeepchatEvent = vi.fn()
@@ -127,6 +131,7 @@ function createProjectionHarness() {
     return row
   }
   const sqlitePresenter = {
+    getDatabase: () => ({ transaction: (operation: () => unknown) => operation }),
     newSessionsTable: { get: vi.fn() },
     deepchatMessagesTable,
     deepchatSessionsTable: {
@@ -159,6 +164,7 @@ function createProjectionHarness() {
     deepchatUsageStatsTable: { upsert: vi.fn() },
     deepchatTapeEntriesTable: {
       ensureBootstrapAnchor: vi.fn(),
+      getBootstrapIncarnation: vi.fn(),
       append: vi.fn(appendTape),
       appendEvent: vi.fn(
         (input: {
@@ -182,6 +188,12 @@ function createProjectionHarness() {
       ),
       getBySessionExcludingContext: vi.fn((sessionId: string) =>
         tapeRows.filter((row) => row.session_id === sessionId && row.kind !== 'context')
+      ),
+      getEffectiveViewInputRows: vi.fn((sessionId: string) =>
+        tapeRows.filter((row) => row.session_id === sessionId && isEffectiveViewInputRow(row))
+      ),
+      getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
+        tapeRows.filter((row) => row.session_id === sessionId && isEffectiveMessageInputRow(row))
       )
     }
   } as unknown as MainDatabase

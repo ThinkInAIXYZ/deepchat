@@ -1005,7 +1005,8 @@ export class AgentToolManager {
           args,
           conversationId,
           options?.runId,
-          this.createAgentDispatchCommit(toolName, 'yobrowser', args, options)
+          this.createAgentDispatchCommit(toolName, 'yobrowser', args, options),
+          options?.signal
         )
         return {
           content: response

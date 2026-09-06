@@ -87,6 +87,10 @@ export interface TapeEntryStore {
     limit: number
   ): DeepChatTapeEntryRow[]
   getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[]
+  /** Rows selected by `isEffectiveViewInputRow`, ordered by entry_id. */
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[]
+  /** Rows selected by `isEffectiveMessageInputRow`, ordered by entry_id. */
+  getEffectiveMessageInputRows(sessionId: string): DeepChatTapeEntryRow[]
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[]
   getMessageSourceEntries(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
   getLatestViewManifestEvent(sessionId: string): DeepChatTapeEntryRow | undefined
@@ -105,10 +109,6 @@ export interface TapeEntryStore {
   ): DeepChatTapeEntryRow | undefined
   getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[]
   getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
-  getBySessionUpToEntryIdExcludingContext(
-    sessionId: string,
-    maxEntryId: number
-  ): DeepChatTapeEntryRow[]
   listMemoryViewManifestAnchorsByAgent(
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }

@@ -117,7 +117,8 @@ describe('Tool Mode provider contracts', () => {
       required: ['code', 'description'],
       properties: {
         code: { type: 'string' },
-        description: { type: 'string' }
+        description: { type: 'string' },
+        timeout_ms: { type: 'integer', minimum: 1, maximum: 2147483647, default: 300000 }
       }
     })
     expect(runCode.function.description).toContain('`run_code` is the only code entrypoint')
@@ -133,6 +134,24 @@ describe('Tool Mode provider contracts', () => {
       'Available Code Mode subtools (only callable inside `run_code.code` through `tools`)'
     )
     expect(sdk).toContain('Independent read-only calls MAY overlap under `Promise.all`')
+  })
+
+  it('explains timeout omission, extension, and cancellation in both frontends', () => {
+    const runCode = createRunCodeToolDefinition()
+    const prompts = [
+      runCode.function.description,
+      runCode.function.parameters.properties.timeout_ms.description,
+      createCodexCodeModeToolDefinitions([])[0].function.description,
+      renderCodeModeSdk('function', []),
+      renderCodeModeSdk('codex', [])
+    ]
+
+    for (const prompt of prompts) {
+      expect(prompt).toContain('300000 ms (5 minutes)')
+      expect(prompt).toContain('Omit it for routine work')
+      expect(prompt).toContain('longer than 5 minutes')
+      expect(prompt).toContain('User cancellation still stops the cell')
+    }
   })
 
   it('omits direct Loop tools from generated SDK declarations', () => {

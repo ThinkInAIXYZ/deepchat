@@ -1,15 +1,16 @@
 # Zero Inbound Candidates
 
-Generated on 2026-07-29.
+Generated on 2026-09-04.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 20
+- Candidate count: 14
 
 - `agent/shared/agentCatalogEventSink.ts`
 - `backgroundExecUtilityHostEntry.ts`
+- `codeModeUtilityHostEntry.ts`
 - `config/aes.ts`
 - `desktop/browser/BrowserContextBuilder.ts`
 - `env.d.ts`
@@ -21,26 +22,18 @@ These files have no in-repo importers inside their scope and need manual classif
 - `provider/oauthHelper.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
-- `session/data/tables/deepchatTapeEffectiveSemantics.ts`
-- `session/data/tables/deepchatTapeEntries.ts`
-- `session/data/tables/deepchatTapeSearchProjection.ts`
-- `session/data/tape.ts`
-- `session/data/tapeEffectiveView.ts`
-- `session/data/tapeFacts.ts`
-- `session/data/tapeViewManifest.ts`
 
 ## renderer-main
 
-- Candidate count: 45
+- Candidate count: 44
 
 - `components/ChatConfig.vue`
 - `components/ChatConfig/ConfigSwitchField.vue`
 - `components/FileItem.vue`
 - `components/ModelSelect.vue`
 - `components/artifacts/ArtifactBlock.vue`
-- `components/chat-input/SkillsIndicator.vue`
+- `components/chat-input/SkillsPanel.vue`
 - `components/chat-input/VoiceCallWidget.vue`
-- `components/chat-input/components/ToolbarButton.vue`
 - `components/chat-input/composables/useAgentMcpData.ts`
 - `components/chat-input/composables/useDragAndDrop.ts`
 - `components/chat-input/composables/useInputHistory.ts`
@@ -81,14 +74,12 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-settings
 
-- Candidate count: 10
+- Candidate count: 8
 
 - `components/AcpProfileManagerDialog.vue`
 - `components/common/DefaultModelSettingsSection.vue`
+- `components/common/SettingToggleRow.vue`
 - `components/prompt/PromptSettingsHeader.vue`
-- `components/skills/SkillFolderTree.vue`
-- `components/skills/SkillsHeader.vue`
-- `components/skills/SyncPromptDialog.vue`
 - `icons/MaximizeIcon.vue`
 - `icons/MinimizeIcon.vue`
 - `icons/RestoreIcon.vue`
@@ -96,8 +87,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-shared
 
-- Candidate count: 3
+- Candidate count: 2
 
-- `notifications/InlineOperationFeedback.vue`
 - `notifications/NotificationHost.vue`
 - `notifications/rendererNotificationPort.ts`

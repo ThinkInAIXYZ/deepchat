@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { DeepChatTapeEntryRow } from './entry'
 
-export const TAPE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/u
-
 export function computeTapeIdentity(row: DeepChatTapeEntryRow): string {
   return createHash('sha256')
     .update(

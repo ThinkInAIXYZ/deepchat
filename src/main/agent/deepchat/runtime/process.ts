@@ -42,7 +42,10 @@ import {
 } from '@/agent/deepchat/loop/loopRun'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import type { OutputSink } from '@/agent/deepchat/loop/ports'
-import { buildTapeToolFactInputs } from '@/tape/application/factPersistence'
+import {
+  buildTapeToolFactInputs,
+  buildTapeToolFactProvenanceKey
+} from '@/tape/application/factPersistence'
 import {
   ExecutionJournalCorruptionError,
   ExecutionJournalError,
@@ -1000,6 +1003,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
   let pendingToolSurfaceCandidateRelease: PendingToolSurfaceCandidateRelease | null = null
+  // Every round replays all settled tool blocks of the message; facts appended by an earlier
+  // round of this Run are skipped here instead of round-tripping the store's idempotency check.
+  const appendedToolFactKeys = new Set<string>()
   const commits: DeepChatLoopCommitCallbacks<StreamState, ProcessResult, ProcessResult> = {
     updateOutput: ({ outcome }) => {
       if (outcome === 'halted' || firstProviderRoundReady || state.blocks.length === 0) {
@@ -1028,7 +1034,10 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       const toolResultBySourceId = new Map<string, TapeToolResultFactReference>()
       try {
         for (const input of buildTapeToolFactInputs(record)) {
+          const factKey = buildTapeToolFactProvenanceKey(input)
+          if (factKey && appendedToolFactKeys.has(factKey)) continue
           const receipt = await params.io.tapeToolFactWriter.appendToolFact(input)
+          if (factKey) appendedToolFactKeys.add(factKey)
           if (input.provenance.source === 'tool_result' && receipt.toolResult) {
             toolResultBySourceId.set(input.provenance.sourceId, receipt.toolResult)
           }

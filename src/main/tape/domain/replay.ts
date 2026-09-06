@@ -8,6 +8,7 @@ import { isDeepChatExecutionContract } from './executionContract'
 import { hashJson } from './viewManifest'
 import { validateSchema6SkillContexts, validateSchema7SkillContexts } from './skillContext'
 import { isBoundedSkillTapeIdentity } from './skillIdentity'
+import { SHA256_HEX_PATTERN } from './primitives'
 
 const VIEW_POLICIES = new Set([
   'cache_aware_context_v2',
@@ -36,7 +37,6 @@ const SCHEMA_V3_ENTRY_REASONS = new Set([
   'reconstruction_checkpoint',
   'memory_context'
 ])
-const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/
 
 const VIEW_EXCLUDED_REASONS = new Set([
   'before_summary_cursor',
