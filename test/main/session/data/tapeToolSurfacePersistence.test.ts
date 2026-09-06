@@ -813,6 +813,23 @@ describe('ToolSurfaceProvenanceService', () => {
     expect(entries).toEqual([])
   })
 
+  it('reports a TypeError thrown inside the transaction as a persistence failure', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    table.appendToolSurfaceEvent.mockImplementationOnce(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'entry_id')")
+    })
+
+    let caught: unknown
+    try {
+      service.commitToolSurfaceView(createCommitInput())
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(ToolSurfaceProvenanceError)
+    expect((caught as ToolSurfaceProvenanceError).code).toBe('persistence_failed')
+  })
+
   it('recovers one hash-verified surface fact by provider request identity', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table)

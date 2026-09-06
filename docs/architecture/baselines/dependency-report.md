@@ -4,8 +4,8 @@ Generated on 2026-09-04.
 
 ## main
 
-- Total files: 853
-- Internal dependency edges: 3009
+- Total files: 859
+- Internal dependency edges: 3021
 - Cycles detected: 13
 
 ### Top outgoing dependencies
@@ -33,14 +33,14 @@ Generated on 2026-09-04.
 - `data/baseTable.ts`: 44
 - `routes/routeRegistry.ts`: 43
 - `remote/types.ts`: 39
+- `tape/ports/capabilities.ts`: 36
 - `agent/settings.ts`: 35
 - `config/settingsStore.ts`: 35
-- `tape/ports/capabilities.ts`: 35
 - `tape/domain/entry.ts`: 34
 - `tape/domain/canonicalJson.ts`: 31
 - `agent/deepchat/runtime/types.ts`: 28
-- `tape/domain/executionJournal.ts`: 26
 - `agent/deepchat/runtime/toolSurface.ts`: 25
+- `tape/domain/executionJournal.ts`: 25
 - `memory/types.ts`: 24
 - `agent/deepchat/instance/deepChatAgentRuntime.ts`: 23
 

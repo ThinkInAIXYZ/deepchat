@@ -16,6 +16,14 @@ import { CANONICAL_UUID_PATTERN, compareUtf16, deepFreeze, SHA256_HEX_PATTERN } 
 import { isDeepChatTaskContractRef } from './taskContract'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
+/** A Tool Surface fact input broke its canonical contract: shape, limits, hashes or ordering. */
+export class ToolSurfaceFactError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'ToolSurfaceFactError'
+  }
+}
+
 export const TAPE_TOOL_CATALOG_EVENT_NAME = 'view/tool_catalog'
 export const TAPE_TOOL_SURFACE_EVENT_NAME = 'view/tool_surface'
 export const TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME = 'view/programmatic_tool_surface'
@@ -375,7 +383,7 @@ function assertBoundedProxyFreePlainData(value: unknown, maxBytes: number): void
     }
     nodes += 1
     if (nodes > MAX_PLAIN_DATA_NODES || visit.depth > MAX_PLAIN_DATA_DEPTH) {
-      throw new TypeError('Tool fact input exceeds its structure limit.')
+      throw new ToolSurfaceFactError('Tool fact input exceeds its structure limit.')
     }
     const current = visit.value
     if (current === null || typeof current === 'boolean') {
@@ -389,23 +397,23 @@ function assertBoundedProxyFreePlainData(value: unknown, maxBytes: number): void
     if (typeof current === 'string') {
       minimumBytes += Buffer.byteLength(current, 'utf8') + 2
       if (minimumBytes > maxBytes) {
-        throw new TypeError('Tool fact input exceeds its canonical byte limit.')
+        throw new ToolSurfaceFactError('Tool fact input exceeds its canonical byte limit.')
       }
       continue
     }
     if (!current || typeof current !== 'object' || nodeTypes.isProxy(current)) {
-      throw new TypeError('Tool fact input contains a non-plain JSON value.')
+      throw new ToolSurfaceFactError('Tool fact input contains a non-plain JSON value.')
     }
     if (ancestors.has(current)) {
-      throw new TypeError('Tool fact input contains a circular reference.')
+      throw new ToolSurfaceFactError('Tool fact input contains a circular reference.')
     }
     const isArray = Array.isArray(current)
     const prototype = Object.getPrototypeOf(current)
     if (!isArray && prototype !== Object.prototype && prototype !== null) {
-      throw new TypeError('Tool fact input contains a non-plain object.')
+      throw new ToolSurfaceFactError('Tool fact input contains a non-plain object.')
     }
     if (Object.getOwnPropertySymbols(current).length > 0) {
-      throw new TypeError('Tool fact input contains a symbol property.')
+      throw new ToolSurfaceFactError('Tool fact input contains a symbol property.')
     }
     const names = Object.getOwnPropertyNames(current)
     const itemNames = isArray ? names.filter((name) => name !== 'length') : names
@@ -413,7 +421,7 @@ function assertBoundedProxyFreePlainData(value: unknown, maxBytes: number): void
       (isArray && itemNames.length !== current.length) ||
       nodes + itemNames.length > MAX_PLAIN_DATA_NODES
     ) {
-      throw new TypeError('Tool fact input exceeds its structure limit.')
+      throw new ToolSurfaceFactError('Tool fact input exceeds its structure limit.')
     }
     minimumBytes += 2
     ancestors.add(current)
@@ -422,11 +430,11 @@ function assertBoundedProxyFreePlainData(value: unknown, maxBytes: number): void
       const name = itemNames[index]
       const descriptor = Object.getOwnPropertyDescriptor(current, name)
       if (!descriptor?.enumerable || !('value' in descriptor)) {
-        throw new TypeError('Tool fact input contains a non-data property.')
+        throw new ToolSurfaceFactError('Tool fact input contains a non-data property.')
       }
       if (!isArray) minimumBytes += Buffer.byteLength(name, 'utf8') + 3
       if (minimumBytes > maxBytes) {
-        throw new TypeError('Tool fact input exceeds its canonical byte limit.')
+        throw new ToolSurfaceFactError('Tool fact input exceeds its canonical byte limit.')
       }
       stack.push({ kind: 'enter', value: descriptor.value, depth: visit.depth + 1 })
     }
@@ -437,7 +445,7 @@ function detachBoundedPlainData<T>(value: T, maxBytes: number): T {
   assertBoundedProxyFreePlainData(value, maxBytes)
   const serialized = canonicalJsonStringifyData(value)
   if (Buffer.byteLength(serialized, 'utf8') > maxBytes) {
-    throw new TypeError('Tool fact input exceeds its canonical byte limit.')
+    throw new ToolSurfaceFactError('Tool fact input exceeds its canonical byte limit.')
   }
   return JSON.parse(serialized) as T
 }
@@ -530,7 +538,7 @@ function cloneCatalogEntryFields(entry: TapeToolCatalogSourceEntry): TapeToolCat
 
 function cloneCatalogEntry(entry: TapeToolCatalogSourceEntry): TapeToolCatalogSourceEntry {
   if (!isCatalogEntry(entry)) {
-    throw new TypeError('Tool catalog fact contains an invalid entry.')
+    throw new ToolSurfaceFactError('Tool catalog fact contains an invalid entry.')
   }
   return cloneCatalogEntryFields(entry)
 }
@@ -646,7 +654,7 @@ function createTapeToolCatalogFactFromData(
     !Array.isArray(input.entries) ||
     input.entries.length > MAX_SOURCE_CATALOG_ENTRIES
   ) {
-    throw new TypeError('Tool catalog fact input is invalid.')
+    throw new ToolSurfaceFactError('Tool catalog fact input is invalid.')
   }
 
   const entries = input.entries
@@ -655,12 +663,14 @@ function createTapeToolCatalogFactFromData(
   const targetByVisibleName = new Map<string, string>()
   for (let index = 0; index < entries.length; index += 1) {
     if (index > 0 && entries[index - 1].stableTargetKey === entries[index].stableTargetKey) {
-      throw new TypeError('Tool catalog fact contains a duplicate stable target.')
+      throw new ToolSurfaceFactError('Tool catalog fact contains a duplicate stable target.')
     }
     const entry = entries[index]
     const previousTarget = targetByVisibleName.get(entry.target.providerVisibleName)
     if (previousTarget !== undefined && previousTarget !== entry.stableTargetKey) {
-      throw new TypeError('Tool catalog fact contains a conflicting provider-visible name.')
+      throw new ToolSurfaceFactError(
+        'Tool catalog fact contains a conflicting provider-visible name.'
+      )
     }
     targetByVisibleName.set(entry.target.providerVisibleName, entry.stableTargetKey)
   }
@@ -669,7 +679,7 @@ function createTapeToolCatalogFactFromData(
     entries
   })
   if (expectedFullCatalogHash !== input.fullCatalogHash) {
-    throw new TypeError('Tool catalog fact does not match its full catalog hash.')
+    throw new ToolSurfaceFactError('Tool catalog fact does not match its full catalog hash.')
   }
 
   const maximumRetainedCount = Math.min(entries.length, MAX_TAPE_TOOL_CATALOG_PROJECTION_ENTRIES)
@@ -683,7 +693,7 @@ function createTapeToolCatalogFactFromData(
   const retainedEntryCount = findLargestFittingPrefix(maximumRetainedCount, buildWithRetainedCount)
   const fact = buildWithRetainedCount(retainedEntryCount)
   if (canonicalBytes(fact) > MAX_TAPE_TOOL_FACT_BYTES) {
-    throw new TypeError('Tool catalog fact exceeds its canonical byte limit.')
+    throw new ToolSurfaceFactError('Tool catalog fact exceeds its canonical byte limit.')
   }
   return deepFreeze(fact)
 }
@@ -914,7 +924,7 @@ function isBudget(value: unknown): value is TapeToolSurfaceBudgetObservation {
 
 function cloneActiveEntry(entry: TapeToolSurfaceActiveEntry): TapeToolSurfaceActiveEntry {
   if (!isActiveEntry(entry))
-    throw new TypeError('Tool surface fact contains an invalid active entry.')
+    throw new ToolSurfaceFactError('Tool surface fact contains an invalid active entry.')
   return {
     ...cloneCatalogEntryFields(entry),
     activationOrdinal: entry.activationOrdinal,
@@ -923,7 +933,8 @@ function cloneActiveEntry(entry: TapeToolSurfaceActiveEntry): TapeToolSurfaceAct
 }
 
 function cloneSearchRef(ref: TapeToolSurfaceSearchResultRef): TapeToolSurfaceSearchResultRef {
-  if (!isSearchRef(ref)) throw new TypeError('Tool surface fact contains an invalid search ref.')
+  if (!isSearchRef(ref))
+    throw new ToolSurfaceFactError('Tool surface fact contains an invalid search ref.')
   return { ...ref, toolResult: { ...ref.toolResult } }
 }
 
@@ -931,7 +942,7 @@ function cloneCandidateRejection(
   rejection: TapeToolSurfaceCandidateRejection
 ): TapeToolSurfaceCandidateRejection {
   if (!isCandidateRejection(rejection)) {
-    throw new TypeError('Tool surface fact contains an invalid candidate rejection.')
+    throw new ToolSurfaceFactError('Tool surface fact contains an invalid candidate rejection.')
   }
   return { ...rejection, toolResult: { ...rejection.toolResult } }
 }
@@ -994,10 +1005,10 @@ function validateActiveEntryOrder(entries: readonly TapeToolSurfaceActiveEntry[]
   for (const entry of entries) {
     const previousTarget = targetByVisibleName.get(entry.target.providerVisibleName)
     if (targets.has(entry.stableTargetKey) || entry.activationOrdinal <= previousOrdinal) {
-      throw new TypeError('Tool surface active entries are duplicated or out of order.')
+      throw new ToolSurfaceFactError('Tool surface active entries are duplicated or out of order.')
     }
     if (previousTarget !== undefined && previousTarget !== entry.stableTargetKey) {
-      throw new TypeError('Tool surface contains a conflicting provider-visible name.')
+      throw new ToolSurfaceFactError('Tool surface contains a conflicting provider-visible name.')
     }
     targets.add(entry.stableTargetKey)
     targetByVisibleName.set(entry.target.providerVisibleName, entry.stableTargetKey)
@@ -1052,7 +1063,9 @@ function validateToolSearchPresence(
       (reservedNameEntries.length !== 1 || !isToolSearchActiveEntry(reservedNameEntries[0]))) ||
     (adapterMode !== 'native-activation' && reservedNameEntries.length !== 0)
   ) {
-    throw new TypeError('Tool surface ToolSearch identity or selection reason is invalid.')
+    throw new ToolSurfaceFactError(
+      'Tool surface ToolSearch identity or selection reason is invalid.'
+    )
   }
 }
 
@@ -1152,7 +1165,7 @@ function validateSearchProvenance(
       activeEntry.canonicalToolDefinitionHash !== ref.canonicalToolDefinitionHash ||
       (previousAccepted !== null && compareSearchRefs(previousAccepted, ref) >= 0)
     ) {
-      throw new TypeError('Tool surface accepted search provenance is invalid.')
+      throw new ToolSurfaceFactError('Tool surface accepted search provenance is invalid.')
     }
     seenAcceptedTargets.add(ref.stableTargetKey)
     latestAcceptedRequestSeq = Math.max(latestAcceptedRequestSeq, ref.originRequestSeq)
@@ -1175,7 +1188,7 @@ function validateSearchProvenance(
       activeByTarget.has(rejection.stableTargetKey) ||
       (previousRejected !== null && compareSearchRefs(previousRejected, rejection) >= 0)
     ) {
-      throw new TypeError('Tool surface rejected search provenance is invalid.')
+      throw new ToolSurfaceFactError('Tool surface rejected search provenance is invalid.')
     }
     seenRejectedTargets.add(rejection.stableTargetKey)
     rejectionRequestSeq = rejection.originRequestSeq
@@ -1193,7 +1206,7 @@ function requireCompleteAcceptedSearchProvenance(
     .sort(compareUtf16)
   const actualTargets = searchResultRefs.map((ref) => ref.stableTargetKey).sort(compareUtf16)
   if (canonicalJsonStringifyData(expectedTargets) !== canonicalJsonStringifyData(actualTargets)) {
-    throw new TypeError('Tool surface is missing accepted ToolSearch result provenance.')
+    throw new ToolSurfaceFactError('Tool surface is missing accepted ToolSearch result provenance.')
   }
 }
 
@@ -1253,7 +1266,7 @@ function createTapeToolSurfaceFactFromData(
       (!Array.isArray(input.candidateRejections) ||
         input.candidateRejections.length > MAX_SOURCE_ACTIVATION_DECISIONS))
   ) {
-    throw new TypeError('Tool surface fact input is invalid.')
+    throw new ToolSurfaceFactError('Tool surface fact input is invalid.')
   }
 
   const allActiveEntries = input.activeEntries.map(cloneActiveEntry)
@@ -1266,10 +1279,14 @@ function createTapeToolSurfaceFactFromData(
         entry.target.providerVisibleName === 'exec' && !isCanonicalAgentExecToolSurfaceEntry(entry)
     )
   ) {
-    throw new TypeError('A CLI Programmatic provider surface contains a non-canonical Agent exec.')
+    throw new ToolSurfaceFactError(
+      'A CLI Programmatic provider surface contains a non-canonical Agent exec.'
+    )
   }
   if (input.contractBearing && allActiveEntries.length > MAX_TAPE_TOOL_SURFACE_ACTIVE_ENTRIES) {
-    throw new TypeError('Contract-bearing Tool surface exceeds its complete active-entry limit.')
+    throw new ToolSurfaceFactError(
+      'Contract-bearing Tool surface exceeds its complete active-entry limit.'
+    )
   }
   const maximumActiveEntries = selectActiveProjection(
     allActiveEntries,
@@ -1296,7 +1313,9 @@ function createTapeToolSurfaceFactFromData(
       allSearchRefs.length > 0 ||
       allCandidateRejections.length > 0)
   ) {
-    throw new TypeError('A CLI Programmatic provider surface cannot contain native search state.')
+    throw new ToolSurfaceFactError(
+      'A CLI Programmatic provider surface cannot contain native search state.'
+    )
   }
   if (
     !input.virtualizationTriggered &&
@@ -1306,7 +1325,9 @@ function createTapeToolSurfaceFactFromData(
       input.budget.eligibleToolCount !== input.budget.activeToolCount ||
       input.budget.eligibleDefinitionTokens !== input.budget.activeDefinitionTokens)
   ) {
-    throw new TypeError('A non-virtualized Tool surface cannot contain search provenance.')
+    throw new ToolSurfaceFactError(
+      'A non-virtualized Tool surface cannot contain search provenance.'
+    )
   }
   const candidateRejections = allCandidateRejections.slice(0, MAX_TAPE_TOOL_SURFACE_REJECTIONS)
   const buildWithLengths = (
@@ -1379,7 +1400,7 @@ function createTapeToolSurfaceFactFromData(
     fact = buildWithLengths(activeLength, searchRefLength, rejectionLength)
   }
   if (canonicalBytes(fact) > MAX_TAPE_TOOL_FACT_BYTES) {
-    throw new TypeError(
+    throw new ToolSurfaceFactError(
       input.contractBearing
         ? 'Contract-bearing Tool surface fact exceeds its canonical byte limit.'
         : 'Tool surface fact exceeds its canonical byte limit.'
@@ -1558,7 +1579,9 @@ export function buildTapeProgrammaticWorkspacePathHash(normalizedAbsolutePath: s
     !isNormalizedBoundedString(normalizedAbsolutePath, 32 * 1024) ||
     normalizeAbsoluteWorkspacePath(normalizedAbsolutePath)?.path !== normalizedAbsolutePath
   ) {
-    throw new TypeError('Programmatic workspace path must already be normalized and absolute.')
+    throw new ToolSurfaceFactError(
+      'Programmatic workspace path must already be normalized and absolute.'
+    )
   }
   return {
     hashVersion: TAPE_PROGRAMMATIC_WORKSPACE_PATH_HASH_VERSION,
@@ -1701,22 +1724,28 @@ function validateProgrammaticEntries(entries: readonly TapeToolCatalogSourceEntr
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]
     if (entry.target.source !== 'mcp' || entry.exposure !== 'user-configurable') {
-      throw new TypeError(
+      throw new ToolSurfaceFactError(
         'Programmatic Tool Surface entries must be user-configurable MCP targets.'
       )
     }
     if (index > 0) {
       const order = compareUtf16(entries[index - 1].stableTargetKey, entry.stableTargetKey)
       if (order === 0) {
-        throw new TypeError('Programmatic Tool Surface contains a duplicate stable target.')
+        throw new ToolSurfaceFactError(
+          'Programmatic Tool Surface contains a duplicate stable target.'
+        )
       }
       if (order > 0) {
-        throw new TypeError('Programmatic Tool Surface entries are not in canonical order.')
+        throw new ToolSurfaceFactError(
+          'Programmatic Tool Surface entries are not in canonical order.'
+        )
       }
     }
     const prior = visibleNames.get(entry.target.providerVisibleName)
     if (prior !== undefined && prior !== entry.stableTargetKey) {
-      throw new TypeError('Programmatic Tool Surface contains a conflicting provider-visible name.')
+      throw new ToolSurfaceFactError(
+        'Programmatic Tool Surface contains a conflicting provider-visible name.'
+      )
     }
     visibleNames.set(entry.target.providerVisibleName, entry.stableTargetKey)
   }
@@ -1770,7 +1799,7 @@ export function createTapeProgrammaticToolSurfaceFact(
     !isProgrammaticCeilings(data.ceilings) ||
     !isProgrammaticQuotas(data.quotas)
   ) {
-    throw new TypeError('Programmatic Tool Surface fact input is invalid.')
+    throw new ToolSurfaceFactError('Programmatic Tool Surface fact input is invalid.')
   }
   const entries = data.entries
     .map(cloneCatalogEntry)
@@ -1784,13 +1813,13 @@ export function createTapeProgrammaticToolSurfaceFact(
       entries
     }) !== data.programmaticSurfaceHash
   ) {
-    throw new TypeError('Programmatic Tool Surface does not match its surface hash.')
+    throw new ToolSurfaceFactError('Programmatic Tool Surface does not match its surface hash.')
   }
   if (
     data.ceilings.maxToolEffect === 'read' &&
     entries.some((entry) => entry.execution.effect === 'write')
   ) {
-    throw new TypeError('Programmatic Tool Surface exceeds its effect ceiling.')
+    throw new ToolSurfaceFactError('Programmatic Tool Surface exceeds its effect ceiling.')
   }
   const maximum = Math.min(entries.length, MAX_TAPE_TOOL_CATALOG_PROJECTION_ENTRIES)
   const build = (length: number) =>
@@ -1798,7 +1827,9 @@ export function createTapeProgrammaticToolSurfaceFact(
   const retained = findLargestFittingPrefix(maximum, build)
   const fact = build(retained)
   if (canonicalBytes(fact) > MAX_TAPE_TOOL_FACT_BYTES) {
-    throw new TypeError('Programmatic Tool Surface fact exceeds its canonical byte limit.')
+    throw new ToolSurfaceFactError(
+      'Programmatic Tool Surface fact exceeds its canonical byte limit.'
+    )
   }
   return deepFreeze(fact)
 }

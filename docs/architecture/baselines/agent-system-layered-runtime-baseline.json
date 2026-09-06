@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "f3a53f60629162c692eed56b480a823d973f82fa",
+  "headCommit": "ed7adc34c5fa87a681f324de2f5f1ac1a66b50ef",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -495,7 +495,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "f846ec8ca18abe70f548b5739007c2fc232c527de20606d039bc007489227d62"
+    "sha256": "fe38e410c549358f61969450c43acf85a057bb560b6bfa85b8b21c1116ee01d4"
   },
   "storage": {
     "sqlite": {

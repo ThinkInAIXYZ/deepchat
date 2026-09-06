@@ -16,6 +16,7 @@ import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 
 export interface RuntimeHookSinkDependencies {
   observer: HookObserver
+  onSessionCompleted?: (sessionId: string) => void
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>
 }
@@ -30,6 +31,7 @@ export interface RuntimeHookScopeInput {
 }
 
 export interface RuntimeTerminalFacts {
+  readonly completed?: boolean
   readonly reason?: string
   readonly userStop: boolean
   readonly usage?: HookUsageFacts | null
@@ -59,6 +61,13 @@ export class RuntimeHookScope {
   terminal(facts: RuntimeTerminalFacts): void {
     this.emit({ event: 'Stop', stop: { reason: facts.reason, userStop: facts.userStop } })
     this.emit({ event: 'SessionEnd', usage: facts.usage ?? null, error: facts.error ?? null })
+    if (facts.completed && !facts.userStop && !facts.error) {
+      try {
+        this.deps.onSessionCompleted?.(this.input.sessionId)
+      } catch (error) {
+        console.warn('[DeepChatAgent] Failed to notify session completion:', error)
+      }
+    }
   }
 
   toolObserver(): DeepChatLoopNotificationObserver {
@@ -119,6 +128,7 @@ export class RuntimeHookSink {
     }
 
     this.scope({ sessionId, providerId: state.providerId, modelId: state.modelId }).terminal({
+      completed: result.status === 'completed',
       reason:
         result.stopReason ??
         (result.status === 'completed'

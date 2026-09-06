@@ -1,10 +1,9 @@
 import type { AgentTapeAnchorResult } from '@shared/types/agent-interface'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
-import type { TapeProviderAttemptRecord } from '../domain/providerAttempt'
 import type { TapeMigrationState } from '../ports/capabilities'
 
 export type {
   TapeBackfillResult,
+  TapeContextOccupancyEvidence,
   TapeMigrationState,
   TapeViewManifestAssemblySources
 } from '../ports/capabilities'
@@ -35,9 +34,3 @@ export type TapeSearchResult = {
 }
 
 export type TapeAnchorResult = AgentTapeAnchorResult
-
-export type TapeContextOccupancyEvidence = {
-  manifest: DeepChatTapeViewManifestRecord | null
-  providerAttempt: TapeProviderAttemptRecord | null
-  latestReconstructionAnchorEntryId: number | null
-}

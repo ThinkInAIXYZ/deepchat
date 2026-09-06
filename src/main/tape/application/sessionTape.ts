@@ -74,6 +74,7 @@ import type {
   TapeProviderAttemptWriter,
   TapeCompactionModelCallReader,
   TapeCompactionModelCallWriter,
+  TapeContextOccupancyReader,
   TapeToolSurfaceViewReader,
   TapeToolSurfaceViewWriter,
   ExecutionJournalAuditReader,
@@ -140,38 +141,43 @@ export type {
 }
 export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandoffState }
 
-export class SessionTape
-  implements
-    TapeToolFactWriter,
-    TapeMessageFactWriter,
-    TapeProviderAttemptReader,
-    TapeProviderAttemptWriter,
-    TapeCompactionModelCallReader,
-    TapeCompactionModelCallWriter,
-    TapeNonContextEntryReader,
-    TapeReconciliationPort,
-    TapeViewManifestReader,
-    TapeEffectiveUserMessageSourceReader,
-    TapeExecutionViewManifestReader,
-    TapeSkillRequestAuthorityReader,
-    TapeRunViewManifestReader,
-    TapeViewManifestWriter,
-    TapeToolSurfaceViewReader,
-    TapeToolSurfaceViewWriter,
-    TapeAnchorReader,
-    TapeAnchorWriter,
-    TapeInspectionReader,
-    TapeSessionInspectionReader,
-    TapeLifecycleAdmin,
-    ExecutionJournalWriter,
-    ExecutionJournalAuditReader,
-    ExecutionJournalRecoveryReader,
-    TapeIncarnationReader,
-    TapeSkillViewResultFactWriter,
-    TapeRuntimeSkillViewContextReader,
-    TapeSkillMaterializationWriter,
-    TapeSkillMaterializationReader
-{
+/**
+ * Every capability the composed facade offers to consumers. Composition exposes the facade under
+ * this type, so a consumer can only reach what some port declares; the facade's own plumbing and
+ * the direct read helpers the composition root wraps stay off the shared surface.
+ */
+export type SessionTapeCapabilities = TapeToolFactWriter &
+  TapeMessageFactWriter &
+  TapeProviderAttemptReader &
+  TapeProviderAttemptWriter &
+  TapeCompactionModelCallReader &
+  TapeCompactionModelCallWriter &
+  TapeContextOccupancyReader &
+  TapeNonContextEntryReader &
+  TapeReconciliationPort &
+  TapeViewManifestReader &
+  TapeEffectiveUserMessageSourceReader &
+  TapeExecutionViewManifestReader &
+  TapeSkillRequestAuthorityReader &
+  TapeRunViewManifestReader &
+  TapeViewManifestWriter &
+  TapeToolSurfaceViewReader &
+  TapeToolSurfaceViewWriter &
+  TapeAnchorReader &
+  TapeAnchorWriter &
+  TapeInspectionReader &
+  TapeSessionInspectionReader &
+  TapeLifecycleAdmin &
+  ExecutionJournalWriter &
+  ExecutionJournalAuditReader &
+  ExecutionJournalRecoveryReader &
+  TapeIncarnationReader &
+  TapeSkillViewResultFactWriter &
+  TapeRuntimeSkillViewContextReader &
+  TapeSkillMaterializationWriter &
+  TapeSkillMaterializationReader
+
+export class SessionTape implements SessionTapeCapabilities {
   private readonly providers: TapeApplicationProviders
   private readonly facts: TapeFactService
   private readonly reconciler: TapeReconcilerService
@@ -462,15 +468,6 @@ export class SessionTape
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
     return this.facts.handoff(sessionId, name, state, meta)
-  }
-
-  handoffResult(
-    sessionId: string,
-    name: string,
-    state: AgentTapeHandoffState,
-    meta: Record<string, unknown> = {}
-  ): TapeAnchorResult {
-    return this.facts.handoffResult(sessionId, name, state, meta)
   }
 
   linkSubagentTape(input: SubagentTapeLinkInput): SubagentTapeLinkReceipt {

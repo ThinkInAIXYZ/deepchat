@@ -1,9 +1,7 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow, DeepChatTapeSearchInput } from './entry'
-import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from './compactionUsage'
-import { EXECUTION_JOURNAL_EVENT_NAMES } from './executionJournal'
-import { CONTRACT_TAPE_EVENT_NAMES, isContractTapeReservedName } from './contractFacts'
-import { TOOL_SURFACE_TAPE_EVENT_NAMES } from './toolSurfaceFacts'
+import { isContractTapeReservedName } from './contractFacts'
+import { RESERVED_AUDIT_TAPE_EVENT_NAMES } from './reservedNamespaces'
 import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
 import {
   TAPE_MESSAGE_RETRACTED_EVENT_NAME,
@@ -44,16 +42,18 @@ interface EffectiveTapeViewOptions {
   includeAuditEvents?: boolean
 }
 
-export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES = [
+/**
+ * Event names hidden from effective views and ordinary search. Retractions, compaction markers,
+ * backfill receipts and View manifests are bookkeeping written through the generic append path;
+ * every other audit event is declared by the strict writer that owns it.
+ */
+export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES: readonly string[] = [
   TAPE_MESSAGE_RETRACTED_EVENT_NAME,
   'message/compaction_indicator',
   'migration/backfill',
-  TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
   TAPE_VIEW_MANIFEST_EVENT_NAME,
-  ...TOOL_SURFACE_TAPE_EVENT_NAMES,
-  ...CONTRACT_TAPE_EVENT_NAMES,
-  ...EXECUTION_JOURNAL_EVENT_NAMES
-] as const
+  ...RESERVED_AUDIT_TAPE_EVENT_NAMES
+]
 
 const DEFAULT_EXCLUDED_TAPE_EVENT_NAME_SET = new Set<string>(DEFAULT_EXCLUDED_TAPE_EVENT_NAMES)
 

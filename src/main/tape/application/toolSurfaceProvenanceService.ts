@@ -12,6 +12,7 @@ import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,
   TAPE_TOOL_SURFACE_EVENT_NAME,
+  ToolSurfaceFactError,
   buildTapeToolResultPayloadHash,
   createTapeProgrammaticToolSurfaceFact,
   createTapeToolCatalogFact,
@@ -1053,7 +1054,7 @@ export class ToolSurfaceProvenanceService
       })
     } catch (error) {
       if (error instanceof ToolSurfaceProvenanceError) throw error
-      if (error instanceof TypeError) {
+      if (error instanceof ToolSurfaceFactError) {
         throw new ToolSurfaceProvenanceError(
           'Tool surface provenance input is invalid.',
           'invalid_input',

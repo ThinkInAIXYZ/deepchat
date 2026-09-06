@@ -36,7 +36,6 @@ import {
   assertTapeToolFactPhysicalEnvelope
 } from './factPersistence'
 import { parseJsonObject, readCanonicalTapeIncarnationId } from './common'
-import type { TapeAnchorResult } from './contracts'
 
 type TapeFactProviders = Pick<TapeApplicationProviders, 'getEntryStore'>
 
@@ -314,23 +313,5 @@ export class TapeFactService
         handoff: true
       }
     })
-  }
-
-  handoffResult(
-    sessionId: string,
-    name: string,
-    state: AgentTapeHandoffState,
-    meta: Record<string, unknown> = {}
-  ): TapeAnchorResult {
-    const row = this.handoff(sessionId, name, state, meta)
-    return {
-      sessionId: row.session_id,
-      entryId: row.entry_id,
-      kind: row.kind,
-      name: row.name,
-      payload: parseJsonObject(row.payload_json),
-      meta: parseJsonObject(row.meta_json),
-      createdAt: row.created_at
-    }
   }
 }

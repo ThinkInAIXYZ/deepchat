@@ -6,7 +6,11 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
-import { normalizeTapeHandoffState, SessionTape } from '@/tape/application/sessionTape'
+import {
+  normalizeTapeHandoffState,
+  SessionTape,
+  type SessionTapeCapabilities
+} from '@/tape/application/sessionTape'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import type {
   ExecutionJournalWriter,
@@ -33,7 +37,10 @@ export function createSessionDataFromDatabase(
   database: SessionDatabase,
   events: SessionDataEvents
 ) {
-  const tapeStore = new SessionTape(database)
+  // The concrete facade stays inside this composition root: the SessionTapePort wrappers below
+  // call its direct read helpers, while everything handed out reaches Tape only through ports.
+  const sessionTape = new SessionTape(database)
+  const tapeStore: SessionTapeCapabilities = sessionTape
   const programmaticJournalService = new ExecutionJournalService(
     () => database.deepchatExecutionJournalStore
   )
@@ -45,7 +52,8 @@ export function createSessionDataFromDatabase(
   })
   const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
-  const ensureTape = (sessionId: string) => tapeStore.ensureSessionTapeReady(sessionId, transcript)
+  const ensureTape = (sessionId: string) =>
+    sessionTape.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
     sessionId: row.session_id,
     entryId: row.entry_id,
@@ -58,57 +66,57 @@ export function createSessionDataFromDatabase(
   const tape: SessionTapePort = {
     getTapeInfo(sessionId) {
       ensureTape(sessionId)
-      return Promise.resolve(tapeStore.info(sessionId))
+      return Promise.resolve(sessionTape.info(sessionId))
     },
     searchTape(sessionId, query, options) {
       if (!options?.scope || options.scope === 'current') ensureTape(sessionId)
-      return Promise.resolve(tapeStore.search(sessionId, query, options))
+      return Promise.resolve(sessionTape.search(sessionId, query, options))
     },
     getTapeContext(sessionId, entryIds, options) {
       if (!options?.sourceSessionId || options.sourceSessionId.trim() === sessionId) {
         ensureTape(sessionId)
       }
-      return Promise.resolve(tapeStore.getContext(sessionId, entryIds, options))
+      return Promise.resolve(sessionTape.getContext(sessionId, entryIds, options))
     },
     listTapeAnchors(sessionId, options) {
       ensureTape(sessionId)
-      return Promise.resolve(tapeStore.anchors(sessionId, options))
+      return Promise.resolve(sessionTape.anchors(sessionId, options))
     },
     handoffTape(sessionId, name, state) {
       normalizeTapeHandoffState(state)
       ensureTape(sessionId)
-      return Promise.resolve(toTapeAnchor(tapeStore.handoff(sessionId, name, state)))
+      return Promise.resolve(toTapeAnchor(sessionTape.handoff(sessionId, name, state)))
     },
     listMessageViewManifests(sessionId, messageId) {
       ensureTape(sessionId)
-      return Promise.resolve(tapeStore.listViewManifestsByMessage(sessionId, messageId))
+      return Promise.resolve(sessionTape.listViewManifestsByMessage(sessionId, messageId))
     },
     listNestedExecutionAuditForMessage(sessionId, messageId) {
       ensureTape(sessionId)
-      return Promise.resolve(tapeStore.listNestedExecutionAuditForMessage(sessionId, messageId))
+      return Promise.resolve(sessionTape.listNestedExecutionAuditForMessage(sessionId, messageId))
     },
     exportMessageTapeReplaySlice(sessionId, messageId, options) {
       ensureTape(sessionId)
-      return Promise.resolve(tapeStore.exportReplaySlice(sessionId, messageId, options))
+      return Promise.resolve(sessionTape.exportReplaySlice(sessionId, messageId, options))
     },
     // Inspector reads must not bootstrap or write Tape state. Incarnation mismatches are returned
     // through the read contract instead.
     listTapeInspectorPage(input) {
-      return tapeStore.listTapeInspectorPage(input)
+      return sessionTape.listTapeInspectorPage(input)
     },
     resolveTapeInspectorEvidenceEntries(input) {
-      return tapeStore.resolveTapeInspectorEvidenceEntries(input)
+      return sessionTape.resolveTapeInspectorEvidenceEntries(input)
     },
     getTapeInspectorRecordDetail(input) {
-      return tapeStore.getTapeInspectorRecordDetail(input)
+      return sessionTape.getTapeInspectorRecordDetail(input)
     },
     exportTapeInspectorSupportFacts(input) {
-      return tapeStore.exportTapeInspectorSupportFacts(input)
+      return sessionTape.exportTapeInspectorSupportFacts(input)
     },
     linkSubagentTape(input) {
       ensureTape(input.parentSessionId)
       ensureTape(input.childSessionId)
-      return Promise.resolve(tapeStore.linkSubagentTape(input))
+      return Promise.resolve(sessionTape.linkSubagentTape(input))
     }
   }
 
