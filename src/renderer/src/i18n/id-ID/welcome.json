@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "selamat datang",
-      "description": "Mari mulai menyiapkan DeepChat"
+      "description": "Mari mulai menyiapkan MioAgent"
     },
     "provider": {
       "title": "Penyedia layanan model",
@@ -17,7 +17,7 @@
       "description": "Semuanya siap untuk mulai digunakan!"
     }
   },
-  "title": "Selamat datang di DeepChat",
+  "title": "Selamat datang di MioAgent",
   "description": "Mari kita melalui proses penyiapan bersama",
   "provider": {
     "select": "Pilih penyedia layanan",
@@ -35,7 +35,7 @@
     "back": "Kembali"
   },
   "page": {
-    "title": "Selamat datang di DeepChat Agent",
+    "title": "Selamat datang di MioAgent Agent",
     "description": "Hubungkan ke penyedia layanan model untuk memulai",
     "guide": {
       "title": "kemajuan booting",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Pilih Agent untuk mulai membuat",
-    "deepchatType": "DeepChat Agent",
+    "deepchatType": "MioAgent Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "Kelola DeepChat Agent"
+    "manageAgents": "Kelola MioAgent Agent"
   }
 }

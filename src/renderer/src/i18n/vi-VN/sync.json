@@ -9,7 +9,7 @@
     "notEnabled": "Đồng bộ hóa chưa được bật",
     "folderNotExists": "Thư mục đồng bộ hóa không tồn tại",
     "noValidBackup": "Không tìm thấy tệp sao lưu hợp lệ nào trong thư mục đồng bộ hóa.",
-    "unsupportedBackupVersion": "Bản sao lưu này được tạo bởi phiên bản mới hơn của DeepChat và không thể nhập được.",
+    "unsupportedBackupVersion": "Bản sao lưu này được tạo bởi phiên bản mới hơn của MioAgent và không thể nhập được.",
     "dbNotExists": "Tệp cơ sở dữ liệu không tồn tại",
     "configNotExists": "Tập tin cấu hình không tồn tại",
     "tempDbFailed": "Không tạo được tệp sao lưu cơ sở dữ liệu tạm thời",

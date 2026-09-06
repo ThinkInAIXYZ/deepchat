@@ -19,7 +19,7 @@ test('输入框输入长英文/长路径时不顶开宽度 @smoke', async ({ app
   // 窄窗口下才能复现：宽窗口里输入框已达 max-w-4xl，不存在被长文本顶开的空间
   await app.electronApp.evaluate(({ BrowserWindow }) => {
     const mainWindow = BrowserWindow.getAllWindows().find(
-      (win) => !win.isDestroyed() && win.getTitle() === 'DeepChat'
+      (win) => !win.isDestroyed() && win.getTitle() === 'MioAgent'
     )
     mainWindow?.setSize(800, 640)
   })

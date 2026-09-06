@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "ようこそ",
-      "description": "DeepChatの設定を始めましょう"
+      "description": "MioAgentの設定を始めましょう"
     },
     "provider": {
       "title": "モデルプロバイダー",
@@ -17,7 +17,7 @@
       "description": "すべての準備が整いました！"
     }
   },
-  "title": "DeepChatへようこそ",
+  "title": "MioAgentへようこそ",
   "description": "セットアップを完了しましょう",
   "provider": {
     "select": "プロバイダーを選択",
@@ -35,7 +35,7 @@
     "back": "戻る"
   },
   "page": {
-    "title": "DeepChat Agentへようこそ",
+    "title": "MioAgent Agentへようこそ",
     "description": "始めるにはモデルプロバイダーを接続してください",
     "guide": {
       "title": "セットアップガイド",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "エージェントを選んで作成を始める",
-    "deepchatType": "DeepChatエージェント",
+    "deepchatType": "MioAgentエージェント",
     "acpType": "ACPエージェント",
-    "manageAgents": "DeepChatエージェントを管理"
+    "manageAgents": "MioAgentエージェントを管理"
   }
 }

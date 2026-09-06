@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "DeepChat에 무엇이든 물어보세요. {'@'}로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
+    "placeholder": "MioAgent에 무엇이든 물어보세요. {'@'}로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
@@ -33,7 +33,7 @@
     "voiceRecognitionUnsupportedTitle": "현재 환경은 음성 인식을 지원하지 않습니다",
     "voiceRecognitionUnsupportedDescription": "음성 인식을 지원하는 브라우저 또는 데스크톱 환경에서 이 기능을 사용하세요.",
     "voiceRecognitionPermissionDeniedTitle": "마이크에 접근할 수 없습니다",
-    "voiceRecognitionPermissionDeniedDescription": "DeepChat이 마이크를 사용할 수 있도록 허용한 뒤 다시 시도하세요.",
+    "voiceRecognitionPermissionDeniedDescription": "MioAgent이 마이크를 사용할 수 있도록 허용한 뒤 다시 시도하세요.",
     "voiceRecognitionErrorTitle": "음성 인식 실패",
     "voiceRecognitionErrorDescription": "음성 인식을 완료하지 못했습니다. 잠시 후 다시 시도하세요.",
     "send": "보내기",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "이미지 생성",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
+        "deepchatSettings": "MioAgent Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "DeepChat 에이전트로 전환",
-      "description": "채팅을 시작하기 전에 ACP에서 전환하여 내장된 DeepChat 흐름으로 돌아가세요.",
+      "title": "MioAgent 에이전트로 전환",
+      "description": "채팅을 시작하기 전에 ACP에서 전환하여 내장된 MioAgent 흐름으로 돌아가세요.",
       "caption": "계속하려면 사이드바에서 강조된 에이전트 버튼을 클릭하세요."
     },
     "switchModel": {
-      "description": "첫 번째 DeepChat 대화에 사용할 모델을 선택하세요.",
+      "description": "첫 번째 MioAgent 대화에 사용할 모델을 선택하세요.",
       "caption": "강조된 모델 전환기를 사용해 사용 가능한 모델을 선택하세요."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "이 세션은 더 이상 사용할 수 없습니다.",
         "agent_unavailable": "선택한 Agent를 사용할 수 없습니다.",
-        "deepchat_agent_required": "능동형 협업에는 DeepChat Agent가 필요합니다.",
+        "deepchat_agent_required": "능동형 협업에는 MioAgent Agent가 필요합니다.",
         "regular_parent_required": "하위 세션에서는 능동형 협업을 사용할 수 없습니다.",
         "agent_policy_unavailable": "협업 정책을 불러오지 못했습니다.",
         "subagents_disabled": "능동형 협업을 사용하려면 이 Agent의 Subagent를 활성화하세요."

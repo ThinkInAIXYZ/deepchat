@@ -182,7 +182,7 @@
   "title": "הגדרות MCP",
   "inmemory": {
     "Artifacts": {
-      "desc": "צור תוצרים (Artifacts) עשירים יותר ב-DeepChat",
+      "desc": "צור תוצרים (Artifacts) עשירים יותר ב-MioAgent",
       "name": "תוצרים (Artifacts)"
     },
     "bochaSearch": {
@@ -190,7 +190,7 @@
       "name": "Bocha Search"
     },
     "buildInFileSystem": {
-      "desc": "אפשר ל-DeepChat אינטראקציה עם מערכת הקבצים המקומית.",
+      "desc": "אפשר ל-MioAgent אינטראקציה עם מערכת הקבצים המקומית.",
       "name": "מערכת קבצים"
     },
     "braveSearch": {
@@ -210,11 +210,11 @@
       "desc": "שירות חיפוש בסיס ידע של FastGPT, יכול לחפש בתוכן בסיס הידע של FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "שירות הנחיות מותאמות אישית מובנה של DeepChat",
+      "desc": "שירות הנחיות מותאמות אישית מובנה של MioAgent",
       "name": "הנחיות מותאמות אישית"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "מחקר עמוק מובנה ב-DeepChat המופעל על ידי Bocha Search. מומלץ להשתמש במודלים בעלי הקשר ארוך (Long-context).",
+      "desc": "מחקר עמוק מובנה ב-MioAgent המופעל על ידי Bocha Search. מומלץ להשתמש במודלים בעלי הקשר ארוך (Long-context).",
       "name": "מחקר עמוק (DeepResearch)"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -223,10 +223,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "חיפוש היסטוריית שיחות",
-      "desc": "חיפוש היסטוריית שיחות מובנה של DeepChat עבור צ'אטים והודעות עבר."
+      "desc": "חיפוש היסטוריית שיחות מובנה של MioAgent עבור צ'אטים והודעות עבר."
     },
     "builtinKnowledge": {
-      "desc": "חיפוש בסיס ידע מובנה של DeepChat עבור מסמכים ומדריכים של DeepChat.",
+      "desc": "חיפוש בסיס ידע מובנה של MioAgent עבור מסמכים ומדריכים של MioAgent.",
       "name": "חיפוש בסיס ידע מובנה"
     },
     "deepchat/apple-server": {

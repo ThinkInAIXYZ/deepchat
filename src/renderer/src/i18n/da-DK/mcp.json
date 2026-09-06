@@ -49,7 +49,7 @@
   },
   "inmemory": {
     "Artifacts": {
-      "desc": "Lad din DeepChat generere varieret indhold af Artifacts.",
+      "desc": "Lad din MioAgent generere varieret indhold af Artifacts.",
       "name": "Artefakter"
     },
     "bochaSearch": {
@@ -61,11 +61,11 @@
       "name": "Brave-søgning"
     },
     "buildInFileSystem": {
-      "desc": "Lad DeepChat kunne håndtere lokale filer",
+      "desc": "Lad MioAgent kunne håndtere lokale filer",
       "name": "filsystem"
     },
     "builtinKnowledge": {
-      "desc": "DeepChat har en indbygget vidensbase-søgetjeneste, som kan søge i DeepChats indbyggede vidensbaseindhold.",
+      "desc": "MioAgent har en indbygget vidensbase-søgetjeneste, som kan søge i MioAgents indbyggede vidensbaseindhold.",
       "name": "Indbygget vidensbase-søgning"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -73,15 +73,15 @@
       "name": "Automatiske skabelonpromptord"
     },
     "deepchat-inmemory/conversation-search-server": {
-      "desc": "DeepChat har en indbygget søgefunktion til samtalehistorik, som kan søge i tidligere samtaler og beskedindhold.",
+      "desc": "MioAgent har en indbygget søgefunktion til samtalehistorik, som kan søge i tidligere samtaler og beskedindhold.",
       "name": "Søgning i samtalehistorik"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "DeepChat indbygget brugerdefineret prompttjeneste",
+      "desc": "MioAgent indbygget brugerdefineret prompttjeneste",
       "name": "Brugerdefinerede promptord"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "DeepChat indbyggede dybdeforskningsservice baseret på Bocha-søgning (bemærk, at det kræver en lang kontekstmodel for at kunne bruges; modeller med utilstrækkelig kontekst kan fejle).",
+      "desc": "MioAgent indbyggede dybdeforskningsservice baseret på Bocha-søgning (bemærk, at det kræver en lang kontekstmodel for at kunne bruges; modeller med utilstrækkelig kontekst kan fejle).",
       "name": "DeepResearch"
     },
     "deepchat/apple-server": {

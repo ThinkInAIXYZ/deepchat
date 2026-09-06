@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Pindahkan dan Padam Ejen",
     "moveConversation": "Pindahkan Perbualan",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Draf",
       "subagent": "Subejen"
     },
-    "deepChatTargetOnly": "Hanya ejen DeepChat boleh dipilih sebagai sasaran pemindahan. Perbualan ACP boleh dipindahkan ke DeepChat, tetapi tidak ke ACP."
+    "deepChatTargetOnly": "Hanya ejen MioAgent boleh dipilih sebagai sasaran pemindahan. Perbualan ACP boleh dipindahkan ke MioAgent, tetapi tidak ke ACP."
   },
   "deleteMessage": {
     "title": "Padam mesej ini?",

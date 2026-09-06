@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Hỏi DeepChat bất cứ điều gì, {'@'} đề cập đến các tập tin, / cho các lệnh",
+    "placeholder": "Hỏi MioAgent bất cứ điều gì, {'@'} đề cập đến các tập tin, / cho các lệnh",
     "fileArea": "Vùng tệp",
     "inputArea": "Khu vực đầu vào",
     "functionSwitch": "Chuyển đổi chức năng",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "Ghi âm cục bộ không có sẵn ở đây",
     "voiceRecognitionUnsupportedDescription": "Sử dụng tính năng này trong môi trường trình duyệt hoặc máy tính để bàn có hỗ trợ ghi âm micrô.",
     "voiceRecognitionPermissionDeniedTitle": "Truy cập micrô không khả dụng",
-    "voiceRecognitionPermissionDeniedDescription": "Cho phép DeepChat sử dụng micrô và thử lại.",
+    "voiceRecognitionPermissionDeniedDescription": "Cho phép MioAgent sử dụng micrô và thử lại.",
     "voiceRecognitionErrorTitle": "Phiên âm âm thanh không thành công",
     "voiceRecognitionErrorDescription": "Không thể hoàn tất việc chép âm thanh. Vui lòng thử lại sau.",
     "send": "Gửi",
@@ -59,7 +59,7 @@
         "agentCore": "Lõi Agent",
         "agentImageGeneration": "Tạo hình ảnh",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "Cài đặt DeepChat",
+        "deepchatSettings": "Cài đặt MioAgent",
         "yobrowser": "Trình duyệt Yo"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Chuyển sang DeepChat Agent",
-      "description": "Trước khi trò chuyện, hãy thoát khỏi ACP và quay lại luồng DeepChat tích hợp sẵn.",
+      "title": "Chuyển sang MioAgent Agent",
+      "description": "Trước khi trò chuyện, hãy thoát khỏi ACP và quay lại luồng MioAgent tích hợp sẵn.",
       "caption": "Nhấp vào nút tác nhân được đánh dấu ở thanh bên để tiếp tục."
     },
     "switchModel": {
-      "description": "Chọn mô hình bạn muốn sử dụng cho cuộc trò chuyện DeepChat đầu tiên của mình.",
+      "description": "Chọn mô hình bạn muốn sử dụng cho cuộc trò chuyện MioAgent đầu tiên của mình.",
       "caption": "Sử dụng trình chuyển đổi mô hình được đánh dấu và chọn bất kỳ mô hình nào có sẵn."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Phiên này không còn khả dụng.",
         "agent_unavailable": "Agent đã chọn không khả dụng.",
-        "deepchat_agent_required": "Cộng tác chủ động yêu cầu một DeepChat Agent.",
+        "deepchat_agent_required": "Cộng tác chủ động yêu cầu một MioAgent Agent.",
         "regular_parent_required": "Cộng tác chủ động không khả dụng trong phiên con.",
         "agent_policy_unavailable": "Không thể tải chính sách cộng tác.",
         "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng cộng tác chủ động."

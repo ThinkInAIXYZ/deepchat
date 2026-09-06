@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Переместить и удалить агента",
     "moveConversation": "Переместить беседу",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Черновик",
       "subagent": "Субагент"
     },
-    "deepChatTargetOnly": "В качестве целей перемещения можно выбирать только агентов DeepChat. Беседы ACP можно переместить в DeepChat, но не в ACP."
+    "deepChatTargetOnly": "В качестве целей перемещения можно выбирать только агентов MioAgent. Беседы ACP можно переместить в MioAgent, но не в ACP."
   },
   "deleteMessage": {
     "title": "Удалить это сообщение?",

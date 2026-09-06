@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Добро пожаловать",
-      "description": "Начнем настройку DeepChat"
+      "description": "Начнем настройку MioAgent"
     },
     "provider": {
       "title": "Провайдер моделей",
@@ -17,7 +17,7 @@
       "description": "Всё готово к работе!"
     }
   },
-  "title": "Добро пожаловать в DeepChat",
+  "title": "Добро пожаловать в MioAgent",
   "description": "Давайте завершим процесс настройки",
   "provider": {
     "select": "Выбрать провайдера",
@@ -35,7 +35,7 @@
     "back": "Назад"
   },
   "page": {
-    "title": "Добро пожаловать в DeepChat Agent",
+    "title": "Добро пожаловать в MioAgent Agent",
     "description": "Подключите провайдера моделей, чтобы начать",
     "guide": {
       "title": "Гид по настройке",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Выберите агента, чтобы начать работу",
-    "deepchatType": "Агент DeepChat",
+    "deepchatType": "Агент MioAgent",
     "acpType": "Агент ACP",
-    "manageAgents": "Управление агентами DeepChat"
+    "manageAgents": "Управление агентами MioAgent"
   }
 }

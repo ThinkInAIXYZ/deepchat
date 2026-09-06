@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Спросите DeepChat о чем угодно, {'@'} чтобы упомянуть файлы, / для команд",
+    "placeholder": "Спросите MioAgent о чем угодно, {'@'} чтобы упомянуть файлы, / для команд",
     "fileArea": "Область файлов",
     "inputArea": "Область ввода",
     "functionSwitch": "Переключатель функций",
@@ -33,7 +33,7 @@
     "voiceRecognitionUnsupportedTitle": "Текущая среда не поддерживает распознавание речи",
     "voiceRecognitionUnsupportedDescription": "Используйте эту функцию в браузере или настольной среде с поддержкой распознавания речи.",
     "voiceRecognitionPermissionDeniedTitle": "Не удалось получить доступ к микрофону",
-    "voiceRecognitionPermissionDeniedDescription": "Разрешите DeepChat использовать микрофон и попробуйте снова.",
+    "voiceRecognitionPermissionDeniedDescription": "Разрешите MioAgent использовать микрофон и попробуйте снова.",
     "voiceRecognitionErrorTitle": "Ошибка распознавания речи",
     "voiceRecognitionErrorDescription": "Не удалось завершить распознавание речи. Повторите попытку позже.",
     "send": "Отправить",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Генерация изображений",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
+        "deepchatSettings": "MioAgent Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Переключиться на агент DeepChat",
-      "description": "Перед началом чата переключитесь с ACP и вернитесь к встроенному потоку DeepChat.",
+      "title": "Переключиться на агент MioAgent",
+      "description": "Перед началом чата переключитесь с ACP и вернитесь к встроенному потоку MioAgent.",
       "caption": "Нажмите на выделенную кнопку агента на боковой панели, чтобы продолжить."
     },
     "switchModel": {
-      "description": "Выберите модель, которую хотите использовать для первого разговора в DeepChat.",
+      "description": "Выберите модель, которую хотите использовать для первого разговора в MioAgent.",
       "caption": "Используйте выделенный переключатель моделей и выберите любую доступную модель."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Этот сеанс больше недоступен.",
         "agent_unavailable": "Выбранный Agent недоступен.",
-        "deepchat_agent_required": "Для проактивного сотрудничества требуется DeepChat Agent.",
+        "deepchat_agent_required": "Для проактивного сотрудничества требуется MioAgent Agent.",
         "regular_parent_required": "Проактивное сотрудничество недоступно в дочернем сеансе.",
         "agent_policy_unavailable": "Не удалось загрузить политику сотрудничества.",
         "subagents_disabled": "Включите Subagents для этого Agent, чтобы использовать проактивное сотрудничество."

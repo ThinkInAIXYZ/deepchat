@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Velkomst",
-      "description": "Lad os begynde at konfigurere DeepChat"
+      "description": "Lad os begynde at konfigurere MioAgent"
     },
     "provider": {
       "title": "Udbyder",
@@ -17,7 +17,7 @@
       "description": "Alt er klar, og du kan starte!"
     }
   },
-  "title": "Velkommen til DeepChat",
+  "title": "Velkommen til MioAgent",
   "description": "Vi guider dig gennem opsætningen.",
   "provider": {
     "select": "Vælg en udbyder",
@@ -35,7 +35,7 @@
     "back": "Tilbage"
   },
   "page": {
-    "title": "Velkommen til DeepChat Agent",
+    "title": "Velkommen til MioAgent Agent",
     "description": "Tilslut en modeludbyder for at komme i gang",
     "guide": {
       "title": "Opsætningsguide",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Vælg en agent for at begynde at skabe",
-    "deepchatType": "DeepChat-agent",
+    "deepchatType": "MioAgent-agent",
     "acpType": "ACP-agent",
-    "manageAgents": "Administrer DeepChat-agenter"
+    "manageAgents": "Administrer MioAgent-agenter"
   }
 }

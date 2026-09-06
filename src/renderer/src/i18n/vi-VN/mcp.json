@@ -182,7 +182,7 @@
   "title": "Cài đặt MCP",
   "inmemory": {
     "Artifacts": {
-      "desc": "Sản xuất các Cổ vật phong phú hơn trong DeepChat",
+      "desc": "Sản xuất các Cổ vật phong phú hơn trong MioAgent",
       "name": "Hiện vật"
     },
     "bochaSearch": {
@@ -190,7 +190,7 @@
       "name": "Tìm kiếm Bocha"
     },
     "buildInFileSystem": {
-      "desc": "Cho phép DeepChat tương tác với hệ thống tệp cục bộ.",
+      "desc": "Cho phép MioAgent tương tác với hệ thống tệp cục bộ.",
       "name": "Hệ thống tập tin"
     },
     "braveSearch": {
@@ -210,11 +210,11 @@
       "desc": "Dịch vụ tìm kiếm cơ sở tri thức FastGPT, có thể tìm kiếm nội dung cơ sở tri thức FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "DeepChat dịch vụ prompts tùy chỉnh tích hợp sẵn",
+      "desc": "MioAgent dịch vụ prompts tùy chỉnh tích hợp sẵn",
       "name": "Prompt tùy chỉnh"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "Nghiên cứu sâu tích hợp DeepChat được hỗ trợ bởi Tìm kiếm Bocha. Các mô hình ngữ cảnh dài được khuyến khích.",
+      "desc": "Nghiên cứu sâu tích hợp MioAgent được hỗ trợ bởi Tìm kiếm Bocha. Các mô hình ngữ cảnh dài được khuyến khích.",
       "name": "Nghiên cứu sâu"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -223,10 +223,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Tìm kiếm lịch sử hội thoại",
-      "desc": "DeepChat tìm kiếm lịch sử hội thoại tích hợp cho các cuộc trò chuyện và tin nhắn trong quá khứ."
+      "desc": "MioAgent tìm kiếm lịch sử hội thoại tích hợp cho các cuộc trò chuyện và tin nhắn trong quá khứ."
     },
     "builtinKnowledge": {
-      "desc": "DeepChat tìm kiếm cơ sở kiến thức tích hợp cho các tài liệu và hướng dẫn DeepChat.",
+      "desc": "MioAgent tìm kiếm cơ sở kiến thức tích hợp cho các tài liệu và hướng dẫn MioAgent.",
       "name": "Tìm kiếm cơ sở kiến thức tích hợp"
     },
     "deepchat/apple-server": {

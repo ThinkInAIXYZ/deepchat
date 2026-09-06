@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Chuyển và xóa agent",
     "moveConversation": "Chuyển cuộc trò chuyện",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Bản nháp",
       "subagent": "Agent con"
     },
-    "deepChatTargetOnly": "Chỉ có thể chọn agent DeepChat làm đích chuyển. Cuộc trò chuyện ACP có thể chuyển sang DeepChat, nhưng không thể chuyển vào ACP."
+    "deepChatTargetOnly": "Chỉ có thể chọn agent MioAgent làm đích chuyển. Cuộc trò chuyện ACP có thể chuyển sang MioAgent, nhưng không thể chuyển vào ACP."
   },
   "deleteMessage": {
     "title": "Xóa tin nhắn này?",

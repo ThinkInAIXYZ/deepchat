@@ -173,11 +173,11 @@
     },
     "buildInFileSystem": {
       "name": "Sistema de archivos",
-      "desc": "Permita que DeepChat interactúe con el sistema de archivos local."
+      "desc": "Permita que MioAgent interactúe con el sistema de archivos local."
     },
     "Artifacts": {
       "name": "Artefactos",
-      "desc": "Produzca artefactos más ricos en DeepChat"
+      "desc": "Produzca artefactos más ricos en MioAgent"
     },
     "braveSearch": {
       "name": "Brave Search",
@@ -197,15 +197,15 @@
     },
     "builtinKnowledge": {
       "name": "Búsqueda integrada en la base de conocimientos",
-      "desc": "Búsqueda en la base de conocimientos integrada de DeepChat para documentos y guías de DeepChat."
+      "desc": "Búsqueda en la base de conocimientos integrada de MioAgent para documentos y guías de MioAgent."
     },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "Prompts personalizados",
-      "desc": "Servicio integrado de prompts personalizados de DeepChat"
+      "desc": "Servicio integrado de prompts personalizados de MioAgent"
     },
     "deepchat-inmemory/deep-research-server": {
       "name": "Investigación profunda",
-      "desc": "Investigación profunda incorporada en DeepChat impulsada por Bocha Search. Se recomiendan modelos de contexto largo."
+      "desc": "Investigación profunda incorporada en MioAgent impulsada por Bocha Search. Se recomiendan modelos de contexto largo."
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "Prompts automáticos por plantilla",
@@ -213,7 +213,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Búsqueda del historial de conversaciones",
-      "desc": "Búsqueda del historial de conversaciones integrada de DeepChat para chats y mensajes pasados."
+      "desc": "Búsqueda del historial de conversaciones integrada de MioAgent para chats y mensajes pasados."
     },
     "deepchat/apple-server": {
       "name": "macOS Asistente del sistema",

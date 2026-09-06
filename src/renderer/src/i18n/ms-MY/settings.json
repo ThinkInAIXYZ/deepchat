@@ -36,10 +36,10 @@
     "searchEngine": "enjin carian",
     "searchEngineSelect": "Pilih enjin carian",
     "searchPreview": "Pratonton carian",
-    "launchAtLoginEnabled": "Lancarkan DeepChat semasa but",
+    "launchAtLoginEnabled": "Lancarkan MioAgent semasa but",
     "autoScrollEnabled": "Tatal secara automatik apabila dijana",
     "privacyMode": "mod privasi",
-    "privacyModeDescription": "Selepas mengaktifkan mod privasi, DeepChat tidak akan memulakan permintaan berikut secara automatik:",
+    "privacyModeDescription": "Selepas mengaktifkan mod privasi, MioAgent tidak akan memulakan permintaan berikut secara automatik:",
     "privacyModeAutoUpdate": "Semakan kemas kini apl",
     "privacyModeProviderDb": "Penyedia perkhidmatan dan penyegaran metadata model",
     "privacyModeAcpRegistry": "Muat semula pendaftaran ACP dan penyegerakan ikon",
@@ -80,8 +80,8 @@
     },
     "contentProtection": "Perlindungan tayangan skrin",
     "contentProtectionDialogTitle": "Pengesahan suis perlindungan tayangan skrin",
-    "contentProtectionEnableDesc": "Menghidupkan perlindungan siaran skrin boleh menghalang perisian siaran skrin daripada menangkap tetingkap utama DeepChat untuk melindungi privasi kandungan anda. Sila ambil perhatian bahawa fungsi ini tidak akan menyembunyikan semua antara muka sepenuhnya, sila gunakannya dengan munasabah dan patuh. Selain itu, tidak semua perisian penyiaran skrin menghormati tetapan privasi pengguna. Fungsi ini mungkin gagal pada sesetengah perisian penyiaran skrin yang tidak mematuhi tetapan privasi dan tetingkap hitam mungkin kekal dalam sesetengah persekitaran.",
-    "contentProtectionDisableDesc": "Mematikan perlindungan siaran skrin akan membolehkan perisian siaran skrin menangkap tetingkap DeepChat.",
+    "contentProtectionEnableDesc": "Menghidupkan perlindungan siaran skrin boleh menghalang perisian siaran skrin daripada menangkap tetingkap utama MioAgent untuk melindungi privasi kandungan anda. Sila ambil perhatian bahawa fungsi ini tidak akan menyembunyikan semua antara muka sepenuhnya, sila gunakannya dengan munasabah dan patuh. Selain itu, tidak semua perisian penyiaran skrin menghormati tetapan privasi pengguna. Fungsi ini mungkin gagal pada sesetengah perisian penyiaran skrin yang tidak mematuhi tetapan privasi dan tetingkap hitam mungkin kekal dalam sesetengah persekitaran.",
+    "contentProtectionDisableDesc": "Mematikan perlindungan siaran skrin akan membolehkan perisian siaran skrin menangkap tetingkap MioAgent.",
     "contentProtectionRestartNotice": "Menukar tetapan ini akan menyebabkan program dimulakan semula. Adakah anda pasti mahu meneruskan?",
     "copyWithCotEnabled": "Salin maklumat COT",
     "traceDebugEnabled": "Jejaki panggilan",
@@ -94,7 +94,7 @@
     "loggingRestartNotice": "Menukar tetapan ini akan menyebabkan program dimulakan semula. Adakah anda pasti mahu meneruskan?",
     "openLogFolder": "Buka folder log",
     "notifications": "Pemberitahuan sistem",
-    "notificationsDesc": "Apabila DeepChat tiada di latar depan, pemberitahuan sistem akan dihantar jika sesi dijana.",
+    "notificationsDesc": "Apabila MioAgent tiada di latar depan, pemberitahuan sistem akan dihantar jika sesi dijana.",
     "fileMaxSize": "saiz fail maksimum",
     "fileMaxSizeHint": "Hadkan saiz muat naik maksimum satu fail",
     "defaultModel": {
@@ -191,11 +191,11 @@
       "saveFailed": "Tidak dapat menyimpan. Perubahan dikekalkan.",
       "retry": "Cuba lagi"
     },
-    "title": "DeepChat Agents",
-    "description": "Urus DeepChat Agent dan lalai sesi baharu mereka.",
+    "title": "MioAgent Agents",
+    "description": "Urus MioAgent Agent dan lalai sesi baharu mereka.",
     "builtIn": "terbina dalam",
-    "editTitle": "Edit DeepChat Agent",
-    "createTitle": "DeepChat Agent baharu",
+    "editTitle": "Edit MioAgent Agent",
+    "createTitle": "MioAgent Agent baharu",
     "unnamed": "Agent yang tidak dinamakan",
     "name": "nama",
     "namePlaceholder": "Contohnya Writer / Research / Translate",
@@ -204,7 +204,7 @@
     "descriptionPlaceholder": "Pilihan, digunakan untuk menerangkan tujuan Agent ini",
     "avatarTitle": "avatar",
     "avatarDefault": "lalai",
-    "avatarDefaultDesc": "DeepChat menggunakan ikon lalai, dan Agent lain menggunakan avatar teks.",
+    "avatarDefaultDesc": "MioAgent menggunakan ikon lalai, dan Agent lain menggunakan avatar teks.",
     "avatarLucide": "ikon Lucide",
     "avatarLucideDesc": "Pilih daripada ikon Lucide dan tetapkan warna terang/gelap masing-masing.",
     "avatarMonogram": "Avatar teks",
@@ -258,10 +258,10 @@
     "outputLimitsCommandHint": "Pratonton latar depan untuk exec dan skrip kemahiran.",
     "compactionTitle": "pemampatan automatik",
     "compactionEnabled": "Dayakan pemampatan automatik",
-    "compactionDescription": "Tetapan ini hanya mempengaruhi sesi DeepChat yang baru dibuat berikutnya.",
+    "compactionDescription": "Tetapan ini hanya mempengaruhi sesi MioAgent yang baru dibuat berikutnya.",
     "compactionThreshold": "ambang pencetus",
     "compactionRetainPairs": "Simpan mesej terbaharu",
-    "deleteConfirm": "Adakah anda pasti mahu memadamkan Agent \"{name}\"? Sesi sejarahnya secara automatik kembali kepada DeepChat terbina dalam.",
+    "deleteConfirm": "Adakah anda pasti mahu memadamkan Agent \"{name}\"? Sesi sejarahnya secara automatik kembali kepada MioAgent terbina dalam.",
     "memoryTitle": "Memori jangka panjang",
     "memoryEnabled": "Dayakan memori jangka panjang",
     "memoryDescription": "Benarkan ejen ini mengingati fakta yang berkekalan merentas sesi dan membangunkan model diri. Dimatikan secara lalai demi privasi.",
@@ -495,7 +495,7 @@
       "empty": "Pada masa ini tiada Hook, klik pada penjuru kanan sebelah atas untuk mencipta yang baharu.",
       "defaultName": "Hook {index}",
       "guideTitle": "Arahan penggunaan",
-      "guideDescription": "Selepas peristiwa yang diperiksa dicetuskan, DeepChat akan melaksanakan arahan ini. Peristiwa semasa boleh dibaca melalui stdin JSON, pembolehubah persekitaran dan ruang letak baris arahan.",
+      "guideDescription": "Selepas peristiwa yang diperiksa dicetuskan, MioAgent akan melaksanakan arahan ini. Peristiwa semasa boleh dibaca melalui stdin JSON, pembolehubah persekitaran dan ruang letak baris arahan.",
       "deliveryTitle": "Kaedah pemindahan parameter",
       "deliveryStdin": "payload yang lengkap akan ditulis sebagai JSON kepada stdin.",
       "deliveryPlaceholder": "Pemegang tempat baris perintah boleh digunakan terus pada baris arahan.",
@@ -590,7 +590,7 @@
       "summaryManualOnly": "Masih terdapat isu {manual} yang memerlukan pemprosesan manual",
       "manualHint": "Masih terdapat isu {count} yang belum dibetulkan secara automatik dan memerlukan pemprosesan manual.",
       "toastSuggestedTitle": "Adalah disyorkan untuk membaiki pangkalan data",
-      "toastSuggestedDescription": "DeepChat telah mengesan masalah struktur pangkalan data ({reason}) dan kini boleh melakukan pembaikan pangkalan data.",
+      "toastSuggestedDescription": "MioAgent telah mengesan masalah struktur pangkalan data ({reason}) dan kini boleh melakukan pembaikan pangkalan data.",
       "toastAction": "untuk membaiki",
       "toastHealthyTitle": "Struktur pangkalan data adalah normal",
       "toastHealthyDescription": "Tiada isu schema ditemui yang perlu diperbaiki.",
@@ -626,7 +626,7 @@
       "newPassword": "Kata laluan SQLite baharu",
       "confirmPassword": "Sahkan Kata Laluan",
       "passwordMismatch": "Kata laluan yang dimasukkan dua kali tidak konsisten",
-      "systemCredentialStore": "Apabila storan selamat sistem tersedia, DeepChat menyimpan kata laluan SQLite yang disulitkan ke stor bukti kelayakan sistem (seperti macOS Keychain, Windows Credential Vault atau Linux secret store). Selepas buka kunci awal berjaya, pelancaran berikutnya biasanya dibuka secara automatik; anda hanya perlu memasukkan kunci penyulitan semula apabila data dipindahkan, bukti kelayakan sistem hilang atau tidak boleh dinyahsulit, dan storan selamat tidak tersedia.",
+      "systemCredentialStore": "Apabila storan selamat sistem tersedia, MioAgent menyimpan kata laluan SQLite yang disulitkan ke stor bukti kelayakan sistem (seperti macOS Keychain, Windows Credential Vault atau Linux secret store). Selepas buka kunci awal berjaya, pelancaran berikutnya biasanya dibuka secara automatik; anda hanya perlu memasukkan kunci penyulitan semula apabila data dipindahkan, bukti kelayakan sistem hilang atau tidak boleh dinyahsulit, dan storan selamat tidak tersedia.",
       "safeStorageUnavailable": "Electron safeStorage tidak tersedia pada sistem semasa. Setelah didayakan, anda perlu memasukkan kata laluan secara manual setiap kali anda bermula.",
       "enableButton": "Dayakan penyulitan",
       "changeButton": "Tukar kata laluan",
@@ -710,7 +710,7 @@
       "entryDescription": "Imbas konfigurasi provider setempat untuk CC Switch, Alma, Cherry Studio, Hermes dan OpenClaw untuk memindahkan senarai kunci dan model dengan cepat.",
       "entryButton": "Import dari Agent lain",
       "dialogTitle": "Import dari Agent lain",
-      "dialogDescription": "Mula-mula pilih aplikasi yang dikesan, dan kemudian sahkan provider untuk diimport ke dalam DeepChat satu demi satu.",
+      "dialogDescription": "Mula-mula pilih aplikasi yang dikesan, dan kemudian sahkan provider untuk diimport ke dalam MioAgent satu demi satu.",
       "toastTitle": "Import Provider selesai",
       "toastDescription": "{count} provider telah diimport.",
       "steps": {
@@ -719,23 +719,23 @@
         "done": "Selesai"
       },
       "scanningTitle": "Mengimbas dipasang Agent",
-      "scanningDescription": "DeepChat hanya membaca fail konfigurasi setempat yang diketahui dan tidak memuat naik sebarang data.",
+      "scanningDescription": "MioAgent hanya membaca fail konfigurasi setempat yang diketahui dan tidak memuat naik sebarang data.",
       "scanFailedTitle": "Imbasan gagal",
       "sourcesTitle": "Sumber dikesan",
-      "sourcesDescription": "Anda boleh memilih satu atau lebih Agent, dan DeepChat akan memprosesnya mengikut susunan senarai.",
+      "sourcesDescription": "Anda boleh memilih satu atau lebih Agent, dan MioAgent akan memprosesnya mengikut susunan senarai.",
       "selectedSources": "{selected}/{total} dipilih",
       "noSourcesTitle": "Tiada konfigurasi provider yang boleh diimport ditemui",
       "noSourcesDescription": "Sila pasang Agent yang disokong dahulu, atau konfigurasikan kekunci provider dalam Agent yang sepadan.",
       "providersFound": "{count} provider",
       "sourceProgress": "{current}/{total}",
-      "overwriteNote": "Jika berbilang provider yang dipilih dipetakan kepada DeepChat provider yang sama, sumber yang kemudian akan menimpa sumber yang lebih awal.",
+      "overwriteNote": "Jika berbilang provider yang dipilih dipetakan kepada MioAgent provider yang sama, sumber yang kemudian akan menimpa sumber yang lebih awal.",
       "noProvidersTitle": "Tiada data provider dalam sumber ini",
       "noProvidersDescription": "Agent telah dipilih, tetapi tiada entri provider yang boleh diimport telah diselesaikan.",
       "apiKey": "Kunci {value}",
       "noModels": "Tiada senarai model",
       "modelsImported": "model {count}",
       "importingTitle": "Mengimport provider",
-      "importingDescription": "DeepChat sedang menulis provider terpilih dan entri model tersuai.",
+      "importingDescription": "MioAgent sedang menulis provider terpilih dan entri model tersuai.",
       "doneTitle": "Keadaan am import",
       "doneDescription": "{count} provider telah diimport. Keputusan untuk setiap provider boleh dilihat di bawah.",
       "badges": {
@@ -753,14 +753,14 @@
         "unsupported": "Tidak disokong"
       },
       "warnings": {
-        "already_configured": "Ia sudah dikonfigurasikan dalam DeepChat dan tidak akan dipilih secara lalai.",
+        "already_configured": "Ia sudah dikonfigurasikan dalam MioAgent dan tidak akan dipilih secara lalai.",
         "missing_api_key": "Tiada API Key atau endpoint yang diperlukan.",
-        "unsupported_provider": "DeepChat tidak dapat mengimport provider ini buat sementara waktu.",
+        "unsupported_provider": "MioAgent tidak dapat mengimport provider ini buat sementara waktu.",
         "overwrites_previous_selection": "Pilihan ini bercanggah dengan sumber sebelumnya.",
-        "credential_only_import": "Hanya API Key diimport, DeepChat mengekalkan endpoint dan runtime terbina dalam provider."
+        "credential_only_import": "Hanya API Key diimport, MioAgent mengekalkan endpoint dan runtime terbina dalam provider."
       },
       "conflicts": {
-        "overridesPrevious": "Pemilihan ini akan menimpa DeepChat provider yang dipilih sebelum ini dengan nama yang sama.",
+        "overridesPrevious": "Pemilihan ini akan menimpa MioAgent provider yang dipilih sebelum ini dengan nama yang sama.",
         "overwrittenByLater": "Sumber yang dipilih kemudiannya akan menulis ganti provider ini."
       },
       "summary": {
@@ -873,7 +873,7 @@
       "recordingStartedAtDescription": "Masa rekod usage terawal dalam papan kanban semasa.",
       "withDeepChatDaysLabel": "Bilangan hari persahabatan",
       "withDeepChatDaysValue": "{days} hari",
-      "withDeepChatDaysSentence": "Anda telah menghabiskan hari {days} anda dengan DeepChat",
+      "withDeepChatDaysSentence": "Anda telah menghabiskan hari {days} anda dengan MioAgent",
       "withDeepChatDaysDescription": "Berdasarkan rekod penggunaan terawal anda: {date}.",
       "withDeepChatDaysDescriptionUnavailable": "Tiada rekod penggunaan lagi.",
       "tokenUsage": "Penggunaan Token",
@@ -882,7 +882,7 @@
       "nostalgiaSessionsValue": "Sesi {count}",
       "nostalgiaMessagesValue": "Mesej {count}",
       "nostalgiaDaysDetailLabel": "Berjalan bersama-sama",
-      "nostalgiaDaysDetail": "Anda telah menghabiskan hari {days} anda dengan DeepChat.",
+      "nostalgiaDaysDetail": "Anda telah menghabiskan hari {days} anda dengan MioAgent.",
       "nostalgiaSessionsDetailLabel": "Jumlah bilangan sesi",
       "nostalgiaSessionsDetail": "Anda telah mengadakan sesi {count} bersama-sama.",
       "nostalgiaMessagesDetailLabel": "Jumlah bilangan mesej",
@@ -915,7 +915,7 @@
     },
     "rtk": {
       "title": "RTK Jimat",
-      "description": "Tunjukkan RTK Dalam pautan pelaksanaan arahan asli DeepChat, anggarkan bilangan token yang belum memasuki konteks model disekat.",
+      "description": "Tunjukkan RTK Dalam pautan pelaksanaan arahan asli MioAgent, anggarkan bilangan token yang belum memasuki konteks model disekat.",
       "actions": {
         "retry": "Cuba semula pengesanan"
       },
@@ -926,8 +926,8 @@
         "unhealthy": "Tidak tersedia"
       },
       "descriptionDisabled": "RTK telah ditutup dalam sesi aplikasi semasa dan arahan akan terus mengikut laluan pelaksanaan asal.",
-      "descriptionChecking": "DeepChat sedang menguji sama ada RTK boleh berjalan secara normal dalam persekitaran semasa.",
-      "descriptionHealthy": "RTK telah disambungkan kepada pelaksanaan arahan asli DeepChat.",
+      "descriptionChecking": "MioAgent sedang menguji sama ada RTK boleh berjalan secara normal dalam persekitaran semasa.",
+      "descriptionHealthy": "RTK telah disambungkan kepada pelaksanaan arahan asli MioAgent.",
       "descriptionUnhealthy": "RTK Pemeriksaan kesihatan permulaan gagal dan telah dilumpuhkan secara automatik dalam sesi aplikasi semasa.",
       "sourceLabel": "Sumber masa jalan: {source}",
       "source": {
@@ -1035,7 +1035,7 @@
       },
       "functionCall": {
         "label": "panggilan fungsi",
-        "description": "Sama ada model itu menyokong panggilan fungsi secara asli (DeepChat akan secara automatik mensimulasikan panggilan fungsi selepas mematikan pilihan ini)"
+        "description": "Sama ada model itu menyokong panggilan fungsi secara asli (MioAgent akan secara automatik mensimulasikan panggilan fungsi selepas mematikan pilihan ini)"
       },
       "reasoning": {
         "label": "kebolehan menaakul",
@@ -1510,7 +1510,7 @@
     "loggingIn": "Log masuk...",
     "githubCopilotClientId": "Client ID tersuai",
     "githubCopilotClientIdHint": "Pilihan, biarkan kosong untuk menggunakan Client ID lalai, yang hanya menjejaskan kebenaran GitHub Copilot.",
-    "githubCopilotLoginTip": "Klik untuk membenarkan DeepChat mengakses langganan GitHub Copilot anda",
+    "githubCopilotLoginTip": "Klik untuk membenarkan MioAgent mengakses langganan GitHub Copilot anda",
     "openaiCodexAuth": "Pengesahan OpenAI Codex",
     "openaiCodexConnected": "OpenAI Codex Disambungkan",
     "openaiCodexNotConnected": "OpenAI Codex Tidak Disambungkan",
@@ -1538,7 +1538,7 @@
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",
     "bedrockLimitTip": "*Hanya menyokong model Anthropic Claude (termasuk model Opus, Sonnet, Haiku)",
-    "bedrockVerifyTip": "DeepChat menggunakan model Claude 3.5 Sonnet untuk pengesahan. Jika anda tidak mempunyai kebenaran memanggil untuk model ini, pengesahan akan gagal. Ini tidak menjejaskan penggunaan model lain.",
+    "bedrockVerifyTip": "MioAgent menggunakan model Claude 3.5 Sonnet untuk pengesahan. Jika anda tidak mempunyai kebenaran memanggil untuk model ini, pengesahan akan gagal. Ini tidak menjejaskan penggunaan model lain.",
     "center": {
       "title": "Provider Center",
       "description": "Urus sambungan pembekal, model dan konfigurasi lanjutan.",
@@ -1559,7 +1559,7 @@
     },
     "openaiCodexPasteCallback": "Tampal URL panggil balik",
     "openaiCodexCallbackTitle": "Lengkapkan pengesahan",
-    "openaiCodexCallbackDescription": "Selepas pelayar selesai, kembali ke DeepChat. Jika DeepChat tidak dikemas kini, tampal URL panggil balik penuh di sini.",
+    "openaiCodexCallbackDescription": "Selepas pelayar selesai, kembali ke MioAgent. Jika MioAgent tidak dikemas kini, tampal URL panggil balik penuh di sini.",
     "openaiCodexCallbackPlaceholder": "Tampal URL panggil balik penuh",
     "openaiCodexCompleteAuthentication": "Lengkapkan pengesahan",
     "xaiGrokAuth": "xAI Grok OAuth",
@@ -1880,7 +1880,7 @@
       "removeCredential": "Alih keluar kelayakan tersimpan",
       "credentialConfiguredPlaceholder": "Kelayakan terlindung telah dikonfigurasikan",
       "credentialConfigured": "Kelayakan dikonfigurasikan",
-      "credentialMemoryOnly": "Kelayakan ini disimpan dalam memori sahaja dan akan hilang apabila DeepChat ditutup.",
+      "credentialMemoryOnly": "Kelayakan ini disimpan dalam memori sahaja dan akan hilang apabila MioAgent ditutup.",
       "credentialRemoveError": "Gagal mengalih keluar kelayakan terlindung",
       "credentialSaveError": "Gagal menyimpan kelayakan terlindung"
     },
@@ -1957,7 +1957,7 @@
       "redetectFailed": "Ujian semula gagal",
       "redetectFailedDesc": "Tidak dapat mengesan semula sumber optimum, konfigurasi lalai akan digunakan"
     },
-    "managedServerReadOnly": "Perkhidmatan pengehosan DeepChat",
+    "managedServerReadOnly": "Perkhidmatan pengehosan MioAgent",
     "managedServerReadOnlyDesc": "Sila uruskan pengaktifan dan kebenaran dalam tetapan pemalam yang sepadan",
     "center": {
       "title": "Pusat MCP",
@@ -1979,7 +1979,7 @@
     "authenticate": "Sahkan",
     "authFailed": "Pengesahan gagal",
     "authCallbackTitle": "Lengkapkan pengesahan",
-    "authCallbackDescription": "Selepas pelayar selesai, kembali ke DeepChat. Jika DeepChat tidak dikemas kini, tampal URL panggil balik penuh di sini.",
+    "authCallbackDescription": "Selepas pelayar selesai, kembali ke MioAgent. Jika MioAgent tidak dikemas kini, tampal URL panggil balik penuh di sini.",
     "authCallbackPlaceholder": "Tampal URL panggil balik penuh",
     "completeAuthentication": "Lengkapkan pengesahan",
     "saveSuccess": "Konfigurasi disimpan",
@@ -2084,7 +2084,7 @@
   },
   "acp": {
     "title": "ACP Agent",
-    "description": "Urus ACP Agent tempatan yang dimulakan oleh DeepChat.",
+    "description": "Urus ACP Agent tempatan yang dimulakan oleh MioAgent.",
     "enabledTitle": "Dayakan ACP",
     "enabledDescription": "Selepas mendayakan, ACP Agent yang dikonfigurasikan akan muncul dalam senarai model.",
     "enableToAccess": "Agent tidak boleh dikonfigurasikan sehingga ACP didayakan.",
@@ -2122,7 +2122,7 @@
     "registryInstallAction": "Pasang",
     "registryUninstallAction": "nyahpasang",
     "registryUninstallConfirm": "Nyahpasang \"{name}\"?",
-    "registryUninstallDescription": "DeepChat melumpuhkan Agent dan membersihkan data pemasangan yang dihoskan secara setempat apabila berkenaan, dan masih boleh dipasang semula dalam ACP Registry kemudian.",
+    "registryUninstallDescription": "MioAgent melumpuhkan Agent dan membersihkan data pemasangan yang dihoskan secara setempat apabila berkenaan, dan masih boleh dipasang semula dalam ACP Registry kemudian.",
     "registryUninstallFailed": "Gagal menyahpasang Agent",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Cari, tapis dan pasang ACP Agent. Selepas pemasangan selesai, kembali ke halaman tetapan untuk konfigurasi.",
@@ -2201,7 +2201,7 @@
       "openTerminal": "Open terminal",
       "cancelSignIn": "Cancel sign-in",
       "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
-      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "noMethods": "The agent did not provide an authentication method that MioAgent can use.",
       "status": {
         "required": "Authentication required",
         "running": "Signing in",
@@ -2365,20 +2365,20 @@
       "env": "Pembolehubah persekitaran {count}",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enable": "Enable in DeepChat",
-      "disable": "Disable in DeepChat",
+      "enable": "Enable in MioAgent",
+      "disable": "Disable in MioAgent",
       "viewDetails": "Lihat butiran",
       "edit": "Edit",
       "installToAgent": "Pasang ke Agent"
     },
     "enable": {
       "success": "Skill Enabled",
-      "successMessage": "Skill {name} is enabled in DeepChat",
+      "successMessage": "Skill {name} is enabled in MioAgent",
       "failed": "Enable Failed"
     },
     "disable": {
       "success": "Skill Disabled",
-      "successMessage": "Skill {name} is disabled in DeepChat",
+      "successMessage": "Skill {name} is disabled in MioAgent",
       "failed": "Disable Failed"
     },
     "edit": {
@@ -2424,7 +2424,7 @@
     "agentImport": {
       "menuItem": "Import daripada Agent luaran",
       "title": "Import daripada Agent luaran",
-      "description": "Import Skills yang telah disahkan ke DeepChat. Dayakan Agents daripada pratonton setiap Skill.",
+      "description": "Import Skills yang telah disahkan ke MioAgent. Dayakan Agents daripada pratonton setiap Skill.",
       "resultPartial": "Import selesai dengan ralat",
       "resultSuccess": "Import selesai",
       "sourceTitle": "Agent sumber",
@@ -2539,7 +2539,7 @@
     },
     "git": {
       "title": "Git",
-      "description": "Imbas repositori Git dan pasang skill yang dipilih ke DeepChat.",
+      "description": "Imbas repositori Git dan pasang skill yang dipilih ke MioAgent.",
       "placeholder": "https://github.com/user/repo",
       "scan": "Imbas",
       "detectedFormat": "Format dikesan:",
@@ -2555,7 +2555,7 @@
       "rename": "Namakan semula skill baharu",
       "overwrite": "Ganti yang sedia ada",
       "skip": "Langkau yang sedia ada",
-      "install": "Pasang ke DeepChat",
+      "install": "Pasang ke MioAgent",
       "failed": "Pemasangan Git gagal",
       "success": "Pemasangan Git selesai",
       "successMessage": "{count} dipasang, {failed} gagal",
@@ -2614,8 +2614,8 @@
       "installToAgent": "Pasang ke Agent",
       "enabled": "Didayakan",
       "disabled": "Dilumpuhkan",
-      "enable": "Dayakan dalam DeepChat",
-      "disable": "Lumpuhkan dalam DeepChat",
+      "enable": "Dayakan dalam MioAgent",
+      "disable": "Lumpuhkan dalam MioAgent",
       "preview": "Pratonton",
       "edit": "Edit",
       "delete": "Padam",
@@ -2630,7 +2630,7 @@
     },
     "installToAgent": {
       "title": "Pasang {name} ke Agent",
-      "description": "Mencipta pautan milik DeepChat untuk skill ini dalam direktori skills agent setempat.",
+      "description": "Mencipta pautan milik MioAgent untuk skill ini dalam direktori skills agent setempat.",
       "failed": "Gagal memasang ke Agent",
       "emptyAgents": "Tiada agent setempat tersedia dikesan.",
       "target": "Agent sasaran",
@@ -2689,7 +2689,7 @@
       "moveBottom": "Alih ke paling bawah",
       "archive": "Arkibkan",
       "restore": "Pulihkan",
-      "remove": "Alih keluar daripada DeepChat"
+      "remove": "Alih keluar daripada MioAgent"
     },
     "badges": {
       "default": "lalai",
@@ -2722,7 +2722,7 @@
     "confirm": {
       "archiveTitle": "Arkibkan \"{name}\"?",
       "archiveDescription": "Ia akan keluar daripada senarai direktori aktif dan pemilih chat baharu, sementara sesi, mesej dan folder sebenar kekal utuh.",
-      "removeTitle": "Alih keluar \"{name}\" daripada DeepChat?",
+      "removeTitle": "Alih keluar \"{name}\" daripada MioAgent?",
       "removeDescription": "Folder sebenar dan mesej tidak dipadam. Sesi biasa dialihkan kepada Tiada projek; rekod direktori kerja ACP disimpan supaya sesi sedia ada boleh disambung semula."
     }
   },
@@ -2758,7 +2758,7 @@
       "accessRule1": "Authorize yourself with /pair [code] in a direct bot chat, or use OAuth scan authorization for a manually configured app.",
       "accessRule2": "In groups and topics, the bot only reacts when an authorized user {'@'} mentions it.",
       "setupGuideTitle": "Finish app setup from the Echo Bot guide",
-      "setupGuideDescription": "DeepChat can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
+      "setupGuideDescription": "MioAgent can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
       "setupStepCreateApp": "Create a self-built app and add the bot capability.",
       "setupStepPermissions": "Grant im:message.p2p_msg:readonly, im:message.group_at_msg:readonly, im:message:send_as_bot, plus the user-info permission required for scan binding.",
       "setupStepEvents": "Use long-connection event subscription and add im.message.receive_v1.",
@@ -2798,18 +2798,18 @@
       "installSessionMissing": "Install session is missing or has ended.",
       "installUserCode": "User code: {code}",
       "manualSetupTitle": "Manual app setup fallback",
-      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. DeepChat no longer requires the local OAuth redirect URI for the primary install path.",
+      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. MioAgent no longer requires the local OAuth redirect URI for the primary install path.",
       "openInstallWeb": "Open web install",
       "showInstallQr": "QR install",
       "installQrTitle": "Scan official install QR",
       "installQrDescription": "This QR code is generated directly from the official install link returned by Feishu / Lark. Scan it in the mobile client and keep this dialog open.",
       "installQrAlt": "Feishu / Lark install QR code",
       "userAuthTitle": "Authorize remote-control users",
-      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control DeepChat. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
+      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control MioAgent. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
       "pairAuthTitle": "/pair command",
       "pairAuthDescription": "Klik Pasangkan di bawah, kemudian hantar kod /pair dalam sembang terus dengan bot. Ini ialah kaedah kebenaran yang disyorkan dan masih berfungsi dengan aplikasi PersonalAgent yang dipasang.",
       "streamingCards": "Kad Strim CardKit",
-      "streamingCardsDescription": "Strim balasan AI melalui Feishu / Lark CardKit dalam masa nyata. Memerlukan keizinan im:message dan cardkit:card:write; DeepChat akan kembali ke mesej biasa jika CardKit gagal."
+      "streamingCardsDescription": "Strim balasan AI melalui Feishu / Lark CardKit dalam masa nyata. Memerlukan keizinan im:message dan cardkit:card:write; MioAgent akan kembali ke mesej biasa jika CardKit gagal."
     },
     "discord": {
       "title": "Discord",
@@ -2817,7 +2817,7 @@
       "botToken": "Bot Token",
       "botTokenPlaceholder": "Discord Bot Token",
       "remoteControlDescription": "Alat kawalan jauh Discord menggunakan proses Bot Token, Gateway dan REST bebas.",
-      "accessRule1": "Hantar /pair [kod berpasangan] dalam sembang peribadi atau saluran untuk membenarkan DM atau saluran semasa kepada DeepChat.",
+      "accessRule1": "Hantar /pair [kod berpasangan] dalam sembang peribadi atau saluran untuk membenarkan DM atau saluran semasa kepada MioAgent.",
       "accessRule2": "Mesej saluran hanya akan memasuki perbualan apabila bot disebut, untuk mengelakkan salah pengendalian sembang biasa."
     },
     "sections": {
@@ -2846,7 +2846,7 @@
       "pairDialogInstructionFeishu": "Send this command in a Feishu / Lark bot direct chat; it adds the sender to the same authorized-principal list used by scan authorization:",
       "pairDialogInstructionDiscord": "Pergi ke sembang peribadi atau saluran sasaran robot Discord dan hantar arahan ini:",
       "bindingsDialogTitle": "{channel} mengikat",
-      "bindingsDialogDescription": "Keluarkan hubungan mengikat antara portal jauh dan sesi DeepChat satu demi satu.",
+      "bindingsDialogDescription": "Keluarkan hubungan mengikat antara portal jauh dan sesi MioAgent satu demi satu.",
       "bindingsEmpty": "Pada masa ini tiada sesi terikat.",
       "pairingSuccessTitle": "Berganding berjaya",
       "pairingSuccessDescription": "Senarai pengetua berpasangan telah dimuat semula.",
@@ -2855,7 +2855,7 @@
       "authorizedPrincipalsDescription": "Akaun {channel} ini diberi kuasa untuk menggandingkan dan mengendalikan sesi.",
       "authorizedPrincipalsEmpty": "Pada masa ini tiada pengetua yang diberi kuasa.",
       "sessionBindingsTitle": "mengikat sesi",
-      "sessionBindingsDescription": "Setiap portal jauh di bawah terikat pada sesi DeepChat pada masa ini.",
+      "sessionBindingsDescription": "Setiap portal jauh di bawah terikat pada sesi MioAgent pada masa ini.",
       "acpDefaultWorkdirRequiredTitle": "Direktori lalai diperlukan",
       "acpDefaultWorkdirRequiredDescription": "Ejen ACP memerlukan ruang kerja tempatan. Pilih direktori lalai sebelum menyimpan."
     },
@@ -2909,8 +2909,8 @@
     "weixinIlink": {
       "title": "WeChat iLink",
       "description": "Imbas kod QR untuk mengakses WeChat iLink Bot rasmi, dan gunakan penyesuai terbina dalam untuk mengambil alih sesi kawalan jauh.",
-      "loginDescription": "Selepas mengklik butang di bawah, DeepChat akan membuka tetingkap log masuk WeChat rasmi. Sila lengkapkan kebenaran pengimbasan kod iLink Bot dalam tetingkap ini. Akaun yang berjaya disambungkan akan ditambahkan secara automatik ke senarai di bawah.",
-      "ownerOnlyNotice": "Versi pertama semasa hanya membenarkan pemilik akaun yang sepadan mengimbas kod QR untuk log masuk untuk mengawal DeepChat.",
+      "loginDescription": "Selepas mengklik butang di bawah, MioAgent akan membuka tetingkap log masuk WeChat rasmi. Sila lengkapkan kebenaran pengimbasan kod iLink Bot dalam tetingkap ini. Akaun yang berjaya disambungkan akan ditambahkan secara automatik ke senarai di bawah.",
+      "ownerOnlyNotice": "Versi pertama semasa hanya membenarkan pemilik akaun yang sepadan mengimbas kod QR untuk log masuk untuk mengawal MioAgent.",
       "connectButton": "Buka tetingkap log masuk",
       "refreshQrCode": "Buka semula tetingkap log masuk",
       "loginDialogTitle": "Sambung ke WeChat iLink",
@@ -2938,11 +2938,11 @@
   },
   "plugins": {
     "title": "pemalam",
-    "officialOnly": "Urus status pengaktifan pemalam rasmi terbina dalam versi DeepChat semasa",
+    "officialOnly": "Urus status pengaktifan pemalam rasmi terbina dalam versi MioAgent semasa",
     "refresh": "segarkan semula",
     "empty": "Tiada pemalam rasmi tersedia lagi",
     "emptyTitle": "Tiada pemalam terbina dalam lagi",
-    "emptyDescription": "Platform semasa tidak mempunyai pemalam rasmi terbina dalam dalam versi DeepChat ini.",
+    "emptyDescription": "Platform semasa tidak mempunyai pemalam rasmi terbina dalam dalam versi MioAgent ini.",
     "loadFailed": "Pemuatan pemalam gagal",
     "actionFailed": "Operasi pemalam gagal",
     "install": "Pasang",
@@ -2953,7 +2953,7 @@
     "openSettings": "sediakan",
     "testRuntime": "Uji runtime",
     "retryRuntime": "Cuba semula runtime",
-    "quarantineDescription": "DeepChat menghentikan runtime ini selepas keluar secara tidak bersih. Cuba semula hanya apabila desktop selamat untuk dikawal.",
+    "quarantineDescription": "MioAgent menghentikan runtime ini selepas keluar secara tidak bersih. Cuba semula hanya apabila desktop selamat untuk dikawal.",
     "runtime": "masa jalan",
     "runtimeState": "Keadaan",
     "version": "Versi",
@@ -2987,7 +2987,7 @@
       "searchPlaceholder": "Tetapan carian, pembekal perkhidmatan, model, Agent, MCP...",
       "providers": "Providers",
       "mcp": "MCP",
-      "deepchatAgents": "DeepChat Agents",
+      "deepchatAgents": "MioAgent Agents",
       "data": "Masa sandaran terakhir",
       "enabledCount": "{count} didayakan",
       "runningCount": "{count} berjalan",
@@ -3102,7 +3102,7 @@
   },
   "memory": {
     "description": "Semak, konfigur dan urus apa yang diingati oleh setiap ejen merentas sesi. Memori berasingan bagi setiap ejen.",
-    "empty": "Belum ada ejen DeepChat tersedia.",
+    "empty": "Belum ada ejen MioAgent tersedia.",
     "agentPicker": "Ejen",
     "tabConfig": "Konfigurasi",
     "tabManage": "Urus",
@@ -3267,7 +3267,7 @@
     }
   },
   "pluginsHub": {
-    "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
+    "subtitle": "Work with MioAgent across skills, MCP servers, official plugins, and remote channels.",
     "available": "Plugin tersedia",
     "add": "Tambah",
     "manage": "Manage",
@@ -3275,11 +3275,11 @@
     "emptySearch": "Tiada plugin tersedia.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
-    "cuaDescription": "Plugin ComputerUse DeepChat yang dilaksanakan berdasarkan projek trycua/cua.",
+    "cuaDescription": "Plugin ComputerUse MioAgent yang dilaksanakan berdasarkan projek trycua/cua.",
     "acpUnavailableTitle": "Pemalam tidak tersedia untuk ejen ACP",
-    "acpUnavailableDescription": "Ejen ACP mengurus alat dan sambungan dalam persekitaran masa jalan mereka sendiri. Pilih ejen DeepChat untuk menggunakan pemalam.",
-    "agentScopeUnsupported": "Sambungan khusus ejen hanya tersedia untuk ejen DeepChat.",
-    "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: pemasangan, pengaktifan dan status proses plugin rasmi dikongsi oleh semua ejen DeepChat.",
+    "acpUnavailableDescription": "Ejen ACP mengurus alat dan sambungan dalam persekitaran masa jalan mereka sendiri. Pilih ejen MioAgent untuk menggunakan pemalam.",
+    "agentScopeUnsupported": "Sambungan khusus ejen hanya tersedia untuk ejen MioAgent.",
+    "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: pemasangan, pengaktifan dan status proses plugin rasmi dikongsi oleh semua ejen MioAgent.",
     "scopeCurrentAgent": "Halaman ini ialah polisi ejen: perubahan hanya menjejaskan ketersediaan Skills/MCP untuk “{agent}”, bukan pemasangan global.",
     "currentAgentFallback": "ejen semasa"
   },
@@ -3304,13 +3304,13 @@
     }
   },
   "toolchains": {
-    "description": "Pilih dari mana DeepChat mendapatkan Node dan uv. Sumber tidak bertukar sendiri selepas dipilih.",
+    "description": "Pilih dari mana MioAgent mendapatkan Node dan uv. Sumber tidak bertukar sendiri selepas dipilih.",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
     "source": "Sumber",
     "sources": {
       "bundled": "Dibundel dengan apl",
-      "managed": "Dipasang oleh DeepChat",
+      "managed": "Dipasang oleh MioAgent",
       "system": "Pemasangan sistem",
       "custom": "Laluan tersuai",
       "unconfigured": "Tidak dikonfigurasi",

@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "ברוכים הבאים",
-      "description": "בוא נתחיל להגדיר את DeepChat"
+      "description": "בוא נתחיל להגדיר את MioAgent"
     },
     "provider": {
       "title": "ספק",
@@ -17,7 +17,7 @@
       "description": "הכל מוכן ואפשר לצאת לדרך!"
     }
   },
-  "title": "ברוכים הבאים ל-DeepChat",
+  "title": "ברוכים הבאים ל-MioAgent",
   "description": "בוא נעבור יחד על ההתקנה.",
   "provider": {
     "select": "בחר ספק",
@@ -35,7 +35,7 @@
     "back": "חזור"
   },
   "page": {
-    "title": "ברוכים הבאים ל-DeepChat Agent",
+    "title": "ברוכים הבאים ל-MioAgent Agent",
     "description": "חברו ספק מודלים כדי להתחיל",
     "guide": {
       "title": "מדריך הגדרה",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "בחרו סוכן כדי להתחיל ליצור",
-    "deepchatType": "סוכן DeepChat",
+    "deepchatType": "סוכן MioAgent",
     "acpType": "סוכן ACP",
-    "manageAgents": "ניהול סוכני DeepChat"
+    "manageAgents": "ניהול סוכני MioAgent"
   }
 }

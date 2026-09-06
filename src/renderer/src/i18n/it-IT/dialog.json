@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Sposta ed elimina agente",
     "moveConversation": "Sposta conversazione",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Bozza",
       "subagent": "Sottoagente"
     },
-    "deepChatTargetOnly": "Solo gli agenti DeepChat possono essere selezionati come destinazioni di spostamento. Le conversazioni ACP possono essere spostate in DeepChat, ma non in ACP."
+    "deepChatTargetOnly": "Solo gli agenti MioAgent possono essere selezionati come destinazioni di spostamento. Le conversazioni ACP possono essere spostate in MioAgent, ma non in ACP."
   },
   "deleteMessage": {
     "title": "Eliminare questo messaggio?",

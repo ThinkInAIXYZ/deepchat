@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "העבר ומחק סוכן",
     "moveConversation": "העבר שיחה",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "טיוטה",
       "subagent": "תת-סוכן"
     },
-    "deepChatTargetOnly": "ניתן לבחור רק סוכני DeepChat כיעדי העברה. אפשר להעביר שיחות ACP אל DeepChat, אך לא אל ACP."
+    "deepChatTargetOnly": "ניתן לבחור רק סוכני MioAgent כיעדי העברה. אפשר להעביר שיחות ACP אל MioAgent, אך לא אל ACP."
   },
   "deleteMessage": {
     "title": "למחוק את ההודעה הזו?",

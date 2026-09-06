@@ -168,7 +168,7 @@
   },
   "inmemory": {
     "Artifacts": {
-      "desc": "讓你的 DeepChat 輸出的多樣化的 Artifacts 內容",
+      "desc": "讓你的 MioAgent 輸出的多樣化的 Artifacts 內容",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -176,7 +176,7 @@
       "name": "博查搜索"
     },
     "buildInFileSystem": {
-      "desc": "讓 DeepChat 能夠操作本地文件",
+      "desc": "讓 MioAgent 能夠操作本地文件",
       "name": "文件系統"
     },
     "braveSearch": {
@@ -196,11 +196,11 @@
       "name": "RAGFlow知識庫檢索"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "DeepChat內置自定義提示詞服務",
+      "desc": "MioAgent內置自定義提示詞服務",
       "name": "自定義提示詞"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "基於博查搜索的DeepChat內置深度研究服務，（注意需要長上下文模型才能使用，上下文不足的模型可能會失敗）",
+      "desc": "基於博查搜索的MioAgent內置深度研究服務，（注意需要長上下文模型才能使用，上下文不足的模型可能會失敗）",
       "name": "DeepResearch"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -209,10 +209,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "對話歷史搜索",
-      "desc": "DeepChat內建對話歷史搜索服務，可搜索歷史對話記錄和訊息內容"
+      "desc": "MioAgent內建對話歷史搜索服務，可搜索歷史對話記錄和訊息內容"
     },
     "builtinKnowledge": {
-      "desc": "DeepChat內置知識庫檢索服務，可以對DeepChat內置知識庫內容進行檢索",
+      "desc": "MioAgent內置知識庫檢索服務，可以對MioAgent內置知識庫內容進行檢索",
       "name": "內置知識庫檢索"
     },
     "deepchat/apple-server": {

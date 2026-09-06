@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "هر چیزی از DeepChat بپرسید، با {'@'} به فایل‌ها اشاره کنید و با / از دستورها استفاده کنید",
+    "placeholder": "هر چیزی از MioAgent بپرسید، با {'@'} به فایل‌ها اشاره کنید و با / از دستورها استفاده کنید",
     "fileArea": "ناحیه پرونده",
     "inputArea": "ناحیه ورودی",
     "functionSwitch": "کلید کارکرد",
@@ -33,7 +33,7 @@
     "voiceRecognitionUnsupportedTitle": "محیط فعلی از تشخیص گفتار پشتیبانی نمی‌کند",
     "voiceRecognitionUnsupportedDescription": "از این قابلیت در مرورگر یا محیط دسکتاپی که از تشخیص گفتار پشتیبانی می‌کند استفاده کنید.",
     "voiceRecognitionPermissionDeniedTitle": "امکان دسترسی به میکروفون وجود ندارد",
-    "voiceRecognitionPermissionDeniedDescription": "اجازه استفاده از میکروفون را به DeepChat بدهید و دوباره تلاش کنید.",
+    "voiceRecognitionPermissionDeniedDescription": "اجازه استفاده از میکروفون را به MioAgent بدهید و دوباره تلاش کنید.",
     "voiceRecognitionErrorTitle": "تشخیص گفتار ناموفق بود",
     "voiceRecognitionErrorDescription": "تشخیص گفتار کامل نشد. لطفاً بعداً دوباره تلاش کنید.",
     "send": "ارسال",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "تولید تصویر",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
+        "deepchatSettings": "MioAgent Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "به عامل DeepChat بروید",
-      "description": "قبل از شروع گفتگو، از ACP خارج شوید و به جریان داخلی DeepChat برگردید.",
+      "title": "به عامل MioAgent بروید",
+      "description": "قبل از شروع گفتگو، از ACP خارج شوید و به جریان داخلی MioAgent برگردید.",
       "caption": "برای ادامه، روی دکمه عاملِ هایلایت‌شده در نوار کناری کلیک کنید."
     },
     "switchModel": {
-      "description": "مدلی را که می‌خواهید برای اولین گفتگوی DeepChat استفاده کنید انتخاب کنید.",
+      "description": "مدلی را که می‌خواهید برای اولین گفتگوی MioAgent استفاده کنید انتخاب کنید.",
       "caption": "از انتخاب‌گر مدلِ هایلایت‌شده استفاده کنید و هر مدل در دسترس را برگزینید."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "این نشست دیگر در دسترس نیست.",
         "agent_unavailable": "Agent انتخاب‌شده در دسترس نیست.",
-        "deepchat_agent_required": "همکاری فعال به یک DeepChat Agent نیاز دارد.",
+        "deepchat_agent_required": "همکاری فعال به یک MioAgent Agent نیاز دارد.",
         "regular_parent_required": "همکاری فعال در نشست فرزند در دسترس نیست.",
         "agent_policy_unavailable": "خط‌مشی همکاری بارگیری نشد.",
         "subagents_disabled": "برای استفاده از همکاری فعال، Subagentها را برای این Agent فعال کنید."

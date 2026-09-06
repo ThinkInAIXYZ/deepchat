@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "向 DeepChat 发送消息，{'@'} 可引用文件，/ 可使用命令",
+    "placeholder": "向 MioAgent 发送消息，{'@'} 可引用文件，/ 可使用命令",
     "fileArea": "文件区域",
     "inputArea": "输入区域",
     "functionSwitch": "功能开关",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "当前环境不支持本地录音",
     "voiceRecognitionUnsupportedDescription": "请在支持麦克风录音的浏览器或桌面环境中使用该功能。",
     "voiceRecognitionPermissionDeniedTitle": "无法访问麦克风",
-    "voiceRecognitionPermissionDeniedDescription": "请允许 DeepChat 使用麦克风后重试。",
+    "voiceRecognitionPermissionDeniedDescription": "请允许 MioAgent 使用麦克风后重试。",
     "voiceRecognitionErrorTitle": "音频转写失败",
     "voiceRecognitionErrorDescription": "未能完成音频转写，请稍后重试。",
     "send": "发送",
@@ -59,7 +59,7 @@
         "agentCore": "核心工具",
         "agentImageGeneration": "图像生成",
         "agentSkills": "技能工具",
-        "deepchatSettings": "DeepChat 设置",
+        "deepchatSettings": "MioAgent 设置",
         "yobrowser": "YoBrowser"
       }
     },
@@ -521,12 +521,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "切换到 DeepChat Agent",
-      "description": "开始聊天前，先从 ACP Agent 切回 DeepChat 对话流。",
+      "title": "切换到 MioAgent Agent",
+      "description": "开始聊天前，先从 ACP Agent 切回 MioAgent 对话流。",
       "caption": "点击侧边栏里高亮的 Agent 按钮即可继续。"
     },
     "switchModel": {
-      "description": "为第一次 DeepChat 对话选择你想使用的模型。",
+      "description": "为第一次 MioAgent 对话选择你想使用的模型。",
       "caption": "使用高亮的模型切换器，选择任意可用模型即可。"
     },
     "firstChat": {
@@ -608,7 +608,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "打开子会话" },
+    "actions": {
+      "openChild": "打开子会话"
+    },
     "activityTitle": "Agent 活动",
     "proactive": {
       "title": "主动协作",
@@ -616,7 +618,7 @@
       "reasons": {
         "session_unavailable": "当前会话已不可用。",
         "agent_unavailable": "当前选择的 Agent 不可用。",
-        "deepchat_agent_required": "主动协作需要使用 DeepChat Agent。",
+        "deepchat_agent_required": "主动协作需要使用 MioAgent Agent。",
         "regular_parent_required": "子会话中不能启用主动协作。",
         "agent_policy_unavailable": "无法加载协作策略。",
         "subagents_disabled": "请先为此 Agent 启用 Subagent，再使用主动协作。"

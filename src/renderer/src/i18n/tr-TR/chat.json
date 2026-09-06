@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "DeepChat'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",
+    "placeholder": "MioAgent'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",
     "fileArea": "Dosya Alanı",
     "inputArea": "Giriş Alanı",
     "functionSwitch": "Fonksiyon Anahtarı",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "Yerel kayıt burada mevcut değil",
     "voiceRecognitionUnsupportedDescription": "Bu özelliği, mikrofon kaydını destekleyen bir tarayıcı veya masaüstü ortamında kullanın.",
     "voiceRecognitionPermissionDeniedTitle": "Mikrofon erişimi kullanılamıyor",
-    "voiceRecognitionPermissionDeniedDescription": "DeepChat'nin mikrofonu kullanmasına izin verin ve tekrar deneyin.",
+    "voiceRecognitionPermissionDeniedDescription": "MioAgent'nin mikrofonu kullanmasına izin verin ve tekrar deneyin.",
     "voiceRecognitionErrorTitle": "Sesin transkripsiyonu başarısız oldu",
     "voiceRecognitionErrorDescription": "Ses transkripsiyonu tamamlanamadı. Lütfen daha sonra tekrar deneyin.",
     "send": "Göndermek",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Çekirdek",
         "agentImageGeneration": "Görüntü Üretimi",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Ayarlar",
+        "deepchatSettings": "MioAgent Ayarlar",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "DeepChat Agent'a geç",
-      "description": "Sohbet etmeden önce ACP'den uzaklaşın ve yerleşik DeepChat akışına dönün.",
+      "title": "MioAgent Agent'a geç",
+      "description": "Sohbet etmeden önce ACP'den uzaklaşın ve yerleşik MioAgent akışına dönün.",
       "caption": "Devam etmek için kenar çubuğunda vurgulanan agent düğmesini tıklayın."
     },
     "switchModel": {
-      "description": "İlk DeepChat görüşmeniz için kullanmak istediğiniz modeli seçin.",
+      "description": "İlk MioAgent görüşmeniz için kullanmak istediğiniz modeli seçin.",
       "caption": "Vurgulanan model değiştiriciyi kullanın ve mevcut herhangi bir modeli seçin."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Bu oturum artık kullanılamıyor.",
         "agent_unavailable": "Seçilen Agent kullanılamıyor.",
-        "deepchat_agent_required": "Proaktif iş birliği bir DeepChat Agent gerektirir.",
+        "deepchat_agent_required": "Proaktif iş birliği bir MioAgent Agent gerektirir.",
         "regular_parent_required": "Proaktif iş birliği alt oturumlarda kullanılamaz.",
         "agent_policy_unavailable": "İş birliği ilkesi yüklenemedi.",
         "subagents_disabled": "Proaktif iş birliğini kullanmak için bu Agent üzerinde Subagents özelliğini etkinleştirin."

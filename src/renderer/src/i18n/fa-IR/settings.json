@@ -36,10 +36,10 @@
     "searchEngine": "موتور جستجو",
     "searchEngineSelect": "انتخاب موتور جستجو",
     "searchPreview": "پیش‌نمایش جستجو",
-    "launchAtLoginEnabled": "اجرای DeepChat هنگام ورود به سیستم",
+    "launchAtLoginEnabled": "اجرای MioAgent هنگام ورود به سیستم",
     "autoScrollEnabled": "پیمایش خودکار هنگام تولید",
     "privacyMode": "حالت حریم خصوصی",
-    "privacyModeDescription": "درخواست‌های خروجی خودکار متعلق به DeepChat را متوقف می‌کند:",
+    "privacyModeDescription": "درخواست‌های خروجی خودکار متعلق به MioAgent را متوقف می‌کند:",
     "privacyModeAutoUpdate": "بررسی به‌روزرسانی برنامه",
     "privacyModeProviderDb": "به‌روزرسانی فرادادهٔ ارائه‌دهنده و مدل",
     "privacyModeAcpRegistry": "به‌روزرسانی رجیستری ACP و همگام‌سازی آیکن‌ها",
@@ -128,7 +128,7 @@
       "empty": "هنوز Hookی وجود ندارد. برای شروع یکی اضافه کنید.",
       "defaultName": "Hook {index}",
       "guideTitle": "راهنمای استفاده",
-      "guideDescription": "وقتی یکی از رویدادهای انتخاب‌شده رخ دهد، DeepChat این دستور را اجرا می‌کند. رویداد فعلی از طریق JSON در stdin، متغیرهای محیطی و جای‌نگهدارهای خط فرمان در دسترس است.",
+      "guideDescription": "وقتی یکی از رویدادهای انتخاب‌شده رخ دهد، MioAgent این دستور را اجرا می‌کند. رویداد فعلی از طریق JSON در stdin، متغیرهای محیطی و جای‌نگهدارهای خط فرمان در دسترس است.",
       "deliveryTitle": "نحوهٔ ارسال داده",
       "deliveryStdin": "کل payload به صورت JSON در stdin نوشته می‌شود.",
       "deliveryPlaceholder": "می‌توانید جای‌نگهدارهای خط فرمان را مستقیماً در خود دستور استفاده کنید.",
@@ -276,7 +276,7 @@
       "summaryManualOnly": "{manual} مورد نیاز به رسیدگی دارد",
       "manualHint": "هنوز {count} مورد نیاز به رسیدگی دستی دارد.",
       "toastSuggestedTitle": "ترمیم پایگاه داده پیشنهاد می‌شود",
-      "toastSuggestedDescription": "DeepChat یک مشکل ساختاری در پایگاه داده شناسایی کرد ({reason}). می‌توانید همین حالا ترمیم را اجرا کنید.",
+      "toastSuggestedDescription": "MioAgent یک مشکل ساختاری در پایگاه داده شناسایی کرد ({reason}). می‌توانید همین حالا ترمیم را اجرا کنید.",
       "toastAction": "رفتن به ترمیم",
       "toastHealthyTitle": "پایگاه داده سالم است",
       "toastHealthyDescription": "هیچ مشکل ساختاری‌ای پیدا نشد.",
@@ -303,7 +303,7 @@
       "entryDescription": "CC Switch، Alma، Cherry Studio، Hermes و OpenClaw را برای اطلاعات ارائه‌دهنده و فهرست مدل‌ها اسکن می‌کند.",
       "entryButton": "وارد کردن از عامل‌ها",
       "dialogTitle": "وارد کردن از سایر عامل‌ها",
-      "dialogDescription": "ابتدا برنامه‌های شناسایی‌شده را انتخاب کنید، سپس ارائه‌دهنده‌هایی را که DeepChat می‌تواند وارد کند بررسی کنید.",
+      "dialogDescription": "ابتدا برنامه‌های شناسایی‌شده را انتخاب کنید، سپس ارائه‌دهنده‌هایی را که MioAgent می‌تواند وارد کند بررسی کنید.",
       "toastTitle": "وارد کردن ارائه‌دهنده پایان یافت",
       "toastDescription": "{count} ارائه‌دهنده وارد شد.",
       "steps": {
@@ -312,7 +312,7 @@
         "done": "انجام شد"
       },
       "scanningTitle": "در حال اسکن عامل‌های نصب‌شده",
-      "scanningDescription": "DeepChat فایل‌های پیکربندی محلی شناخته‌شده را بدون ارسال داده بررسی می‌کند.",
+      "scanningDescription": "MioAgent فایل‌های پیکربندی محلی شناخته‌شده را بدون ارسال داده بررسی می‌کند.",
       "scanFailedTitle": "اسکن ناموفق بود",
       "sourcesTitle": "منابع شناسایی‌شده",
       "sourcesDescription": "یک یا چند عامل را انتخاب کنید. عامل‌های انتخاب‌شده به ترتیب نمایش داده‌شده پردازش می‌شوند.",
@@ -321,14 +321,14 @@
       "noSourcesDescription": "ابتدا یکی از عامل‌های پشتیبانی‌شده را نصب کنید یا اطلاعات ارائه‌دهنده را در آن تنظیم کنید.",
       "providersFound": "{count} ارائه‌دهنده",
       "sourceProgress": "{current} از {total}",
-      "overwriteNote": "اگر چند ارائه‌دهنده انتخاب‌شده به یک ارائه‌دهنده DeepChat نگاشت شوند، منبع بعدی قبلی را بازنویسی می‌کند.",
+      "overwriteNote": "اگر چند ارائه‌دهنده انتخاب‌شده به یک ارائه‌دهنده MioAgent نگاشت شوند، منبع بعدی قبلی را بازنویسی می‌کند.",
       "noProvidersTitle": "در این منبع داده ارائه‌دهنده وجود ندارد",
       "noProvidersDescription": "این عامل انتخاب شده است، اما ورودی قابل وارد کردن پیدا نشد.",
       "apiKey": "کلید {value}",
       "noModels": "فهرست مدل وجود ندارد",
       "modelsImported": "{count} مدل",
       "importingTitle": "در حال وارد کردن ارائه‌دهنده‌ها",
-      "importingDescription": "DeepChat ارائه‌دهنده‌های انتخاب‌شده و مدل‌های سفارشی را می‌نویسد.",
+      "importingDescription": "MioAgent ارائه‌دهنده‌های انتخاب‌شده و مدل‌های سفارشی را می‌نویسد.",
       "doneTitle": "خلاصه وارد کردن",
       "doneDescription": "{count} ارائه‌دهنده وارد شد. نتیجه هر ارائه‌دهنده را در پایین بررسی کنید.",
       "badges": {
@@ -346,11 +346,11 @@
         "unsupported": "پشتیبانی‌نشده"
       },
       "warnings": {
-        "already_configured": "قبلاً در DeepChat پیکربندی شده است، بنابراین به‌صورت پیش‌فرض انتخاب نمی‌شود.",
+        "already_configured": "قبلاً در MioAgent پیکربندی شده است، بنابراین به‌صورت پیش‌فرض انتخاب نمی‌شود.",
         "missing_api_key": "کلید API یا endpoint لازم وجود ندارد.",
-        "unsupported_provider": "DeepChat نمی‌تواند این ارائه‌دهنده را خودکار وارد کند.",
+        "unsupported_provider": "MioAgent نمی‌تواند این ارائه‌دهنده را خودکار وارد کند.",
         "overwrites_previous_selection": "این انتخاب با یک منبع قبلی تداخل دارد.",
-        "credential_only_import": "فقط کلید API وارد می‌شود؛ DeepChat endpoint و runtime ارائه‌دهنده داخلی را حفظ می‌کند."
+        "credential_only_import": "فقط کلید API وارد می‌شود؛ MioAgent endpoint و runtime ارائه‌دهنده داخلی را حفظ می‌کند."
       },
       "conflicts": {
         "overridesPrevious": "این انتخاب ارائه‌دهنده انتخاب‌شده قبلی را بازنویسی می‌کند.",
@@ -407,7 +407,7 @@
       "newPassword": "رمز جدید SQLite",
       "confirmPassword": "تأیید رمز",
       "passwordMismatch": "رمزها یکسان نیستند",
-      "systemCredentialStore": "وقتی ذخیره‌سازی امن سیستم در دسترس باشد، DeepChat رمز SQLite را به صورت رمزگذاری‌شده در خزانه اعتبارنامه سیستم (مانند macOS Keychain، Windows Credential Vault یا یک Linux secret store) ذخیره می‌کند. پس از یک باز کردن قفل موفق، شروع‌های بعدی معمولاً خودکار باز می‌شوند؛ فقط پس از مهاجرت داده، نبودن یا غیرقابل رمزگشایی بودن اعتبارنامه سیستم، یا در دسترس نبودن ذخیره‌سازی امن باید دوباره کلید رمزگذاری را وارد کنید.",
+      "systemCredentialStore": "وقتی ذخیره‌سازی امن سیستم در دسترس باشد، MioAgent رمز SQLite را به صورت رمزگذاری‌شده در خزانه اعتبارنامه سیستم (مانند macOS Keychain، Windows Credential Vault یا یک Linux secret store) ذخیره می‌کند. پس از یک باز کردن قفل موفق، شروع‌های بعدی معمولاً خودکار باز می‌شوند؛ فقط پس از مهاجرت داده، نبودن یا غیرقابل رمزگشایی بودن اعتبارنامه سیستم، یا در دسترس نبودن ذخیره‌سازی امن باید دوباره کلید رمزگذاری را وارد کنید.",
       "safeStorageUnavailable": "Electron safeStorage روی این سیستم در دسترس نیست. پس از فعال کردن رمزگذاری، باید در هر شروع رمز را وارد کنید.",
       "enableButton": "فعال کردن رمزگذاری",
       "changeButton": "تغییر رمز",
@@ -506,7 +506,7 @@
       "recordingStartedAtDescription": "قدیمی‌ترین رکورد مصرفی که اکنون در این داشبورد نگه‌داری می‌شود.",
       "withDeepChatDaysLabel": "روزهای همراهی",
       "withDeepChatDaysValue": "{days} روز",
-      "withDeepChatDaysSentence": "اکنون در روز {days} همراهی با DeepChat هستید.",
+      "withDeepChatDaysSentence": "اکنون در روز {days} همراهی با MioAgent هستید.",
       "withDeepChatDaysDescription": "بر پایهٔ قدیمی‌ترین رکورد استفادهٔ شما در {date}.",
       "withDeepChatDaysDescriptionUnavailable": "هنوز هیچ رکورد استفاده‌ای وجود ندارد.",
       "tokenUsage": "مصرف توکن",
@@ -515,7 +515,7 @@
       "nostalgiaSessionsValue": "{count} نشست",
       "nostalgiaMessagesValue": "{count} پیام",
       "nostalgiaDaysDetailLabel": "مدت همراهی",
-      "nostalgiaDaysDetail": "شما {days} روز را با DeepChat گذرانده‌اید.",
+      "nostalgiaDaysDetail": "شما {days} روز را با MioAgent گذرانده‌اید.",
       "nostalgiaSessionsDetailLabel": "نشست‌ها",
       "nostalgiaSessionsDetail": "با هم {count} نشست داشته‌اید.",
       "nostalgiaMessagesDetailLabel": "پیام‌ها",
@@ -548,7 +548,7 @@
     },
     "rtk": {
       "title": "صرفه‌جویی RTK",
-      "description": "تخمین توکن‌هایی که RTK در اجرای فرمان‌های بومی DeepChat مانع رسیدنشان به بافت مدل شده است.",
+      "description": "تخمین توکن‌هایی که RTK در اجرای فرمان‌های بومی MioAgent مانع رسیدنشان به بافت مدل شده است.",
       "actions": {
         "retry": "تلاش دوباره"
       },
@@ -559,8 +559,8 @@
         "unhealthy": "غیرقابل استفاده"
       },
       "descriptionDisabled": "RTK برای این نشست برنامه خاموش است، بنابراین فرمان‌ها از مسیر اجرای عادی عبور می‌کنند.",
-      "descriptionChecking": "DeepChat در حال بررسی است که آیا RTK در محیط فعلی به‌درستی اجرا می‌شود یا نه.",
-      "descriptionHealthy": "RTK برای اجرای فرمان‌های بومی DeepChat فعال است.",
+      "descriptionChecking": "MioAgent در حال بررسی است که آیا RTK در محیط فعلی به‌درستی اجرا می‌شود یا نه.",
+      "descriptionHealthy": "RTK برای اجرای فرمان‌های بومی MioAgent فعال است.",
       "descriptionUnhealthy": "بررسی سلامت RTK هنگام شروع اجرا ناموفق بود و برای این نشست برنامه غیرفعال شده است.",
       "sourceLabel": "منبع زمان‌اجرا: {source}",
       "source": {
@@ -651,7 +651,7 @@
         "description": "مشخص می‌کند آیا این مدل ورودی صوتی با تبدیل محلی گفتار به متن را مجاز می‌کند یا نه."
       },
       "functionCall": {
-        "description": "این که آیا مدل از عملکردهای عملکردی پشتیبانی می کند (DeepChat پس از خاموش کردن این گزینه ، به طور خودکار تماس های عملکردی را شبیه سازی می کند)",
+        "description": "این که آیا مدل از عملکردهای عملکردی پشتیبانی می کند (MioAgent پس از خاموش کردن این گزینه ، به طور خودکار تماس های عملکردی را شبیه سازی می کند)",
         "label": "تماسهای عملکردی"
       },
       "maxTokens": {
@@ -1171,7 +1171,7 @@
     "operationSuccess": "عملیات موفقیت آمیز است",
     "settingsApplied": "تنظیمات اعمال شده",
     "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند",
-    "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت.",
+    "bedrockVerifyTip": "MioAgent از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت.",
     "center": {
       "title": "Provider Center",
       "description": "Manage provider connections, models, and advanced configuration.",
@@ -1192,7 +1192,7 @@
     },
     "openaiCodexPasteCallback": "چسباندن URL بازگشت",
     "openaiCodexCallbackTitle": "تکمیل احراز هویت",
-    "openaiCodexCallbackDescription": "پس از پایان کار مرورگر، به DeepChat برگردید. اگر DeepChat به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
+    "openaiCodexCallbackDescription": "پس از پایان کار مرورگر، به MioAgent برگردید. اگر MioAgent به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
     "openaiCodexCallbackPlaceholder": "URL کامل بازگشت را بچسبانید",
     "openaiCodexCompleteAuthentication": "تکمیل احراز هویت",
     "xaiGrokAuth": "xAI Grok OAuth",
@@ -1514,7 +1514,7 @@
       "removeCredential": "حذف اعتبارنامهٔ ذخیره‌شده",
       "credentialConfiguredPlaceholder": "یک اعتبارنامهٔ محافظت‌شده از قبل پیکربندی شده است",
       "credentialConfigured": "اعتبارنامه پیکربندی شده است",
-      "credentialMemoryOnly": "این اعتبارنامه فقط در حافظه نگه‌داری می‌شود و با خروج از DeepChat از بین می‌رود.",
+      "credentialMemoryOnly": "این اعتبارنامه فقط در حافظه نگه‌داری می‌شود و با خروج از MioAgent از بین می‌رود.",
       "credentialRemoveError": "حذف اعتبارنامهٔ محافظت‌شده ناموفق بود",
       "credentialSaveError": "ذخیرهٔ اعتبارنامهٔ محافظت‌شده ناموفق بود"
     },
@@ -1590,7 +1590,7 @@
       "redetectFailed": "تشخیص مجدد ناموفق بود",
       "redetectFailedDesc": "نمی‌توان منبع بهینه را مجدداً تشخیص داد، از پیکربندی پیش‌فرض استفاده خواهد شد"
     },
-    "managedServerReadOnly": "سرویس مدیریت‌شده توسط DeepChat",
+    "managedServerReadOnly": "سرویس مدیریت‌شده توسط MioAgent",
     "managedServerReadOnlyDesc": "فعال‌سازی و مجوزها را از تنظیمات افزونهٔ مربوطه مدیریت کنید.",
     "center": {
       "title": "مرکز MCP",
@@ -1612,7 +1612,7 @@
     "authenticate": "احراز هویت",
     "authFailed": "احراز هویت ناموفق بود",
     "authCallbackTitle": "تکمیل احراز هویت",
-    "authCallbackDescription": "پس از پایان کار مرورگر، به DeepChat برگردید. اگر DeepChat به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
+    "authCallbackDescription": "پس از پایان کار مرورگر، به MioAgent برگردید. اگر MioAgent به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
     "authCallbackPlaceholder": "URL کامل بازگشت را بچسبانید",
     "completeAuthentication": "تکمیل احراز هویت",
     "saveSuccess": "پیکربندی ذخیره شد",
@@ -1802,7 +1802,7 @@
     "command": "فرمان",
     "commandPlaceholder": "مسیر فایل اجرایی یا اسکریپت",
     "deleteSuccess": "نماینده حذف شد",
-    "description": "مدیریت پروکسی پروتکل کلاینت نماینده محلی که توسط DeepChat راه‌اندازی شده است.",
+    "description": "مدیریت پروکسی پروتکل کلاینت نماینده محلی که توسط MioAgent راه‌اندازی شده است.",
     "enableToAccess": "لطفاً ابتدا ACP را فعال کنید تا به پیکربندی پروکسی دسترسی پیدا کنید",
     "enabledDescription": "پس از فعال‌سازی، پروکسی ACP پیکربندی شده به عنوان یک مدل در انتخاب‌گر مدل ظاهر خواهد شد.",
     "enabledTitle": "فعال کردن ACP",
@@ -1868,7 +1868,7 @@
       "openTerminal": "Open terminal",
       "cancelSignIn": "Cancel sign-in",
       "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
-      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "noMethods": "The agent did not provide an authentication method that MioAgent can use.",
       "status": {
         "required": "Authentication required",
         "running": "Signing in",
@@ -1992,7 +1992,7 @@
     "registryInstallAction": "نصب",
     "registryUninstallAction": "حذف نصب",
     "registryUninstallConfirm": "عامل «{name}» حذف نصب شود؟",
-    "registryUninstallDescription": "DeepChat این عامل را غیرفعال می‌کند و در صورت وجود، داده‌های نصبِ مدیریت‌شدهٔ محلی را پاک می‌کند. بعداً می‌توانید آن را دوباره از ACP Registry نصب کنید.",
+    "registryUninstallDescription": "MioAgent این عامل را غیرفعال می‌کند و در صورت وجود، داده‌های نصبِ مدیریت‌شدهٔ محلی را پاک می‌کند. بعداً می‌توانید آن را دوباره از ACP Registry نصب کنید.",
     "registryUninstallFailed": "حذف نصب عامل ناموفق بود",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "عامل‌های ACP را جست‌وجو، فیلتر و نصب کنید. پس از نصب برای پیکربندی به تنظیمات برگردید.",
@@ -2089,7 +2089,7 @@
     "agentImport": {
       "menuItem": "وارد کردن از Agent خارجی",
       "title": "وارد کردن از Agent خارجی",
-      "description": "Skillهای اعتبارسنجی‌شده را به DeepChat وارد کنید. Agentها را از پیش‌نمایش هر Skill فعال کنید.",
+      "description": "Skillهای اعتبارسنجی‌شده را به MioAgent وارد کنید. Agentها را از پیش‌نمایش هر Skill فعال کنید.",
       "resultPartial": "وارد کردن با خطا کامل شد",
       "resultSuccess": "وارد کردن کامل شد",
       "sourceTitle": "Agent مبدأ",
@@ -2208,25 +2208,25 @@
       "env": "{count} env",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enable": "Enable in DeepChat",
-      "disable": "Disable in DeepChat",
+      "enable": "Enable in MioAgent",
+      "disable": "Disable in MioAgent",
       "viewDetails": "مشاهده جزئیات",
       "edit": "ویرایش",
       "installToAgent": "نصب در Agent"
     },
     "enable": {
       "success": "Skill Enabled",
-      "successMessage": "Skill {name} is enabled in DeepChat",
+      "successMessage": "Skill {name} is enabled in MioAgent",
       "failed": "Enable Failed"
     },
     "disable": {
       "success": "Skill Disabled",
-      "successMessage": "Skill {name} is disabled in DeepChat",
+      "successMessage": "Skill {name} is disabled in MioAgent",
       "failed": "Disable Failed"
     },
     "git": {
       "title": "Git",
-      "description": "یک مخزن Git را اسکن کنید و skillهای انتخاب‌شده را در DeepChat نصب کنید.",
+      "description": "یک مخزن Git را اسکن کنید و skillهای انتخاب‌شده را در MioAgent نصب کنید.",
       "placeholder": "https://github.com/user/repo",
       "scan": "اسکن",
       "detectedFormat": "قالب تشخیص‌داده‌شده:",
@@ -2242,7 +2242,7 @@
       "rename": "تغییر نام skill جدید",
       "overwrite": "جایگزینی موجود",
       "skip": "رد کردن موجود",
-      "install": "نصب در DeepChat",
+      "install": "نصب در MioAgent",
       "failed": "نصب Git ناموفق بود",
       "success": "نصب Git کامل شد",
       "successMessage": "{count} نصب شد، {failed} ناموفق",
@@ -2301,8 +2301,8 @@
       "installToAgent": "نصب در Agent",
       "enabled": "فعال",
       "disabled": "غیرفعال",
-      "enable": "فعال‌سازی در DeepChat",
-      "disable": "غیرفعال‌سازی در DeepChat",
+      "enable": "فعال‌سازی در MioAgent",
+      "disable": "غیرفعال‌سازی در MioAgent",
       "preview": "پیش‌نمایش",
       "edit": "ویرایش",
       "delete": "حذف",
@@ -2317,7 +2317,7 @@
     },
     "installToAgent": {
       "title": "نصب {name} در Agent",
-      "description": "برای این skill در پوشه skills یک agent محلی، پیوند تحت مالکیت DeepChat ایجاد می کند.",
+      "description": "برای این skill در پوشه skills یک agent محلی، پیوند تحت مالکیت MioAgent ایجاد می کند.",
       "failed": "نصب در Agent ناموفق بود",
       "emptyAgents": "هیچ agent محلی قابل استفاده ای پیدا نشد.",
       "target": "Agent مقصد",
@@ -2376,7 +2376,7 @@
       "moveBottom": "انتقال به پایین‌ترین جایگاه",
       "archive": "بایگانی",
       "restore": "بازیابی",
-      "remove": "حذف از DeepChat"
+      "remove": "حذف از MioAgent"
     },
     "badges": {
       "default": "پیش‌فرض",
@@ -2409,7 +2409,7 @@
     "confirm": {
       "archiveTitle": "«{name}» بایگانی شود؟",
       "archiveDescription": "از فهرست پوشه‌های فعال و انتخابگر گفت‌وگوی جدید خارج می‌شود، اما نشست‌ها، پیام‌ها و پوشه واقعی دست‌نخورده می‌مانند.",
-      "removeTitle": "«{name}» از DeepChat حذف شود؟",
+      "removeTitle": "«{name}» از MioAgent حذف شود؟",
       "removeDescription": "پوشه واقعی و پیام‌ها حذف نمی‌شوند. نشست‌های عادی به بدون پروژه منتقل می‌شوند؛ رکوردهای پوشه کاری ACP حفظ می‌شوند تا نشست‌های موجود بتوانند ادامه پیدا کنند."
     }
   },
@@ -2445,7 +2445,7 @@
       "accessRule1": "Authorize yourself with /pair [code] in a direct bot chat, or use OAuth scan authorization for a manually configured app.",
       "accessRule2": "In groups and topics, the bot only reacts when an authorized user {'@'} mentions it.",
       "setupGuideTitle": "Finish app setup from the Echo Bot guide",
-      "setupGuideDescription": "DeepChat can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
+      "setupGuideDescription": "MioAgent can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
       "setupStepCreateApp": "Create a self-built app and add the bot capability.",
       "setupStepPermissions": "Grant im:message.p2p_msg:readonly, im:message.group_at_msg:readonly, im:message:send_as_bot, plus the user-info permission required for scan binding.",
       "setupStepEvents": "Use long-connection event subscription and add im.message.receive_v1.",
@@ -2485,18 +2485,18 @@
       "installSessionMissing": "Install session is missing or has ended.",
       "installUserCode": "User code: {code}",
       "manualSetupTitle": "Manual app setup fallback",
-      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. DeepChat no longer requires the local OAuth redirect URI for the primary install path.",
+      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. MioAgent no longer requires the local OAuth redirect URI for the primary install path.",
       "openInstallWeb": "Open web install",
       "showInstallQr": "QR install",
       "installQrTitle": "Scan official install QR",
       "installQrDescription": "This QR code is generated directly from the official install link returned by Feishu / Lark. Scan it in the mobile client and keep this dialog open.",
       "installQrAlt": "Feishu / Lark install QR code",
       "userAuthTitle": "Authorize remote-control users",
-      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control DeepChat. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
+      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control MioAgent. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
       "pairAuthTitle": "/pair command",
       "pairAuthDescription": "روی «جفت‌سازی» در زیر کلیک کنید، سپس کد /pair را در گفت‌وگوی مستقیم با ربات ارسال کنید. این مسیر مجوزدهی پیشنهادی است و همچنان با برنامه‌های PersonalAgent نصب‌شده کار می‌کند.",
       "streamingCards": "کارت‌های استریم CardKit",
-      "streamingCardsDescription": "پاسخ‌های هوش مصنوعی را از طریق Feishu / Lark CardKit به‌صورت بلادرنگ استریم کنید. به مجوزهای im:message و cardkit:card:write نیاز دارد؛ اگر CardKit شکست بخورد، DeepChat به پیام‌های عادی بازمی‌گردد."
+      "streamingCardsDescription": "پاسخ‌های هوش مصنوعی را از طریق Feishu / Lark CardKit به‌صورت بلادرنگ استریم کنید. به مجوزهای im:message و cardkit:card:write نیاز دارد؛ اگر CardKit شکست بخورد، MioAgent به پیام‌های عادی بازمی‌گردد."
     },
     "discord": {
       "title": "Discord",
@@ -2514,10 +2514,10 @@
       "accessRules": "قوانین دسترسی"
     },
     "remoteControl": {
-      "description": "هر نقطهٔ پایانیِ راه دور را به یک نشست DeepChat متصل کنید و آن نشست را بین فرمان‌ها حفظ کنید.",
+      "description": "هر نقطهٔ پایانیِ راه دور را به یک نشست MioAgent متصل کنید و آن نشست را بین فرمان‌ها حفظ کنید.",
       "allowedUserIds": "شناسه‌های کاربری مجاز",
       "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
-      "defaultAgent": "ایجنت پیش‌فرض DeepChat",
+      "defaultAgent": "ایجنت پیش‌فرض MioAgent",
       "defaultAgentPlaceholder": "یک ایجنت را انتخاب کنید",
       "defaultWorkdir": "پوشه پیش‌فرض",
       "defaultWorkdirPlaceholder": "پوشه پیش‌فرض را انتخاب کنید",
@@ -2542,7 +2542,7 @@
       "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
       "authorizedPrincipalsEmpty": "هنوز هیچ شناسهٔ مجاز ثبت نشده است.",
       "sessionBindingsTitle": "پیوندهای نشست",
-      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است.",
+      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست MioAgent متصل است.",
       "acpDefaultWorkdirRequiredTitle": "شاخه پیش‌فرض الزامی است",
       "acpDefaultWorkdirRequiredDescription": "عامل‌های ACP به فضای کاری محلی نیاز دارند. پیش از ذخیره، یک شاخه پیش‌فرض انتخاب کنید."
     },
@@ -2597,7 +2597,7 @@
       "title": "WeChat iLink",
       "description": "یک ربات رسمی WeChat iLink را با ورود QR متصل کنید تا آداپتور داخلی نشست‌های کنترل از راه دور را مدیریت کند.",
       "loginDescription": "برای باز کردن پنجرهٔ رسمی ورود WeChat روی دکمهٔ زیر کلیک کنید. احراز هویت iLink Bot را در همان پنجره کامل کنید تا حساب متصل‌شده به‌صورت خودکار به فهرست زیر افزوده شود.",
-      "ownerOnlyNotice": "در نسخهٔ اول فقط حساب مالک که با QR وارد شده می‌تواند DeepChat را کنترل کند.",
+      "ownerOnlyNotice": "در نسخهٔ اول فقط حساب مالک که با QR وارد شده می‌تواند MioAgent را کنترل کند.",
       "connectButton": "باز کردن پنجرهٔ ورود",
       "refreshQrCode": "باز کردن دوبارهٔ پنجرهٔ ورود",
       "loginDialogTitle": "اتصال WeChat iLink",
@@ -2712,11 +2712,11 @@
       "saveFailed": "ذخیره نشد. تغییرات حفظ شدند.",
       "retry": "تلاش دوباره"
     },
-    "title": "ایجنت‌های DeepChat",
-    "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",
+    "title": "ایجنت‌های MioAgent",
+    "description": "ایجنت‌های MioAgent و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",
     "builtIn": "داخلی",
-    "editTitle": "ویرایش ایجنت DeepChat",
-    "createTitle": "ایجاد ایجنت DeepChat",
+    "editTitle": "ویرایش ایجنت MioAgent",
+    "createTitle": "ایجاد ایجنت MioAgent",
     "unnamed": "ایجنت بی‌نام",
     "name": "نام",
     "namePlaceholder": "مثلاً: نویسنده / پژوهش / ترجمه",
@@ -2725,7 +2725,7 @@
     "descriptionPlaceholder": "توضیح اختیاری درباره کاربرد این ایجنت",
     "avatarTitle": "آواتار",
     "avatarDefault": "پیش‌فرض",
-    "avatarDefaultDesc": "DeepChat از آیکن داخلی خود استفاده می‌کند. ایجنت‌های دیگر از آواتار متنی استفاده می‌کنند.",
+    "avatarDefaultDesc": "MioAgent از آیکن داخلی خود استفاده می‌کند. ایجنت‌های دیگر از آواتار متنی استفاده می‌کنند.",
     "avatarLucide": "آیکن Lucide",
     "avatarLucideDesc": "یک آیکن از Lucide انتخاب کنید و رنگ حالت روشن/تیره را تنظیم کنید.",
     "avatarMonogram": "حروف نشان",
@@ -2768,10 +2768,10 @@
     "outputLimitsCommandHint": "پیش‌نمایش اجرای پیش‌زمینه برای exec و اسکریپت‌های مهارت.",
     "compactionTitle": "فشرده‌سازی خودکار",
     "compactionEnabled": "فعال‌سازی فشرده‌سازی خودکار",
-    "compactionDescription": "این پیش‌فرض‌ها فقط بر نشست‌های جدید DeepChat اثر می‌گذارند.",
+    "compactionDescription": "این پیش‌فرض‌ها فقط بر نشست‌های جدید MioAgent اثر می‌گذارند.",
     "compactionThreshold": "آستانه فعال‌سازی",
     "compactionRetainPairs": "نگه‌داری جفت‌های اخیر",
-    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد.",
+    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی MioAgent برمی‌گردد.",
     "subagentsTitle": "زیرایجنت‌ها",
     "subagentsDescription": "به این عامل اجازه دهید زیروظیفه‌های مستقل را واگذار کند. مدل زمان استفاده از اسلات‌های پیکربندی‌شده را تعیین می‌کند؛ واگذاری توکن، زمان و منابع سیستمی بیشتری مصرف می‌کند.",
     "subagentsEnabled": "اجازه به این عامل برای واگذاری زیروظیفه‌ها",
@@ -2992,7 +2992,7 @@
   },
   "plugins": {
     "title": "Plugins",
-    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "officialOnly": "Manage built-in official plugins included with this MioAgent version.",
     "refresh": "Refresh",
     "empty": "No official plugins available",
     "loadFailed": "Failed to load plugins",
@@ -3003,7 +3003,7 @@
     "openSettings": "Settings",
     "testRuntime": "آزمایش زمان اجرا",
     "retryRuntime": "تلاش دوباره برای زمان اجرا",
-    "quarantineDescription": "DeepChat این زمان اجرا را پس از خروج نادرست متوقف کرد. فقط زمانی دوباره تلاش کنید که کنترل دسکتاپ ایمن باشد.",
+    "quarantineDescription": "MioAgent این زمان اجرا را پس از خروج نادرست متوقف کرد. فقط زمانی دوباره تلاش کنید که کنترل دسکتاپ ایمن باشد.",
     "runtime": "Runtime",
     "runtimeState": "وضعیت",
     "version": "Version",
@@ -3022,7 +3022,7 @@
       "error": "Error"
     },
     "emptyTitle": "No built-in plugins available",
-    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "emptyDescription": "This platform has no built-in official plugins in this MioAgent version.",
     "installFromFile": "Choose .dcplugin",
     "openRelease": "GitHub Release"
   },
@@ -3037,11 +3037,11 @@
     },
     "overview": {
       "title": "Settings Overview",
-      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "description": "Review provider, MCP, MioAgent Agents, data, and usage status in one place.",
       "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
       "providers": "Providers",
       "mcp": "MCP",
-      "deepchatAgents": "DeepChat Agents",
+      "deepchatAgents": "MioAgent Agents",
       "data": "Data",
       "enabledCount": "{count} enabled",
       "runningCount": "{count} running",
@@ -3102,7 +3102,7 @@
   },
   "memory": {
     "description": "آنچه را که هر عامل در طول نشست‌ها به‌خاطر می‌سپارد بررسی، پیکربندی و مدیریت کنید. حافظه برای هر عامل جداست.",
-    "empty": "هنوز هیچ عامل DeepChat در دسترس نیست.",
+    "empty": "هنوز هیچ عامل MioAgent در دسترس نیست.",
     "agentPicker": "عامل",
     "tabConfig": "پیکربندی",
     "tabManage": "مدیریت",
@@ -3267,7 +3267,7 @@
     }
   },
   "pluginsHub": {
-    "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
+    "subtitle": "Work with MioAgent across skills, MCP servers, official plugins, and remote channels.",
     "available": "افزونه‌های در دسترس",
     "add": "افزودن",
     "manage": "Manage",
@@ -3275,11 +3275,11 @@
     "emptySearch": "افزونه‌ای در دسترس نیست.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
-    "cuaDescription": "افزونه ComputerUse DeepChat که بر پایه پروژه trycua/cua پیاده‌سازی شده است.",
+    "cuaDescription": "افزونه ComputerUse MioAgent که بر پایه پروژه trycua/cua پیاده‌سازی شده است.",
     "acpUnavailableTitle": "افزونه‌ها برای عامل‌های ACP در دسترس نیستند",
-    "acpUnavailableDescription": "عامل‌های ACP ابزارها و افزونه‌ها را در محیط اجرای خود مدیریت می‌کنند. برای استفاده از افزونه‌ها، یک عامل DeepChat را انتخاب کنید.",
-    "agentScopeUnsupported": "افزونه‌های ویژهٔ هر عامل فقط برای عامل‌های DeepChat در دسترس هستند.",
-    "scopeGlobalPlugins": "این صفحه سراسری برنامه است: نصب، فعال‌سازی و وضعیت فرایند افزونه‌های رسمی بین همه عامل‌های DeepChat مشترک است.",
+    "acpUnavailableDescription": "عامل‌های ACP ابزارها و افزونه‌ها را در محیط اجرای خود مدیریت می‌کنند. برای استفاده از افزونه‌ها، یک عامل MioAgent را انتخاب کنید.",
+    "agentScopeUnsupported": "افزونه‌های ویژهٔ هر عامل فقط برای عامل‌های MioAgent در دسترس هستند.",
+    "scopeGlobalPlugins": "این صفحه سراسری برنامه است: نصب، فعال‌سازی و وضعیت فرایند افزونه‌های رسمی بین همه عامل‌های MioAgent مشترک است.",
     "scopeCurrentAgent": "این صفحه سیاست عامل است: تغییرات فقط روی در دسترس بودن Skills/MCP برای «{agent}» اثر می‌گذارد، نه روی نصب‌های سراسری.",
     "currentAgentFallback": "عامل فعلی"
   },
@@ -3304,13 +3304,13 @@
     }
   },
   "toolchains": {
-    "description": "انتخاب کنید DeepChat نود و uv را از کجا بگیرد. منبع پس از انتخاب خودش عوض نمی‌شود.",
+    "description": "انتخاب کنید MioAgent نود و uv را از کجا بگیرد. منبع پس از انتخاب خودش عوض نمی‌شود.",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
     "source": "منبع",
     "sources": {
       "bundled": "همراه برنامه",
-      "managed": "نصب‌شده توسط DeepChat",
+      "managed": "نصب‌شده توسط MioAgent",
       "system": "نصب سیستم",
       "custom": "مسیر سفارشی",
       "unconfigured": "پیکربندی‌نشده",

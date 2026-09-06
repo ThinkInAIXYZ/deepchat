@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Ask DeepChat anything, {'@'} to mention files, / for commands",
+    "placeholder": "Ask MioAgent anything, {'@'} to mention files, / for commands",
     "fileArea": "File Area",
     "inputArea": "Input Area",
     "functionSwitch": "Function Switch",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "Local recording is not available here",
     "voiceRecognitionUnsupportedDescription": "Use this feature in a browser or desktop environment that supports microphone recording.",
     "voiceRecognitionPermissionDeniedTitle": "Microphone access is unavailable",
-    "voiceRecognitionPermissionDeniedDescription": "Allow DeepChat to use the microphone and try again.",
+    "voiceRecognitionPermissionDeniedDescription": "Allow MioAgent to use the microphone and try again.",
     "voiceRecognitionErrorTitle": "Audio transcription failed",
     "voiceRecognitionErrorDescription": "Could not complete audio transcription. Please try again later.",
     "send": "Send",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Image Generation",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
+        "deepchatSettings": "MioAgent Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -521,12 +521,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Switch to DeepChat Agent",
-      "description": "Before chatting, switch away from ACP and return to the built-in DeepChat flow.",
+      "title": "Switch to MioAgent Agent",
+      "description": "Before chatting, switch away from ACP and return to the built-in MioAgent flow.",
       "caption": "Click the highlighted agent button in the sidebar to continue."
     },
     "switchModel": {
-      "description": "Pick the model you want to use for your first DeepChat conversation.",
+      "description": "Pick the model you want to use for your first MioAgent conversation.",
       "caption": "Use the highlighted model switcher and choose any available model."
     },
     "firstChat": {
@@ -608,7 +608,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "Open child" },
+    "actions": {
+      "openChild": "Open child"
+    },
     "activityTitle": "Agent activity",
     "proactive": {
       "title": "Proactive collaboration",
@@ -616,7 +618,7 @@
       "reasons": {
         "session_unavailable": "This session is no longer available.",
         "agent_unavailable": "The selected Agent is unavailable.",
-        "deepchat_agent_required": "Proactive collaboration requires a DeepChat Agent.",
+        "deepchat_agent_required": "Proactive collaboration requires a MioAgent Agent.",
         "regular_parent_required": "Proactive collaboration is unavailable inside a child session.",
         "agent_policy_unavailable": "The collaboration policy could not be loaded.",
         "subagents_disabled": "Enable Subagents for this Agent to use proactive collaboration."

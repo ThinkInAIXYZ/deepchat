@@ -40,7 +40,11 @@ async function provisionElectronHost(outputDirectory: string): Promise<void> {
     await mkdir(path.dirname(host), { recursive: true })
     try {
       await symlink(process.execPath, host)
-    } catch {
+    } catch (error) {
+      // On case-insensitive filesystems (macOS default) 'deepchat' collides with the
+      // already-provisioned 'DeepChat'; the copy fallback would then write through that
+      // symlink onto the running Node binary, so treat EEXIST as already provisioned.
+      if ((error as { code?: string }).code === 'EEXIST') continue
       await copyFile(process.execPath, host)
       if (process.platform !== 'win32') {
         await chmod(host, 0o755)

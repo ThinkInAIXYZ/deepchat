@@ -47,8 +47,8 @@ export class McpRouterManager {
   private getCommonHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'deepchatai.cn',
-      'X-Title': 'DeepChat'
+      'HTTP-Referer': 'github.com/chenjiaqiangmax/mioagent',
+      'X-Title': 'MioAgent'
     }
   }
 
@@ -112,8 +112,8 @@ export class McpRouterManager {
       customHeaders: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'deepchatai.cn',
-        'X-Title': 'DeepChat'
+        'HTTP-Referer': 'github.com/chenjiaqiangmax/mioagent',
+        'X-Title': 'MioAgent'
       },
       source: 'mcprouter',
       sourceId: serverKey

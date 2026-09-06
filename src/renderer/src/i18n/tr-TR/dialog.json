@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Taşı ve Ajanı Sil",
     "moveConversation": "Konuşmayı Taşı",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Taslak",
       "subagent": "Alt ajan"
     },
-    "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca DeepChat ajanları seçilebilir. ACP konuşmaları DeepChat’e taşınabilir, ancak ACP’ye taşınamaz."
+    "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca MioAgent ajanları seçilebilir. ACP konuşmaları MioAgent’e taşınabilir, ancak ACP’ye taşınamaz."
   },
   "deleteMessage": {
     "title": "Bu mesaj silinsin mi?",

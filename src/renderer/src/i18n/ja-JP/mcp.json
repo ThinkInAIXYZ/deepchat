@@ -151,7 +151,7 @@
       "name": "Bocha Search"
     },
     "buildInFileSystem": {
-      "desc": "DeepChatがローカルファイルを操作できるようにします",
+      "desc": "MioAgentがローカルファイルを操作できるようにします",
       "name": "ファイルシステム"
     },
     "braveSearch": {
@@ -184,7 +184,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "会話履歴検索",
-      "desc": "DeepChat内蔵の会話履歴検索サービス、過去の会話記録とメッセージ内容を検索できます"
+      "desc": "MioAgent内蔵の会話履歴検索サービス、過去の会話記録とメッセージ内容を検索できます"
     },
     "builtinKnowledge": {
       "desc": "deepchatビルトインナレッジベース検索サービス。これは、deepchatビルトインナレッジベースのコンテンツを検索できる",

@@ -9,7 +9,7 @@
     "notEnabled": "Synchronizacja nie jest włączona",
     "folderNotExists": "Folder synchronizacji nie istnieje",
     "noValidBackup": "W folderze synchronizacji nie znaleziono prawidłowych plików kopii zapasowych.",
-    "unsupportedBackupVersion": "Ta kopia zapasowa została utworzona przez nowszą wersję DeepChat i nie można jej zaimportować.",
+    "unsupportedBackupVersion": "Ta kopia zapasowa została utworzona przez nowszą wersję MioAgent i nie można jej zaimportować.",
     "dbNotExists": "Plik bazy danych nie istnieje",
     "configNotExists": "Plik konfiguracyjny nie istnieje",
     "tempDbFailed": "Nie udało się utworzyć tymczasowego pliku kopii zapasowej bazy danych",

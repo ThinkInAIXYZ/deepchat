@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Hoş geldin",
-      "description": "DeepChat kurulumuna başlayalım"
+      "description": "MioAgent kurulumuna başlayalım"
     },
     "provider": {
       "title": "sağlayıcı",
@@ -17,7 +17,7 @@
       "description": "Her şey hazır ve yola çıkmaya hazır!"
     }
   },
-  "title": "DeepChat'a hoş geldiniz",
+  "title": "MioAgent'a hoş geldiniz",
   "description": "Kurulum boyunca size yol gösterelim.",
   "provider": {
     "select": "Bir Sağlayıcı Seçin",
@@ -35,7 +35,7 @@
     "back": "Geri"
   },
   "page": {
-    "title": "DeepChat Agent'a hoş geldiniz",
+    "title": "MioAgent Agent'a hoş geldiniz",
     "description": "Başlamak için bir model sağlayıcıya bağlanın",
     "guide": {
       "title": "Kurulum kılavuzu",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Oluşturmaya Başlamak için bir Agent seçin",
-    "deepchatType": "DeepChat Agent",
+    "deepchatType": "MioAgent Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "DeepChat Agent'yi yönet"
+    "manageAgents": "MioAgent Agent'yi yönet"
   }
 }

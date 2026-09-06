@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "انتقال و حذف عامل",
     "moveConversation": "انتقال گفتگو",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "پیش‌نویس",
       "subagent": "زیرعامل"
     },
-    "deepChatTargetOnly": "فقط عامل‌های DeepChat می‌توانند به عنوان مقصد انتقال انتخاب شوند. گفتگوهای ACP می‌توانند به DeepChat منتقل شوند، اما نمی‌توانند به ACP منتقل شوند."
+    "deepChatTargetOnly": "فقط عامل‌های MioAgent می‌توانند به عنوان مقصد انتقال انتخاب شوند. گفتگوهای ACP می‌توانند به MioAgent منتقل شوند، اما نمی‌توانند به ACP منتقل شوند."
   },
   "deleteMessage": {
     "title": "این پیام حذف شود؟",

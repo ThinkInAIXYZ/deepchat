@@ -87,7 +87,7 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
 
     expect(context.defaultHeaders).toMatchObject({
       'APP-Code': 'SMUE7630',
-      'X-Title': 'DeepChat'
+      'X-Title': 'MioAgent'
     })
   })
 

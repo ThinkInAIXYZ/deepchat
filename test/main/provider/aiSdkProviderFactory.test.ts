@@ -654,8 +654,8 @@ describe('AI SDK provider factory', () => {
       } as any,
       providerSettings: {} as any,
       defaultHeaders: {
-        'HTTP-Referer': 'https://deepchatai.cn',
-        'X-Title': 'DeepChat'
+        'HTTP-Referer': 'https://github.com/chenjiaqiangmax/mioagent',
+        'X-Title': 'MioAgent'
       },
       modelId: 'gemini-3.1-flash-lite-preview',
       cleanHeaders: true
@@ -783,7 +783,7 @@ describe('AI SDK provider factory', () => {
       providerSettings: {
         getAzureApiVersion: () => undefined
       } as any,
-      defaultHeaders: { 'X-Title': 'DeepChat' },
+      defaultHeaders: { 'X-Title': 'MioAgent' },
       modelId: 'llama3',
       wrapThinkReasoning: false
     })

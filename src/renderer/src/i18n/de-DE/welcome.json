@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Willkommen",
-      "description": "Richten wir DeepChat ein"
+      "description": "Richten wir MioAgent ein"
     },
     "provider": {
       "title": "Modellanbieter",
@@ -17,7 +17,7 @@
       "description": "Alles bereit. Sie können loslegen!"
     }
   },
-  "title": "Willkommen bei DeepChat",
+  "title": "Willkommen bei MioAgent",
   "description": "Lassen Sie uns die Einrichtung gemeinsam abschließen",
   "provider": {
     "select": "Anbieter auswählen",
@@ -35,7 +35,7 @@
     "back": "Zurück"
   },
   "page": {
-    "title": "Willkommen bei DeepChat Agent",
+    "title": "Willkommen bei MioAgent Agent",
     "description": "Verbinden Sie einen Modellanbieter, um zu starten",
     "guide": {
       "title": "Einrichtungsfortschritt",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Agent auswählen und loslegen",
-    "deepchatType": "DeepChat Agent",
+    "deepchatType": "MioAgent Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "DeepChat Agent verwalten"
+    "manageAgents": "MioAgent Agent verwalten"
   }
 }

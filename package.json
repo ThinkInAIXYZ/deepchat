@@ -1,9 +1,9 @@
 {
-  "name": "DeepChat",
+  "name": "mioagent",
   "version": "1.1.2-beta.1",
-  "description": "DeepChat，一个简单易用的 Agent 客户端",
+  "description": "MioAgent，一个简单易用的 Agent 客户端",
   "main": "./out/main/index.js",
-  "author": "ThinkInAIXYZ",
+  "author": "chenjiaqiangmax",
   "type": "module",
   "engines": {
     "node": ">=24.18.0 <25",
@@ -100,7 +100,8 @@
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "i18n:types": "node scripts/generate-i18n-types.js",
     "cleanRuntime": "rm -rf runtime/uv runtime/node",
-    "update-shadcn": "node scripts/update-shadcn.js"
+    "update-shadcn": "node scripts/update-shadcn.js",
+    "oem:apply": "node oem/apply.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.16.1",

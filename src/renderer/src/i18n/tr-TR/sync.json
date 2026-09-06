@@ -9,7 +9,7 @@
     "notEnabled": "Senkronizasyon etkin değil",
     "folderNotExists": "Senkronizasyon klasörü mevcut değil",
     "noValidBackup": "Senkronizasyon klasöründe geçerli bir yedekleme dosyası bulunamadı.",
-    "unsupportedBackupVersion": "Bu yedekleme, DeepChat'nin daha yeni bir sürümü tarafından oluşturuldu ve içe aktarılamaz.",
+    "unsupportedBackupVersion": "Bu yedekleme, MioAgent'nin daha yeni bir sürümü tarafından oluşturuldu ve içe aktarılamaz.",
     "dbNotExists": "Veritabanı dosyası mevcut değil",
     "configNotExists": "Yapılandırma dosyası mevcut değil",
     "tempDbFailed": "Geçici veritabanı yedekleme dosyası oluşturulamadı",

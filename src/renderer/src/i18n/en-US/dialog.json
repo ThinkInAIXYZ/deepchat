@@ -56,7 +56,7 @@
     "moveAndDeleteAgent": "Move and Delete Agent",
     "moveConversation": "Move Conversation",
     "agentType": {
-      "deepchat": "DeepChat",
+      "deepchat": "MioAgent",
       "acp": "ACP"
     },
     "blockReason": {
@@ -71,7 +71,7 @@
       "draft": "Draft",
       "subagent": "Subagent"
     },
-    "deepChatTargetOnly": "Only DeepChat agents can be selected as transfer targets. ACP conversations can move to DeepChat, but not into ACP."
+    "deepChatTargetOnly": "Only MioAgent agents can be selected as transfer targets. ACP conversations can move to MioAgent, but not into ACP."
   },
   "error": {
     "title": "Error"

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Kirim pesan ke DeepChat, {'@'} bisa referensi filenya, / bisa pakai perintah",
+    "placeholder": "Kirim pesan ke MioAgent, {'@'} bisa referensi filenya, / bisa pakai perintah",
     "fileArea": "wilayah berkas",
     "inputArea": "daerah masukan",
     "functionSwitch": "Sakelar fungsi",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "Lingkungan saat ini tidak mendukung perekaman lokal",
     "voiceRecognitionUnsupportedDescription": "Silakan gunakan fitur ini di browser atau lingkungan desktop yang mendukung perekaman mikrofon.",
     "voiceRecognitionPermissionDeniedTitle": "Tidak dapat mengakses mikrofon",
-    "voiceRecognitionPermissionDeniedDescription": "Izinkan DeepChat menggunakan mikrofon dan coba lagi.",
+    "voiceRecognitionPermissionDeniedDescription": "Izinkan MioAgent menggunakan mikrofon dan coba lagi.",
     "voiceRecognitionErrorTitle": "Transkripsi audio gagal",
     "voiceRecognitionErrorDescription": "Gagal menyelesaikan transkripsi audio, coba lagi nanti.",
     "send": "kirim",
@@ -59,7 +59,7 @@
         "agentCore": "alat inti",
         "agentImageGeneration": "generasi gambar",
         "agentSkills": "Alat Skills",
-        "deepchatSettings": "DeepChat Pengaturan",
+        "deepchatSettings": "MioAgent Pengaturan",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Beralih ke DeepChat Agent",
-      "description": "Sebelum memulai obrolan, beralih kembali ke alur percakapan DeepChat dari ACP Agent.",
+      "title": "Beralih ke MioAgent Agent",
+      "description": "Sebelum memulai obrolan, beralih kembali ke alur percakapan MioAgent dari ACP Agent.",
       "caption": "Klik tombol Agent yang disorot di sidebar untuk melanjutkan."
     },
     "switchModel": {
-      "description": "Pilih model yang ingin Anda gunakan untuk percakapan DeepChat pertama Anda.",
+      "description": "Pilih model yang ingin Anda gunakan untuk percakapan MioAgent pertama Anda.",
       "caption": "Gunakan pengalih model yang disorot untuk memilih model apa pun yang tersedia."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Sesi ini sudah tidak tersedia.",
         "agent_unavailable": "Agent yang dipilih tidak tersedia.",
-        "deepchat_agent_required": "Kolaborasi proaktif memerlukan DeepChat Agent.",
+        "deepchat_agent_required": "Kolaborasi proaktif memerlukan MioAgent Agent.",
         "regular_parent_required": "Kolaborasi proaktif tidak tersedia di dalam sesi anak.",
         "agent_policy_unavailable": "Kebijakan kolaborasi tidak dapat dimuat.",
         "subagents_disabled": "Aktifkan Subagents untuk Agent ini agar dapat menggunakan kolaborasi proaktif."

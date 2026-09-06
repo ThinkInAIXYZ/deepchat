@@ -25,21 +25,21 @@
           >
           <a
             class="flex items-center text-xs text-muted-foreground hover:text-primary"
-            href="https://github.com/ThinkInAIXYZ/deepchat"
+            href="https://github.com/chenjiaqiangmax/mioagent"
             target="_blank"
             rel="noopener noreferrer"
-            @click.prevent="openExternalLink('https://github.com/ThinkInAIXYZ/deepchat')"
+            @click.prevent="openExternalLink('https://github.com/chenjiaqiangmax/mioagent')"
           >
             <Icon icon="lucide:github" class="mr-1 h-3 w-3" />
             GitHub
           </a>
           <a
             class="flex items-center text-xs text-muted-foreground hover:text-primary"
-            href="https://github.com/ThinkInAIXYZ/deepchat/blob/dev/LICENSE"
+            href="https://github.com/chenjiaqiangmax/mioagent/blob/main/LICENSE"
             target="_blank"
             rel="noopener noreferrer"
             @click.prevent="
-              openExternalLink('https://github.com/ThinkInAIXYZ/deepchat/blob/dev/LICENSE')
+              openExternalLink('https://github.com/chenjiaqiangmax/mioagent/blob/main/LICENSE')
             "
           >
             <Icon icon="lucide:scale" class="mr-1 h-3 w-3" />
@@ -106,7 +106,7 @@
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
-          @click="openExternalLink('https://github.com/ThinkInAIXYZ/deepchat/discussions/1226')"
+          @click="openExternalLink('https://github.com/chenjiaqiangmax/mioagent/issues')"
         >
           <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
           {{ t('about.feedbackButton') }}

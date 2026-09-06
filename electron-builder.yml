@@ -1,5 +1,5 @@
-appId: com.wefonk.deepchat
-productName: DeepChat
+appId: com.mioagent.app
+productName: MioAgent
 directories:
   buildResources: build
 files:
@@ -84,7 +84,7 @@ electronLanguages:
   - he-IL
   - he
 win:
-  executableName: DeepChat
+  executableName: MioAgent
 nsis:
   artifactName: ${name}-${version}-windows-${arch}.${ext}
   shortcutName: ${productName}
@@ -133,7 +133,7 @@ linux:
   target:
     - AppImage
     - tar.gz
-  maintainer: ThinkInAIXYZ
+  maintainer: chenjiaqiangmax
   category: Utility
   artifactName: ${name}-${version}-linux-${arch}.${ext}
   mimeTypes:
@@ -141,5 +141,5 @@ linux:
 npmRebuild: true
 publish:
   provider: github
-  owner: ThinkInAIXYZ
-  repo: deepchat
+  owner: chenjiaqiangmax
+  repo: mioagent

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "DeepChat に何でも聞いてください。{'@'} でファイルをメンション、/ でコマンドを使用できます",
+    "placeholder": "MioAgent に何でも聞いてください。{'@'} でファイルをメンション、/ でコマンドを使用できます",
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",
@@ -33,7 +33,7 @@
     "voiceRecognitionUnsupportedTitle": "現在の環境は音声認識に対応していません",
     "voiceRecognitionUnsupportedDescription": "音声認識に対応したブラウザまたはデスクトップ環境でこの機能を使用してください。",
     "voiceRecognitionPermissionDeniedTitle": "マイクにアクセスできません",
-    "voiceRecognitionPermissionDeniedDescription": "DeepChat にマイクの使用を許可してからもう一度お試しください。",
+    "voiceRecognitionPermissionDeniedDescription": "MioAgent にマイクの使用を許可してからもう一度お試しください。",
     "voiceRecognitionErrorTitle": "音声認識に失敗しました",
     "voiceRecognitionErrorDescription": "音声認識を完了できませんでした。しばらくしてからもう一度お試しください。",
     "send": "送信",
@@ -59,7 +59,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "画像生成",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
+        "deepchatSettings": "MioAgent Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "DeepChat Agent に切り替える",
-      "description": "チャットを始める前に ACP から切り替え、組み込みの DeepChat フローに戻ってください。",
+      "title": "MioAgent Agent に切り替える",
+      "description": "チャットを始める前に ACP から切り替え、組み込みの MioAgent フローに戻ってください。",
       "caption": "続行するには、サイドバーでハイライトされたエージェントボタンをクリックしてください。"
     },
     "switchModel": {
-      "description": "最初の DeepChat 会話で使用するモデルを選択してください。",
+      "description": "最初の MioAgent 会話で使用するモデルを選択してください。",
       "caption": "ハイライトされたモデル切り替えを使って、利用可能な任意のモデルを選んでください。"
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "このセッションは利用できなくなりました。",
         "agent_unavailable": "選択した Agent は利用できません。",
-        "deepchat_agent_required": "プロアクティブ連携には DeepChat Agent が必要です。",
+        "deepchat_agent_required": "プロアクティブ連携には MioAgent Agent が必要です。",
         "regular_parent_required": "子セッションではプロアクティブ連携を利用できません。",
         "agent_policy_unavailable": "連携ポリシーを読み込めませんでした。",
         "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"

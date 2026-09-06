@@ -1,0 +1,22 @@
+{
+  "brand": {
+    "productName": "MioAgent",
+    "npmName": "mioagent",
+    "appId": "com.mioagent.app",
+    "winExecutableName": "MioAgent",
+    "author": "chenjiaqiangmax",
+    "maintainer": "chenjiaqiangmax",
+    "githubOwner": "chenjiaqiangmax",
+    "githubRepo": "mioagent",
+    "repoUrl": "https://github.com/chenjiaqiangmax/mioagent",
+    "httpReferer": "https://github.com/chenjiaqiangmax/mioagent",
+    "officialDownloadUrl": "https://github.com/chenjiaqiangmax/mioagent/releases",
+    "issuesUrl": "https://github.com/chenjiaqiangmax/mioagent/issues",
+    "description": "MioAgent，一个简单易用的 Agent 客户端"
+  },
+  "upstream": {
+    "remote": "upstream",
+    "repoUrl": "https://github.com/ThinkInAIXYZ/deepchat",
+    "baselineTag": "v1.1.2-beta.1"
+  }
+}

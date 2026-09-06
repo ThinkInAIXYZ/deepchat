@@ -35,7 +35,7 @@
     "back": "بازگشت"
   },
   "page": {
-    "title": "به DeepChat Agent خوش آمدید",
+    "title": "به MioAgent Agent خوش آمدید",
     "description": "برای شروع، یک ارائه‌دهنده مدل متصل کنید",
     "guide": {
       "title": "راهنمای راه‌اندازی",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "یک ایجنت انتخاب کنید و خلق را شروع کنید",
-    "deepchatType": "ایجنت DeepChat",
+    "deepchatType": "ایجنت MioAgent",
     "acpType": "ایجنت ACP",
-    "manageAgents": "مدیریت ایجنت‌های DeepChat"
+    "manageAgents": "مدیریت ایجنت‌های MioAgent"
   }
 }
