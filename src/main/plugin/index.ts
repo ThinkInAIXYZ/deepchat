@@ -1,3 +1,13 @@
+import { ToolchainService } from '@/toolchains'
+import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { UserPlugins, type UserPluginRecord } from './userPlugins'
+import { UserPluginHooks } from './userPluginHooks'
+import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
+import type {
+  UserPluginSource,
+  UserPluginInstallInput,
+  PreparedUserPlugin
+} from '@shared/types/userPlugin'
 import { app, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -47,6 +57,8 @@ const MACOS_SCREEN_CAPTURE_SETTINGS =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 
 type PluginStoreShape = {
+  userInstallations: UserPluginRecord[]
+  userPluginPending: { previous: UserPluginRecord; next: UserPluginRecord } | null
   installations: PluginInstallationRecord[]
   resources: PluginResourceRecord[]
   runtimes: RuntimeDependencyRecord[]
@@ -66,6 +78,7 @@ export interface PluginSettingsWindowPort {
 }
 
 type PluginServiceDeps = {
+  contextTape?: TapeAnchorWriter & TapeNonContextEntryReader
   mcpSettings: McpSettings
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
     checkPluginRuntimePermissions(serverName: string): Promise<unknown>
@@ -116,6 +129,17 @@ type RuntimePermissionCheckResult = {
 }
 
 export interface PluginServicePort {
+  readonly contextHooks?: UserPluginHooks
+  inspectSource(source: UserPluginSource, requestId: string): Promise<PreparedUserPlugin>
+  installUserPlugin(input: UserPluginInstallInput): Promise<PluginActionResult>
+  uninstallUserPlugin(pluginId: string): Promise<PluginActionResult>
+  discardPrepared(operationId: string): Promise<void>
+  configurePluginMcp(
+    pluginId: string,
+    serverName: string,
+    values: Record<string, string>
+  ): Promise<PluginActionResult>
+  retryPluginHook(pluginId: string, invocationId: string): Promise<void>
   initialize(): Promise<void>
   shutdown(): Promise<void>
   listPlugins(): Promise<PluginListItem[]>
@@ -126,6 +150,8 @@ export interface PluginServicePort {
 }
 
 export class PluginService implements PluginServicePort {
+  readonly contextHooks?: UserPluginHooks
+  private readonly userPlugins?: UserPlugins
   private readonly mcpSettings: McpSettings
   private readonly mcpService: PluginServiceDeps['mcpService']
   private readonly skillService: SkillContributionPort
@@ -139,6 +165,8 @@ export class PluginService implements PluginServicePort {
   private readonly store = new ElectronStore<PluginStoreShape>({
     name: 'plugin-settings',
     defaults: {
+      userInstallations: [],
+      userPluginPending: null,
       installations: [],
       resources: [],
       runtimes: [],
@@ -179,6 +207,27 @@ export class PluginService implements PluginServicePort {
     this.isPackaged = deps.isPackaged ?? app.isPackaged
     this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
     this.runtimeSupervisor.attachSafetyStore(this.runtimeSafetyStore)
+    if (deps.contextTape) {
+      this.contextHooks = new UserPluginHooks(deps.contextTape, () =>
+        ToolchainService.getInstance().prependResolvedToEnv(
+          createMinimalProcessEnvironment(process.env, process.platform)
+        )
+      )
+      this.userPlugins = new UserPlugins({
+        root: this.getPluginInstallRoot(),
+        hooks: this.contextHooks,
+        store: {
+          read: () => this.store.get('userInstallations') ?? [],
+          write: (records) => this.store.set('userInstallations', records),
+          pending: () => this.store.get('userPluginPending') ?? null,
+          writePending: (operation) => this.store.set('userPluginPending', operation)
+        },
+        skillService: this.skillService,
+        mcpSettings: this.mcpSettings,
+        mcpService: this.mcpService,
+        supervisor: this.runtimeSupervisor
+      })
+    }
   }
 
   async initialize(): Promise<void> {
@@ -219,6 +268,40 @@ export class PluginService implements PluginServicePort {
         }
       }
     }
+    await this.userPlugins?.initialize()
+  }
+
+  inspectSource(source: UserPluginSource, requestId: string): Promise<PreparedUserPlugin> {
+    if (!this.userPlugins) throw new Error('User plugin host is unavailable')
+    return this.userPlugins.inspect(source, requestId)
+  }
+
+  installUserPlugin(input: UserPluginInstallInput): Promise<PluginActionResult> {
+    if (!this.userPlugins) throw new Error('User plugin host is unavailable')
+    return this.userPlugins.install(input)
+  }
+
+  uninstallUserPlugin(pluginId: string): Promise<PluginActionResult> {
+    if (!this.userPlugins) throw new Error('User plugin host is unavailable')
+    return this.userPlugins.uninstall(pluginId)
+  }
+
+  async discardPrepared(operationId: string): Promise<void> {
+    await this.userPlugins?.sources.discard(operationId)
+  }
+
+  configurePluginMcp(
+    pluginId: string,
+    serverName: string,
+    values: Record<string, string>
+  ): Promise<PluginActionResult> {
+    if (!this.userPlugins) throw new Error('User plugin host is unavailable')
+    return this.userPlugins.configureMcp(pluginId, serverName, values)
+  }
+
+  async retryPluginHook(pluginId: string, invocationId: string): Promise<void> {
+    if (!this.contextHooks) throw new Error('User plugin host is unavailable')
+    await this.contextHooks.retry(pluginId, invocationId)
   }
 
   private async applyRuntimeMigrations(): Promise<void> {
@@ -254,6 +337,7 @@ export class PluginService implements PluginServicePort {
   }
 
   async shutdown(): Promise<void> {
+    this.userPlugins?.shutdown()
     const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
     for (const pluginId of pluginIds) {
       unregisterPluginToolPolicies(pluginId)
@@ -264,14 +348,16 @@ export class PluginService implements PluginServicePort {
 
   async listPlugins(): Promise<PluginListItem[]> {
     await this.loadOfficialPlugins()
-    return await Promise.all(
+    const official = await Promise.all(
       Array.from(this.officialPlugins.values()).map(async (plugin) => {
         return await this.buildPluginListItem(plugin.manifest.id)
       })
     )
+    return [...official, ...((await this.userPlugins?.list()) ?? [])]
   }
 
   async getPlugin(pluginId: string): Promise<PluginListItem | undefined> {
+    if (this.userPlugins?.has(pluginId)) return this.userPlugins.get(pluginId)
     await this.loadOfficialPlugins()
     if (!this.officialPlugins.has(pluginId)) {
       return undefined
@@ -280,6 +366,7 @@ export class PluginService implements PluginServicePort {
   }
 
   async enablePlugin(pluginId: string): Promise<PluginActionResult> {
+    if (this.userPlugins?.has(pluginId)) return this.userPlugins.enable(pluginId)
     try {
       await this.loadOfficialPlugins()
       const plugin = this.getOfficialPluginOrThrow(pluginId)
@@ -318,6 +405,7 @@ export class PluginService implements PluginServicePort {
   }
 
   async disablePlugin(pluginId: string): Promise<PluginActionResult> {
+    if (this.userPlugins?.has(pluginId)) return this.userPlugins.disable(pluginId)
     try {
       const installation = this.getInstallation(pluginId)
       if (!installation) {

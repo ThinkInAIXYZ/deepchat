@@ -758,6 +758,7 @@ export class SkillService implements SkillServicePort {
       state.skills[metadata.name] = {
         name: metadata.name,
         canonicalPath: metadata.skillRoot,
+        ...(metadata.ownerPluginId ? { ownerPluginId: metadata.ownerPluginId } : {}),
         source:
           metadata.readOnly || metadata.ownerPluginId
             ? { type: 'builtin' }
@@ -1071,18 +1072,23 @@ export class SkillService implements SkillServicePort {
         metadata.readOnly || metadata.ownerPluginId
           ? ({ type: 'builtin' } as const)
           : (existing?.source ?? ({ type: 'created' } as const))
-      if (existing?.canonicalPath === metadata.skillRoot && existing.source.type === source.type) {
+      if (
+        existing?.canonicalPath === metadata.skillRoot &&
+        existing.source.type === source.type &&
+        existing.ownerPluginId === metadata.ownerPluginId
+      ) {
         continue
       }
       state.skills[metadata.name] = {
         name: metadata.name,
         canonicalPath: metadata.skillRoot,
+        ...(metadata.ownerPluginId ? { ownerPluginId: metadata.ownerPluginId } : {}),
         source
       }
       changed = true
     }
     for (const name of Object.keys(state.skills)) {
-      if (availableNames.has(name)) continue
+      if (availableNames.has(name) || state.skills[name].ownerPluginId) continue
       delete state.skills[name]
       for (const agent of Object.values(state.agents)) delete agent.bindings[name]
       changed = true
@@ -1414,7 +1420,8 @@ export class SkillService implements SkillServicePort {
           typeof item.canonicalPath === 'string' && item.canonicalPath.trim()
             ? path.resolve(item.canonicalPath)
             : path.join(this.skillsDir, name),
-        source: this.sanitizeSkillSource(item.source)
+        source: this.sanitizeSkillSource(item.source),
+        ...(typeof item.ownerPluginId === 'string' ? { ownerPluginId: item.ownerPluginId } : {})
       }
     }
 
@@ -3749,6 +3756,17 @@ export class SkillService implements SkillServicePort {
       throw new Error(`Plugin skill "${input.id}" is missing SKILL.md`)
     }
 
+    const candidate = matter(fs.readFileSync(skillPath, 'utf8')).data.name
+    await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
+    const existing = this.metadataCache.get(candidate)
+    const reserved = this.getStoredManagementState().skills[candidate]
+    if (
+      (existing && existing.ownerPluginId !== input.ownerPluginId) ||
+      (reserved?.ownerPluginId && reserved.ownerPluginId !== input.ownerPluginId)
+    ) {
+      throw new Error(`Skill "${candidate}" already belongs to another source`)
+    }
+
     this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
       ownerPluginId: input.ownerPluginId,
       skillRoot,
@@ -3758,10 +3776,20 @@ export class SkillService implements SkillServicePort {
     await this.materializePluginBindings(input.ownerPluginId)
   }
 
-  async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
-    const removedNames = Array.from(this.metadataCache.values())
-      .filter((skill) => skill.ownerPluginId === ownerPluginId)
-      .map((skill) => skill.name)
+  async unregisterPluginSkillsByOwner(
+    ownerPluginId: string,
+    options: { preserveAssignments?: boolean } = {}
+  ): Promise<void> {
+    const removedNames = [
+      ...new Set([
+        ...Array.from(this.metadataCache.values())
+          .filter((skill) => skill.ownerPluginId === ownerPluginId)
+          .map((skill) => skill.name),
+        ...Object.values(this.getStoredManagementState().skills)
+          .filter((skill) => skill.ownerPluginId === ownerPluginId)
+          .map((skill) => skill.name)
+      ])
+    ]
     let changed = false
     for (const [key, contribution] of this.pluginSkillContributions.entries()) {
       if (contribution.ownerPluginId === ownerPluginId) {
@@ -3770,12 +3798,12 @@ export class SkillService implements SkillServicePort {
       }
     }
 
-    if (changed) {
+    if (changed || removedNames.length > 0) {
       const state = this.getStoredManagementState()
       const affectedAgentIds = Object.entries(state.agents)
         .filter(([, agent]) => removedNames.some((name) => agent.bindings[name]?.assigned === true))
         .map(([agentId]) => agentId)
-      for (const name of removedNames) {
+      for (const name of options.preserveAssignments ? [] : removedNames) {
         delete state.skills[name]
         for (const agent of Object.values(state.agents)) delete agent.bindings[name]
       }
@@ -5260,9 +5288,27 @@ export class SkillService implements SkillServicePort {
   async resolveSkillRuntimeEnvironmentBinding(
     agentId: string,
     name: string,
-    expectedBindingId: string | null
+    expectedBindingId: string | null,
+    expectedSourceId?: string
   ): Promise<Record<string, string>> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
+    const ownerPluginId = this.getStoredManagementState().skills[name]?.ownerPluginId
+    const userPluginRoot = path.join(app.getPath('userData'), 'plugins', 'user')
+    const relativeSource = expectedSourceId ? path.relative(userPluginRoot, expectedSourceId) : null
+    const userPluginSource =
+      relativeSource !== null &&
+      relativeSource !== '..' &&
+      !relativeSource.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativeSource)
+    if (ownerPluginId || userPluginSource) {
+      const active = expectedSourceId
+        ? this.getPluginContributionForSkillRoot(expectedSourceId)
+        : undefined
+      if (!active || (ownerPluginId && active.ownerPluginId !== ownerPluginId))
+        throw new Error(
+          `Plugin Skill "${name}" is disabled, removed or belongs to a replaced revision`
+        )
+    }
     const binding = this.getStoredManagementState().agents[normalizedAgentId]?.bindings[name]
     const extension = binding
       ? sanitizeSkillExtensionConfig(binding.extension)

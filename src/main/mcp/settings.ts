@@ -744,6 +744,58 @@ export class McpSettings {
     )
   }
 
+  /** Keep rollback material with MCP settings, never in plugin metadata or renderer state. */
+  async preparePluginUpdate(pluginId: string): Promise<void> {
+    const snapshots = (this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+      string,
+      Record<string, MCPServerConfig>
+    >
+    const servers = await this.getMcpServers()
+    this.mcpStore.set('pluginUpdateSnapshots', {
+      ...snapshots,
+      [pluginId]: Object.fromEntries(
+        Object.entries(servers).filter(([, config]) => config.ownerPluginId === pluginId)
+      )
+    })
+  }
+
+  async restorePluginUpdate(pluginId: string): Promise<void> {
+    const snapshots = (this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+      string,
+      Record<string, MCPServerConfig>
+    >
+    const previous = snapshots[pluginId]
+    if (!previous) throw new Error('MCP rollback snapshot is unavailable')
+    const current = await this.getMcpServers()
+    for (const [name, config] of Object.entries(previous)) {
+      if (current[name] && current[name].ownerPluginId !== pluginId)
+        throw new Error('MCP rollback would replace another owner')
+      previous[name] = {
+        ...config,
+        enabled: false,
+        configGeneration:
+          Math.max(config.configGeneration ?? 1, current[name]?.configGeneration ?? 1) + 1
+      }
+    }
+    await this.setMcpServers({
+      ...Object.fromEntries(
+        Object.entries(current).filter(([, config]) => config.ownerPluginId !== pluginId)
+      ),
+      ...previous
+    })
+  }
+
+  commitPluginUpdate(pluginId: string): void {
+    const snapshots = {
+      ...((this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+        string,
+        Record<string, MCPServerConfig>
+      >)
+    }
+    delete snapshots[pluginId]
+    this.mcpStore.set('pluginUpdateSnapshots', snapshots)
+  }
+
   // 添加MCP服务器
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()

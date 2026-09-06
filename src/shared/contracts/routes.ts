@@ -420,6 +420,12 @@ import {
   projectSelectDirectoryRoute
 } from './routes/project.routes'
 import {
+  pluginsInspectSourceRoute,
+  pluginsInstallUserRoute,
+  pluginsUninstallUserRoute,
+  pluginsDiscardPreparedRoute,
+  pluginsConfigureMcpRoute,
+  pluginsRetryHookRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
@@ -786,6 +792,12 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [cronJobsRestartSchedulerRoute.name]: cronJobsRestartSchedulerRoute,
   [cronJobsValidateScheduleRoute.name]: cronJobsValidateScheduleRoute,
   [cronJobsPreviewScheduleRoute.name]: cronJobsPreviewScheduleRoute,
+  [pluginsInspectSourceRoute.name]: pluginsInspectSourceRoute,
+  [pluginsInstallUserRoute.name]: pluginsInstallUserRoute,
+  [pluginsUninstallUserRoute.name]: pluginsUninstallUserRoute,
+  [pluginsDiscardPreparedRoute.name]: pluginsDiscardPreparedRoute,
+  [pluginsConfigureMcpRoute.name]: pluginsConfigureMcpRoute,
+  [pluginsRetryHookRoute.name]: pluginsRetryHookRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

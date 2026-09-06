@@ -98,7 +98,13 @@ write cannot become the next startup input. It is excluded from discovery and ne
 or public contracts.
 
 Bundled and Plugin Skills remain in provider-owned roots. Providers control their lifecycle and
-mutability; global listing does not transfer ownership.
+mutability; global listing does not transfer ownership. User plugin metadata retains
+`ownerPluginId` while temporarily unavailable. Plugin disable/update unregisters active
+contributions while preserving Agent assignments and overrides; uninstall removes owned
+management state. A reserved plugin Skill name cannot be overwritten by another source.
+Execution authority validates the current plugin owner/root against the materialized source ID,
+so an older Tape view cannot execute a disabled, uninstalled or replaced plugin revision.
+See [User Plugins](../../features/user-plugins/spec.md).
 
 ### Management state
 

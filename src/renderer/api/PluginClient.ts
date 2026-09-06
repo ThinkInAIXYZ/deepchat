@@ -1,5 +1,12 @@
+import type { UserPluginSource, UserPluginInstallInput } from '@shared/types/userPlugin'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  pluginsInspectSourceRoute,
+  pluginsInstallUserRoute,
+  pluginsUninstallUserRoute,
+  pluginsDiscardPreparedRoute,
+  pluginsConfigureMcpRoute,
+  pluginsRetryHookRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
@@ -36,6 +43,20 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   return {
+    inspectSource: async (source: UserPluginSource, requestId: string) =>
+      (await bridge.invoke(pluginsInspectSourceRoute.name, { source, requestId })).prepared,
+    installUserPlugin: async (input: UserPluginInstallInput) =>
+      (await bridge.invoke(pluginsInstallUserRoute.name, input)).result,
+    uninstallUserPlugin: async (pluginId: string) =>
+      (await bridge.invoke(pluginsUninstallUserRoute.name, { pluginId })).result,
+    discardPrepared: async (operationId: string) => {
+      await bridge.invoke(pluginsDiscardPreparedRoute.name, { operationId })
+    },
+    configureMcp: async (pluginId: string, serverName: string, values: Record<string, string>) =>
+      (await bridge.invoke(pluginsConfigureMcpRoute.name, { pluginId, serverName, values })).result,
+    retryHook: async (pluginId: string, invocationId: string) => {
+      await bridge.invoke(pluginsRetryHookRoute.name, { pluginId, invocationId })
+    },
     listPlugins,
     getPlugin,
     enablePlugin,

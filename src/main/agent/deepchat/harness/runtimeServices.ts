@@ -1,3 +1,4 @@
+import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { ToolServicePort } from '@shared/types/tool'
@@ -63,6 +64,7 @@ export type DeepChatHarnessSkillPort = Pick<
   SkillMetadataSnapshotPort
 
 export interface DeepChatHarnessDependencies {
+  pluginContext?: PluginContextPort
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   agentSettings: AgentSettingsPort

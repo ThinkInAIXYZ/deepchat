@@ -1,3 +1,4 @@
+import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   SessionCompactionSnapshot,
@@ -84,6 +85,7 @@ type CompactionTranscript = TapeTranscriptReader &
   >
 
 export interface CompactionRuntimeCoordinatorDependencies {
+  pluginContext?: PluginContextPort
   compactionService: CompactionServicePort
   sessionStore: CompactionSessionStore
   messageStore: CompactionTranscript
@@ -403,6 +405,17 @@ export class CompactionRuntimeCoordinator {
         throwIfAbortRequested(options?.signal)
       }
       throw error
+    }
+
+    if (result.anchorCommitted && result.outcome !== 'unchanged' && scope.isCurrent() && this.deps.pluginContext?.hasHooks()) {
+      const state = expectedInstance.getRuntimeState()
+      if (state && state.providerId !== 'acp') {
+        await this.deps.pluginContext.accept({
+          sessionId, messageId: compactionMessageId, prompt: '', model: state.modelId,
+          cwd: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, expectedInstance),
+          source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
+        })
+      }
     }
 
     const projectedState =
