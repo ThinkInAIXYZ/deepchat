@@ -282,9 +282,7 @@ async function install(): Promise<void> {
           :disabled="busy || !hasSelectedCapability"
           @click="install"
           >{{
-            t(
-              pluginId ? 'settings.userPlugins.applyUpdate' : 'settings.userPlugins.installDisabled'
-            )
+            t(pluginId ? 'settings.userPlugins.applyUpdate' : 'settings.plugins.install')
           }}</DcButton
         >
       </DialogFooter>

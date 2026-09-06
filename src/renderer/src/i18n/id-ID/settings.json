@@ -3364,7 +3364,6 @@
     "sharedData": "Plugin data is shared by this installation across sessions.",
     "requiredVariables": "Required environment or credential variables",
     "applyUpdate": "Apply reviewed update",
-    "installDisabled": "Install (disabled)",
     "uninstall": "Uninstall",
     "source": "Installed source",
     "selected": "Selected",

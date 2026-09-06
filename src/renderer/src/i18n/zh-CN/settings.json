@@ -3364,7 +3364,6 @@
     "sharedData": "此安装的插件数据在不同会话间共享。",
     "requiredVariables": "需要的环境变量或凭据",
     "applyUpdate": "应用已审阅的更新",
-    "installDisabled": "安装（暂不启用）",
     "uninstall": "卸载",
     "source": "安装来源",
     "selected": "已选择",

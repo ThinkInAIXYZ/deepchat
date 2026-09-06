@@ -67,7 +67,7 @@ test('ZIP review installs a disabled user plugin and imports a working MCP serve
   await expect(checkboxes.nth(2)).not.toBeChecked()
   await checkboxes.nth(2).check()
   await app.page.screenshot({ path: testInfo.outputPath('plugin-review.png') })
-  await dialog.getByRole('button', { name: /Install \(disabled\)|安装（暂不启用）/ }).click()
+  await dialog.getByRole('button', { name: /^(Install|安装|安裝)$/ }).click()
   await expect(app.page.getByRole('heading', { name: 'portable-smoke', exact: true })).toBeVisible()
   const installed = await app.page.evaluate(async () => {
     const { plugins } = await window.deepchat.invoke('plugins.list', {})

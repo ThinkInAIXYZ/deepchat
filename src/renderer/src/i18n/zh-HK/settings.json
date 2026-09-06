@@ -3364,7 +3364,6 @@
     "sharedData": "此外掛安裝的資料會在不同對話間共用。",
     "requiredVariables": "所需的環境或憑證變數",
     "applyUpdate": "套用已檢閱的更新",
-    "installDisabled": "安裝（暫不啟用）",
     "uninstall": "解除安裝",
     "source": "安裝來源",
     "selected": "已選取",

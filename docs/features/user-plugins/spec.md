@@ -326,7 +326,7 @@ Install
   [x] Skills
   [ ] Reviewed automatic hooks      commands and limits
   [ ] Reviewed MCP connections      commands / endpoints / setup variables
-  [Cancel]                          [Install (disabled)]
+  [Cancel]                          [Install]
 
 Details
   Name, description, enabled state  [Enable / Disable]
