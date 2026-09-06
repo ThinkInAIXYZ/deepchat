@@ -21810,8 +21810,8 @@
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 32768
+            "context": 400000,
+            "output": 128000
           },
           "tool_call": true,
           "reasoning": {
@@ -21984,7 +21984,7 @@
             ]
           },
           "limit": {
-            "context": 922000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": true,
@@ -23114,7 +23114,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
@@ -23849,6 +23849,34 @@
           "open_weights": true,
           "release_date": "2025-12-25",
           "last_updated": "2025-12-25",
+          "type": "chat"
+        },
+        {
+          "id": "TheDrummer/Artemis-v1.1",
+          "name": "TheDrummer/Artemis v1.1",
+          "display_name": "TheDrummer/Artemis v1.1",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-09-06",
+          "last_updated": "2026-09-06",
           "type": "chat"
         },
         {
@@ -175803,8 +175831,8 @@
             ]
           },
           "limit": {
-            "context": 32768,
-            "output": 26214
+            "context": 1024000,
+            "output": 819200
           },
           "temperature": true,
           "tool_call": true,
@@ -176434,7 +176462,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -249979,6 +250007,35 @@
           "type": "chat"
         },
         {
+          "id": "databricks/databricks-inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1048576
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "type": "chat"
+        },
+        {
           "id": "databricks/databricks-gpt-oss-120b",
           "name": "GPT OSS 120B",
           "display_name": "GPT OSS 120B",
@@ -302755,7 +302812,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {
@@ -312240,8 +312297,8 @@
             ]
           },
           "limit": {
-            "context": 32768,
-            "output": 26214
+            "context": 1024000,
+            "output": 819200
           },
           "tool_call": true,
           "reasoning": {
@@ -323188,7 +323245,7 @@
             ]
           },
           "limit": {
-            "context": 922000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": true,
@@ -323397,7 +323454,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
