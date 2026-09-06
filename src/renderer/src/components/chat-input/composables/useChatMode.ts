@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 // === Composables ===
 import { createConfigClient } from '@api/ConfigClient'
 import { createModelClient } from '@api/ModelClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 export type ChatMode = 'agent' | 'acp agent'
 
@@ -70,9 +71,14 @@ export function useChatMode() {
       // Revert to previous value on error
       if (modeUpdateVersion === updateVersion) {
         currentMode.value = previousValue
+        notifyRenderer({
+          kind: 'error',
+          code: 'chat.mode.saveFailed',
+          title: t('common.error.operationFailed'),
+          description: t('common.notifications.actionFailed')
+        })
       }
       console.error('Failed to save chat mode:', error)
-      // TODO: Show user-facing notification when toast system is available
     }
   }
 
