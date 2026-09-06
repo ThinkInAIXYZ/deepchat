@@ -22,6 +22,7 @@ import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendin
 import { DeepChatUsageStatsTable } from '@/session/data/tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+import { DeepChatTranscriptProjectionMetaTable } from '@/session/data/tables/deepchatTranscriptProjectionMeta'
 import { DeepChatTapeSearchProjectionTable } from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatSessionMetadataTable } from '@/session/data/tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
@@ -276,6 +277,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
   },
   {
+    name: 'deepchat_transcript_projection_meta',
+    createTable: (db) => new DeepChatTranscriptProjectionMetaTable(db)
+  },
+  {
     name: 'deepchat_tape_search_projection',
     createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
   },
@@ -481,6 +486,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const usageStats = new DeepChatUsageStatsTable(db)
   const memoryIngestionProjection = new DeepChatMemoryIngestionProjectionTable(db)
   const tapeEntries = new DeepChatTapeEntriesTable(db, memoryIngestionProjection)
+  const transcriptProjectionMeta = new DeepChatTranscriptProjectionMetaTable(db)
   const tapeSearchProjection = new DeepChatTapeSearchProjectionTable(db)
   const sessionMetadata = new DeepChatSessionMetadataTable(db)
   const legacyImportStatus = new LegacyImportStatusTable(db)
@@ -522,6 +528,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     usageStats,
     memoryIngestionProjection,
     tapeEntries,
+    transcriptProjectionMeta,
     tapeSearchProjection,
     sessionMetadata,
     legacyImportStatus,

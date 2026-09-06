@@ -12,6 +12,9 @@ import { createSessionData } from '@/session/data'
 import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
+vi.unmock('fs')
+vi.unmock('node:fs')
+
 const DatabaseCtor = Database!
 const describeIfNativeSqlite = nativeSqliteDescribeIf()
 
@@ -187,8 +190,10 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       bootstrap.close()
 
       const migrated = new MainDatabase(databasePath)
-      expect(migrated.getLatestSchemaVersion()).toBe(PENDING_INPUT_RETRY_SCHEMA_VERSION)
-      expect(migrated.deepchatPendingInputsTable.get('released')).toMatchObject({
+      expect(migrated.getLatestSchemaVersion()).toBeGreaterThanOrEqual(
+        PENDING_INPUT_RETRY_SCHEMA_VERSION
+      )
+      expect(new DeepChatPendingInputsTable(migrated.getDatabase()).get('released')).toMatchObject({
         state: 'blocked',
         retry_required_at: 11
       })
@@ -287,7 +292,7 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       )
 
       expect(
-        connection.deepchatPendingInputsTable
+        data.database.deepchatPendingInputsTable
           .listActiveBySession('s1')
           .filter((row) => row.mode === 'queue')
           .map((row) => [row.id, row.queue_order])
@@ -474,17 +479,12 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         { text: 'atomic queue', files: [] },
         { state: 'claimed' }
       )
-      const originalUpdate = connection.deepchatPendingInputsTable.update.bind(
-        connection.deepchatPendingInputsTable
-      )
-      const update = vi
-        .spyOn(connection.deepchatPendingInputsTable, 'update')
-        .mockImplementation((itemId, fields) => {
-          if (fields.message_ids_json) {
-            throw new Error('link failed')
-          }
-          return originalUpdate(itemId, fields)
-        })
+      connection.getDatabase().exec(`
+        CREATE TEMP TRIGGER reject_queue_link
+        AFTER UPDATE OF message_ids_json ON deepchat_pending_inputs
+        WHEN NEW.message_ids_json != '[]'
+        BEGIN SELECT RAISE(ABORT, 'link failed'); END;
+      `)
 
       expect(() =>
         data.pendingInputs.createClaimedQueueUserMessage('s1', queue.id, {
@@ -498,7 +498,7 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       expect(data.transcript.getMessages('s1')).toEqual([])
       expect(data.pendingInputs.getInput('s1', queue.id)?.messageIds).toEqual([])
 
-      update.mockRestore()
+      connection.getDatabase().exec('DROP TRIGGER reject_queue_link')
       const messageId = data.pendingInputs.createClaimedQueueUserMessage('s1', queue.id, {
         text: 'atomic queue',
         files: [],
@@ -531,19 +531,14 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         { text: 'second', files: [] },
         { mergeItemId: first.pendingInput.id }
       )
-      const tapeCountBeforeRecovery = connection.deepchatTapeEntriesTable.getBySession('s1').length
-      const originalUpdateStatus = connection.deepchatMessagesTable.updateStatus.bind(
-        connection.deepchatMessagesTable
-      )
-      let failedStatusUpdates = 0
-      const updateStatus = vi
-        .spyOn(connection.deepchatMessagesTable, 'updateStatus')
-        .mockImplementation((messageId, status) => {
-          originalUpdateStatus(messageId, status)
-          if (status === 'error' && ++failedStatusUpdates === 1) {
-            throw new Error('terminalization failed')
-          }
-        })
+      const tapeCountBeforeRecovery =
+        data.database.deepchatTapeEntriesTable.getBySession('s1').length
+      connection.getDatabase().exec(`
+        CREATE TEMP TRIGGER reject_steer_terminalization
+        AFTER UPDATE OF status ON deepchat_messages
+        WHEN NEW.status = 'error'
+        BEGIN SELECT RAISE(ABORT, 'terminalization failed'); END;
+      `)
 
       expect(() => data.pendingInputs.recoverInputsAfterRestart()).toThrow('terminalization failed')
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
@@ -552,11 +547,11 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       ])
       expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('pending')
       expect(data.pendingInputs.listPendingInputs('s1')).toHaveLength(1)
-      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+      expect(data.database.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
         tapeCountBeforeRecovery
       )
 
-      updateStatus.mockRestore()
+      connection.getDatabase().exec('DROP TRIGGER reject_steer_terminalization')
       data.pendingInputs.recoverInputsAfterRestart()
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
         'error',
@@ -564,7 +559,7 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       ])
       expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('consumed')
       expect(data.pendingInputs.listPendingInputs('s1')).toEqual([])
-      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+      expect(data.database.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
         tapeCountBeforeRecovery + 2
       )
       expect(second.pendingInput.messageIds).toEqual([first.message.id, second.message.id])

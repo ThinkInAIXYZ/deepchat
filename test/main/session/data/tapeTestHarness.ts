@@ -32,6 +32,8 @@ import {
 } from '@/tape/domain/reservedNamespaces'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import type { TapeTransactionRunner } from '@/tape/ports/storage'
+import type { TapeProjectionCursor } from '@/tape/ports/capabilities'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
@@ -446,6 +448,14 @@ function createTapeTableMock() {
     getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry))
     ),
+    getEffectiveMessageInputRowsAfter: vi.fn((sessionId: string, afterEntryId: number) =>
+      entries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.entry_id > afterEntryId &&
+          isEffectiveMessageInputRow(entry)
+      )
+    ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const selected = new Set(entryIds)
       return entries.filter(
@@ -705,6 +715,29 @@ function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord 
     createdAt: 100,
     updatedAt: 100,
     ...overrides
+  }
+}
+
+/**
+ * A transcript standing in for `TapeTranscriptProjection`: `getMessages` feeds the one-time
+ * backfill, the cursor lives in memory, and replayed rows are collected in `applied`.
+ */
+function createTranscriptProjectionMock(records: ChatMessageRecord[] = []) {
+  let cursor: TapeProjectionCursor | null = null
+  const applied: DeepChatTapeEntryRow[] = []
+  return {
+    getMessages: vi.fn(() => records),
+    readProjectionCursor: vi.fn(() => cursor),
+    writeProjectionCursor: vi.fn((_sessionId: string, next: TapeProjectionCursor) => {
+      cursor = { ...next }
+    }),
+    applyTapeEntries: vi.fn((rows: readonly DeepChatTapeEntryRow[]) => {
+      applied.push(...rows)
+    }),
+    applied,
+    get cursor() {
+      return cursor
+    }
   }
 }
 
@@ -1008,6 +1041,7 @@ export {
   itIfSqlite,
   createTapeTableMock,
   createRecord,
+  createTranscriptProjectionMock,
   createTraceRow,
   createMessageRow,
   createObservationManifest,

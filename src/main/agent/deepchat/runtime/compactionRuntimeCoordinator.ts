@@ -19,7 +19,7 @@ import type { DeepChatToolResolver } from './toolResolver'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
-import type { TapeTranscriptReader } from '@/tape/ports/capabilities'
+import type { TapeTranscriptProjection } from '@/tape/ports/capabilities'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { PromptAssemblyService } from './promptAssemblyService'
@@ -74,7 +74,7 @@ type CompactionSessionStore = Pick<
   | 'resetSummaryState'
 >
 
-type CompactionTranscript = TapeTranscriptReader &
+type CompactionTranscript = TapeTranscriptProjection &
   Pick<
     SessionTranscript,
     | 'createCompactionMessage'

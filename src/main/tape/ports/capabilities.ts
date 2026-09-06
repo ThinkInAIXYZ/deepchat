@@ -74,12 +74,35 @@ export type TapeBackfillResult = {
   historyRecords: ChatMessageRecord[]
 }
 
-export interface TapeTranscriptReader {
+/** Where the transcript tables stand relative to a Session's Tape. */
+export interface TapeProjectionCursor {
+  tapeIncarnationId: string
+  maxEntryId: number
+}
+
+/**
+ * The transcript as a projection of the Session's message facts. Tape reconciliation reads the
+ * cursor, hands the message rows appended past it to `applyTapeEntries`, and advances the cursor
+ * in the same transaction. `getMessages` is the source for the one-time backfill of a Session
+ * whose Tape predates the cursor.
+ */
+export interface TapeTranscriptProjection {
   getMessages(sessionId: string): ChatMessageRecord[]
+  readProjectionCursor(sessionId: string): TapeProjectionCursor | null
+  writeProjectionCursor(sessionId: string, cursor: TapeProjectionCursor): void
+  applyTapeEntries(rows: readonly DeepChatTapeEntryRow[]): void
 }
 
 export interface TapeReconciliationPort {
-  ensureSessionTapeReady(sessionId: string, messageStore: TapeTranscriptReader): TapeBackfillResult
+  ensureSessionTapeReady(
+    sessionId: string,
+    transcript: TapeTranscriptProjection
+  ): TapeBackfillResult
+}
+
+/** The head a terminal transcript write records as its projection cursor after appending. */
+export interface TapeProjectionHeadReader {
+  getProjectionHead(sessionId: string): TapeProjectionCursor | null
 }
 
 export type TapeViewManifestAssemblySources = {

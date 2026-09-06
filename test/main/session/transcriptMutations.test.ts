@@ -17,7 +17,7 @@ describe('SessionTranscriptMutations', () => {
     }
     const transcript = {
       getMessage: vi.fn(() => message),
-      updateMessageStatus: vi.fn()
+      restoreUserMessage: vi.fn()
     }
     const mutations = new SessionTranscriptMutations({
       transcript,
@@ -36,7 +36,7 @@ describe('SessionTranscriptMutations', () => {
     })
     // The failed Steer prompt is kept as the pre-stream anchor, so it must be
     // restored to 'sent' to remain visible to context history filtering.
-    expect(transcript.updateMessageStatus).toHaveBeenCalledWith('steer-1', 'sent')
+    expect(transcript.restoreUserMessage).toHaveBeenCalledWith('steer-1')
   })
 
   it('keeps the user prompt in place when retrying a user message directly', async () => {

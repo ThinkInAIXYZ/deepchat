@@ -156,6 +156,9 @@ function createHarness(options?: {
     createCompactionMessageAtOrderSeq: vi.fn().mockReturnValue('compaction-message'),
     deleteMessage: vi.fn(),
     getMessages: vi.fn().mockReturnValue([]),
+    readProjectionCursor: vi.fn().mockReturnValue(null),
+    writeProjectionCursor: vi.fn(),
+    applyTapeEntries: vi.fn(),
     getNextOrderSeq: vi.fn().mockReturnValue(7),
     recordCompactionModelCall: vi.fn(),
     updateCompactionMessage: vi.fn()

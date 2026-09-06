@@ -19,6 +19,7 @@ import {
   itIfSqlite,
   createTapeTableMock,
   createRecord,
+  createTranscriptProjectionMock,
   createTapeService
 } from './tapeTestHarness'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
@@ -234,22 +235,20 @@ describe('SessionTape recall', () => {
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
-        createRecord({ id: 'u1' }),
-        createRecord({
-          id: 'a1',
-          orderSeq: 2,
-          role: 'assistant',
-          content: JSON.stringify([
-            { type: 'content', content: 'answer', status: 'success', timestamp: 101 }
-          ]),
-          metadata: JSON.stringify({ totalTokens: 9 }),
-          createdAt: 101,
-          updatedAt: 101
-        })
-      ])
-    }
+    const messageStore = createTranscriptProjectionMock([
+      createRecord({ id: 'u1' }),
+      createRecord({
+        id: 'a1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: JSON.stringify([
+          { type: 'content', content: 'answer', status: 'success', timestamp: 101 }
+        ]),
+        metadata: JSON.stringify({ totalTokens: 9 }),
+        createdAt: 101,
+        updatedAt: 101
+      })
+    ])
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     service.handoff('s1', 'phase_done', { summary: '  done  ' })

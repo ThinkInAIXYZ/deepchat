@@ -519,6 +519,10 @@ describe('Tape table mock contract', () => {
         excludingContext: (store) => store.getBySessionExcludingContext(SESSION),
         effectiveViewInputs: (store) => store.getEffectiveViewInputRows(SESSION),
         effectiveMessageInputs: (store) => store.getEffectiveMessageInputRows(SESSION),
+        effectiveMessageInputsAfterHead: (store) =>
+          store.getEffectiveMessageInputRowsAfter(SESSION, store.getMaxEntryId(SESSION)),
+        effectiveMessageInputsAfterEntry: (store) =>
+          store.getEffectiveMessageInputRowsAfter(SESSION, 3),
         lineage: (store) => store.getSubagentLineageEvents(SESSION),
         effectiveSearchAtHeads: (store) =>
           store.searchEffectiveSourcesAtHeads(

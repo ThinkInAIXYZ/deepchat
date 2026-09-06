@@ -1,7 +1,12 @@
-import { createHash } from 'crypto'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeApplicationProviders } from '../ports/application'
-import type { TapeBackfillResult, TapeTranscriptReader } from '../ports/capabilities'
+import type {
+  TapeBackfillResult,
+  TapeProjectionCursor,
+  TapeTranscriptProjection
+} from '../ports/capabilities'
+import { tapeEntryToMessageRecord } from '../domain/effectiveSemantics'
+import { buildEffectiveTapeView } from '../domain/effectiveView'
 import { appendMessageRecordToTape, buildTapeToolRevisionIndex } from './factPersistence'
 import type { TapeFactService } from './factService'
 import { migrationProvenanceKey } from './common'
@@ -11,39 +16,27 @@ type TapeReconcilerProviders = Pick<
   'getEntryStore' | 'getLegacySummaryReader'
 >
 
-/**
- * What the last completed backfill of a session saw. The transcript digest covers exactly the row
- * fields the backfill keys its facts on (identity, order, status, `updated_at`), so an unchanged
- * digest means a rerun could append nothing new; unlike a clock-based check it does not care which
- * direction time moved. Every Tape reset mints a new incarnation and every Tape append moves the
- * head; the head also catches the database file being swapped underneath a live process (sync
- * restore, maintenance reopen), where the incarnation is copied rather than minted.
- */
-interface ReconciledTranscriptSnapshot {
-  transcriptDigest: string
-  tapeIncarnationId: string
-  tapeHeadEntryId: number
-}
-
-function digestTranscript(records: readonly ChatMessageRecord[]): string {
-  const hash = createHash('sha256')
-  for (const record of records) {
-    hash.update(`${record.id}\n${record.orderSeq}\n${record.status}\n${record.updatedAt}\n`)
-  }
-  return hash.digest('base64')
-}
-
 function legacySummaryProvenanceKey(sessionId: string): string {
   return `summary:${sessionId}:legacy-summary:v1`
 }
 
+/**
+ * Keeps a Session's transcript tables and its Tape describing the same messages.
+ *
+ * Terminal transcript writes append their message fact and derive the tables from it in one
+ * transaction, then record the Tape head they reached as the transcript projection cursor. This
+ * service only has to answer "did anything reach the Tape that the tables have not seen": it
+ * compares the cursor with the head and replays the message rows in between, which is empty after
+ * an ordinary turn because manifests, journal and provider events are not message facts.
+ *
+ * A Session without a cursor predates the projection or lost its Tape to a reset. Its transcript
+ * is the only complete record, so it is backfilled into the Tape once, the way the reconciler
+ * always did. Before the cursor is written at the head that backfill reached, any effective Tape
+ * message the transcript does not hold is projected the other way, so a fact that entered the Tape
+ * without going through the transcript is not declared aligned unseen. Nothing here reads the
+ * transcript otherwise.
+ */
 export class TapeReconcilerService {
-  /**
-   * Keyed by session id; absent until the first completed backfill in this process. Entries are
-   * never evicted: a stale one costs ~100 bytes and can only ever force a full backfill.
-   */
-  private readonly reconciled = new Map<string, ReconciledTranscriptSnapshot>()
-
   constructor(
     private readonly providers: TapeReconcilerProviders,
     private readonly facts: TapeFactService
@@ -55,35 +48,48 @@ export class TapeReconcilerService {
 
   ensureSessionTapeReady(
     sessionId: string,
-    messageStore: TapeTranscriptReader
+    transcript: TapeTranscriptProjection
   ): TapeBackfillResult {
     const table = this.table
-    const historyRecords = [...messageStore.getMessages(sessionId)].sort(
+    const appendedFactCount = table.runInTransaction(() => {
+      const cursor = transcript.readProjectionCursor(sessionId)
+      const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
+      if (!cursor || !tapeIncarnationId || cursor.tapeIncarnationId !== tapeIncarnationId) {
+        return this.backfillFromTranscript(sessionId, transcript)
+      }
+
+      const head: TapeProjectionCursor = {
+        tapeIncarnationId,
+        maxEntryId: table.getMaxEntryId(sessionId)
+      }
+      if (head.maxEntryId > cursor.maxEntryId) {
+        transcript.applyTapeEntries(
+          table.getEffectiveMessageInputRowsAfter(sessionId, cursor.maxEntryId)
+        )
+        transcript.writeProjectionCursor(sessionId, head)
+      }
+      return 0
+    })
+
+    const historyRecords = this.facts.getMessageRecords(sessionId)
+    return {
+      sessionId,
+      migrationState: 'ready',
+      messageCount: historyRecords.length,
+      maxOrderSeq: historyRecords.reduce(
+        (currentMax, record) => Math.max(currentMax, record.orderSeq),
+        0
+      ),
+      appendedFactCount,
+      historyRecords
+    }
+  }
+
+  private backfillFromTranscript(sessionId: string, transcript: TapeTranscriptProjection): number {
+    const table = this.table
+    const historyRecords = [...transcript.getMessages(sessionId)].sort(
       (left, right) => left.orderSeq - right.orderSeq
     )
-    const maxOrderSeq = historyRecords.reduce(
-      (currentMax, record) => Math.max(currentMax, record.orderSeq),
-      0
-    )
-    const transcriptDigest = digestTranscript(historyRecords)
-
-    const previous = this.reconciled.get(sessionId)
-    if (
-      previous &&
-      previous.transcriptDigest === transcriptDigest &&
-      previous.tapeIncarnationId === table.getBootstrapIncarnation(sessionId) &&
-      previous.tapeHeadEntryId === table.getMaxEntryId(sessionId)
-    ) {
-      return {
-        sessionId,
-        migrationState: 'ready',
-        messageCount: historyRecords.length,
-        maxOrderSeq,
-        appendedFactCount: 0,
-        historyRecords: this.facts.getMessageRecords(sessionId)
-      }
-    }
-
     table.ensureBootstrapAnchor(sessionId)
 
     let appendedFactCount = 0
@@ -95,6 +101,7 @@ export class TapeReconcilerService {
     }
 
     this.backfillLegacySummaryAnchor(sessionId, historyRecords)
+    this.projectTapeOnlyMessages(sessionId, transcript, historyRecords)
 
     table.appendEvent({
       sessionId,
@@ -108,31 +115,45 @@ export class TapeReconcilerService {
       data: {
         source: 'deepchat_messages',
         messageCount: historyRecords.length,
-        maxOrderSeq
+        maxOrderSeq: historyRecords.reduce(
+          (currentMax, record) => Math.max(currentMax, record.orderSeq),
+          0
+        )
       },
       idempotent: true
     })
 
-    // Inside a host transaction the appends above are not committed yet and could still roll back,
-    // so nothing is remembered there.
     const tapeIncarnationId = table.getBootstrapIncarnation(sessionId)
-    if (tapeIncarnationId && !table.isInTransaction()) {
-      this.reconciled.set(sessionId, {
-        transcriptDigest,
+    if (tapeIncarnationId) {
+      transcript.writeProjectionCursor(sessionId, {
         tapeIncarnationId,
-        tapeHeadEntryId: table.getMaxEntryId(sessionId)
+        maxEntryId: table.getMaxEntryId(sessionId)
       })
-    } else {
-      this.reconciled.delete(sessionId)
     }
+    return appendedFactCount
+  }
 
-    return {
-      sessionId,
-      migrationState: 'ready',
-      messageCount: historyRecords.length,
-      maxOrderSeq,
-      appendedFactCount,
-      historyRecords: this.facts.getMessageRecords(sessionId)
+  /**
+   * The backfill above made the Tape a superset of the transcript. The cursor it is about to write
+   * claims the reverse as well, so the effective Tape messages the transcript lacks are projected
+   * first. Ordinarily there are none; every message fact comes from the transcript or from this
+   * backfill.
+   */
+  private projectTapeOnlyMessages(
+    sessionId: string,
+    transcript: TapeTranscriptProjection,
+    transcriptRecords: readonly ChatMessageRecord[]
+  ): void {
+    const transcriptIds = new Set(transcriptRecords.map((record) => record.id))
+    const tapeOnlyRows = buildEffectiveTapeView(
+      this.table.getEffectiveMessageInputRows(sessionId),
+      { includePending: true }
+    ).rows.filter((row) => {
+      const record = tapeEntryToMessageRecord(row)
+      return record !== null && !transcriptIds.has(record.id)
+    })
+    if (tapeOnlyRows.length > 0) {
+      transcript.applyTapeEntries(tapeOnlyRows)
     }
   }
 

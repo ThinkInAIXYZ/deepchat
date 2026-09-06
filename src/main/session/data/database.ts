@@ -28,6 +28,7 @@ import type {
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import { DeepChatTapeSearchProjectionTable } from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
+import { DeepChatTranscriptProjectionMetaTable } from './tables/deepchatTranscriptProjectionMeta'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 
@@ -119,6 +120,10 @@ export class SessionDatabase {
 
   get deepchatTapeSearchProjectionTable() {
     return new DeepChatTapeSearchProjectionTable(this.getDatabase())
+  }
+
+  get deepchatTranscriptProjectionMetaTable() {
+    return new DeepChatTranscriptProjectionMetaTable(this.getDatabase())
   }
 
   get deepchatSessionMetadataTable() {

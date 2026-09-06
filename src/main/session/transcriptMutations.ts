@@ -73,7 +73,7 @@ export class SessionTranscriptMutations {
     // restored to 'sent' so context history filtering keeps it; otherwise the
     // prompt silently drops out of future turns.
     if (sourceUserMessage.status !== 'sent') {
-      this.dependencies.transcript.updateMessageStatus(sourceUserMessage.id, 'sent')
+      this.dependencies.transcript.restoreUserMessage(sourceUserMessage.id)
     }
 
     return {

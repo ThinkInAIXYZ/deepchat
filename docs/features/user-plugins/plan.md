@@ -1,7 +1,7 @@
 # User Plugins Implementation and Verification
 
 Status: implemented and validated on 2026-09-06.
-Branch: `codex/user-plugin-compatibility-plan`, including `dev` at `e9f909519`.
+Branch: `codex/user-plugin-compatibility-plan`, including `dev` at `61839ea9c`.
 
 The final contract is [spec.md](spec.md); author instructions are in [authoring.md](authoring.md).
 This is the only execution tracker. D1 includes Git/ZIP installation, working context hooks,
@@ -141,20 +141,21 @@ Results on the completed implementation:
 | Lint and repository guards | Passed |
 | Main/renderer typecheck | Passed |
 | Full app and CLI build | Passed; existing bundle-size warnings only |
-| Relevant Vitest suites | 61 files passed, 1 skipped; 1,455 tests passed, 2 native MCP tests skipped under Node |
-| Native Tape suites under Electron | 23 files passed, 1 skipped; 488 tests passed, 1 standalone worker fixture skipped |
+| Plugin, session, ACP and runtime suites | 41 files passed, 9 skipped; 1,103 tests passed, 128 native SQLite tests skipped under Node |
+| Native session and Tape suites under Electron | 41 files passed, 1 skipped; 716 tests passed, 1 standalone worker fixture skipped |
 | Native MCP settings under Electron | 2 tests passed |
-| Real Electron acceptance | 3 tests passed: plugin lifecycle, HTTP MCP/hooks and prompt scrolling |
+| Real Electron plugin acceptance | 2 tests passed: ZIP lifecycle and authenticated HTTP MCP/hooks with credential rotation |
 | Original Ponytail Git/ZIP and hooks | Passed at the pinned commit above |
 | Static portable CLI validation | Passed on Node 24 |
 | Document links / diff whitespace | Passed |
 
 The 800 × 620 Electron window was visually inspected in dark appearance. Review
 commands and long paths wrap inside the scrolling dialog; detail actions remain reachable.
-The Node run skips two native MCP settings cases because its ABI differs from the installed
-Electron binding; both pass in the Electron run. Native Tape validation requires SQLite support
-and includes real SIGKILL recovery; its standalone worker fixture runs through the crash-recovery
-tests.
+The Node run skips native SQLite cases because its ABI differs from the installed Electron binding;
+the native session and Tape run covers these cases, including transcript projection, Queue/Steer
+transaction rollback and real SIGKILL recovery. Its standalone worker fixture runs through the
+crash-recovery tests. Compaction fixtures implement the current transcript projection contract;
+database failure checks use SQLite triggers against the persisted rows.
 Temporary acceptance probes were removed. Normal build-generated provider/ACP registry changes
 are retained. There are no package dependency changes.
 
@@ -166,10 +167,16 @@ pnpm run i18n
 pnpm run lint
 pnpm run typecheck
 pnpm run build
-pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-install 34-prompt-editor-scroll
+pnpm exec vitest run test/main/plugin/userPlugins.test.ts test/main/plugin/userPluginLifecycle.test.ts \
+  test/main/agent/deepchat/runtime/compactionRuntimeCoordinator.test.ts \
+  test/main/agent/deepchat/runtime/deepChatLoopRunner.test.ts \
+  test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts test/main/session \
+  test/main/agent/acp/compatibility/adapters.test.ts
+pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-install
 ELECTRON_RUN_AS_NODE=1 DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 pnpm exec electron \
   node_modules/vitest/vitest.mjs run --config vitest.config.ts --project main \
-  test/main/session/data/tape test/main/tape
+  test/main/session/data test/main/tape test/main/session/runtimeIntegration.test.ts \
+  test/main/session/transcriptMutations.test.ts test/main/session/usageStatsService.test.ts
 ELECTRON_RUN_AS_NODE=1 pnpm exec electron node_modules/vitest/vitest.mjs run \
   --config vitest.config.ts --project main test/main/mcp/data/settingsTable.test.ts
 ```
