@@ -8,8 +8,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { SessionPendingInputStore } from './pendingInputStore'
 import type { SessionTranscript } from './transcript'
-
-const MAX_ACTIVE_PENDING_INPUTS = 10
+import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
 export interface PendingInputRestartRecovery {
   affectedSessionIds: Set<string>
@@ -472,7 +471,7 @@ export class SessionPendingInputs {
   }
 
   isAtCapacity(sessionId: string): boolean {
-    return this.store.countActiveQueue(sessionId) >= MAX_ACTIVE_PENDING_INPUTS
+    return this.store.countActiveQueue(sessionId) >= MAX_PENDING_INPUTS
   }
 
   deleteBySession(sessionId: string): void {
@@ -481,7 +480,7 @@ export class SessionPendingInputs {
   }
 
   private ensureWithinLimit(sessionId: string): void {
-    if (this.store.countActiveQueue(sessionId) >= MAX_ACTIVE_PENDING_INPUTS) {
+    if (this.isAtCapacity(sessionId)) {
       throw new Error('Pending input limit reached for this session.')
     }
   }

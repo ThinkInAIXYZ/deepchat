@@ -279,6 +279,7 @@ import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
+import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
 const props = withDefaults(
   defineProps<{
@@ -292,7 +293,7 @@ const props = withDefaults(
     retryingItemId?: string | null
   }>(),
   {
-    activeLimit: 10,
+    activeLimit: MAX_PENDING_INPUTS,
     disableSteerAction: false,
     disableQueueSteerAction: false,
     showResumeAction: false,
