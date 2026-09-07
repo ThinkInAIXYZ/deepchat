@@ -301,6 +301,27 @@ describe('useChatScrollController', () => {
     expect(controller.state.value.userOwned).toBe(true)
   })
 
+  it('detects downward return when wheel handlers see the already applied scroll', () => {
+    const { controller, epoch, setScrollTop } = setup()
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'bottom' }
+    })
+    controller.notifyViewportScroll()
+
+    // Passive wheel delivery can follow compositor scrolling, unlike the
+    // gesture-before-movement ordering exercised by the other input tests.
+    for (const top of [960, 850, 900, 950]) {
+      setScrollTop(top)
+      controller.notifyUserGestureStart('wheel')
+      expect(controller.notifyViewportScroll()).toBe('user')
+      expect(controller.state.value.mode).toBe(top === 950 ? 'following' : 'reading')
+    }
+    controller.notifyUserGestureEnd()
+    expect(controller.notifyViewportResize()).not.toBeNull()
+  })
+
   it('resumes on downward return and cancels queued following on same-gesture reversal', () => {
     const { controller, epoch, writes, setScrollTop } = setup()
     setScrollTop(700)

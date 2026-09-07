@@ -3434,8 +3434,9 @@ describe('ChatPage', () => {
       )
       rafCallbacks.clear()
 
-      await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       scrollTop = 250
+      await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
       await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
         messageId: 'm0',
@@ -3516,8 +3517,9 @@ describe('ChatPage', () => {
       )
       rafCallbacks.clear()
 
-      await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       scrollTop = 680
+      await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
       await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
         messageId: 'short-measure-0',

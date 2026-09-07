@@ -173,7 +173,9 @@ keys enter reading mode. Reading mode persists until one of these occurs:
 Upward movement during an active gesture keeps or reclaims user ownership even inside the bottom
 threshold. Direction uses positions clamped to the scrollable extent; unchanged positions and
 boundary bounce do not resume following. Matching programmatic scrolls are attributed before
-direction is considered.
+direction is considered. Gesture start seeds the direction baseline only when missing; subsequent
+scroll events and programmatic positioning maintain it, since passive input may arrive after the
+compositor has applied the movement.
 
 Idle timers may be used to reduce measurement and rendering work, but they must never decide who
 owns the scrollbar.

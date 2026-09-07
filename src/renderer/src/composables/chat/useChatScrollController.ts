@@ -248,8 +248,12 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
   }
 
   const notifyUserGestureStart = (_kind: 'wheel' | 'touch' | 'pointer' | 'keyboard') => {
-    const viewport = options.viewport.value
-    lastScrollTop = viewport ? readDirectionTop(viewport) : null
+    // Passive input may arrive after the compositor has already scrolled.
+    // Preserve the last observed position until its scroll event is processed.
+    if (lastScrollTop === null) {
+      const viewport = options.viewport.value
+      lastScrollTop = viewport ? readDirectionTop(viewport) : null
+    }
     claimUserOwnership()
   }
 
