@@ -380,29 +380,34 @@ const AGENT_MEMORY_SCOPE_TRIGGER_DROP_SQL = `
   DROP TRIGGER IF EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_INSERT_NAME};
   DROP TRIGGER IF EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_UPDATE_NAME};
 `
-const AGENT_MEMORY_SCOPE_INVALID_SQL = `
-  NEW.scope_type NOT IN ('agent', 'user', 'project', 'session')
+const AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL = `
+  scope_id IS NULL
+  OR length(scope_id) NOT BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
+  OR scope_id != trim(scope_id)
+`
+const AGENT_MEMORY_SCOPE_INVALID_ROW_SQL = `
+  scope_type NOT IN ('agent', 'user', 'project', 'session')
   OR (
-    NEW.scope_type = 'agent'
-    AND NEW.scope_id IS NOT NULL
+    scope_type = 'agent'
+    AND scope_id IS NOT NULL
   )
   OR (
-    NEW.scope_type != 'agent'
-    AND (
-      NEW.scope_id IS NULL
-      OR length(NEW.scope_id) NOT BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
-      OR NEW.scope_id != trim(NEW.scope_id)
-    )
+    scope_type != 'agent'
+    AND (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
   )
   OR (
-    NEW.scope_type = 'user'
-    AND NEW.user_scope IS NOT NEW.scope_id
+    scope_type = 'user'
+    AND user_scope IS NOT scope_id
   )
   OR (
-    NEW.scope_type IN ('project', 'session')
-    AND NEW.user_scope IS NOT NULL
+    scope_type IN ('project', 'session')
+    AND user_scope IS NOT NULL
   )
 `
+const AGENT_MEMORY_SCOPE_INVALID_SQL = AGENT_MEMORY_SCOPE_INVALID_ROW_SQL.replaceAll(
+  /\b(scope_type|scope_id|user_scope)\b/gu,
+  'NEW.$1'
+)
 const AGENT_MEMORY_SCOPE_TRIGGER_SQL = `
   CREATE TRIGGER IF NOT EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_INSERT_NAME}
   BEFORE INSERT ON agent_memory
@@ -863,6 +868,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   private ftsReady = false
   private ftsRecoveryAfter = 0
   private temporalArtifactsEnsured = false
+  private scopeArtifactsEnsured = false
 
   getCreateTableSQL(): string {
     return `
@@ -959,6 +965,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (!this.tableExists()) {
       this.db.exec(this.getCreateTableSQL())
       this.temporalArtifactsEnsured = true
+      this.scopeArtifactsEnsured = true
     } else {
       this.db.exec(AGENT_MEMORY_TOMBSTONE_TABLE_SQL)
       this.db.exec(AGENT_MEMORY_BASE_INDEX_SQL)
@@ -1111,7 +1118,17 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     }
   }
 
+  /**
+   * Repairs persisted scope pairs the triggers would reject, then rebuilds the
+   * triggers and scope index. Repairs never widen applicability: an Agent row
+   * drops a stray id, a User row resyncs its shadow from the authoritative
+   * `scope_id` (or recovers the id from the shadow), Project/Session rows drop
+   * a stray shadow. A narrow-scope row whose identity cannot be recovered is
+   * deleted: it is unrecallable under every scope, and keeping it would make
+   * `memoryScopeFromRow` throw on any listing, forget or restore that reads it.
+   */
   private ensureScopeArtifacts(): void {
+    if (this.scopeArtifactsEnsured) return
     const columns = new Set(
       (
         this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
@@ -1119,12 +1136,25 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         }>
       ).map((column) => column.name)
     )
-    if (!columns.has('scope_type') || !columns.has('scope_id')) return
+    // The pair invariant spans all three columns; `user_scope` has shipped with the
+    // table since its first version, so this only skips synthetic partial schemas.
+    if (!['scope_type', 'scope_id', 'user_scope'].every((column) => columns.has(column))) return
 
-    this.db.transaction(() => {
+    const repair = this.db.transaction(() => {
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_DROP_SQL)
+      const summary = this.repairInvalidScopeRows()
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_SQL)
+      return summary
     })()
+    this.scopeArtifactsEnsured = true
+    if (repair) {
+      const idSample = repair.deletedIds.length
+        ? ` deletedIds=${JSON.stringify(repair.deletedIds)}${repair.deletedRows > repair.deletedIds.length ? '…' : ''}`
+        : ''
+      logger.warn(
+        `[Memory] repaired invalid scope rows: detachedAgentRows=${repair.detachedAgentRows} recoveredUserRows=${repair.recoveredUserRows} resyncedShadowRows=${repair.resyncedShadowRows} deletedUnrecoverableRows=${repair.deletedRows}${idSample}`
+      )
+    }
     const indexColumns = [
       'agent_id',
       'scope_type',
@@ -1139,6 +1169,80 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (indexColumns.every((column) => columns.has(column))) {
       this.db.exec(AGENT_MEMORY_SCOPE_INDEX_SQL)
     }
+  }
+
+  /**
+   * Runs inside `ensureScopeArtifacts`' transaction with the scope triggers
+   * dropped. Returns null when every row already satisfies the invariant, which
+   * is the common case and costs a single scan.
+   */
+  private repairInvalidScopeRows(): {
+    detachedAgentRows: number
+    recoveredUserRows: number
+    resyncedShadowRows: number
+    deletedRows: number
+    deletedIds: string[]
+  } | null {
+    const dirty = this.db
+      .prepare(
+        `SELECT EXISTS (
+           SELECT 1 FROM agent_memory WHERE ${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL}
+         ) AS dirty`
+      )
+      .get() as { dirty: number }
+    if (!dirty.dirty) return null
+
+    const detachedAgentRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET scope_id = NULL
+         WHERE scope_type = 'agent' AND scope_id IS NOT NULL`
+      )
+      .run().changes
+    // Only User-scope writes populate the shadow, so it is the row's own id.
+    const recoveredUserRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET scope_id = user_scope
+         WHERE scope_type = 'user'
+           AND scope_id IS NULL
+           AND user_scope IS NOT NULL
+           AND length(user_scope) BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
+           AND user_scope = trim(user_scope)`
+      )
+      .run().changes
+    const resyncedShadowRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET user_scope = CASE WHEN scope_type = 'user' THEN scope_id ELSE NULL END
+         WHERE (scope_type = 'user' AND scope_id IS NOT NULL AND user_scope IS NOT scope_id)
+            OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
+      )
+      .run().changes
+    const deletedIds = (
+      this.db
+        .prepare(
+          `SELECT id
+           FROM agent_memory
+           WHERE (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})
+           ORDER BY id
+           LIMIT 20`
+        )
+        .all() as Array<{ id: string }>
+    ).map((row) => row.id)
+    let deletedRows = 0
+    if (deletedIds.length) {
+      deletedRows = this.db
+        .prepare(
+          `DELETE FROM agent_memory
+           WHERE (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})`
+        )
+        .run().changes
+      // The FTS mirror is external-content: a raw DELETE leaves the old tokens on
+      // a rowid the next insert reuses, so force the index to rebuild.
+      this.markFtsDirty()
+    }
+    return { detachedAgentRows, recoveredUserRows, resyncedShadowRows, deletedRows, deletedIds }
   }
 
   private insertTombstonesForRows(
@@ -1309,6 +1413,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       }
     }
     this.ensureTemporalArtifacts()
+    this.ensureScopeArtifacts()
     const tableSql = (
       this.db
         .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_memory'")
@@ -1384,20 +1489,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         .prepare(
           `SELECT COUNT(*) AS count
            FROM agent_memory
-           WHERE scope_type NOT IN ('agent', 'user', 'project', 'session')
-              OR (scope_type = 'agent' AND scope_id IS NOT NULL)
-              OR (
-                scope_type != 'agent'
-                AND (
-                  scope_id IS NULL
-                  OR length(scope_id) NOT BETWEEN 1 AND ?
-                  OR scope_id != trim(scope_id)
-                )
-              )
-              OR (scope_type = 'user' AND user_scope IS NOT scope_id)
-              OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
+           WHERE ${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL}`
         )
-        .get(AGENT_MEMORY_SCOPE_ID_MAX_CHARS) as { count: number }
+        .get() as { count: number }
     ).count
     if (invalidScopeRows !== 0) {
       throw new Error(`[Memory] agent_memory contains ${invalidScopeRows} invalid scope rows`)
@@ -1406,7 +1500,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     this.db.exec(AGENT_MEMORY_RETIRED_INDEX_SQL)
     this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
     this.db.exec(AGENT_MEMORY_CANONICAL_INDEX_SQL)
-    this.ensureScopeArtifacts()
     this.ensureCurrentLegacyStatusBridge(options?.backupBeforeLegacyBridgeRecovery)
     const tombstoneSql = (
       this.db
@@ -1774,6 +1867,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       this.replaceLegacyStatusBridge()
     }
     if (addedColumns.has('scope_type') || addedColumns.has('scope_id')) {
+      this.scopeArtifactsEnsured = false
       this.ensureScopeArtifacts()
     }
     if (

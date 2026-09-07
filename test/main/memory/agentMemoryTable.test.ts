@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest'
+import logger from '@shared/logger'
 import { Database, dropV48DerivedArtifacts, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const tableModule = Database
@@ -3872,6 +3873,102 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           )
           .get()
       ).toEqual({ present: 1 })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('repairs persisted scope rows at startup without widening them instead of refusing to open', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      // A database migrated through v51 carries only the column CHECKs on scope_type/scope_id;
+      // the table-level pair constraints exist only on freshly created tables, so the persisted
+      // pair invariant is guarded by triggers alone there.
+      const migratedShapeSql = table
+        .getCreateTableSQL()
+        .replace(
+          /,\s*CHECK \(\s*\(scope_type = 'agent' AND scope_id IS NULL\)[\s\S]*?user_scope IS NULL\)\s*\)/u,
+          ''
+        )
+      expect(migratedShapeSql).not.toBe(table.getCreateTableSQL())
+      db.exec(migratedShapeSql)
+      table.createTable()
+      const seed = (id: string, scope?: { type: 'user' | 'project' | 'session'; id: string }) =>
+        table.insert({ id, agentId: 'a', kind: 'semantic', content: `${id} fact`, scope })
+      seed('agent-stray-id')
+      seed('user-stale-shadow', { type: 'user', id: 'u1' })
+      seed('user-lost-id', { type: 'user', id: 'u2' })
+      seed('session-stray-shadow', { type: 'session', id: 's1' })
+      seed('untouched', { type: 'project', id: 'p1' })
+      // Last insert, so the unrecoverable row holds the max rowid a later insert would reuse.
+      table.insert({
+        id: 'session-lost-id',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'zebra fact',
+        scope: { type: 'session', id: 's2' }
+      })
+      const warn = vi.spyOn(logger, 'warn')
+      // A clean database opens without touching a row or logging.
+      const before = db.prepare('SELECT * FROM agent_memory ORDER BY id').all()
+      new AgentMemoryTableCtor(db).assertCurrentSchema()
+      expect(db.prepare('SELECT * FROM agent_memory ORDER BY id').all()).toEqual(before)
+      expect(warn).not.toHaveBeenCalled()
+      // Corrupt rows the way an external tool would: triggers off, raw UPDATEs, triggers back.
+      db.exec(`
+        DROP TRIGGER agent_memory_scope_bi_v1;
+        DROP TRIGGER agent_memory_scope_bu_v1;
+        UPDATE agent_memory SET scope_id = 'stray' WHERE id = 'agent-stray-id';
+        UPDATE agent_memory SET user_scope = 'someone-else' WHERE id = 'user-stale-shadow';
+        UPDATE agent_memory SET scope_id = NULL WHERE id = 'user-lost-id';
+        UPDATE agent_memory SET user_scope = 'leaked' WHERE id = 'session-stray-shadow';
+        UPDATE agent_memory SET scope_id = NULL WHERE id = 'session-lost-id';
+      `)
+
+      // A fresh table instance is what startup constructs; it must open, not throw.
+      const reopened = new AgentMemoryTableCtor(db)
+      expect(() => reopened.assertCurrentSchema()).not.toThrow()
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('deletedUnrecoverableRows=1 deletedIds=["session-lost-id"]')
+      )
+
+      const scopeOf = (id: string) =>
+        db.prepare('SELECT scope_type, scope_id, user_scope FROM agent_memory WHERE id = ?').get(id)
+      expect(scopeOf('agent-stray-id')).toEqual({
+        scope_type: 'agent',
+        scope_id: null,
+        user_scope: null
+      })
+      expect(scopeOf('user-stale-shadow')).toEqual({
+        scope_type: 'user',
+        scope_id: 'u1',
+        user_scope: 'u1'
+      })
+      expect(scopeOf('user-lost-id')).toEqual({
+        scope_type: 'user',
+        scope_id: 'u2',
+        user_scope: 'u2'
+      })
+      expect(scopeOf('session-stray-shadow')).toEqual({
+        scope_type: 'session',
+        scope_id: 's1',
+        user_scope: null
+      })
+      expect(scopeOf('untouched')).toEqual({
+        scope_type: 'project',
+        scope_id: 'p1',
+        user_scope: null
+      })
+      // Unattributable narrow rows are removed rather than widened to Agent scope.
+      expect(scopeOf('session-lost-id')).toBeUndefined()
+      expect(() =>
+        db.prepare("UPDATE agent_memory SET scope_id = NULL WHERE id = 'untouched'").run()
+      ).toThrow(/invalid agent_memory scope/)
+      // The deleted row's FTS tokens must not follow its reused rowid onto a new row.
+      reopened.insert({ id: 'newcomer', agentId: 'a', kind: 'semantic', content: 'newcomer fact' })
+      expect(reopened.search('a', 'zebra').map((row) => row.id)).toEqual([])
+      expect(reopened.search('a', 'newcomer').map((row) => row.id)).toEqual(['newcomer'])
     } finally {
       db.close()
     }

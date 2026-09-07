@@ -162,6 +162,11 @@ terminal turn projection
 - startup 发现 legacy/corrupt external claim 的非法 temporal metadata 时，先归一化字段并将 claim
   archive；不得把损坏状态提升成可召回的永久 atemporal fact。Persona/working 则归一化到其强制
   atemporal 形式；
+- startup 发现非法 scope pair（只有 trigger 保护的 v51 迁移库可能被外部工具写出）时同样先修复再
+  断言，且修复不得放宽 applicability：Agent row 丢弃多余 `scope_id`，User row 以 `scope_id` 为准回写
+  shadow，`scope_id` 为 NULL 时从 shadow 恢复，Project/Session row 清掉多余 shadow；无法恢复
+  identity 的窄 scope row（含 persona/working）在任何 scope 下都不可召回，直接删除、标记 FTS 重建并
+  记录 warn，不得改写成 Agent scope 保留。子系统的完整性断言不得让整个应用无法启动；
 - 同 content 在不同 scope 可独立存在；update、supersede、conflict 和 merge 不得跨 scope；
 - exact tombstone lookup 与 insert 位于同一 transaction，关闭 delete/re-extraction race；
 - model 发起的 `memory_remember` 不是用户重新授权，不得释放 tombstone；只有 renderer 中的显式
