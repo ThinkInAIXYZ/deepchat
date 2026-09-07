@@ -167,6 +167,13 @@ export const buildAssistantRenderItems = ({
       return
     }
 
+    if (activityBuffer.length === 1) {
+      const { block, key } = activityBuffer[0]
+      pushStandaloneBlock(block, key)
+      activityBuffer = []
+      return
+    }
+
     const group = buildActivityGroupItem(messageUpdatedAt, activityBuffer)
     if (group) {
       items.push(group)

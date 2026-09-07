@@ -70,6 +70,34 @@ const enDurationLabels: ActivityDurationLabels = {
 }
 
 describe('messageActivityGroups', () => {
+  it.each(['reasoning_content', 'artifact-thinking', 'tool_call', 'search'] as const)(
+    'only groups %s activity when at least two visible blocks are present',
+    (type) => {
+      const first = createBlock(type, {
+        id: 'first',
+        content: 'Activity',
+        extra: type === 'search' ? { actionType: 'search' } : undefined
+      })
+      const options = {
+        messageId: 'm1',
+        messageUpdatedAt: 12_000,
+        shouldGroup: true
+      }
+      const singleItems = buildAssistantRenderItems({
+        ...options,
+        blocks: [first, createBlock('reasoning_content', { content: '' })]
+      })
+
+      expect(singleItems).toEqual([{ kind: 'block', key: 'm1:first:0', block: first }])
+
+      const second = { ...first, id: 'second' }
+      const pairedItems = buildAssistantRenderItems({ ...options, blocks: [first, second] })
+
+      expect(pairedItems).toHaveLength(1)
+      expect(pairedItems[0]).toMatchObject({ kind: 'activity-group', blocks: [first, second] })
+    }
+  )
+
   it('groups consecutive completed reasoning and tool-call blocks', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',
@@ -139,11 +167,11 @@ describe('messageActivityGroups', () => {
     })
 
     expect(items).toHaveLength(2)
-    expect(items[0]).toMatchObject({ kind: 'activity-group', toolCallCount: 0 })
+    expect(items[0]).toMatchObject({ kind: 'block', block: { type: 'reasoning_content' } })
     expect(items[1]).toMatchObject({ kind: 'block', block: legacySearch })
   })
 
-  it('splits activity groups around visible content blocks', () => {
+  it('keeps isolated activity blocks standalone across visible content', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',
       messageUpdatedAt: 12_000,
@@ -160,7 +188,7 @@ describe('messageActivityGroups', () => {
       ]
     })
 
-    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+    expect(items.map((item) => item.kind)).toEqual(['block', 'block', 'block'])
   })
 
   it('projects MCP Apps beside their collapsible activity group', () => {
@@ -232,7 +260,7 @@ describe('messageActivityGroups', () => {
       ]
     })
 
-    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+    expect(items.map((item) => item.kind)).toEqual(['block', 'block', 'block'])
     expect(items[1]).toMatchObject({
       kind: 'block',
       block: {
@@ -243,7 +271,7 @@ describe('messageActivityGroups', () => {
     })
   })
 
-  it('keeps the MCP App render key stable when live activity becomes grouped', () => {
+  it('keeps MCP App render keys stable for standalone and grouped activity', () => {
     const appBlock = createBlock('tool_call', {
       tool_call: {
         id: 'tc1',
@@ -280,16 +308,23 @@ describe('messageActivityGroups', () => {
       shouldGroup: true,
       blocks: [appBlock]
     })
+    const groupedItems = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [createBlock('reasoning_content', { content: 'thinking' }), appBlock]
+    })
 
     expect(liveItems.map((item) => [item.kind, item.key])).toEqual([
       ['block', 'm1:tc1:0:tool'],
       ['mcp-app', 'm1:tc1:0:app']
     ])
-    expect(settledItems.map((item) => [item.kind, item.key])).toEqual([
-      ['activity-group', 'activity:m1:tc1:0:m1:tc1:0'],
+    expect(settledItems).toEqual(liveItems)
+    expect(groupedItems.map((item) => [item.kind, item.key])).toEqual([
+      ['activity-group', 'activity:m1:0:m1:tc1:0'],
       ['mcp-app', 'm1:tc1:0:app']
     ])
-    expect(settledItems[0]).toMatchObject({ blockKeys: [liveItems[0].key] })
+    expect(groupedItems[0]).toMatchObject({ blockKeys: ['m1:0', liveItems[0].key] })
   })
 
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {
@@ -407,7 +442,7 @@ describe('messageActivityGroups', () => {
       messageId: 'm1',
       messageUpdatedAt: 12_000,
       shouldGroup: true,
-      blocks: [createBlock('tool_call'), ...visibleBlocks]
+      blocks: [createBlock('tool_call'), createBlock('tool_call'), ...visibleBlocks]
     })
 
     expect(items[0].kind).toBe('activity-group')

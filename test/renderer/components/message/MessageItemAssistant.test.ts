@@ -607,7 +607,9 @@ describe('MessageItemAssistant', () => {
       })
 
       expect(wrapper.findComponent({ name: componentName }).element).toBe(originalElement)
-      expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
+      expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
 
       await wrapper.setProps({
         message: createMessage('sent', [createVideoLikeImageBlock(), ...blocks])
