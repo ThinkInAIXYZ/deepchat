@@ -1,7 +1,7 @@
 # User Plugins Implementation and Verification
 
-Status: implemented and validated on 2026-09-06.
-Branch: `codex/user-plugin-compatibility-plan`, including `dev` at `61839ea9c`.
+Status: implemented and validated on 2026-09-07.
+Branch: `codex/user-plugin-compatibility-plan`, including `dev` at `b4d93c926`.
 
 The final contract is [spec.md](spec.md); author instructions are in [authoring.md](authoring.md).
 This is the only execution tracker. D1 includes Git/ZIP installation, working context hooks,
@@ -39,6 +39,7 @@ Completion: inspection executes no package code and cannot grant official proven
 - [x] Bound input/output/context, timeout and serialized execution; terminate owned descendants.
 - [x] Reject control decisions and stale output; preserve provider retry idempotency.
 - [x] Retry only the failed/uncertain handler on explicit request, with a fresh invocation identity.
+- [x] Revalidate queued retries against session incarnation, owner, invocation and runtime activity.
 
 Completion: original Ponytail helpers execute without source rewriting. Shared data and separate
 Ponytail default configuration are documented rather than presented as isolated per-session state.
@@ -61,6 +62,7 @@ Completion: Skills and MCP remain under their existing owners; unrelated resourc
 - [x] Install disabled, review each update, serialize lifecycle mutations and retain previous revision.
 - [x] Reject updates during active DeepChat turns; prevent concurrent disable from reactivating hooks.
 - [x] Roll back package selection and owned MCP configuration after failure or interrupted publication.
+- [x] Restore MCP configuration and encrypted credentials even when failed-revision cleanup rejects.
 - [x] Preserve offline snapshots, repair inactive corruption and prune only owned unreferenced revisions.
 - [x] Remove private data, owned MCP resources and Skill assignments on uninstall; retain Tape history.
 
@@ -104,10 +106,12 @@ or native Windows/Linux compatibility for Ponytail's POSIX commands.
   links/traversal, executable ZIP flags, startup/input/child ordering, revocation, uncertain crash,
   limits, named environment variables, isolated explicit retry and resume-only lifecycle persistence.
   Also covers non-executable metadata, remote HTTPS, edited/reverted prompts, cleared Tape history,
-  queued cancellation, stale in-flight output and split UTF-8 process output.
+  queued cancellation, stale in-flight output, split UTF-8 process output and queued retry rejection
+  after session clear, owner replacement, turn admission or update admission.
 - `test/main/plugin/userPluginLifecycle.test.ts`: install-disabled, stable MCP identity/setup,
   owner-safe uninstall, active-turn update rejection, publication rollback, interrupted recovery
-  concurrent disable, encrypted credential rotation and repeated recovery/cleanup failures.
+  concurrent disable, encrypted credential rotation and repeated recovery/cleanup failures. Failed
+  revision cleanup cannot skip restoration of the old endpoint and encrypted credentials.
 - Skill suites: preserved assignment/overrides, owner collision and stale source execution rejection.
 - Runtime suites: compaction projection survives hook dispatch failure; ACP dispatch excludes plugin
   context; callers without optional view metadata retain the accepted user's context.
@@ -141,8 +145,9 @@ Results on the completed implementation:
 | Lint and repository guards | Passed |
 | Main/renderer typecheck | Passed |
 | Full app and CLI build | Passed; existing bundle-size warnings only |
-| Plugin, session, ACP and runtime suites | 41 files passed, 9 skipped; 1,103 tests passed, 128 native SQLite tests skipped under Node |
-| Native session and Tape suites under Electron | 41 files passed, 1 skipped; 716 tests passed, 1 standalone worker fixture skipped |
+| Plugin, session, ACP, route and runtime suites | 42 files passed, 9 skipped; 1,160 tests passed, 132 native SQLite tests skipped under Node |
+| Native session and Tape suites under Electron | 41 files passed, 1 skipped; 700 tests passed, 1 standalone worker fixture skipped |
+| Renderer draft, mode, queue and chat suites | 8 files passed; 172 tests passed |
 | Native MCP settings under Electron | 2 tests passed |
 | Real Electron plugin acceptance | 2 tests passed: ZIP lifecycle and authenticated HTTP MCP/hooks with credential rotation |
 | Original Ponytail Git/ZIP and hooks | Passed at the pinned commit above |
@@ -155,7 +160,9 @@ The Node run skips native SQLite cases because its ABI differs from the installe
 the native session and Tape run covers these cases, including transcript projection, Queue/Steer
 transaction rollback and real SIGKILL recovery. Its standalone worker fixture runs through the
 crash-recovery tests. Compaction fixtures implement the current transcript projection contract;
-database failure checks use SQLite triggers against the persisted rows.
+database failure checks use SQLite triggers against the persisted rows. Queue recovery includes the
+10-item capacity, claimed-slot restoration and atomic rollback when the second Steer message fails.
+Harness compaction cases use distinct message IDs to preserve assistant/user row identity.
 Temporary acceptance probes were removed. Normal build-generated provider/ACP registry changes
 are retained. There are no package dependency changes.
 
@@ -171,7 +178,12 @@ pnpm exec vitest run test/main/plugin/userPlugins.test.ts test/main/plugin/userP
   test/main/agent/deepchat/runtime/compactionRuntimeCoordinator.test.ts \
   test/main/agent/deepchat/runtime/deepChatLoopRunner.test.ts \
   test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts test/main/session \
-  test/main/agent/acp/compatibility/adapters.test.ts
+  test/main/agent/acp/compatibility/adapters.test.ts test/main/routes/dispatcher.test.ts
+pnpm exec vitest run --config vitest.config.renderer.ts \
+  test/renderer/pages/NewThreadPage.test.ts test/renderer/components/NewThreadPage.test.ts \
+  test/renderer/components/NewThreadPage.onboarding.test.ts test/renderer/components/ChatPage.test.ts \
+  test/renderer/components/PendingInputLane.test.ts test/renderer/composables/useChatMode.test.ts \
+  test/renderer/stores/pendingInputStore.test.ts test/renderer/stores/draft.test.ts
 pnpm exec playwright test --config test/e2e/playwright.config.ts 34-user-plugin-install
 ELECTRON_RUN_AS_NODE=1 DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 pnpm exec electron \
   node_modules/vitest/vitest.mjs run --config vitest.config.ts --project main \

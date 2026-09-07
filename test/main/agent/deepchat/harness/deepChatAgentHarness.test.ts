@@ -323,8 +323,8 @@ function createMockSqlitePresenter() {
       // read off the id. User rows written here are new prompts (tests that replace user rows go
       // through `installSessionRows`); an assistant row exists once its shell was inserted or a
       // test installed it through `get`.
-      const exists =
-        row.role === 'assistant' && (messageRows.has(row.id) || deepchatMessagesTable.get(row.id))
+      const existingRow = messageRows.get(row.id) ?? deepchatMessagesTable.get(row.id)
+      const exists = row.role === 'assistant' && existingRow?.role === 'assistant'
       if (exists) {
         deepchatMessagesTable.updateContentAndStatus(row.id, row.content, row.status, row.metadata)
         const existing = messageRows.get(row.id)
@@ -2655,6 +2655,9 @@ describe('DeepChatAgentHarness', () => {
     )
     sqlitePresenter.deepchatMessagesTable.deleteByIds.mockImplementation((ids: string[]) => {
       rows = rows.filter((row) => !ids.includes(row.id))
+    })
+    sqlitePresenter.deepchatMessagesTable.delete.mockImplementation((id: string) => {
+      rows = rows.filter((row) => row.id !== id)
     })
     sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom.mockImplementation(
       (sessionId: string, fromOrderSeq: number) => {
@@ -13819,6 +13822,8 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('emits compacting before compacted on successful compaction', async () => {
+      let id = 0
+      vi.mocked(nanoid).mockImplementation(() => `compaction-test-${++id}`)
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
       sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
         .mockReturnValueOnce(6)
@@ -13903,7 +13908,7 @@ describe('DeepChatAgentHarness', () => {
             typeof metadata === 'string' && metadata.includes('"messageType":"compaction"')
         )
       expect(finalizedCompaction).toEqual([
-        'mock-msg-id',
+        compactionInsert.id,
         expect.any(String),
         'sent',
         expect.stringContaining('"compactionStatus":"compacted"')
@@ -14198,6 +14203,8 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('advances a boundary-only compacted state when summary generation fails', async () => {
+      let id = 0
+      vi.mocked(nanoid).mockImplementation(() => `compaction-test-${++id}`)
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -14236,13 +14243,18 @@ describe('DeepChatAgentHarness', () => {
           summaryUpdatedAt: null
         })
       ])
+      const compactionInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
+        ([row]: any[]) =>
+          typeof row?.metadata === 'string' && row.metadata.includes('"messageType":"compaction"')
+      )?.[0]
+      expect(compactionInsert).toBeDefined()
       const finalizedCompaction =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
           ([, , , metadata]: any[]) =>
             typeof metadata === 'string' && metadata.includes('"messageType":"compaction"')
         )
       expect(finalizedCompaction).toEqual([
-        'mock-msg-id',
+        compactionInsert.id,
         expect.any(String),
         'sent',
         expect.stringContaining('"compactionStatus":"compacted"')

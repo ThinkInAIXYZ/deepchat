@@ -142,7 +142,6 @@ export type SessionProjectionTapePort = Pick<
   | 'handoffTape'
   | 'listMessageViewManifests'
   | 'listNestedExecutionAuditForMessage'
-  | 'exportMessageTapeReplaySlice'
   | 'listTapeInspectorPage'
   | 'resolveTapeInspectorEvidenceEntries'
   | 'getTapeInspectorRecordDetail'

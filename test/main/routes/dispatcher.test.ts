@@ -471,7 +471,6 @@ function createRuntime() {
       operations: [],
       truncated: false
     }),
-    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
     renameSession: vi.fn().mockResolvedValue(undefined),
     toggleSessionPinned: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({

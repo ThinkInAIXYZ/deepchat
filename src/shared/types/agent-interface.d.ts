@@ -4,7 +4,6 @@ import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
-import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary,

@@ -189,21 +189,6 @@ export interface TapeInspectorTraceMetadataPage {
   appendCursorRowId: number | null
 }
 
-export interface TapeTerminalMessageRow {
-  session_id: string
-  order_seq: number
-  role: 'user' | 'assistant'
-  content: string
-  status: 'pending' | 'sent' | 'error'
-  metadata: string
-  created_at: number
-  updated_at: number
-}
-
-export interface TapeTerminalMessageReader {
-  get(messageId: string): TapeTerminalMessageRow | undefined
-}
-
 export type TapeApplicationEntryStore = TapeEntryStore &
   TapeTransactionRunner &
   TapeBootstrapStore &
@@ -221,7 +206,6 @@ export interface TapeApplicationDatabase {
   readonly newSessionsTable: TapeLineageSessionReader
   readonly deepchatSessionsTable: TapeLegacySummaryReader
   readonly deepchatMessageTracesTable: TapeMessageTraceReader
-  readonly deepchatMessagesTable: TapeTerminalMessageReader
 }
 
 export interface TapeApplicationProviders {
@@ -234,7 +218,6 @@ export interface TapeApplicationProviders {
   getLineageSessionReader(): TapeLineageSessionReader
   getLegacySummaryReader(): TapeLegacySummaryReader
   getMessageTraceReader(): TapeMessageTraceReader
-  getTerminalMessageReader(): TapeTerminalMessageReader
 }
 
 export function createTapeApplicationProviders(
@@ -249,7 +232,6 @@ export function createTapeApplicationProviders(
     getSearchProjectionStore: () => database.deepchatTapeSearchProjectionTable,
     getLineageSessionReader: () => database.newSessionsTable,
     getLegacySummaryReader: () => database.deepchatSessionsTable,
-    getMessageTraceReader: () => database.deepchatMessageTracesTable,
-    getTerminalMessageReader: () => database.deepchatMessagesTable
+    getMessageTraceReader: () => database.deepchatMessageTracesTable
   }
 }

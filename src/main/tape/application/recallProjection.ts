@@ -1,5 +1,6 @@
 import type { AgentTapeSearchOptions, AgentTapeViewScope } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryRow, DeepChatTapeSearchInput } from '../domain/entry'
+import { isRecordObject } from '../domain/primitives'
 import { parseJsonObject, parseJsonValue } from './common'
 import type { TapeSearchResult } from './contracts'
 import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'
@@ -7,10 +8,6 @@ import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentat
 const MAX_ATTACHMENT_SEARCH_CHARACTERS_PER_ATTACHMENT = 4_000
 const MAX_ATTACHMENT_SEARCH_CHARACTERS_PER_MESSAGE = 16_000
 const MAX_SEARCHABLE_ATTACHMENTS = 8
-
-function isRecordObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
 
 function compactText(value: string, maxLength = 1000): string {
   const normalized = value.replace(/\s+/g, ' ').trim()

@@ -24,7 +24,6 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
-  sessionsExportMessageTapeReplaySliceRoute,
   sessionsExportTapeInspectorSupportTraceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
@@ -88,10 +87,6 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { ToolModeOverride } from '@shared/toolMode'
-import type {
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
 import type {
   ExportTapeInspectorSupportTraceInput,
   GetTapeInspectorRecordDetailInput,
@@ -357,17 +352,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return manifests
-  }
-
-  async function exportMessageTapeReplaySlice(
-    messageId: string,
-    options?: DeepChatTapeReplayExportOptions
-  ): Promise<DeepChatTapeReplaySlice | null> {
-    const result = await bridge.invoke(sessionsExportMessageTapeReplaySliceRoute.name, {
-      messageId,
-      options
-    })
-    return result.slice
   }
 
   async function translateText(text: string, locale?: string, agentId?: string) {
@@ -692,7 +676,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     listMessageTraces,
     listMessageTraceDiagnostics,
     listMessageViewManifests,
-    exportMessageTapeReplaySlice,
     translateText,
     getAgents,
     getUsageDashboard,

@@ -12,12 +12,6 @@ import type {
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
-import type {
-  DeepChatCausalObservationReadOptions,
-  DeepChatCausalObservationSlice,
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type {
   ExportTapeInspectorSupportFactsInput,
@@ -450,22 +444,6 @@ export class SessionTape implements SessionTapeCapabilities {
     runId: string
   }): DeepChatTapeViewManifestRecord | null {
     return this.viewReplay.getLatestViewManifestByRunBinding(input)
-  }
-
-  exportReplaySlice(
-    sessionId: string,
-    messageId: string,
-    options: DeepChatTapeReplayExportOptions = {}
-  ): DeepChatTapeReplaySlice | null {
-    return this.viewReplay.exportReplaySlice(sessionId, messageId, options)
-  }
-
-  readCausalObservationSlice(
-    sessionId: string,
-    messageId: string,
-    options: DeepChatCausalObservationReadOptions = {}
-  ): DeepChatCausalObservationSlice {
-    return this.viewReplay.readCausalObservationSlice(sessionId, messageId, options)
   }
 
   handoff(

@@ -300,7 +300,7 @@ it('restores an interrupted update and lets a concurrent disable cancel publicat
   ).toBe(true)
 })
 
-it.each(['publication', 'cleanup'])(
+it.each(['publication', 'cleanup', 'rollback cleanup'])(
   'releases the update lock when %s and rollback both fail',
   async (failure) => {
     const f = fixture()
@@ -311,15 +311,23 @@ it.each(['publication', 'cleanup'])(
     })
     const id = installed.status!.id
     await f.service.enable(id)
+    await f.service.configureMcp(id, `${id}.remote`, { EXAMPLE_PLUGIN_TOKEN: 'rollback-secret' })
     f.manifest('https://new.example/mcp')
     const update = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
     const failing =
       failure === 'publication'
         ? f.supervisor.commitPluginRegistration
         : f.supervisor.unregisterPlugin
-    failing.mockImplementation(() => {
+    const fail = () => {
       throw new Error('Persistent runtime failure')
-    })
+    }
+    if (failure === 'rollback cleanup') {
+      f.supervisor.commitPluginRegistration.mockImplementationOnce(() => {
+        f.wrappedSecrets.clear()
+        f.supervisor.unregisterPlugin.mockImplementation(fail)
+        throw new Error('Publication failed')
+      })
+    } else failing.mockImplementation(fail)
     const result = await f.service.install({
       operationId: update.operationId,
       pluginId: id,
@@ -329,6 +337,11 @@ it.each(['publication', 'cleanup'])(
     expect(f.store.pending()).toBeNull()
     expect((await f.service.get(id)).enabled).toBe(false)
     expect(f.skills.size).toBe(0)
+    const restored = (await f.mcpSettings.getMcpServers())[`${id}.remote`]
+    expect(restored).toMatchObject({ enabled: false, baseUrl: 'https://old.example/mcp' })
+    expect(f.mcpSettings.getMcpVariableBindings(restored)).toEqual({
+      EXAMPLE_PLUGIN_TOKEN: 'rollback-secret'
+    })
     failing.mockReset()
     const unrelated = await f.service.inspect({ kind: 'directory', path: f.source }, randomUUID())
     expect(

@@ -695,14 +695,18 @@ export class DeepChatLoopRunner {
       onRunRegistered,
       abortController: providedAbortController
     } = args
-    const anchorMessage = !viewContext && this.ports.pluginContext
-      ? this.ports.messageStore.getMessage(messageId)
-      : undefined
-    const pluginInputMessageId = viewContext?.selection.newUserMessageId ??
-      viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')?.record.id ??
+    const anchorMessage =
+      !viewContext && this.ports.pluginContext
+        ? this.ports.messageStore.getMessage(messageId)
+        : undefined
+    const pluginInputMessageId =
+      viewContext?.selection.newUserMessageId ??
+      viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')
+        ?.record.id ??
       (anchorMessage?.sessionId === sessionId
         ? this.ports.messageStore.getLastUserMessageBeforeOrAt(sessionId, anchorMessage.orderSeq)?.id
-        : undefined) ?? ''
+        : undefined) ??
+      ''
     let activeContextContributions = contextContributions
     const getOrCreateContextContributions = (): ContextRuntimeContributions => {
       activeContextContributions ??= createEmptyContextRuntimeContributions()
@@ -1660,10 +1664,17 @@ export class DeepChatLoopRunner {
           }
           if (!acpBackedSubagent && state.providerId !== 'acp' && ports.pluginContext) {
             const assembly = projectPluginContext(
-              loopRun.resources.promptAssembly ?? createOpaquePromptAssembly(activeBaseSystemPrompt ?? ''),
-              ports.pluginContext, sessionId, pluginInputMessageId
+              loopRun.resources.promptAssembly ??
+                createOpaquePromptAssembly(activeBaseSystemPrompt ?? ''),
+              ports.pluginContext,
+              sessionId,
+              pluginInputMessageId
             )
-            requestMessages.splice(0, requestMessages.length, ...projectSystemPrompt(requestMessages, assembly.prompt))
+            requestMessages.splice(
+              0,
+              requestMessages.length,
+              ...projectSystemPrompt(requestMessages, assembly.prompt)
+            )
             loopRun.resources.promptAssembly = assembly
             activeBaseSystemPrompt = assembly.prompt
           }
@@ -1940,9 +1951,22 @@ export class DeepChatLoopRunner {
             },
             authority: {
               assertCurrent: ({ authority, messages, tools }) => {
-                if (!acpBackedSubagent && state.providerId !== 'acp' && ports.pluginContext && loopRun.resources.promptAssembly) {
-                  const current = projectPluginContext(loopRun.resources.promptAssembly, ports.pluginContext, sessionId, pluginInputMessageId)
-                  if (current.prompt !== loopRun.resources.promptAssembly.prompt) throw new Error('Plugin context changed before provider dispatch; retry this input')
+                if (
+                  !acpBackedSubagent &&
+                  state.providerId !== 'acp' &&
+                  ports.pluginContext &&
+                  loopRun.resources.promptAssembly
+                ) {
+                  const current = projectPluginContext(
+                    loopRun.resources.promptAssembly,
+                    ports.pluginContext,
+                    sessionId,
+                    pluginInputMessageId
+                  )
+                  if (current.prompt !== loopRun.resources.promptAssembly.prompt)
+                    throw new Error(
+                      'Plugin context changed before provider dispatch; retry this input'
+                    )
                 }
                 ports.tape.assertSkillRequestAuthority({
                   ...authority,

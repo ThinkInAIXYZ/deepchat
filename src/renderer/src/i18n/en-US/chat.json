@@ -282,7 +282,8 @@
   "mode": {
     "current": "Current mode: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Failed to save mode selection"
   },
   "topbar": {
     "backToParent": "Back to Parent",

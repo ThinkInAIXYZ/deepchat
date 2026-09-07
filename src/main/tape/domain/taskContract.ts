@@ -10,7 +10,13 @@ import {
   type DeepChatTaskWorkspaceCeiling
 } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
-import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN, utf8Length } from './primitives'
+import {
+  compareUtf16,
+  deepFreeze,
+  hasExactKeys,
+  SHA256_HEX_PATTERN,
+  utf8Length
+} from './primitives'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
 const MAX_IDENTITY_BYTES = 1_024
@@ -202,12 +208,6 @@ function normalizeHandoffFormat(
     return { id, kind: 'required_sections' as const, level: 2 as const, sections }
   })
   return normalized.sort((left, right) => compareUtf16(left.id, right.id))
-}
-
-function hasExactKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const actual = Object.keys(value)
-  return actual.length === keys.length && keys.every((key) => Object.hasOwn(value, key))
 }
 
 function buildTaskContractDraft(

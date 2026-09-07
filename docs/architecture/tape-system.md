@@ -10,11 +10,10 @@ payload 保持兼容读取；只存在于未合并开发分支的 schema 1 被�
 canonical payload 全等和 hash。
 
 `context` 不进入 effective view、transcript、Tape search/context tool 或 search/Memory projection，
-Replay 导出即使显式请求普通 payload 也只暴露它的 hash/引用元数据。消息级和 Session
-级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
+Inspector 也只暴露它的 hash/引用元数据。消息级和 Session 级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
 view occurrence。带 runtime `skill_view` 可执行权限的上下文由 schema 7/hash 5 同时绑定 provider
 可见的 `tool_result` 和 execution package。manifest 只保存引用与证明，不成为内容 sidecar；schemas
-1–5 以及 schema 6 的既有 hash、Replay 结构和语义保持不变。
+1–5 以及 schema 6 的既有 hash 与语义保持不变。
 
 Tape 是 Session 同寿命的 append-only fact store，在同一个物理 entry 序列中承载三族语义隔离的事实：
 
@@ -372,7 +371,7 @@ event，三者使用同一 canonical evaluation；Tape 是历史证据，row/eve
 
 TaskContract、ExecutionContract 与 evaluation 都有独立 schema/hash/evaluator version 和 UTF-8 上限。
 unknown legacy turn 不补造评价；contract-bearing turn 若无法原子写入评价则保持 recoverable，不得静默
-terminal。ReplaySlice 只从事实和 manifests 派生；当前 schema-v5 View 已携带 per-View execution
+terminal。Inspector 等派生读取只从事实和 manifests 派生；当前 schema-v5 View 已携带 per-View execution
 contract，后续若扩展 task contract、attempts、evaluations 与 lineage ref，也不得成为新的事实源或在线
 authority。
 
@@ -429,9 +428,22 @@ version 和 synthetic contribution provenance。未知旧 fact 可以按兼容�
 已知 fact 的含义。测试至少覆盖正常 chat、resume、tool interaction、compaction、context pressure、
 Subagent frozen head、provider attempt outcome 和旧 manifest 读取。
 
-stored manifest validation、legacy `hashVersion` normalization、entry-id collection 和 replay slice hash
-属于 `src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing、message trace 和 terminal evidence
-读取仍属于 `TapeViewReplayService`，不能反向放进 domain。
+hash 算法、`hashVersion` 与 provenance key 前缀都是落盘合同的一部分。ViewManifest 的 hashable 是 stored 字段去掉
+`assembledAt`、`viewId`，并把 `hashes` 缩成 `{ promptHash, toolDefinitionsHash }`，其余字段全部进 `manifestHash`；
+reader 原样透传 stored 字段后重算，所以改 hashable 变换或 canonicalizer 会让历史 manifest 校验变 `invalid`，
+shape 校验要求的字段离开写入端则必须伴随新 schemaVersion；ExecutionContract、
+tool surface fact 与 Journal payload 用 exact-key 校验，删除任一字段或新增必填字段都会让历史行 malformed。两类
+失效都会让 `skill_run`、paused dispatch 与 pending action 恢复 fail closed，Journal 历史则被归类为 corruption。
+legacy `hashJson` 不是只读兼容路径，它仍在产出 schema-4 manifest hash、tool fact provenance key 与 Execution
+Journal v1 key/`responseHash`/`errorHash`，不得替换；schema 5 起的新 identity 一律用 `hashJsonData`。Tape 中的
+hash 分两类：
+fact 信封与 payload 的自校验（tool surface 三个 fact 的信封 hash、materialization meta `payloadHash`），以及把
+Tape 之外的对象（provider 投影、process-live capability、执行包临时目录、projection row、pause binding）绑定到
+entry 的凭据；后者不是对不可变 entry 的双重保证，entryId 无法替代它们。
+
+stored manifest validation、legacy `hashVersion` normalization 和 entry-id collection 属于
+`src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing 仍属于 `TapeViewReplayService`，不能反向放进
+domain。
 
 关键行为测试位于 `test/main/session/data/tape*.test.ts`、`transcriptAtomicity.test.ts`、
 `transcriptProjection.test.ts` 与 `messageContent.test.ts`，分层守护位于

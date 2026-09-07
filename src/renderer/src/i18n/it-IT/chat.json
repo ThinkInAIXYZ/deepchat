@@ -197,7 +197,8 @@
   "mode": {
     "current": "Modalità corrente: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Impossibile salvare la modalità selezionata"
   },
   "topbar": {
     "backToParent": "Torna alla conversazione padre",

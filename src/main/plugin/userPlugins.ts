@@ -233,8 +233,16 @@ export class UserPlugins {
           }
           this.save({ ...restored, enabled: false })
           try {
-            await this.deactivate(record, false)
+            const [cleanup] = await Promise.allSettled([this.deactivate(record, false)])
+            if (cleanup.status === 'rejected') {
+              logger.warn('[UserPlugins] Failed revision cleanup failed', {
+                pluginId: record.pluginId,
+                error: cleanup.reason
+              })
+            }
             if (previous) await this.deps.mcpSettings.restorePluginUpdate(previous.pluginId)
+            // Restore persisted settings even when runtime cleanup prevents reactivation.
+            if (cleanup.status === 'rejected') throw cleanup.reason
             if (restored.enabled) await this.activate(restored)
             this.save(restored)
             if (previous) this.deps.mcpSettings.commitPluginUpdate(previous.pluginId)

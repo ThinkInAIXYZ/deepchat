@@ -542,6 +542,67 @@ it('explicit retry executes only the failed handler and keeps its sibling output
   expect(host.getContext('s', 'm').map((item) => item.content)).toEqual(['a', 'b'])
 })
 
+it.each(['clear', 'replace owner', 'active turn', 'plugin update'])(
+  'rejects a queued retry after %s without executing its stale input',
+  async (change) => {
+    const root = fixture()
+    write(
+      root,
+      'hook.cjs',
+      `let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{require('node:fs').appendFileSync(process.env.PLUGIN_DATA+'/calls',JSON.parse(input).prompt+'\\n');process.exit(1)})`
+    )
+    const history = tape()
+    const host = new UserPluginHooks(history)
+    const verify = vi.fn(async (): Promise<void> => {})
+    const owner = {
+      pluginId: 'user.retry',
+      digest: 'f'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('UserPromptSubmit')],
+      verify
+    }
+    host.register(owner)
+    const input = { sessionId: 's', messageId: 'm', prompt: 'stale', model: 'test', cwd: root }
+    await host.accept(input)
+    const failed = host.diagnostics(owner.pluginId)[0]
+    expect(failed.status).toBe('failed')
+    let release!: () => void
+    let admitted!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const entered = new Promise<void>((resolve) => {
+      admitted = resolve
+    })
+    verify.mockImplementationOnce(async () => {
+      admitted()
+      await gate
+    })
+    const running = host.accept({ ...input, sessionId: 'busy', prompt: 'busy' })
+    await entered
+    const retry = host.retry(owner.pluginId, failed.invocationId)
+    const rejected = expect(retry).rejects.toThrow(/Hook retry is unavailable|Finish active turns/)
+    let finishUpdate: (() => void) | undefined
+    if (change === 'clear') history.reset()
+    else if (change === 'replace owner') host.register(owner)
+    else if (change === 'active turn') host.beginRun('active')
+    else finishUpdate = host.beginUpdate()
+    release()
+    await Promise.all([running, rejected])
+    finishUpdate?.()
+    host.endRun('active')
+    expect(
+      fs
+        .readFileSync(path.join(root, 'calls'), 'utf8')
+        .split('\n')
+        .filter((value) => value === 'stale')
+    ).toHaveLength(1)
+    expect(history.getBySession('s')).toHaveLength(change === 'clear' ? 0 : 2)
+    expect(host.getContext('s', 'm')).toEqual([])
+  }
+)
+
 it('runs resume-only handlers once after restart even when startup matched no command', async () => {
   const root = fixture()
   write(

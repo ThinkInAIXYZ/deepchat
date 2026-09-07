@@ -23,7 +23,6 @@ import {
   isToolEffectWithinCeiling,
   meetToolEffects,
   parseExecutionContractBinding,
-  verifyExecutionContractHash,
   type BuildExecutionContractInput
 } from '@/tape/domain/executionContract'
 import { buildTaskContract } from '@/tape/domain/taskContract'
@@ -223,7 +222,7 @@ describe('ExecutionContract domain', () => {
     expect(Object.isFrozen(contract)).toBe(true)
     expect(Object.isFrozen(contract.ceilings.tools[0].target)).toBe(true)
     expect(Object.isFrozen(contract.provenance.promptSections)).toBe(true)
-    expect(verifyExecutionContractHash(contract)).toBe(true)
+    expect(isDeepChatExecutionContract(contract)).toBe(true)
   })
 
   it('binds a child-local TaskContract and rejects View ceiling expansion', () => {
@@ -503,8 +502,13 @@ describe('ExecutionContract domain', () => {
       ...contract,
       dynamicControlSnapshot: { ...contract.dynamicControlSnapshot, permissionMode: 'full_access' }
     } as typeof contract
+    const staleProvenance = {
+      ...contract,
+      provenance: { ...contract.provenance, internalExecutionPolicyHash: 'a'.repeat(64) }
+    } as typeof contract
 
-    expect(verifyExecutionContractHash(tampered)).toBe(false)
+    expect(isDeepChatExecutionContract(tampered)).toBe(false)
+    expect(isDeepChatExecutionContract(staleProvenance)).toBe(false)
     expect(isToolEffectWithinCeiling('read', 'write')).toBe(true)
     expect(isToolEffectWithinCeiling('write', 'read')).toBe(false)
     expect(meetToolEffects('read', 'write')).toBe('read')

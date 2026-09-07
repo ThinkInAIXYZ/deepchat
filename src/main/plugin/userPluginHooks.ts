@@ -406,18 +406,36 @@ export class UserPluginHooks implements PluginContextPort {
       throw new Error('Hook retry is unavailable or belongs to an inactive revision')
     if (this.activeRuns.size || this.updating)
       throw new Error('Finish active turns and plugin updates before retrying a hook')
-    const input = invocation.input
-    const operation = this.queue.then(() =>
-      this.event(
-        owner,
-        input,
-        invocation.event,
-        `${invocation.boundaryId}:retry:${randomUUID()}`,
-        invocation.event === 'SessionStart' ? invocation.boundaryId.split(':')[0] : undefined,
-        AbortSignal.timeout(10000),
-        invocation.hookId
+    const sessionId = invocation.sessionId
+    const incarnationId = this.tape.getTapeIncarnationId(sessionId)
+    const expectedInput = JSON.stringify(invocation.input)
+    const expectedStatus = invocation.status
+    const operation = this.queue.then(() => {
+      if (this.tape.getTapeIncarnationId(sessionId) !== incarnationId)
+        throw new Error('Hook retry is unavailable after the session was cleared')
+      const current = this.history(sessionId).get(invocationId)
+      const currentOwner = this.owners.get(pluginId)
+      if (
+        !current?.input ||
+        currentOwner !== owner ||
+        current.pluginId !== pluginId ||
+        current.digest !== owner.digest ||
+        current.status !== expectedStatus ||
+        JSON.stringify(current.input) !== expectedInput
       )
-    )
+        throw new Error('Hook retry is unavailable or belongs to an inactive revision')
+      if (this.activeRuns.size || this.updating)
+        throw new Error('Finish active turns and plugin updates before retrying a hook')
+      return this.event(
+        currentOwner,
+        current.input,
+        current.event,
+        `${current.boundaryId}:retry:${randomUUID()}`,
+        current.event === 'SessionStart' ? current.boundaryId.split(':')[0] : undefined,
+        AbortSignal.timeout(10000),
+        current.hookId
+      )
+    })
     this.queue = operation.catch(() => undefined)
     await operation
   }

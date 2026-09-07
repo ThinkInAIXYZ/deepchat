@@ -14,6 +14,7 @@ import {
 } from '@shared/types/agent-memory'
 import { redactBody } from '@/lib/redact'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
+import { hasExactKeys, isRecordObject } from '../domain/primitives'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   isNestedExecutionOperationIdentity,
@@ -100,10 +101,6 @@ function boundedIdentity(value: unknown): string | undefined {
 function boundedNullableString(value: string | null): string | null {
   if (value === null || Buffer.byteLength(value, 'utf8') <= MAX_LIST_TEXT_BYTES) return value
   return boundedString(value) ?? ''
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
@@ -378,7 +375,7 @@ function toolProjection(row: DeepChatTapeEntryRow): Partial<TapeInspectorFactRec
 
 function projectMemorySelection(value: unknown): JsonValue | undefined {
   if (
-    !isPlainObject(value) ||
+    !isRecordObject(value) ||
     !hasOnlyKeys(value, ['id', 'kind', 'score', 'sources', 'similarity', 'breakdown'])
   ) {
     return undefined
@@ -392,14 +389,14 @@ function projectMemorySelection(value: unknown): JsonValue | undefined {
   if (value.similarity !== undefined && similarity === undefined) return undefined
   if (
     value.sources !== undefined &&
-    (!isPlainObject(value.sources) ||
+    (!isRecordObject(value.sources) ||
       !hasOnlyKeys(value.sources, ['vec', 'fts']) ||
       (value.sources.vec !== undefined && typeof value.sources.vec !== 'boolean') ||
       (value.sources.fts !== undefined && typeof value.sources.fts !== 'boolean'))
   ) {
     return undefined
   }
-  const sources = isPlainObject(value.sources)
+  const sources = isRecordObject(value.sources)
     ? {
         ...(typeof value.sources.vec === 'boolean' ? { vec: value.sources.vec } : {}),
         ...(typeof value.sources.fts === 'boolean' ? { fts: value.sources.fts } : {})
@@ -415,7 +412,7 @@ function projectMemorySelection(value: unknown): JsonValue | undefined {
 }
 
 function projectMemoryDrop(value: unknown): JsonValue | undefined {
-  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
+  if (!isRecordObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
   const id = boundedIdentity(value.id)
   const kind = boundedString(value.kind)
   if (
@@ -430,7 +427,7 @@ function projectMemoryDrop(value: unknown): JsonValue | undefined {
 }
 
 function projectDirectiveSelection(value: unknown): JsonValue | undefined {
-  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'source'])) return undefined
+  if (!isRecordObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'source'])) return undefined
   const id = boundedIdentity(value.id)
   const kind = boundedString(value.kind)
   const source = boundedString(value.source)
@@ -444,7 +441,7 @@ function projectDirectiveSelection(value: unknown): JsonValue | undefined {
 }
 
 function projectDirectiveDrop(value: unknown): JsonValue | undefined {
-  if (!isPlainObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
+  if (!isRecordObject(value) || !hasOnlyKeys(value, ['id', 'kind', 'reason'])) return undefined
   const id = boundedIdentity(value.id)
   const kind = boundedString(value.kind)
   const reason = boundedString(value.reason)
@@ -458,7 +455,7 @@ function projectDirectiveDrop(value: unknown): JsonValue | undefined {
 
 function projectMemoryTokenMap(value: unknown): JsonValue | undefined {
   if (
-    !isPlainObject(value) ||
+    !isRecordObject(value) ||
     !hasExactKeys(value, ['directive', 'persona', 'working', 'queryRecall'])
   ) {
     return undefined
@@ -477,7 +474,7 @@ function projectMemoryTokenMap(value: unknown): JsonValue | undefined {
 
 function projectMemoryAllocation(value: unknown): JsonValue | undefined {
   if (
-    !isPlainObject(value) ||
+    !isRecordObject(value) ||
     !hasExactKeys(value, [
       'policyVersion',
       'totalTokenBudget',
@@ -769,15 +766,6 @@ function boundedJson(value: unknown, depth = 0): JsonValue {
   return null
 }
 
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  const actual = Object.keys(value).sort()
-  const sortedExpected = [...expected].sort()
-  return (
-    actual.length === sortedExpected.length &&
-    actual.every((key, index) => key === sortedExpected[index])
-  )
-}
-
 function projectToolDetailData(row: DeepChatTapeEntryRow):
   | {
       kind: 'tool_call'
@@ -804,7 +792,7 @@ function projectToolDetailData(row: DeepChatTapeEntryRow):
   if (row.kind === 'tool_call') {
     if (
       !hasExactKeys(payload, ['messageId', 'orderSeq', 'toolCall']) ||
-      !isPlainObject(payload.toolCall)
+      !isRecordObject(payload.toolCall)
     ) {
       return null
     }

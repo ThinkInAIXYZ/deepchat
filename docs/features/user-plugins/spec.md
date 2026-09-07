@@ -209,8 +209,9 @@ matches an admitted session, a host-only observation anchor preserves the resume
 is excluded from hook diagnostics and contributes no model instructions. A started
 invocation with no result after restart is `uncertain`, and is not automatically rerun. Explicit
 retry is allowed for an active revision's failed/uncertain handler; it executes only that handler,
-has a new invocation identity, and can repeat external effects. Retry waits until active turns
-and updates finish. Diagnostics show the latest twenty invocations from up to sixteen recently loaded
+has a new invocation identity, and can repeat external effects. Retry requires idle turns and updates;
+queue admission rechecks the session incarnation, registered owner, invocation status and input.
+Diagnostics show the latest twenty invocations from up to sixteen recently loaded
 sessions. Evicted sessions reload their durable history on demand. Completed in-memory entries omit
 retry input payloads; Tape retains the audit record. Malformed persisted JSON is skipped.
 
@@ -290,8 +291,9 @@ to the owner, transport, endpoint/command, arguments, working directory and vari
 Changing that scope requires fresh setup; disable preserves bindings. OAuth and MCP App authorization
 use existing owners. Rotation and endpoint/revision changes revoke old App/connection authority.
 Update backups contain wrapped ciphertext alongside MCP configuration and are deleted after successful
-commit/recovery. Recovery failures disable the plugin and release the mutation lock. There is no
-OpenAI account or connector-ID adapter.
+commit/recovery. Cleanup failures still restore the previous MCP configuration and credentials;
+the plugin remains disabled when runtime cleanup prevents reactivation. Recovery failures release
+the mutation lock. There is no OpenAI account or connector-ID adapter.
 
 ## 8. Source/process bounds
 
@@ -357,9 +359,9 @@ catalog mutation versions protect status updates. User packages route to their d
 before enablement; official quick actions remain intact. Dialog primitives provide focus trapping,
 keyboard dismissal and scrolling; long paths/commands wrap. User copy uses vue-i18n.
 
-Typed routes are `plugins.inspectSource`, `installUser`, `uninstallUser`, `discardPrepared`,
-`configureMcp`, and `retryHook`, alongside existing list/get/enable/disable. Native file selection
-uses `DeviceClient`. No untyped action bag or native process API is exposed to the renderer.
+Typed routes are `plugins.inspectSource`, `plugins.installUser`, `plugins.uninstallUser`,
+`plugins.discardPrepared`, `plugins.configureMcp`, and `plugins.retryHook`, alongside existing
+list/get/enable/disable. Native file selection uses `DeviceClient`. No untyped action bag or native process API is exposed to the renderer.
 
 ## 10. Validation and release boundary
 

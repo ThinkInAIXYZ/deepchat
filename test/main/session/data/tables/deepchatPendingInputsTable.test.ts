@@ -9,6 +9,7 @@ import {
   PENDING_INPUT_RETRY_SCHEMA_VERSION
 } from '@/session/data/tables/deepchatPendingInputs'
 import { createSessionData } from '@/session/data'
+import { SessionDatabase } from '@/session/data/database'
 import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
@@ -32,6 +33,105 @@ describe('DeepChatPendingInputsTable migrations', () => {
     expect(table.getMigrationSQL(PENDING_INPUT_RETRY_SCHEMA_VERSION)).toContain(
       'ADD COLUMN retry_required_at INTEGER'
     )
+  })
+})
+
+describeIfNativeSqlite('SessionPendingInputs queue capacity', () => {
+  it('accepts new inputs after a full queue is claimed or an item is deleted', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const pending = data.pendingInputs
+      const queued = Array.from({ length: 10 }, (_, index) =>
+        pending.queuePendingInput('s1', { text: String(index + 1), files: [] })
+      )
+      const enqueue = () => pending.queuePendingInput('s1', { text: 'next', files: [] })
+
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.claimQueuedInput('s1', queued[0].id)
+      expect(pending.listPendingInputs('s1')).toHaveLength(9)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      const next = enqueue()
+      expect(pending.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        ...queued.slice(1).map((item) => item.id),
+        next.id
+      ])
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[1].id)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      expect(enqueue().state).toBe('pending')
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.getInput('s1', queued[0].id)?.state).toBe('claimed')
+    } finally {
+      connection.close()
+    }
+  })
+
+  it.each([
+    'releaseClaimedQueueInput',
+    'releaseClaimedQueueInputForRetry',
+    'releaseClaimedInput',
+    'recoverInputsAfterRestart'
+  ] as const)('preserves accepted inputs beyond capacity after %s', (release) => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const pending = data.pendingInputs
+      const claimed = pending.queuePendingInput(
+        's1',
+        { text: 'recover me', files: [] },
+        {
+          state: 'claimed'
+        }
+      )
+      const queued = Array.from({ length: 10 }, (_, index) =>
+        pending.queuePendingInput('s1', { text: String(index + 1), files: [] })
+      )
+
+      if (release === 'recoverInputsAfterRestart') {
+        pending.recoverInputsAfterRestart()
+      } else {
+        pending[release]('s1', claimed.id)
+      }
+
+      expect(pending.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        claimed.id,
+        ...queued.map((item) => item.id)
+      ])
+      expect(pending.getInput('s1', claimed.id)?.state).toBe(
+        release === 'releaseClaimedQueueInputForRetry' ? 'retry_required' : 'pending'
+      )
+      const enqueue = () => pending.queuePendingInput('s1', { text: 'next', files: [] })
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[0].id)
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[1].id)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      expect(enqueue().state).toBe('pending')
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.getInput('s1', claimed.id)?.payload.text).toBe('recover me')
+    } finally {
+      connection.close()
+    }
   })
 })
 
@@ -537,6 +637,7 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         CREATE TEMP TRIGGER reject_steer_terminalization
         AFTER UPDATE OF status ON deepchat_messages
         WHEN NEW.status = 'error'
+          AND (SELECT COUNT(*) FROM deepchat_messages WHERE status = 'error') = 2
         BEGIN SELECT RAISE(ABORT, 'terminalization failed'); END;
       `)
 

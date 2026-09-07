@@ -28,6 +28,30 @@ export function compareUtf16(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
+/** A non-null, non-array object: the only shape a stored fact field may hold nested data in. */
+export function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+/**
+ * Exact-key check for stored fact shapes: every required key is present, every present key is
+ * required or optional, nothing else. Persisted hashes cover whole objects, so an unknown key is
+ * as much a corruption signal as a missing one.
+ */
+export function hasExactKeys(
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[] = []
+): value is Record<string, unknown> {
+  if (!isRecordObject(value)) return false
+  const actualKeys = new Set(Object.keys(value))
+  const allowedKeys = new Set([...requiredKeys, ...optionalKeys])
+  return (
+    requiredKeys.every((key) => actualKeys.has(key)) &&
+    [...actualKeys].every((key) => allowedKeys.has(key))
+  )
+}
+
 /** Freezes a plain-data tree in place and returns it; already-frozen subtrees are not revisited. */
 export function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value

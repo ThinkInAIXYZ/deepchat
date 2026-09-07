@@ -9,7 +9,6 @@ import type {
   MessageTraceRecord,
   PendingSessionInputRecord
 } from '@shared/types/agent-interface'
-import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
   ExportTapeInspectorSupportTraceInput,
@@ -66,7 +65,6 @@ const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
 const AgentTapeContextResultSchema = z.custom<AgentTapeContextResult>()
 const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
-const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
 const ExecutionAuditIdentitySchema = z.string().min(1).max(1_024)
 const ExecutionAuditHashSchema = z.string().regex(/^[0-9a-f]{64}$/u)
 const TapeInspectorIdentitySchema = z.string().min(1).max(1_024)
@@ -896,23 +894,6 @@ export const sessionsListMessageTracesRoute = defineRouteContract({
     nestedExecutions: DeepChatNestedExecutionAuditSchema
   })
 }) satisfies RouteContract<'sessions.listMessageTraces'>
-
-export const sessionsExportMessageTapeReplaySliceRoute = defineRouteContract({
-  name: 'sessions.exportMessageTapeReplaySlice',
-  input: z.object({
-    messageId: EntityIdSchema,
-    options: z
-      .object({
-        requestSeq: z.number().int().positive().optional(),
-        includeTapePayloads: z.boolean().optional(),
-        includeTracePayload: z.boolean().optional()
-      })
-      .optional()
-  }),
-  output: z.object({
-    slice: DeepChatTapeReplaySliceSchema
-  })
-})
 
 export const sessionsTranslateTextRoute = defineRouteContract({
   name: 'sessions.translateText',
