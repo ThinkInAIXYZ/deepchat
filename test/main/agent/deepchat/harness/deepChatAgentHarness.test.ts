@@ -14181,9 +14181,10 @@ describe('DeepChatAgentHarness', () => {
       expect(finalizedCompaction).toEqual([
         'mock-msg-id',
         expect.any(String),
-        'sent',
-        expect.stringContaining('"compactionStatus":"compacted"')
+        'error',
+        expect.stringContaining('"compactionStatus":"failed"')
       ])
+      expect(finalizedCompaction?.[3]).toContain('"compactionError":"boom"')
       expect(sqlitePresenter.deepchatMessagesTable.deleteByIds).not.toHaveBeenCalled()
     })
 
