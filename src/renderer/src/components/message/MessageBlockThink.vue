@@ -122,13 +122,11 @@ const headerText = computed(() => {
     return t('chat.features.modeChanged', { mode: modeChangeId.value })
   }
   const seconds = displayedSeconds.value
-  if (seconds === 0) {
-    return props.block.status === 'loading'
-      ? t('chat.features.thoughtForLessThanOneSecondLoading')
-      : t('chat.features.thoughtForLessThanOneSecond')
+  if (props.block.status === 'loading') {
+    return t('chat.features.thoughtForSecondsLoading', { seconds })
   }
-  return props.block.status === 'loading'
-    ? t('chat.features.thoughtForSecondsLoading', { seconds })
+  return seconds === 0
+    ? t('chat.features.thoughtForLessThanOneSecond')
     : t('chat.features.thoughtForSeconds', { seconds })
 })
 

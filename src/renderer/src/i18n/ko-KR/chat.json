@@ -115,7 +115,6 @@
     "webSearch": "웹 검색",
     "artifactThinking": "아티팩트 추론",
     "thoughtForLessThanOneSecond": "1초 미만 동안 생각했습니다",
-    "thoughtForLessThanOneSecondLoading": "생각 중 (1초 미만)...",
     "thoughtForSeconds": "{seconds}초 동안 생각했습니다",
     "thoughtForSecondsLoading": "{seconds}초째 생각 중...",
     "modeChanged": "모드가 다음으로 전환되었습니다: {mode}"

@@ -199,7 +199,6 @@
   "features": {
     "webSearch": "联网搜索",
     "thoughtForLessThanOneSecond": "思考不足 1 秒",
-    "thoughtForLessThanOneSecondLoading": "正在思考（不足 1 秒）",
     "thoughtForSeconds": "思考了 {seconds} 秒",
     "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
     "artifactThinking": "artifact 思考",

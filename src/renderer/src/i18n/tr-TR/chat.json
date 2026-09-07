@@ -114,7 +114,6 @@
   "features": {
     "webSearch": "Web Araması",
     "thoughtForLessThanOneSecond": "1 saniyeden az düşündü",
-    "thoughtForLessThanOneSecondLoading": "Düşünüyor (1 saniyeden az)...",
     "thoughtForSeconds": "{seconds}s için düşünceler",
     "thoughtForSecondsLoading": "{seconds}s için düşünüyorum...",
     "artifactThinking": "Yapay Düşünce",

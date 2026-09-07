@@ -115,7 +115,6 @@
     "webSearch": "網絡搜索",
     "artifactThinking": "artifact 思考",
     "thoughtForLessThanOneSecond": "思考不足 1 秒",
-    "thoughtForLessThanOneSecondLoading": "正在思考（不足 1 秒）",
     "thoughtForSeconds": "思考了 {seconds} 秒",
     "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
     "modeChanged": "模式已切換至：{mode}"

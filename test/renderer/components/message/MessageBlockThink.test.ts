@@ -38,7 +38,7 @@ import MessageBlockThink from '@/components/message/MessageBlockThink.vue'
 
 describe('MessageBlockThink', () => {
   it.each([0, 1, 999, 1_000])(
-    'labels %i ms correctly while thinking and after completion',
+    'preserves running labels and summarizes %i ms after completion',
     async (duration) => {
       const wrapper = mount(MessageBlockThink, {
         props: {
@@ -57,7 +57,7 @@ describe('MessageBlockThink', () => {
 
       expect(wrapper.text()).toBe(
         duration < 1_000
-          ? 'chat.features.thoughtForLessThanOneSecondLoading:'
+          ? 'chat.features.thoughtForSecondsLoading:0'
           : 'chat.features.thoughtForSecondsLoading:1'
       )
 

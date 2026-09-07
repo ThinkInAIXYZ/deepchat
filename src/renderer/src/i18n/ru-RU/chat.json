@@ -115,7 +115,6 @@
     "webSearch": "Поиск в интернете",
     "artifactThinking": "Артефакт мышление",
     "thoughtForLessThanOneSecond": "Размышление заняло меньше секунды",
-    "thoughtForLessThanOneSecondLoading": "Размышление (меньше секунды)",
     "thoughtForSeconds": "Мышление {seconds} секунд",
     "thoughtForSecondsLoading": "Мышление ({seconds} секунд)",
     "modeChanged": "Режим переключен на: {mode}"

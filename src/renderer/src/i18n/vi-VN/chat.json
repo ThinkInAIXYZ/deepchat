@@ -114,7 +114,6 @@
   "features": {
     "webSearch": "Tìm kiếm trên web",
     "thoughtForLessThanOneSecond": "Đã suy nghĩ chưa đến 1 giây",
-    "thoughtForLessThanOneSecondLoading": "Đang suy nghĩ (chưa đến 1 giây)...",
     "thoughtForSeconds": "Suy nghĩ cho {seconds}",
     "thoughtForSecondsLoading": "Đang suy nghĩ về {seconds}...",
     "artifactThinking": "Tư duy tạo tác",

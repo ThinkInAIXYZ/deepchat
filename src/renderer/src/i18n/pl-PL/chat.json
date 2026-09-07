@@ -114,7 +114,6 @@
   "features": {
     "webSearch": "Wyszukiwanie w Internecie",
     "thoughtForLessThanOneSecond": "Myślenie trwało mniej niż 1 s",
-    "thoughtForLessThanOneSecondLoading": "Myślenie (mniej niż 1 s)...",
     "thoughtForSeconds": "Pomyślałem o {seconds}",
     "thoughtForSecondsLoading": "Myślenie za {seconds}...",
     "artifactThinking": "Myślenie artefaktowe",
