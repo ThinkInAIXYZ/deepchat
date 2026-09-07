@@ -39,7 +39,6 @@ export interface LockedVectorStorePort {
 }
 
 interface VectorStoreSuspectObservation {
-  resumeAllowed: boolean
   leaseEpoch: number
   storeGeneration: number
   configGeneration: number
@@ -58,6 +57,14 @@ interface VectorStoreLeaseState {
   configFingerprint: string | null | undefined
   logicalIdentity: string | null
   accepting: boolean
+  /**
+   * Number of in-flight owners that closed admission (identity transition,
+   * in-lease identity switch, suspect observation, drain-and-close). Admission
+   * reopens only when the last owner releases while the state is healthy, so
+   * owners never have to guess whether a concurrent epoch bump was theirs.
+   * A permanent close never releases its hold; the state is settled away.
+   */
+  admissionHolds: number
   health: 'healthy' | 'suspect' | 'quarantined'
   active: number
   activeOperations: Set<Promise<unknown>>
@@ -184,29 +191,45 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   private beginConfigIdentityTransition(agentId: string): Promise<void> {
     const state = this.leaseState(agentId)
     if (state.health !== 'healthy') return Promise.resolve()
-    state.accepting = false
-    state.leaseEpoch += 1
-    const transitionEpoch = state.leaseEpoch
+    this.holdAdmission(state)
     const previous = this.identityTransitions.get(agentId) ?? Promise.resolve()
     const tracked = previous
       .catch(() => undefined)
       .then(async () => {
         await this.waitForLeaseDrain(state)
-        if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) return
+        // Another owner (later transition, reset, suspect observation) closes
+        // the store or converges it once it settles; do not wait on it here,
+        // because leases parked on this transition are part of that observation.
+        if (!this.isSoleAdmissionOwner(state)) return
         await this.withAgentLock(agentId, async (locked) => {
-          if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) return
+          if (!this.isSoleAdmissionOwner(state)) return
           await locked.close({ clearCertificate: true })
         })
       })
       .finally(() => {
-        if (this.identityTransitions.get(agentId) !== tracked) return
-        this.identityTransitions.delete(agentId)
-        if (!this.stopped && state.health === 'healthy' && state.leaseEpoch === transitionEpoch) {
-          state.accepting = true
+        if (this.identityTransitions.get(agentId) === tracked) {
+          this.identityTransitions.delete(agentId)
         }
+        this.releaseAdmission(state)
       })
     this.identityTransitions.set(agentId, tracked)
     return tracked
+  }
+
+  private holdAdmission(state: VectorStoreLeaseState): void {
+    state.accepting = false
+    state.leaseEpoch += 1
+    state.admissionHolds += 1
+  }
+
+  private releaseAdmission(state: VectorStoreLeaseState, options: { resume?: boolean } = {}): void {
+    state.admissionHolds -= 1
+    if (state.admissionHolds > 0 || options.resume === false) return
+    if (!this.stopped && state.health === 'healthy') state.accepting = true
+  }
+
+  private isSoleAdmissionOwner(state: VectorStoreLeaseState): boolean {
+    return !this.stopped && state.health === 'healthy' && state.admissionHolds === 1
   }
 
   hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean {
@@ -332,6 +355,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         configFingerprint: undefined,
         logicalIdentity: null,
         accepting: true,
+        admissionHolds: 0,
         health: 'healthy',
         active: 0,
         activeOperations: new Set(),
@@ -506,23 +530,22 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           const desiredIdentity = this.cacheKey(agentId, embedding, dimensions)
           const openIdentity = this.vectorStoreIdentities.get(agentId)
           if (openIdentity && openIdentity !== desiredIdentity) {
-            state.accepting = false
-            state.leaseEpoch += 1
-            const transitionEpoch = state.leaseEpoch
+            const configGeneration = state.configGeneration
+            this.holdAdmission(state)
             try {
               await this.waitForLeaseDrain(state)
-              if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) {
+              // Admission is closed by this hold, so the assertion always throws
+              // here; it yields the reason matching the concurrent owner, the
+              // health, or a config change that made this lease's identity stale.
+              if (
+                !this.isSoleAdmissionOwner(state) ||
+                state.configGeneration !== configGeneration
+              ) {
                 this.assertLeaseAdmission(state)
               }
               await this.closeVectorStoreLocked(agentId, true)
             } finally {
-              if (
-                !this.stopped &&
-                state.health === 'healthy' &&
-                state.leaseEpoch === transitionEpoch
-              ) {
-                state.accepting = true
-              }
+              this.releaseAdmission(state)
             }
           }
           this.assertLeaseAdmission(state)
@@ -696,31 +719,23 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     now: number
   ): Promise<boolean> {
     const state = this.leaseStates.get(agentId)
-    if (
-      !state ||
-      state.health !== 'healthy' ||
-      state.active > 0 ||
-      state.openInFlight > 0 ||
-      state.lastUsedAt !== expectedLastUsedAt ||
-      !this.vectorStores.has(agentId)
-    ) {
-      return false
-    }
-    const expired = now - state.lastUsedAt >= VECTOR_STORE_IDLE_TTL_MS
-    if (!expired && this.vectorStores.size <= VECTOR_STORE_SOFT_CAP) return false
+    // While an admission owner (transition, reset, observation) controls the
+    // store lifecycle, evicting underneath it would close a store the owner is
+    // about to converge and invalidate the observation's epoch snapshot.
+    const evictable = (): boolean =>
+      state !== undefined &&
+      state.health === 'healthy' &&
+      state.accepting &&
+      state.active === 0 &&
+      state.openInFlight === 0 &&
+      state.lastUsedAt === expectedLastUsedAt &&
+      this.vectorStores.has(agentId) &&
+      (now - state.lastUsedAt >= VECTOR_STORE_IDLE_TTL_MS ||
+        this.vectorStores.size > VECTOR_STORE_SOFT_CAP)
+    if (!state || !evictable()) return false
 
     return this.withAgentLock(agentId, async (locked) => {
-      if (
-        state.health !== 'healthy' ||
-        state.active > 0 ||
-        state.openInFlight > 0 ||
-        state.lastUsedAt !== expectedLastUsedAt ||
-        !this.vectorStores.has(agentId)
-      ) {
-        return false
-      }
-      const stillExpired = now - state.lastUsedAt >= VECTOR_STORE_IDLE_TTL_MS
-      if (!stillExpired && this.vectorStores.size <= VECTOR_STORE_SOFT_CAP) return false
+      if (!evictable()) return false
       state.leaseEpoch += 1
       await locked.close({ clearCertificate: false })
       this.ports.diagnostics?.recordVectorOutcome('eviction')
@@ -746,17 +761,14 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       return
     const operations = [...state.activeOperations]
     if (!operations.length) return
-    const resumeAllowed = state.accepting
     state.health = 'suspect'
-    state.accepting = false
-    state.leaseEpoch += 1
+    this.holdAdmission(state)
     this.clearReady(agentId)
     let resolveCompletion!: () => void
     const completion = new Promise<void>((resolve) => {
       resolveCompletion = resolve
     })
     const observation: VectorStoreSuspectObservation = {
-      resumeAllowed,
       leaseEpoch: state.leaseEpoch,
       storeGeneration: state.storeGeneration,
       configGeneration: state.configGeneration,
@@ -811,6 +823,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     if (observation.graceTimer) clearTimeout(observation.graceTimer)
     observation.graceTimer = null
     if (state.suspectObservation === observation) state.suspectObservation = null
+    // Resumption is decided by the caller: a settled observation re-evaluates
+    // the identity snapshot first, quarantine and shutdown never resume.
+    this.releaseAdmission(state, { resume: false })
     observation.resolveCompletion()
   }
 
@@ -841,27 +856,30 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     }
     this.finishSuspectObservation(state, observation)
     state.health = 'healthy'
+    if (this.stopped) {
+      state.accepting = false
+      return
+    }
+    if (state.admissionHolds > 0) {
+      logger.info(
+        `[Memory] vector operation grace settled for ${agentId}; a concurrent admission owner resumes on release`
+      )
+      return
+    }
     const snapshotUnchanged =
       state.leaseEpoch === observation.leaseEpoch &&
       state.storeGeneration === observation.storeGeneration &&
       state.configGeneration === observation.configGeneration &&
       state.configFingerprint === observation.configFingerprint &&
       state.logicalIdentity === observation.logicalIdentity
-    if (this.stopped) {
-      state.accepting = false
-      return
-    }
-    if (observation.resumeAllowed && snapshotUnchanged) {
+    // A transition that yielded to this observation left the previous store
+    // open; converge it here instead of resuming on top of a stale identity.
+    const openIdentity = this.vectorStoreIdentities.get(agentId)
+    const storeConverged = openIdentity === undefined || openIdentity === state.logicalIdentity
+    if (snapshotUnchanged && storeConverged) {
       state.accepting = true
       logger.info(
         `[Memory] vector operation grace settled for ${agentId}; vector admission resumed`
-      )
-      return
-    }
-    state.accepting = false
-    if (!observation.resumeAllowed) {
-      logger.info(
-        `[Memory] vector operation grace settled for ${agentId}; existing cleanup ownership retained`
       )
       return
     }
@@ -1067,15 +1085,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     const state = this.leaseState(agentId)
     const initiallyDeferred = this.deferQuarantinedCleanup(agentId)
     if (initiallyDeferred) return initiallyDeferred
-    state.accepting = false
-    state.leaseEpoch += 1
-    let closeEpoch = state.leaseEpoch
-    if (reset || permanent) {
-      state.storeGeneration += 1
-      state.logicalIdentity = null
-      this.clearReady(agentId)
-    }
     try {
+      this.holdAdmission(state)
+      if (reset || permanent) {
+        state.storeGeneration += 1
+        state.logicalIdentity = null
+        this.clearReady(agentId)
+      }
       await this.waitForLeaseDrain(state)
       await this.waitForSuspectResolution(agentId, state)
       const deferredAfterDrain = this.deferQuarantinedCleanup(agentId)
@@ -1086,7 +1102,6 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           '[Memory] vector cleanup stopped before native close'
         )
       }
-      closeEpoch = state.leaseEpoch
       await this.withAgentLock(agentId, async (locked) => {
         if (state.health === 'quarantined') return
         await locked.close({ clearCertificate: reset || permanent })
@@ -1104,14 +1119,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       const deferredAfterLock = this.deferQuarantinedCleanup(agentId)
       if (deferredAfterLock) return deferredAfterLock
     } finally {
-      if (
-        !permanent &&
-        !this.stopped &&
-        state.health === 'healthy' &&
-        state.leaseEpoch === closeEpoch
-      ) {
-        state.accepting = true
-      }
+      // A permanent close keeps its hold: admission stays closed until the
+      // lease state is settled away, even if a concurrent owner releases later.
+      if (!permanent) this.releaseAdmission(state)
     }
     return 'completed'
   }
