@@ -58,10 +58,7 @@ import { RetrievalService } from './services/retrievalService'
 import { ReflectionService } from './services/reflectionService'
 import { PersonaService } from './services/personaService'
 import { ConflictService } from './services/conflictService'
-import {
-  MaintenanceService,
-  type MemoryMaintenanceDrainOutcome
-} from './services/maintenanceService'
+import { MaintenanceService } from './services/maintenanceService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
 import { DirectiveService } from './services/directiveService'
@@ -386,7 +383,7 @@ export class MemoryService implements MemoryRuntimePort {
     this.maintenance.stopBackgroundMaintenance()
   }
 
-  drainBackgroundMaintenance(timeoutMs?: number): Promise<MemoryMaintenanceDrainOutcome> {
+  drainBackgroundMaintenance(timeoutMs?: number): Promise<string[]> {
     return this.maintenance.drainBackgroundMaintenance(timeoutMs)
   }
 

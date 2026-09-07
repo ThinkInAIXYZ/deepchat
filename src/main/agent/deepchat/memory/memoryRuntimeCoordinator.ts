@@ -180,7 +180,6 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
    * no epoch bump is needed because a fresh target has no in-flight extraction.
    */
   seedExtractionCursor(sessionId: string, orderSeq: number): void {
-    if (orderSeq <= 0) return
     this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
   }
 

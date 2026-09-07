@@ -1172,14 +1172,6 @@ describe('MemoryRuntimeCoordinator', () => {
     )
   })
 
-  it('leaves the cursor untouched when a fork clones nothing', () => {
-    const { coordinator, deps } = createHarness()
-
-    coordinator.seedExtractionCursor('s1', 0)
-
-    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
-  })
-
   it('fences new admission and drains queued and running jobs without late commits', async () => {
     const { coordinator, deps, memorySession, port, setRows } = createHarness()
     const observer: MemoryIngestionObserver = coordinator

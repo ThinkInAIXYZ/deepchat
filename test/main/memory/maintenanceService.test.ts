@@ -1218,10 +1218,7 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     await vi.waitFor(() => expect(decisionCalls(generateText)).toBe(1))
 
     presenter.stopBackgroundMaintenance()
-    await expect(presenter.drainBackgroundMaintenance(500)).resolves.toEqual({
-      timedOut: false,
-      pendingAgentIds: []
-    })
+    await expect(presenter.drainBackgroundMaintenance(500)).resolves.toEqual([])
     await pass
     // The fenced pass neither merged nor issued another decision after the abort,
     // and a late provider settlement changes nothing.
@@ -1261,16 +1258,10 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     await vi.waitFor(() => expect(querySpy).toHaveBeenCalledTimes(1))
 
     presenter.stopBackgroundMaintenance()
-    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual({
-      timedOut: true,
-      pendingAgentIds: ['a']
-    })
+    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual(['a'])
 
     neighborQuery.resolve([])
-    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual({
-      timedOut: false,
-      pendingAgentIds: []
-    })
+    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
     await pass
     expect(decisionCalls(generateText)).toBe(0)
   })

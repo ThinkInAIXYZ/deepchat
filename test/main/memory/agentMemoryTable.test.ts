@@ -39,6 +39,25 @@ type AgentMemorySearchInternals = {
   searchLike(...args: unknown[]): unknown[]
 }
 
+// A database migrated through v51 carries only the column CHECKs on scope_type/scope_id; the
+// table-level pair constraints exist only on freshly created tables, so the persisted pair
+// invariant is guarded by triggers alone there. Reproduce that shape from the current DDL.
+function createV51MigratedShapeTable(
+  db: InstanceType<typeof DatabaseCtor>
+): InstanceType<typeof AgentMemoryTableCtor> {
+  const table = new AgentMemoryTableCtor(db)
+  const migratedShapeSql = table
+    .getCreateTableSQL()
+    .replace(
+      /,\s*CHECK \(\s*\(scope_type = 'agent' AND scope_id IS NULL\)[\s\S]*?user_scope IS NULL\)\s*\)/u,
+      ''
+    )
+  expect(migratedShapeSql).not.toBe(table.getCreateTableSQL())
+  db.exec(migratedShapeSql)
+  table.createTable()
+  return table
+}
+
 function completeAgentMemoryClear(
   table: InstanceType<typeof AgentMemoryTableCtor>,
   agentId: string,
@@ -3881,19 +3900,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
   it('repairs persisted scope rows at startup without widening them instead of refusing to open', () => {
     const db = new DatabaseCtor(':memory:')
     try {
-      const table = new AgentMemoryTableCtor(db)
-      // A database migrated through v51 carries only the column CHECKs on scope_type/scope_id;
-      // the table-level pair constraints exist only on freshly created tables, so the persisted
-      // pair invariant is guarded by triggers alone there.
-      const migratedShapeSql = table
-        .getCreateTableSQL()
-        .replace(
-          /,\s*CHECK \(\s*\(scope_type = 'agent' AND scope_id IS NULL\)[\s\S]*?user_scope IS NULL\)\s*\)/u,
-          ''
-        )
-      expect(migratedShapeSql).not.toBe(table.getCreateTableSQL())
-      db.exec(migratedShapeSql)
-      table.createTable()
+      const table = createV51MigratedShapeTable(db)
       const seed = (id: string, scope?: { type: 'user' | 'project' | 'session'; id: string }) =>
         table.insert({ id, agentId: 'a', kind: 'semantic', content: `${id} fact`, scope })
       seed('agent-stray-id')
@@ -3977,16 +3984,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
   it('repairs scope and temporal rows of an Agent whose clear job is still pending', () => {
     const db = new DatabaseCtor(':memory:')
     try {
-      const table = new AgentMemoryTableCtor(db)
-      db.exec(
-        table
-          .getCreateTableSQL()
-          .replace(
-            /,\s*CHECK \(\s*\(scope_type = 'agent' AND scope_id IS NULL\)[\s\S]*?user_scope IS NULL\)\s*\)/u,
-            ''
-          )
-      )
-      table.createTable()
+      const table = createV51MigratedShapeTable(db)
       table.insert({ id: 'user-shadow', agentId: 'a', kind: 'semantic', content: 'user fact' })
       table.insert({ id: 'clock', agentId: 'a', kind: 'semantic', content: 'dated fact' })
       table.insert({ id: 'other-agent', agentId: 'b', kind: 'semantic', content: 'other fact' })

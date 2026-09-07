@@ -218,23 +218,16 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     state.admissionHolds += 1
   }
 
-  private releaseAdmission(
-    agentId: string,
-    state: VectorStoreLeaseState,
-    options: { resume?: boolean } = {}
-  ): void {
-    state.admissionHolds -= 1
-    if (state.admissionHolds > 0 || options.resume === false) return
-    this.resumeAdmission(agentId, state)
-  }
-
   /**
-   * Reopens admission once no owner is left. An owner that yielded to a
-   * concurrent one may have left the previous identity's store open; converge
-   * it first instead of admitting leases onto a stale store.
+   * Drops one hold and reopens admission once no owner is left. Reopening is
+   * a no-op while the state is stopped, suspect or quarantined, so callers that
+   * must not resume only have to settle health before releasing. An owner that
+   * yielded to a concurrent one may have left the previous identity's store
+   * open; converge it first instead of admitting leases onto a stale store.
    */
-  private resumeAdmission(agentId: string, state: VectorStoreLeaseState): void {
-    if (this.stopped || state.health !== 'healthy') return
+  private releaseAdmission(agentId: string, state: VectorStoreLeaseState): void {
+    state.admissionHolds -= 1
+    if (state.admissionHolds > 0 || this.stopped || state.health !== 'healthy') return
     const openIdentity = this.vectorStoreIdentities.get(agentId)
     if (openIdentity !== undefined && openIdentity !== state.logicalIdentity) {
       logger.info(`[Memory] converging a stale vector store for ${agentId} before resuming`)
@@ -837,9 +830,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     if (observation.graceTimer) clearTimeout(observation.graceTimer)
     observation.graceTimer = null
     if (state.suspectObservation === observation) state.suspectObservation = null
-    // Resumption is decided by the caller: a settled observation restores health
-    // first, while quarantine and shutdown never resume.
-    this.releaseAdmission(agentId, state, { resume: false })
+    // Quarantine and shutdown finish the observation while health is still
+    // suspect, so releasing here can only reopen admission for a settled one.
+    this.releaseAdmission(agentId, state)
     observation.resolveCompletion()
   }
 
@@ -868,16 +861,11 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.quarantineAgent(agentId, fatal.reason, state)
       return
     }
-    this.finishSuspectObservation(agentId, state, observation)
+    logger.info(
+      `[Memory] vector operation grace settled for ${agentId}; releasing vector admission`
+    )
     state.health = 'healthy'
-    if (state.admissionHolds > 0) {
-      logger.info(
-        `[Memory] vector operation grace settled for ${agentId}; a concurrent admission owner resumes on release`
-      )
-      return
-    }
-    logger.info(`[Memory] vector operation grace settled for ${agentId}; resuming vector admission`)
-    this.resumeAdmission(agentId, state)
+    this.finishSuspectObservation(agentId, state, observation)
   }
 
   query(

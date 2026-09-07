@@ -3369,10 +3369,10 @@ export async function createMainProcessControl(dependencies: {
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
         )
       }
-      const maintenanceDrain = await memoryService.drainBackgroundMaintenance()
-      if (maintenanceDrain.timedOut) {
+      const pendingMaintenanceAgents = await memoryService.drainBackgroundMaintenance()
+      if (pendingMaintenanceAgents.length > 0) {
         throw new Error(
-          `Memory maintenance did not drain for agents: ${maintenanceDrain.pendingAgentIds.join(', ')}`
+          `Memory maintenance did not drain for agents: ${pendingMaintenanceAgents.join(', ')}`
         )
       }
       await suspendSessionRuntimes()

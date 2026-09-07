@@ -79,11 +79,6 @@ import type {
 class MaintenanceRevisionConflictError extends Error {}
 class MaintenanceClaimSuppressedError extends Error {}
 
-export interface MemoryMaintenanceDrainOutcome {
-  timedOut: boolean
-  pendingAgentIds: string[]
-}
-
 export class MaintenanceService {
   private readonly ctx: MemoryRuntimeContext
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
@@ -216,23 +211,20 @@ export class MaintenanceService {
     }
   }
 
+  /** Waits for in-flight passes and returns the agents whose pass is still running. */
   async drainBackgroundMaintenance(
     timeoutMs: number = MAINTENANCE_DRAIN_TIMEOUT_MS
-  ): Promise<MemoryMaintenanceDrainOutcome> {
-    const drain = Promise.allSettled(this.consolidationPasses.values())
+  ): Promise<string[]> {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const timedOut = await Promise.race([
-      drain.then(() => false),
-      new Promise<true>((resolve) => {
-        timer = setTimeout(() => resolve(true), timeoutMs)
+    await Promise.race([
+      Promise.allSettled(this.consolidationPasses.values()),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs)
         if (typeof timer.unref === 'function') timer.unref()
       })
     ])
     if (timer) clearTimeout(timer)
-    return {
-      timedOut,
-      pendingAgentIds: timedOut ? [...this.consolidationPasses.keys()].sort() : []
-    }
+    return [...this.consolidationPasses.keys()].sort()
   }
 
   prepareDispose(): void {
