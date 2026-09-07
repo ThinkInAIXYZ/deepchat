@@ -17,6 +17,7 @@ type SetupStoreOptions = {
   failGetSetting?: boolean
   getSettingPromise?: Promise<unknown>
   selectedAgentId?: string | null
+  filterAgentId?: string | null
   enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   onboardingCurrentStepId?:
     | 'provider'
@@ -283,15 +284,24 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }
   const agentStore = reactive({
     selectedAgentId: options.selectedAgentId ?? null,
+    filterAgentId:
+      options.filterAgentId !== undefined
+        ? options.filterAgentId
+        : (options.selectedAgentId ?? null),
     enabledAgents: (options.enabledAgents ?? []).map((agent) => ({
       name: agent.name ?? agent.id,
       type: agent.type ?? 'deepchat',
       enabled: agent.enabled ?? true,
       ...agent
     })),
-    setSelectedAgent: vi.fn((id: string | null) => {
-      agentStore.selectedAgentId = id
-    })
+    setSelectedAgent: vi.fn(
+      (id: string | null, selectionOptions?: { preserveFilter?: boolean }) => {
+        agentStore.selectedAgentId = id
+        if (!selectionOptions?.preserveFilter) {
+          agentStore.filterAgentId = id
+        }
+      }
+    )
   })
   const settings = { ...(options.initialSettings ?? {}) }
   const configClient = {
@@ -898,7 +908,8 @@ describe('sessionStore.startNewConversation', () => {
 
     await store.startNewConversation({ refresh: true })
 
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
+    expect(agentStore.selectedAgentId).toBe('deepchat')
+    expect(agentStore.filterAgentId).toBeNull()
     expect(sessionClient.deactivate).not.toHaveBeenCalled()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
@@ -914,7 +925,8 @@ describe('sessionStore.startNewConversation', () => {
 
     await store.startNewConversation({ refresh: true, projectDir: '/work/design' })
 
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(agentStore.filterAgentId).toBeNull()
     expect(sessionClient.deactivate).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
@@ -956,6 +968,109 @@ describe('sessionStore.startNewConversation', () => {
     expect(sessionClient.deactivate).not.toHaveBeenCalled()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
+
+  it('uses persisted workspace history under All Agents without hiding loaded conversations', async () => {
+    const { store, agentStore, sessionClient } = await setupStore({
+      selectedAgentId: 'deepchat',
+      filterAgentId: null,
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+    store.sessions.value = [
+      createSession({ id: 'other-workspace', projectDir: '/work/other', updatedAt: 500 }),
+      createSession({ id: 'older', projectDir: '/work/app', updatedAt: 100 })
+    ]
+    const history = store.getFilteredGroups(null)
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [
+        createSession({ id: 'latest', agentId: 'acp-a', projectDir: '/work/app', updatedAt: 300 })
+      ],
+      hasMore: true,
+      nextCursor: { id: 'latest', updatedAt: 300 }
+    })
+
+    await store.startNewConversation({ projectDir: '/work/app' })
+
+    expect(sessionClient.listLightweight).toHaveBeenCalledWith({
+      projectDir: '/work/app',
+      includeDrafts: false,
+      includeSubagents: false,
+      limit: 1
+    })
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(agentStore.filterAgentId).toBeNull()
+    expect(store.getFilteredGroups(agentStore.filterAgentId)).toEqual(history)
+    expect(store.newConversationProjectDirIntent.value?.projectDir).toBe('/work/app')
+  })
+
+  it('prefers an explicit Agent filter over the active Agent and workspace history', async () => {
+    const { store, agentStore, sessionClient } = await setupStore({
+      selectedAgentId: 'deepchat',
+      filterAgentId: 'acp-a',
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+
+    await store.startNewConversation({ projectDir: '/work/app' })
+
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(agentStore.filterAgentId).toBe('acp-a')
+    expect(sessionClient.listLightweight).not.toHaveBeenCalled()
+  })
+
+  it.each(['unavailable-agent', 'empty', 'failed'])(
+    'falls back when workspace history is %s',
+    async (scenario) => {
+      const { store, agentStore, sessionClient, pageRouter } = await setupStore({
+        enabledAgents: [{ id: 'deepchat' }]
+      })
+      if (scenario === 'failed') {
+        sessionClient.listLightweight.mockRejectedValueOnce(new Error('read failed'))
+      } else if (scenario === 'unavailable-agent') {
+        sessionClient.listLightweight.mockResolvedValueOnce({
+          items: [createSession({ agentId: 'removed-agent' })],
+          hasMore: false,
+          nextCursor: null
+        })
+      }
+
+      await store.startNewConversation({ projectDir: '/work/app' })
+
+      expect(agentStore.selectedAgentId).toBe('deepchat')
+      expect(agentStore.filterAgentId).toBeNull()
+      expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+    }
+  )
+
+  it.each(['workspace', 'session', 'agent'])(
+    'ignores a workspace lookup superseded by a newer %s selection',
+    async (selection) => {
+      const { store, agentStore, sessionClient, pageRouter } = await setupStore({
+        enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+      })
+      const pending = createDeferred<unknown>()
+      sessionClient.listLightweight.mockReturnValueOnce(pending.promise)
+      const first = store.startNewConversation({ projectDir: '/work/first' })
+
+      if (selection === 'workspace') {
+        await store.startNewConversation({ projectDir: '/work/second' })
+      } else if (selection === 'session') {
+        store.sessions.value = [createSession()]
+        await store.selectSession('session-1')
+      } else {
+        agentStore.setSelectedAgent('deepchat')
+      }
+      pageRouter.goToNewThread.mockClear()
+      pending.resolve({
+        items: [createSession({ agentId: 'acp-a' })],
+        hasMore: false,
+        nextCursor: null
+      })
+      await first
+
+      expect(agentStore.selectedAgentId).toBe('deepchat')
+      expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+      expect(store.newConversationProjectDirIntent.value?.projectDir).not.toBe('/work/first')
+    }
+  )
 })
 
 describe('sessionStore onboarding progress', () => {
@@ -1190,7 +1305,8 @@ describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
     const { store, clearStreamingState, setCurrentSessionId, sessionClient, agentStore } =
       await setupStore({
-        selectedAgentId: 'deepchat'
+        selectedAgentId: 'deepchat',
+        filterAgentId: null
       })
     store.activeSessionId.value = 'session-a'
     store.sessions.value = [createSession({ id: 'session-b', agentId: 'acp-a' })]
@@ -1198,7 +1314,8 @@ describe('sessionStore streaming cleanup', () => {
     await store.selectSession('session-b')
 
     expect(sessionClient.activate).toHaveBeenCalledWith('session-b')
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(agentStore.filterAgentId).toBeNull()
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
@@ -1227,7 +1344,8 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSession.value?.providerId).toBe('acp')
     expect(store.activeSession.value?.modelId).toBe('dimcode')
     expect(store.activeSession.value?.status).toBe('working')
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('dimcode')
+    expect(agentStore.selectedAgentId).toBe('dimcode')
+    expect(agentStore.filterAgentId).toBe('deepchat')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
     expect(pageRouter.goToChat.mock.invocationCallOrder[0]).toBeGreaterThan(
       sessionClient.getActive.mock.invocationCallOrder[0]
@@ -1280,7 +1398,8 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(store.activeSessionId.value).toBe('session-sync-1')
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-sync-1')
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
+    expect(agentStore.selectedAgentId).toBe('acp-sync')
+    expect(agentStore.filterAgentId).toBe('deepchat')
   })
 
   it('does not let a stale bootstrap shell overwrite a newer canonical session snapshot', async () => {
@@ -1555,7 +1674,8 @@ describe('sessionStore streaming cleanup', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(store.activeSessionId.value).toBe('session-external')
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-b')
+    expect(agentStore.selectedAgentId).toBe('agent-b')
+    expect(agentStore.filterAgentId).toBe('deepchat')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
   })
 
@@ -2576,7 +2696,7 @@ describe('sessionStore pagination', () => {
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(2)
   })
 
-  it('invalidates a pending pagination response when an initial refresh starts', async () => {
+  it('invalidates pending pagination without discarding loaded history on refresh', async () => {
     const { store, sessionClient } = await setupStore()
     const stalePage = createDeferred<{
       items: ReturnType<typeof createSession>[]
@@ -2609,9 +2729,9 @@ describe('sessionStore pagination', () => {
     })
     await loadMore
 
-    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-c'])
+    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-a', 'session-c'])
     expect(store.hasMore.value).toBe(true)
-    expect(store.nextCursor.value).toEqual({ updatedAt: 40, id: 'session-c' })
+    expect(store.nextCursor.value).toEqual({ updatedAt: 30, id: 'session-a' })
     expect(store.error.value).toBeNull()
     expect(store.loadingMore.value).toBe(false)
   })
@@ -2730,47 +2850,105 @@ describe('sessionStore pagination', () => {
     expect(store.loadingMore.value).toBe(false)
   })
 
-  it('does not deduplicate next-page loading while an initial fetch is in flight', async () => {
-    const { store, sessionClient } = await setupStore()
-
-    sessionClient.listLightweight.mockResolvedValueOnce({
-      items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
-      hasMore: true,
-      nextCursor: { updatedAt: 30, id: 'session-a' }
-    })
+  it('preserves workspace history and resumes pagination after a background refresh', async () => {
+    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    const recent = Array.from({ length: 30 }, (_, index) =>
+      createSession({
+        id: `recent-${index}`,
+        projectDir: '/work/recent',
+        updatedAt: 200 - index
+      })
+    )
+    const history = Array.from({ length: 30 }, (_, index) =>
+      createSession({ id: `history-${index}`, updatedAt: 100 - index })
+    )
+    const historyCursor = { updatedAt: 71, id: 'history-29' }
+    sessionClient.listLightweight
+      .mockResolvedValueOnce({
+        items: recent,
+        hasMore: true,
+        nextCursor: { updatedAt: 171, id: 'recent-29' }
+      })
+      .mockResolvedValueOnce({ items: history, hasMore: true, nextCursor: historyCursor })
     await store.fetchSessions()
+    await store.loadNextPage()
 
-    let resolveInitialFetch: (value: {
-      items: unknown[]
-      hasMore: boolean
-      nextCursor: null
-    }) => void = () => undefined
-    const initialFetchPromise = new Promise<{
-      items: unknown[]
-      hasMore: boolean
-      nextCursor: null
-    }>((resolve) => {
-      resolveInitialFetch = resolve
-    })
+    const created = createSession({ id: 'created', updatedAt: 300 })
+    sessionClient.create.mockResolvedValueOnce({ session: created })
+    await store.createSession({ message: '', agentId: 'deepchat', projectDir: '/tmp/workspace' })
 
-    sessionClient.listLightweight.mockReturnValueOnce(initialFetchPromise).mockResolvedValueOnce({
-      items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
+    const firstPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { updatedAt: number; id: string } | null
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(firstPage.promise).mockResolvedValueOnce({
+      items: [createSession({ id: 'older', updatedAt: 50 })],
       hasMore: false,
       nextCursor: null
     })
 
-    const initialFetch = store.fetchSessions()
+    emitSessionUpdate({ reason: 'list-refreshed', sessionIds: [] })
+    const refresh = store.fetchSessions()
     await Promise.resolve()
     await store.loadNextPage()
 
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
-    expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0]).toMatchObject({
-      includeSubagents: false,
-      cursor: { updatedAt: 30, id: 'session-a' }
+    expect(store.loading.value).toBe(true)
+    firstPage.resolve({
+      items: [created, ...recent.slice(0, 29)],
+      hasMore: true,
+      nextCursor: { updatedAt: 172, id: 'recent-28' }
     })
+    await refresh
 
-    resolveInitialFetch({ items: [], hasMore: false, nextCursor: null })
-    await initialFetch
+    const workspaceIds = () =>
+      store
+        .getFilteredGroups('deepchat')
+        .find((group) => group.id === '/tmp/workspace')
+        ?.sessions.map((session) => session.id)
+    expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id)])
+    expect(store.nextCursor.value).toEqual(historyCursor)
+    expect(store.hasMore.value).toBe(true)
+
+    await store.loadNextPage()
+
+    expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0].cursor).toEqual(historyCursor)
+    expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id), 'older'])
+    expect(store.sessions.value).toHaveLength(62)
+    expect(store.hasMore.value).toBe(false)
+    expect(store.nextCursor.value).toBeNull()
+    expect(store.loadingMore.value).toBe(false)
+    expect(store.error.value).toBeNull()
+  })
+
+  it('keeps exhausted pagination complete when refreshing the first page', async () => {
+    const { store, sessionClient } = await setupStore()
+    const sessions = Array.from({ length: 31 }, (_, index) =>
+      createSession({ id: `session-${index}`, updatedAt: 100 - index })
+    )
+    const firstPage = {
+      items: sessions.slice(0, 30),
+      hasMore: true,
+      nextCursor: { updatedAt: 71, id: 'session-29' }
+    }
+    sessionClient.listLightweight
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({
+        items: sessions.slice(30),
+        hasMore: false,
+        nextCursor: null
+      })
+      .mockResolvedValueOnce(firstPage)
+    await store.fetchSessions()
+    await store.loadNextPage()
+    await store.fetchSessions()
+    await store.loadNextPage()
+
+    expect(store.sessions.value).toHaveLength(31)
+    expect(store.hasMore.value).toBe(false)
+    expect(store.nextCursor.value).toBeNull()
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
   })
 
   it('excludes subagent sessions from the initial sidebar page request', async () => {

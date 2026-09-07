@@ -398,6 +398,8 @@ export const sessionsListLightweightRoute = defineRouteContract({
     limit: z.number().int().positive().max(100).optional(),
     cursor: SessionPageCursorSchema.nullable().optional(),
     includeSubagents: z.boolean().optional(),
+    includeDrafts: z.boolean().optional(),
+    projectDir: z.string().min(1).optional(),
     agentId: EntityIdSchema.optional(),
     prioritizeSessionId: EntityIdSchema.optional()
   }),

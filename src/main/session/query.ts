@@ -121,6 +121,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
       limit: options?.limit,
       cursor: options?.cursor,
       agentId: options?.agentId,
+      projectDir: options?.projectDir,
+      includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents
     })
     const items = await Promise.all(
@@ -533,9 +535,11 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
 
   private matchesLightweightFilter(
     record: SessionRecord,
-    options?: Pick<SessionLightweightOptions, 'includeSubagents' | 'agentId'>
+    options?: SessionLightweightOptions
   ): boolean {
     if (options?.agentId && record.agentId !== options.agentId) return false
+    if (options?.projectDir !== undefined && record.projectDir !== options.projectDir) return false
+    if (options?.includeDrafts === false && record.isDraft) return false
     return options?.includeSubagents === true || record.sessionKind !== 'subagent'
   }
 
