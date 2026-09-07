@@ -4368,6 +4368,64 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it.each([
+    {
+      name: 'keeps the FTS index when a query fails on I/O pressure',
+      error: Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' }),
+      rebuilds: false
+    },
+    {
+      name: 'rebuilds the FTS index when a query reports corruption',
+      error: Object.assign(new Error('database disk image is malformed'), {
+        code: 'SQLITE_CORRUPT_VTAB'
+      }),
+      rebuilds: true
+    }
+  ])('$name', ({ error, rebuilds }) => {
+    vi.useFakeTimers()
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fallback' })
+      if (!ftsActive(db)) return
+      const readMeta = () =>
+        db
+          .prepare(
+            `SELECT mutation_generation, indexed_generation
+             FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+          )
+          .get() as { mutation_generation: number; indexed_generation: number }
+      const originalPrepare = db.prepare.bind(db)
+      const prepareSpy = vi.spyOn(db, 'prepare').mockImplementation((sql: string) => {
+        if (sql.includes('fts_hits')) throw error
+        return originalPrepare(sql)
+      })
+
+      const degraded = table.searchWithStrategy('a', 'redis', 20)
+      expect(degraded.strategy).toBe('like-fallback')
+      expect(degraded.rows.map((row) => row.id)).toEqual(['m1'])
+      const dirtyMeta = readMeta()
+      expect(dirtyMeta.mutation_generation > dirtyMeta.indexed_generation).toBe(rebuilds)
+
+      prepareSpy.mockRestore()
+      const execSpy = vi.spyOn(db, 'exec')
+      vi.advanceTimersByTime(30_001)
+      const recovered = table.searchWithStrategy('a', 'redis', 20)
+      expect(recovered.strategy).toBe('fts-only')
+      expect(recovered.rows.map((row) => row.id)).toEqual(['m1'])
+      const dropped = execSpy.mock.calls.some(([sql]) =>
+        String(sql).includes('DROP TABLE IF EXISTS agent_memory_fts;')
+      )
+      expect(dropped).toBe(rebuilds)
+      const recoveredMeta = readMeta()
+      expect(recoveredMeta.mutation_generation).toBe(recoveredMeta.indexed_generation)
+    } finally {
+      vi.useRealTimers()
+      db.close()
+    }
+  })
+
   it('drops a partial FTS build and fails open to one bounded LIKE query', () => {
     const db = new DatabaseCtor(':memory:')
     vi.stubEnv('DEEPCHAT_REQUIRE_NATIVE_SQLITE', '0')

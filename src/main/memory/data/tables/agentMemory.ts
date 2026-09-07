@@ -692,6 +692,18 @@ function isTransientFtsError(error: unknown): boolean {
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED' || code === 'SQLITE_INTERRUPT'
 }
 
+/**
+ * Query failures that prove the FTS mirror itself is unusable, as opposed to I/O, memory or disk
+ * pressure that would fail a rebuild just the same. Only these may mark the mirror dirty; other
+ * failures fall back to LIKE and re-validate the existing index after the recovery cooldown.
+ */
+function isFtsIndexBrokenError(error: unknown): boolean {
+  const code = String((error as { code?: string } | null)?.code ?? '')
+  if (code.startsWith('SQLITE_CORRUPT')) return true
+  const message = String((error as { message?: string } | null)?.message ?? '')
+  return /\bno such (?:table|column|module)\b|database disk image is malformed/i.test(message)
+}
+
 const AGENT_MEMORY_BASE_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_kind
     ON agent_memory(agent_id, kind, status);
@@ -3004,7 +3016,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     } catch (error) {
       if (!isTransientFtsError(error)) {
         this.ftsReady = false
-        this.markFtsDirty()
+        // A dirty generation makes the next recovery drop and backfill the whole mirror for every
+        // Agent, so reserve it for a mirror that is actually broken.
+        if (isFtsIndexBrokenError(error)) this.markFtsDirty()
       }
       return finish({
         rows: this.searchLike(agentId, terms, cappedLimit, matchMode, scopeFilter),
