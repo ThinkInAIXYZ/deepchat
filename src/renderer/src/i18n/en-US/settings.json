@@ -3272,7 +3272,7 @@
         "memory-reflect": "Reflected on memory",
         "persona-evolve": "Evolved persona",
         "memory-repair": "Repaired memory",
-        "memory-forget": "Permanently deleted memory",
+        "memory-forget": "Forgot memory (archived, recoverable)",
         "memory-manual-edit": "Edited memory",
         "memory-challenge-resolved": "Resolved conflict",
         "memory-persona-approve": "Approved persona draft",

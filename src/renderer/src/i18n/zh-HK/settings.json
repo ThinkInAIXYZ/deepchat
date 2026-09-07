@@ -3214,7 +3214,7 @@
         "memory-reflect": "記憶反思",
         "persona-evolve": "演化人格",
         "memory-repair": "修復記憶",
-        "memory-forget": "永久刪除記憶",
+        "memory-forget": "遺忘記憶（已歸檔，可恢復）",
         "memory-manual-edit": "手動編輯記憶",
         "memory-challenge-resolved": "解決衝突",
         "memory-persona-approve": "批准人格草稿",
