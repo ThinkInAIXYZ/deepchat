@@ -106,6 +106,7 @@ test('local streaming preserves an editable composer and completes the response 
     const shell = app.page.getByTestId('chat-page-shell')
     await expect(shell).toHaveAttribute('data-generating', 'true')
     const completion = waitForGenerationDone(app.page)
+    void completion.catch(() => {})
     const editor = shell.getByTestId('chat-input-contenteditable')
     const draft = 'My next message stays editable during generation.'
     await editor.fill(draft)
