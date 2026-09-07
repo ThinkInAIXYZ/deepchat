@@ -111,6 +111,8 @@ const AGENT_MEMORY_FTS_META_VERSION = 4
 const AGENT_MEMORY_FTS_RECOVERY_COOLDOWN_MS = 30_000
 const PREVIOUS_AGENT_MEMORY_FTS_POLICY_VERSION = 2
 const AGENT_MEMORY_CLEAR_BATCH_SIZE = 256
+// Keeps `IN (...)` lists far below SQLite's bound-parameter limit when callers pass a full scan.
+const AGENT_MEMORY_ID_LIST_BATCH_SIZE = 512
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 type SearchMatchMode = 'all' | 'any'
@@ -3625,6 +3627,32 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       )
       .run(agentId, ...states)
     return result.changes
+  }
+
+  requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]): number {
+    if (!ids.length) return 0
+    const statement = (count: number) =>
+      this.db.prepare(
+        `UPDATE agent_memory
+         SET embedding_state = 'pending', status = 'pending_embedding',
+             embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
+           AND id IN (${Array.from({ length: count }, () => '?').join(', ')})`
+      )
+    return this.db.transaction(() => {
+      let changes = 0
+      for (let start = 0; start < ids.length; start += AGENT_MEMORY_ID_LIST_BATCH_SIZE) {
+        const chunk = ids.slice(start, start + AGENT_MEMORY_ID_LIST_BATCH_SIZE)
+        changes += statement(chunk.length).run(agentId, ...chunk).changes
+      }
+      return changes
+    })()
   }
 
   listEmbeddingStateIds(

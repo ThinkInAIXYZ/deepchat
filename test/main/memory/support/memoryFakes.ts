@@ -1073,6 +1073,32 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     return changed
   }
 
+  requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]) {
+    let changed = 0
+    for (const id of ids) {
+      const row = this.rows.get(id)
+      if (
+        !row ||
+        row.agent_id !== agentId ||
+        row.superseded_by ||
+        row.kind === 'persona' ||
+        row.kind === 'working' ||
+        row.lifecycle_state !== 'active' ||
+        row.embedding_state !== 'ready'
+      ) {
+        continue
+      }
+      row.embedding_state = 'pending'
+      row.status = 'pending_embedding'
+      row.embedding_id = null
+      row.embedding_dim = null
+      row.embedding_model = null
+      this.touchDirty(row)
+      changed += 1
+    }
+    return changed
+  }
+
   listEmbeddingStateIds(
     agentId: string,
     states: AgentMemoryEmbeddingState[],
@@ -2266,6 +2292,7 @@ const EMBEDDING_CAPABILITY_KEYS = [
   'markPendingEmbeddingsReady',
   'markPendingEmbeddingsError',
   'requeueForEmbedding',
+  'requeueReadyEmbeddingsByIds',
   'listEmbeddingStateIds',
   'listCurrentEmbeddedIds',
   'getCurrentEmbeddingDimension',

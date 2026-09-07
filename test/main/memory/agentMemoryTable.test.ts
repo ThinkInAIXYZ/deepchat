@@ -4661,6 +4661,53 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('requeueReadyEmbeddingsByIds touches only the listed live ready rows', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const embedded = { embeddingId: 'v', embeddingDim: 3, embeddingModel: 'p:m' }
+      for (const id of ['keep', 'lost', 'other-agent-lost']) {
+        table.insert({
+          id,
+          agentId: id === 'other-agent-lost' ? 'b' : 'a',
+          kind: 'semantic',
+          content: `redis ${id}`
+        })
+        setTestMemoryStatus(db, table, id, 'embedded', embedded)
+      }
+      table.insert({ id: 'pending', agentId: 'a', kind: 'semantic', content: 'redis pending' })
+      const sup = table.insert({ id: 'sup', agentId: 'a', kind: 'semantic', content: 'redis old' })
+      setTestMemoryStatus(db, table, 'sup', 'embedded', embedded)
+      seedTestSupersession(db, sup.id, 'keep')
+      // Oversized id lists are chunked below the bound-parameter limit.
+      const noise = Array.from({ length: 1500 }, (_, index) => `missing-${index}`)
+
+      const changed = table.requeueReadyEmbeddingsByIds('a', [
+        'lost',
+        'pending',
+        'sup',
+        'other-agent-lost',
+        ...noise
+      ])
+
+      expect(changed).toBe(1)
+      expect(table.getById('lost')).toMatchObject({
+        embedding_state: 'pending',
+        status: 'pending_embedding',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null
+      })
+      expect(table.getById('keep')?.embedding_state).toBe('ready')
+      expect(table.getById('sup')?.embedding_state).toBe('ready')
+      expect(table.getById('other-agent-lost')?.embedding_state).toBe('ready')
+      expect(table.getById('pending')?.embedding_state).toBe('pending')
+    } finally {
+      db.close()
+    }
+  })
+
   it('requeueForEmbedding supports a bounded id cursor for fair error retry', () => {
     const db = new DatabaseCtor(':memory:')
     try {
