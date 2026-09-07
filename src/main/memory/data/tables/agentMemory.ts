@@ -1036,6 +1036,21 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     })()
   }
 
+  /**
+   * Runs a startup repair in one transaction with the clear-job guard suspended.
+   * The guard is the last defense against domain writes during a pending Agent
+   * clear; a schema repair is not a domain write, and letting the guard veto it
+   * would keep the app from starting until a clear that needs the app to start.
+   */
+  private runRepairWithClearGuardSuspended<T>(repair: () => T): T {
+    return this.db.transaction(() => {
+      this.db.exec(AGENT_MEMORY_CLEAR_GUARD_TRIGGER_DROP_SQL)
+      const result = repair()
+      this.db.exec(AGENT_MEMORY_CLEAR_ARTIFACT_SQL)
+      return result
+    })()
+  }
+
   private ensureTemporalArtifacts(): void {
     if (this.temporalArtifactsEnsured) return
     const columns = new Set(
@@ -1049,7 +1064,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       columns.has('lifecycle_state') ? "lifecycle_state = 'archived'" : null,
       columns.has('status') ? "status = 'archived'" : null
     ].filter((assignment): assignment is string => assignment !== null)
-    const repair = this.db.transaction(() => {
+    const repair = this.runRepairWithClearGuardSuspended(() => {
       this.db.exec(AGENT_MEMORY_TEMPORAL_TRIGGER_DROP_SQL)
       const quarantinedIds = (
         this.db
@@ -1106,7 +1121,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         normalizedInternal,
         repaired: quarantined + normalizedInternal
       }
-    })()
+    })
     this.temporalArtifactsEnsured = true
     if (repair.repaired > 0) {
       const idSample = repair.quarantinedIds.length
@@ -1140,12 +1155,12 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     // table since its first version, so this only skips synthetic partial schemas.
     if (!['scope_type', 'scope_id', 'user_scope'].every((column) => columns.has(column))) return
 
-    const repair = this.db.transaction(() => {
+    const repair = this.runRepairWithClearGuardSuspended(() => {
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_DROP_SQL)
       const summary = this.repairInvalidScopeRows()
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_SQL)
       return summary
-    })()
+    })
     this.scopeArtifactsEnsured = true
     if (repair) {
       const idSample = repair.deletedIds.length
@@ -1199,13 +1214,14 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE scope_type = 'agent' AND scope_id IS NOT NULL`
       )
       .run().changes
-    // Only User-scope writes populate the shadow, so it is the row's own id.
+    // Only User-scope writes populate the shadow, so a well-formed shadow is the
+    // row's own id whenever the authoritative column is missing or malformed.
     const recoveredUserRows = this.db
       .prepare(
         `UPDATE agent_memory
          SET scope_id = user_scope
          WHERE scope_type = 'user'
-           AND scope_id IS NULL
+           AND (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
            AND user_scope IS NOT NULL
            AND length(user_scope) BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
            AND user_scope = trim(user_scope)`
@@ -1215,8 +1231,12 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       .prepare(
         `UPDATE agent_memory
          SET user_scope = CASE WHEN scope_type = 'user' THEN scope_id ELSE NULL END
-         WHERE (scope_type = 'user' AND scope_id IS NOT NULL AND user_scope IS NOT scope_id)
-            OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
+         WHERE (
+             scope_type = 'user'
+             AND NOT (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
+             AND user_scope IS NOT scope_id
+           )
+           OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
       )
       .run().changes
     const deletedIds = (
@@ -1239,7 +1259,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         )
         .run().changes
       // The FTS mirror is external-content: a raw DELETE leaves the old tokens on
-      // a rowid the next insert reuses, so force the index to rebuild.
+      // a rowid the next insert reuses, so force the index to rebuild before any
+      // recall mutation could stamp the current generation as indexed.
+      this.ftsReady = false
       this.markFtsDirty()
     }
     return { detachedAgentRows, recoveredUserRows, resyncedShadowRows, deletedRows, deletedIds }

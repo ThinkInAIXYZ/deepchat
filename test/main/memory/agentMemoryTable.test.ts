@@ -3974,6 +3974,63 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('repairs scope and temporal rows of an Agent whose clear job is still pending', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      db.exec(
+        table
+          .getCreateTableSQL()
+          .replace(
+            /,\s*CHECK \(\s*\(scope_type = 'agent' AND scope_id IS NULL\)[\s\S]*?user_scope IS NULL\)\s*\)/u,
+            ''
+          )
+      )
+      table.createTable()
+      table.insert({ id: 'user-shadow', agentId: 'a', kind: 'semantic', content: 'user fact' })
+      table.insert({ id: 'clock', agentId: 'a', kind: 'semantic', content: 'dated fact' })
+      table.insert({ id: 'other-agent', agentId: 'b', kind: 'semantic', content: 'other fact' })
+      // An external tool that also ignores CHECK constraints can leave a malformed User id behind.
+      db.exec(`
+        DROP TRIGGER agent_memory_scope_bi_v1;
+        DROP TRIGGER agent_memory_scope_bu_v1;
+        DROP TRIGGER agent_memory_temporal_bi_v1;
+        DROP TRIGGER agent_memory_temporal_bu_v1;
+        PRAGMA ignore_check_constraints = ON;
+        UPDATE agent_memory SET scope_type = 'user', scope_id = ' u1 ', user_scope = 'u1'
+          WHERE id = 'user-shadow';
+        UPDATE agent_memory SET temporal_kind = 'state' WHERE id = 'clock';
+        PRAGMA ignore_check_constraints = OFF;
+      `)
+      // The durable clear guard fences Agent "a" writes, but a startup repair is not a domain write.
+      table.beginMemoryClear('a', 5_000)
+
+      const reopened = new AgentMemoryTableCtor(db)
+      expect(() => reopened.assertCurrentSchema()).not.toThrow()
+
+      // A malformed User id recovers from its shadow instead of losing the row.
+      expect(
+        db
+          .prepare('SELECT scope_type, scope_id, user_scope FROM agent_memory WHERE id = ?')
+          .get('user-shadow')
+      ).toEqual({ scope_type: 'user', scope_id: 'u1', user_scope: 'u1' })
+      expect(
+        db
+          .prepare('SELECT temporal_kind, lifecycle_state FROM agent_memory WHERE id = ?')
+          .get('clock')
+      ).toEqual({ temporal_kind: 'atemporal', lifecycle_state: 'archived' })
+      // The guard is back in place and keeps fencing ordinary writes to the clearing Agent.
+      expect(() =>
+        db.prepare("UPDATE agent_memory SET importance = 0.9 WHERE id = 'user-shadow'").run()
+      ).toThrow(/agent memory clear in progress/)
+      expect(() =>
+        db.prepare("UPDATE agent_memory SET importance = 0.9 WHERE id = 'other-agent'").run()
+      ).not.toThrow()
+    } finally {
+      db.close()
+    }
+  })
+
   it('applies the exact-forgetting tombstone migration to an existing memory schema', () => {
     const db = new DatabaseCtor(':memory:')
     try {

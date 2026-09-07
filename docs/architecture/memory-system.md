@@ -163,10 +163,12 @@ terminal turn projection
   archive；不得把损坏状态提升成可召回的永久 atemporal fact。Persona/working 则归一化到其强制
   atemporal 形式；
 - startup 发现非法 scope pair（只有 trigger 保护的 v51 迁移库可能被外部工具写出）时同样先修复再
-  断言，且修复不得放宽 applicability：Agent row 丢弃多余 `scope_id`，User row 以 `scope_id` 为准回写
-  shadow，`scope_id` 为 NULL 时从 shadow 恢复，Project/Session row 清掉多余 shadow；无法恢复
-  identity 的窄 scope row（含 persona/working）在任何 scope 下都不可召回，直接删除、标记 FTS 重建并
-  记录 warn，不得改写成 Agent scope 保留。子系统的完整性断言不得让整个应用无法启动；
+  断言，且修复不得放宽 applicability：Agent row 丢弃多余 `scope_id`，User row 以合法 `scope_id` 为准
+  回写 shadow，`scope_id` 缺失或畸形时从合法 shadow 恢复，Project/Session row 清掉多余 shadow；无法
+  恢复 identity 的窄 scope row（含 persona/working）在任何 scope 下都不可召回，直接删除、标记 FTS 重建
+  并记录 warn，不得改写成 Agent scope 保留。temporal 与 scope 的 startup 修复都在挂起 clear-job guard
+  的单个事务内执行：guard 是 domain write 的最后防线，schema 修复不是 domain write，不得因某个
+  Agent 的 pending clear 让整个应用无法启动。子系统的完整性断言不得让整个应用无法启动；
 - 同 content 在不同 scope 可独立存在；update、supersede、conflict 和 merge 不得跨 scope；
 - exact tombstone lookup 与 insert 位于同一 transaction，关闭 delete/re-extraction race；
 - model 发起的 `memory_remember` 不是用户重新授权，不得释放 tombstone；只有 renderer 中的显式
@@ -243,9 +245,11 @@ Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；�
 Maintenance 使用有界 batch、deadline 和 ingestion fence。Database maintenance 顺序为：停止新任务、
 fence Memory、drain accepted work、关闭 store/SQLite、执行操作、reopen、恢复后台任务。
 `stopBackgroundMaintenance` 同步清空全部 prewarm/startup/consolidation timer、拒绝新的 arm 与 pass，
-并推进 maintenance generation 让 in-flight pass 在下一个 checkpoint 停止；`drainBackgroundMaintenance`
-在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是带着未落定的 pass 关闭
-SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass 不会因此丢失。
+并对每个持有 in-flight pass 的 Agent 推进 execution fence、中止其 provider 请求，让 pass 及其委托的
+challenge/reflection/persona 子步骤在下一个 checkpoint 停止，而不是等完一个 provider deadline；
+`drainBackgroundMaintenance` 在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是
+带着未落定的 pass 关闭 SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass
+不会因此丢失。
 启动恢复按 Agent 顺序处理 pending clear job，避免多个遗留 namespace 在同一个 event-loop tick
 同时执行首批同步事务。Shutdown 只等待当前有界 batch；未完成 job 保持可恢复。
 
