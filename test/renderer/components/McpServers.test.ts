@@ -450,7 +450,7 @@ describe('McpServers', () => {
     expect(wrapper.emitted('toggle-agent-server')?.[0]).toEqual(['running-server', true])
   })
 
-  it('allows agent-scoped toggles for DeepChat-managed servers without global toggles', async () => {
+  it('allows agent-scoped toggles for MioAgent-managed servers without global toggles', async () => {
     const { wrapper, mcpStore } = await setup({
       serverList: [
         {

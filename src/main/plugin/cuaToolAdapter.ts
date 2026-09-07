@@ -11,7 +11,7 @@ const CUA_SNAPSHOT_TARGET_TOOLS = new Set([
 ])
 
 // Mirrors cua-driver-contract 0.6.0 ACTION_RESULT_TOOLS, excluding the hidden
-// type_text_chars invoke alias that cannot appear in DeepChat's closed catalog.
+// type_text_chars invoke alias that cannot appear in MioAgent's closed catalog.
 const CUA_ACTION_RESULT_TOOLS = new Set([
   'click',
   'double_click',

@@ -137,7 +137,7 @@ function buildToolDefinition(
     server: {
       name: AGENT_TAPE_TOOL_SERVER_NAME,
       icons: 'T',
-      description: 'DeepChat session tape tools'
+      description: 'MioAgent session tape tools'
     }
   }
 }
@@ -206,7 +206,7 @@ export class AgentTapeToolHandler {
     return [
       buildToolDefinition(
         TAPE_TOOL_NAMES.search,
-        'Search the current DeepChat Tape or finalized direct subagent Tapes. Results are compact, source-qualified, and bounded by each linked Tape snapshot.',
+        'Search the current MioAgent Tape or finalized direct subagent Tapes. Results are compact, source-qualified, and bounded by each linked Tape snapshot.',
         tapeSearchSchema
       ),
       buildToolDefinition(

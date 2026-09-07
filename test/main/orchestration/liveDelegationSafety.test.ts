@@ -113,7 +113,7 @@ function createHarness(overrides: Partial<ConversationSessionInfo> = {}) {
 }
 
 describe('LiveDelegationSafetyCoordinator', () => {
-  it('restores a DeepChat execution snapshot before resolving live safety', async () => {
+  it('restores a MioAgent execution snapshot before resolving live safety', async () => {
     const harness = createHarness()
     const executionSnapshot = {
       providerId: 'anthropic',

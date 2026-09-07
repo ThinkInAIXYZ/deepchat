@@ -5,7 +5,7 @@ import { waitForAppReady } from '../helpers/wait'
 test('browser typed routes load status and destroy without legacy IPC @smoke', async ({ app }) => {
   await waitForAppReady(app.page)
 
-  const titlePrefix = `DeepChat Browser ${createSmokeToken('route').toLowerCase()}`
+  const titlePrefix = `MioAgent Browser ${createSmokeToken('route').toLowerCase()}`
 
   const result = await app.page.evaluate(
     async ({ titlePrefix }) => {

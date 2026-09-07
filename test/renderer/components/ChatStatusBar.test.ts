@@ -849,7 +849,7 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
-  it('shows provider-measured context occupancy for an active DeepChat session', async () => {
+  it('shows provider-measured context occupancy for an active MioAgent session', async () => {
     const { wrapper } = await setup({
       hasActiveSession: true,
       contextOccupancy: {
@@ -932,7 +932,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('[data-testid="context-occupancy"]').exists()).toBe(false)
   })
 
-  it('does not show DeepChat occupancy evidence for an ACP session', async () => {
+  it('does not show MioAgent occupancy evidence for an ACP session', async () => {
     const { wrapper } = await setup({
       agentId: 'acp-agent',
       agentType: 'acp',
@@ -953,7 +953,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('[data-testid="context-occupancy"]').exists()).toBe(false)
   })
 
-  it('shows DeepChat occupancy when the agent uses an ACP provider', async () => {
+  it('shows MioAgent occupancy when the agent uses an ACP provider', async () => {
     const { wrapper } = await setup({
       agentId: 'compatible-agent',
       agentType: 'deepchat',
@@ -1062,7 +1062,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(sessionStore.activeSession?.orchestrationPolicy).toBe('explicit')
   })
 
-  it('hides collaboration policy for direct ACP but keeps it for DeepChat over ACP', async () => {
+  it('hides collaboration policy for direct ACP but keeps it for MioAgent over ACP', async () => {
     const directAcp = await setup({ agentId: 'acp-agent' })
     expect(directAcp.wrapper.find('[data-testid="orchestration-control"]').exists()).toBe(false)
 

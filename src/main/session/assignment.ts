@@ -339,7 +339,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
       this.requireSession(sessionId)
       const { handle } = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
       if (handle.kind !== 'deepchat') {
-        throw new Error('Tool mode is only available for DeepChat sessions.')
+        throw new Error('Tool mode is only available for MioAgent sessions.')
       }
       const state = await handle.snapshot()
       if (state?.status === 'generating') {
@@ -418,7 +418,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
         if (
           this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat'
         ) {
-          throw new Error('Proactive collaboration requires a DeepChat session.')
+          throw new Error('Proactive collaboration requires a MioAgent session.')
         }
       }
       this.dependencies.sessions.updateOrchestrationPolicy(sessionId, normalized)

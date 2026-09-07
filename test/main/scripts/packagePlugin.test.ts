@@ -49,7 +49,7 @@ async function createCuaPluginFixture() {
     id: 'com.deepchat.plugins.cua',
     name: 'Computer Use',
     version: '0.0.0',
-    publisher: 'DeepChat',
+    publisher: 'MioAgent',
     engines: {
       deepchat: '>=0.0.0',
       platforms: ['darwin', 'win32', 'linux'],
@@ -60,7 +60,7 @@ async function createCuaPluginFixture() {
     source: {
       type: 'deepchat-official',
       url: '${github.release.download}/deepchat-plugin-cua-${app.version}-${target.platform}-${arch}.dcplugin',
-      publisher: 'DeepChat'
+      publisher: 'MioAgent'
     },
     runtime: {
       id: 'cua-driver',
@@ -501,7 +501,7 @@ describe('package-plugin', () => {
     }
   })
 
-  it('packages the DeepChat-owned macOS CUA helper identity for each macOS arch', async () => {
+  it('packages the MioAgent-owned macOS CUA helper identity for each macOS arch', async () => {
     const fixture = await createCuaPluginFixture()
     const outDir = path.join(fixture.root, 'out')
 

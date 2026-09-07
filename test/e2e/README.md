@@ -1,4 +1,4 @@
-# DeepChat E2E Smoke
+# MioAgent E2E Smoke
 
 This suite runs manual smoke regression against the real local desktop environment by default.
 

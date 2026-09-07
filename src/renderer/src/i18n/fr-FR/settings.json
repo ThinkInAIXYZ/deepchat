@@ -651,7 +651,7 @@
         "description": "Contrôle si ce modèle autorise la saisie vocale avec transcription locale en texte."
       },
       "functionCall": {
-        "description": "Si le modèle prend en charge les appels de fonction nativement (Deepchat simulera automatiquement les appels de fonction après avoir désactivé cette option)",
+        "description": "Si le modèle prend en charge les appels de fonction nativement (MioAgent simulera automatiquement les appels de fonction après avoir désactivé cette option)",
         "label": "Appels de fonction"
       },
       "maxTokens": {

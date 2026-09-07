@@ -35,7 +35,7 @@ export async function startMainProcess(
   await splashWindow.create()
 
   try {
-    electronApp.setAppUserModelId('com.wefonk.deepchat')
+    electronApp.setAppUserModelId('com.mioagent.app')
     const settingsStore = createSettingsStore()
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)

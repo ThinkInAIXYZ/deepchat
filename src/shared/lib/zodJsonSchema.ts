@@ -11,7 +11,7 @@ export interface DeepChatJsonSchemaObject {
 }
 
 const INTERSECTION_SCHEMA_ERROR =
-  'DeepChat tool schemas cannot safely represent intersection object schemas.'
+  'MioAgent tool schemas cannot safely represent intersection object schemas.'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -202,5 +202,5 @@ export function toDeepChatJsonSchema(schema: z.ZodType): DeepChatJsonSchemaObjec
     )
   }
 
-  throw new Error('DeepChat tool schemas must convert to JSON object schemas.')
+  throw new Error('MioAgent tool schemas must convert to JSON object schemas.')
 }

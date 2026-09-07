@@ -7,7 +7,7 @@ afterEach(() => {
 })
 
 describe('AgentWelcomePage', () => {
-  it('renders up to nine agents and navigates to DeepChat agent settings', async () => {
+  it('renders up to nine agents and navigates to MioAgent agent settings', async () => {
     vi.resetModules()
     vi.useFakeTimers()
 
@@ -36,8 +36,8 @@ describe('AgentWelcomePage', () => {
           (
             ({
               'welcome.agentPage.title': '选择 Agent 开始创作',
-              'welcome.agentPage.manageAgents': '管理 DeepChat Agent',
-              'welcome.agentPage.deepchatType': 'DeepChat Agent',
+              'welcome.agentPage.manageAgents': '管理 MioAgent Agent',
+              'welcome.agentPage.deepchatType': 'MioAgent Agent',
               'welcome.agentPage.acpType': 'ACP Agent Localized'
             }) as Record<string, string>
           )[key] ?? key
@@ -70,9 +70,11 @@ describe('AgentWelcomePage', () => {
     expect(wrapper.text()).not.toContain('welcome.agentPage.description')
     expect(wrapper.find('.grid').classes()).toContain('grid-cols-3')
 
+    // 用 /Agent \d+/ 精确匹配卡片按钮：品牌名 MioAgent 自身含 "Agent " 子串，
+    // includes('Agent ') 会把「管理 MioAgent Agent」按钮误算进来
     const agentButtons = wrapper
       .findAll('button')
-      .filter((button) => button.text().includes('Agent '))
+      .filter((button) => /Agent \d+/.test(button.text()))
 
     expect(agentButtons).toHaveLength(9)
     expect(wrapper.text()).not.toContain('Agent 10')
@@ -83,7 +85,7 @@ describe('AgentWelcomePage', () => {
 
     const manageButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('管理 DeepChat Agent'))
+      .find((button) => button.text().includes('管理 MioAgent Agent'))
 
     expect(manageButton).toBeDefined()
 

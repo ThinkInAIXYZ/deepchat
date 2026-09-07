@@ -162,7 +162,7 @@ Review the code and provide feedback.`
   })
 
   describe('serializeToSkillMd', () => {
-    it('should serialize to DeepChat SKILL.md format', () => {
+    it('should serialize to MioAgent SKILL.md format', () => {
       const skill: CanonicalSkill = {
         name: 'my-skill',
         description: 'A test skill',

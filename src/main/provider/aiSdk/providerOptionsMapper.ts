@@ -23,7 +23,7 @@ import { providerDbLoader } from '../../provider/providerDbLoader'
 
 type ProviderOptionsRecord = Record<string, Record<string, unknown>>
 const OPENAI_CODEX_DEFAULT_INSTRUCTIONS =
-  'You are DeepChat, an AI assistant. Follow the user instructions.'
+  'You are MioAgent, an AI assistant. Follow the user instructions.'
 
 function normalizeInstructionValue(value: unknown): string {
   if (typeof value === 'string') {

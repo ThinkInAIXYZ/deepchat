@@ -4,7 +4,7 @@
  * This module provides:
  * - parseExternal: Parse external tool format to CanonicalSkill
  * - serializeToExternal: Serialize CanonicalSkill to external format
- * - serializeToSkillMd: Serialize to DeepChat SKILL.md format
+ * - serializeToSkillMd: Serialize to MioAgent SKILL.md format
  * - getConversionWarnings: Get warnings about potential data loss
  */
 
@@ -99,10 +99,10 @@ export class FormatConverter {
   }
 
   /**
-   * Serialize CanonicalSkill to DeepChat SKILL.md format (Claude Code format)
+   * Serialize CanonicalSkill to MioAgent SKILL.md format (Claude Code format)
    */
   serializeToSkillMd(skill: CanonicalSkill, options?: Record<string, unknown>): string {
-    // DeepChat uses Claude Code format as the native format
+    // MioAgent uses Claude Code format as the native format
     const adapter = getAdapter('claude-code')
     if (!adapter) {
       throw new Error('Claude Code adapter not found')

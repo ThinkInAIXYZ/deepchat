@@ -239,7 +239,7 @@ describe('FeishuCommandRouter', () => {
     )
 
     expect(result).toEqual({
-      replies: ['Could not find a DeepChat desktop window. Open DeepChat and try /open again.']
+      replies: ['Could not find a MioAgent desktop window. Open MioAgent and try /open again.']
     })
   })
 
@@ -457,7 +457,7 @@ describe('FeishuCommandRouter', () => {
       listAvailableAgents: vi.fn().mockResolvedValue([
         {
           agentId: 'deepchat',
-          agentName: 'DeepChat',
+          agentName: 'MioAgent',
           agentType: 'deepchat',
           source: 'builtin'
         },

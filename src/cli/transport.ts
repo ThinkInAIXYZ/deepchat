@@ -57,16 +57,16 @@ function declaredResponseLength(
   distinctValues: readonly string[] | undefined
 ): number | null {
   if (distinctValues && distinctValues.length !== 1) {
-    throw protocolFailure('DeepChat returned multiple Content-Length headers')
+    throw protocolFailure('MioAgent returned multiple Content-Length headers')
   }
   const raw = distinctValues?.[0] ?? headers['content-length']
   if (raw === undefined) return null
   if (Array.isArray(raw) || !/^(0|[1-9][0-9]*)$/.test(raw)) {
-    throw protocolFailure('DeepChat returned an invalid Content-Length')
+    throw protocolFailure('MioAgent returned an invalid Content-Length')
   }
   const length = Number(raw)
   if (!Number.isSafeInteger(length) || length > LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES) {
-    throw protocolFailure('DeepChat response exceeds the CLI byte limit')
+    throw protocolFailure('MioAgent response exceeds the CLI byte limit')
   }
   return length
 }
@@ -128,7 +128,7 @@ async function readJsonResponse(
       mediaType !== 'application/json' ||
       !parameters.every((parameter) => parameter === 'charset=utf-8')
     ) {
-      throw protocolFailure('DeepChat returned a non-JSON response')
+      throw protocolFailure('MioAgent returned a non-JSON response')
     }
     if (response.headers['content-encoding'] !== undefined) {
       throw protocolFailure('Compressed local responses are not supported')
@@ -144,12 +144,12 @@ async function readJsonResponse(
       const chunk = Buffer.from(rawChunk)
       size += chunk.length
       if (size > LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES) {
-        throw protocolFailure('DeepChat response exceeds the CLI byte limit')
+        throw protocolFailure('MioAgent response exceeds the CLI byte limit')
       }
       chunks.push(chunk)
     }
     if (expectedLength !== null && expectedLength !== size) {
-      throw protocolFailure('DeepChat response length did not match')
+      throw protocolFailure('MioAgent response length did not match')
     }
 
     let parsed: LocalControlRpcResponse
@@ -158,14 +158,14 @@ async function readJsonResponse(
         JSON.parse(Buffer.concat(chunks, size).toString('utf8'))
       )
     } catch {
-      throw protocolFailure('DeepChat returned an invalid response envelope')
+      throw protocolFailure('MioAgent returned an invalid response envelope')
     }
     const isHttpSuccess = (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300
     if (parsed.ok !== isHttpSuccess) {
-      throw protocolFailure('DeepChat HTTP status and response envelope disagree')
+      throw protocolFailure('MioAgent HTTP status and response envelope disagree')
     }
     if (parsed.id !== expectedRequestId && !(!parsed.ok && parsed.id === 'unknown')) {
-      throw protocolFailure('DeepChat response ID did not match the request')
+      throw protocolFailure('MioAgent response ID did not match the request')
     }
     return parsed
   } catch (error) {
@@ -204,7 +204,7 @@ export async function invokeLocalControlRpc(
         'content-length': body.length,
         [LOCAL_CONTROL_METHOD_HEADER]: invocation.method,
         connection: 'close',
-        'user-agent': `DeepChat-CLI/${CLI_VERSION}`
+        'user-agent': `MioAgent-CLI/${CLI_VERSION}`
       }
     })
 
@@ -221,8 +221,8 @@ export async function invokeLocalControlRpc(
       }
       const message =
         error.code === 'ENOENT' || error.code === 'ECONNREFUSED' || error.code === 'EPIPE'
-          ? 'DeepChat local control server is unavailable'
-          : `Cannot connect to DeepChat: ${error.message}`
+          ? 'MioAgent local control server is unavailable'
+          : `Cannot connect to MioAgent: ${error.message}`
       finish(() => reject(transportFailure(message)))
     })
     request.end(body)
@@ -359,7 +359,7 @@ export async function invokeLocalControlUpload(
             expect: '100-continue',
             [LOCAL_CONTROL_UPLOAD_REQUEST_HEADER]: envelope,
             connection: 'close',
-            'user-agent': `DeepChat-CLI/${CLI_VERSION}`
+            'user-agent': `MioAgent-CLI/${CLI_VERSION}`
           }
         })
 
@@ -378,8 +378,8 @@ export async function invokeLocalControlUpload(
           }
           const message =
             error.code === 'ENOENT' || error.code === 'ECONNREFUSED' || error.code === 'EPIPE'
-              ? 'DeepChat local control server is unavailable'
-              : `Cannot connect to DeepChat: ${error.message}`
+              ? 'MioAgent local control server is unavailable'
+              : `Cannot connect to MioAgent: ${error.message}`
           finish(() => reject(transportFailure(message)))
         })
         uploadStream.once('error', (error) => {
@@ -430,7 +430,7 @@ export async function invokeLocalControlStream(
         'content-length': body.length,
         [LOCAL_CONTROL_METHOD_HEADER]: invocation.method,
         connection: 'close',
-        'user-agent': `DeepChat-CLI/${CLI_VERSION}`
+        'user-agent': `MioAgent-CLI/${CLI_VERSION}`
       }
     })
 
@@ -444,7 +444,7 @@ export async function invokeLocalControlStream(
             ? contentType.split(';').map((part) => part.trim().toLowerCase())
             : []
         if (contentTypes && contentTypes.length !== 1) {
-          throw protocolFailure('DeepChat returned multiple Content-Type headers')
+          throw protocolFailure('MioAgent returned multiple Content-Type headers')
         }
         if (response.headers['content-encoding'] !== undefined) {
           throw protocolFailure('Compressed local responses are not supported')
@@ -456,7 +456,7 @@ export async function invokeLocalControlStream(
             mediaType !== 'application/json' ||
             !parameters.every((parameter) => parameter === 'charset=utf-8')
           ) {
-            throw protocolFailure('DeepChat returned a non-JSON error response')
+            throw protocolFailure('MioAgent returned a non-JSON error response')
           }
           const expectedLength = declaredResponseLength(
             response.headers,
@@ -468,21 +468,21 @@ export async function invokeLocalControlStream(
             const chunk = Buffer.from(rawChunk)
             size += chunk.length
             if (size > LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES) {
-              throw protocolFailure('DeepChat response exceeds the CLI byte limit')
+              throw protocolFailure('MioAgent response exceeds the CLI byte limit')
             }
             chunks.push(chunk)
           }
           if (expectedLength !== null && expectedLength !== size) {
-            throw protocolFailure('DeepChat response length did not match')
+            throw protocolFailure('MioAgent response length did not match')
           }
           const parsed = LocalControlRpcResponseSchema.parse(
             JSON.parse(Buffer.concat(chunks, size).toString('utf8'))
           )
           if (parsed.ok) {
-            throw protocolFailure('DeepChat HTTP status and response envelope disagree')
+            throw protocolFailure('MioAgent HTTP status and response envelope disagree')
           }
           if (parsed.id !== invocation.id && parsed.id !== 'unknown') {
-            throw protocolFailure('DeepChat response ID did not match the request')
+            throw protocolFailure('MioAgent response ID did not match the request')
           }
           return parsed
         }
@@ -491,7 +491,7 @@ export async function invokeLocalControlStream(
           mediaType !== 'application/x-ndjson' ||
           !parameters.every((parameter) => parameter === 'charset=utf-8')
         ) {
-          throw protocolFailure('DeepChat returned a non-NDJSON stream')
+          throw protocolFailure('MioAgent returned a non-NDJSON stream')
         }
 
         let pendingChunks: Buffer[] = []
@@ -499,26 +499,26 @@ export async function invokeLocalControlStream(
         let expectedSequence = 0
         let terminal: LocalControlRpcResponse | undefined
         const consumeLine = async (line: Buffer): Promise<void> => {
-          if (line.length === 0) throw protocolFailure('DeepChat returned an empty stream record')
+          if (line.length === 0) throw protocolFailure('MioAgent returned an empty stream record')
           let parsed
           try {
             parsed = LocalControlStreamRecordSchema.parse(JSON.parse(line.toString('utf8')))
           } catch {
-            throw protocolFailure('DeepChat returned an invalid stream record')
+            throw protocolFailure('MioAgent returned an invalid stream record')
           }
           if ('ok' in parsed) {
-            if (terminal) throw protocolFailure('DeepChat returned multiple terminal records')
+            if (terminal) throw protocolFailure('MioAgent returned multiple terminal records')
             if (parsed.id !== invocation.id) {
-              throw protocolFailure('DeepChat stream result ID did not match the request')
+              throw protocolFailure('MioAgent stream result ID did not match the request')
             }
             terminal = parsed
             return
           }
           if (terminal)
-            throw protocolFailure('DeepChat returned an event after the terminal record')
+            throw protocolFailure('MioAgent returned an event after the terminal record')
           const event = LocalControlEventEnvelopeSchema.parse(parsed)
           if (event.requestId !== invocation.id || event.sequence !== expectedSequence) {
-            throw protocolFailure('DeepChat stream event identity or order did not match')
+            throw protocolFailure('MioAgent stream event identity or order did not match')
           }
           expectedSequence += 1
           await onEvent(event)
@@ -536,7 +536,7 @@ export async function invokeLocalControlStream(
               pendingLength += segment.length
             }
             if (pendingLength > LOCAL_CONTROL_MAX_STREAM_RECORD_BYTES) {
-              throw protocolFailure('DeepChat stream record exceeds the CLI byte limit')
+              throw protocolFailure('MioAgent stream record exceeds the CLI byte limit')
             }
             if (newlineIndex < 0) break
             const line =
@@ -550,9 +550,9 @@ export async function invokeLocalControlStream(
           }
         }
         if (pendingLength !== 0) {
-          throw protocolFailure('DeepChat stream ended with an incomplete record')
+          throw protocolFailure('MioAgent stream ended with an incomplete record')
         }
-        if (!terminal) throw protocolFailure('DeepChat stream ended without a terminal record')
+        if (!terminal) throw protocolFailure('MioAgent stream ended without a terminal record')
         return terminal
       })().then(
         (result) => finish(() => resolve(result)),
@@ -564,7 +564,7 @@ export async function invokeLocalControlStream(
                 ? abortReason(invocation.signal)
                 : error instanceof CliClientError
                   ? error
-                  : protocolFailure('DeepChat stream transport failed')
+                  : protocolFailure('MioAgent stream transport failed')
             )
           )
         }
@@ -578,8 +578,8 @@ export async function invokeLocalControlStream(
       }
       const message =
         error.code === 'ENOENT' || error.code === 'ECONNREFUSED' || error.code === 'EPIPE'
-          ? 'DeepChat local control server is unavailable'
-          : `Cannot connect to DeepChat: ${error.message}`
+          ? 'MioAgent local control server is unavailable'
+          : `Cannot connect to MioAgent: ${error.message}`
       finish(() => reject(transportFailure(message)))
     })
     request.end(body)

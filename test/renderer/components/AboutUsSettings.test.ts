@@ -106,8 +106,8 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { version?: string; title?: string; count?: number }) => {
       const messages: Record<string, string> = {
-        'about.title': 'DeepChat',
-        'about.description': 'DeepChat description',
+        'about.title': 'MioAgent',
+        'about.description': 'MioAgent description',
         'about.website': '访问我们的网站',
         'about.updateChannel': '更新渠道',
         'about.stableChannel': '稳定版',

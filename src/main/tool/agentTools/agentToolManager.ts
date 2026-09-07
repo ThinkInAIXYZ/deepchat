@@ -651,7 +651,7 @@ export class AgentToolManager {
       appendDefinitions([this.planTool.getToolDefinition()], 'user-configurable')
     }
 
-    // 2.15. Session tape tools (DeepChat sessions only)
+    // 2.15. Session tape tools (MioAgent sessions only)
     if (isAgentMode && acceptsExposure('system-model')) {
       try {
         if (
@@ -711,12 +711,12 @@ export class AgentToolManager {
       }
     }
 
-    // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
+    // 2.3. Scheduled task tool (disabled by default in MioAgent agent settings)
     if (isAgentMode) {
       appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
     }
 
-    // 2.5. Persistent live delegation (regular DeepChat sessions only)
+    // 2.5. Persistent live delegation (regular MioAgent sessions only)
     if (
       isAgentMode &&
       acceptsExposure('system-model') &&
@@ -756,7 +756,7 @@ export class AgentToolManager {
       }
     }
 
-    // 4. DeepChat settings tools (agent mode only, skill gated)
+    // 4. MioAgent settings tools (agent mode only, skill gated)
     if (isAgentMode && skillsEnabled && context.conversationId) {
       try {
         const activeSkills = isUniverseCatalog
@@ -786,7 +786,7 @@ export class AgentToolManager {
           appendDefinitions(settingsDefs, 'user-configurable')
         }
       } catch (error) {
-        handleAvailabilityError('[AgentToolManager] Failed to load DeepChat settings tools', error)
+        handleAvailabilityError('[AgentToolManager] Failed to load MioAgent settings tools', error)
       }
     }
 
@@ -992,7 +992,7 @@ export class AgentToolManager {
       return await this.callSkillExecutionTool(toolName, args, conversationId, options)
     }
 
-    // Route to DeepChat settings tools
+    // Route to MioAgent settings tools
     if (this.isChatSettingsTool(toolName)) {
       return await this.callChatSettingsTool(toolName, args, conversationId, options)
     }
@@ -3571,7 +3571,7 @@ export class AgentToolManager {
                 toolName,
                 serverName: CHAT_SETTINGS_SKILL_NAME,
                 permissionType: 'write',
-                description: 'Opening DeepChat settings requires approval.',
+                description: 'Opening MioAgent settings requires approval.',
                 conversationId,
                 rememberable: false
               }
@@ -3587,6 +3587,6 @@ export class AgentToolManager {
       )
       return { content: JSON.stringify(result) }
     }
-    throw new Error(`Unknown DeepChat settings tool: ${toolName}`)
+    throw new Error(`Unknown MioAgent settings tool: ${toolName}`)
   }
 }

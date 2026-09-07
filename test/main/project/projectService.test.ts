@@ -234,24 +234,24 @@ describe('ProjectService', () => {
         vi.fn()
       )
 
-      await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
+      await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/MioAgent')
 
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
+      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/MioAgent', { recursive: true })
       expect(sqlitePresenter.newProjectsTable.upsert).toHaveBeenCalledWith(
-        '/mock/documents/DeepChat',
-        'DeepChat'
+        '/mock/documents/MioAgent',
+        'MioAgent'
       )
       expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
-        '/mock/documents/DeepChat'
+        '/mock/documents/MioAgent'
       )
       expect(settingsStore.set).toHaveBeenCalledWith(
         'defaultProjectPath',
-        '/mock/documents/DeepChat'
+        '/mock/documents/MioAgent'
       )
     })
 
     it('recreates and registers the built-in workspace when it is already the default', async () => {
-      const settingsStore = createMockSettingsStore('/mock/documents/DeepChat')
+      const settingsStore = createMockSettingsStore('/mock/documents/MioAgent')
       presenter = new ProjectService(
         sqlitePresenter,
         sqlitePresenter,
@@ -260,16 +260,16 @@ describe('ProjectService', () => {
         vi.fn()
       )
 
-      await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
+      await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/MioAgent')
 
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
+      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/MioAgent', { recursive: true })
       expect(sqlitePresenter.newProjectsTable.upsert).toHaveBeenCalledWith(
-        '/mock/documents/DeepChat',
-        'DeepChat'
+        '/mock/documents/MioAgent',
+        'MioAgent'
       )
       expect(settingsStore.set).not.toHaveBeenCalledWith(
         'defaultProjectPath',
-        '/mock/documents/DeepChat'
+        '/mock/documents/MioAgent'
       )
     })
 
@@ -312,7 +312,7 @@ describe('ProjectService', () => {
       const settingsStore = createMockSettingsStore()
       sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
         {
-          path: '/mock/documents/DeepChat',
+          path: '/mock/documents/MioAgent',
           status: 'archived',
           sort_order: 2147483647,
           archived_at: 1000,
@@ -338,7 +338,7 @@ describe('ProjectService', () => {
       const settingsStore = createMockSettingsStore()
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       mkdirSyncMock.mockImplementation((targetPath: string) => {
-        if (targetPath === '/mock/documents/DeepChat') {
+        if (targetPath === '/mock/documents/MioAgent') {
           throw new Error('documents denied')
         }
       })
@@ -351,13 +351,13 @@ describe('ProjectService', () => {
       )
 
       try {
-        await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
+        await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/MioAgent')
 
-        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
-        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/DeepChat', { recursive: true })
-        expect(settingsStore.set).toHaveBeenCalledWith('defaultProjectPath', '/mock/home/DeepChat')
+        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/MioAgent', { recursive: true })
+        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/MioAgent', { recursive: true })
+        expect(settingsStore.set).toHaveBeenCalledWith('defaultProjectPath', '/mock/home/MioAgent')
         expect(warnSpy).toHaveBeenCalledWith(
-          '[ProjectService] Failed to create default workspace at /mock/documents/DeepChat:',
+          '[ProjectService] Failed to create default workspace at /mock/documents/MioAgent:',
           expect.any(Error)
         )
       } finally {

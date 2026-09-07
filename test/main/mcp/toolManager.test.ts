@@ -985,7 +985,7 @@ describe('ToolManager', () => {
     expect(pluginClient.callTool).not.toHaveBeenCalled()
   })
 
-  it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {
+  it('blocks MioAgent MCP tool calls outside enabled server policy', async () => {
     const client = createClient('blocked-server')
     const providerSettings = createProviderSettings('blocked-server')
     const manager = createToolManager(

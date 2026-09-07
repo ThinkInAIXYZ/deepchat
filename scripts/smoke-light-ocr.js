@@ -827,7 +827,7 @@ function normalizeFixtureText(lines) {
 
 export function assertFixtureRecognized(result) {
   const normalized = normalizedRecognitionText(result)
-  if (!normalized.includes('DEEPCHAT') || !normalized.includes('2026')) {
+  if (!normalized.includes('MIOAGENT') || !normalized.includes('2026')) {
     throw new Error('Packaged OCR did not recognize the deterministic smoke fixture')
   }
 }
@@ -843,7 +843,7 @@ export function assertDocumentFixtureRecognized(pages) {
         return false
       }
       const normalized = normalizeFixtureText(page.lines)
-      return normalized.includes('DEEPCHAT') && normalized.includes('2026')
+      return normalized.includes('MIOAGENT') && normalized.includes('2026')
     })
   ) {
     throw new Error('Packaged PDF OCR did not recognize the deterministic smoke fixture')
@@ -869,7 +869,7 @@ function fixtureSvg() {
     <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="520">
       <rect width="1400" height="520" fill="white" />
       <text x="700" y="210" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif"
-        font-size="170" font-weight="700" fill="black">DEEPCHAT</text>
+        font-size="170" font-weight="700" fill="black">MIOAGENT</text>
       <text x="700" y="410" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif"
         font-size="135" font-weight="700" fill="black">OCR TEST 2026</text>
     </svg>

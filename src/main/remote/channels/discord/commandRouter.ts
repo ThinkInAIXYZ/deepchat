@@ -162,7 +162,7 @@ export class DiscordCommandRouter {
               openResult.status === 'ok'
                 ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
                 : openResult.status === 'windowNotFound'
-                  ? 'Could not find a DeepChat desktop window. Open DeepChat and try /open again.'
+                  ? 'Could not find a MioAgent desktop window. Open MioAgent and try /open again.'
                   : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
@@ -189,7 +189,7 @@ export class DiscordCommandRouter {
           return {
             replies: [
               [
-                'DeepChat Discord Remote',
+                'MioAgent Discord Remote',
                 `Runtime: ${runtime.state}`,
                 `Default agent: ${defaultAgentId}`,
                 `Default workdir: ${normalizedWorkdir}`,
@@ -214,7 +214,7 @@ export class DiscordCommandRouter {
       if (message.kind === 'interaction') {
         return {
           replies: [
-            'Slash commands only support remote control commands. Send a regular message to chat with DeepChat.'
+            'Slash commands only support remote control commands. Send a regular message to chat with MioAgent.'
           ]
         }
       }
@@ -344,7 +344,7 @@ export class DiscordCommandRouter {
     return {
       replies: [
         [
-          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}).`,
+          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}).`,
           `Started a new session: ${this.formatSessionLabel(result.session)}`,
           result.session.providerId
             ? `Provider / Model: ${result.session.providerId} / ${result.session.modelId || 'none'}`
@@ -482,7 +482,7 @@ export class DiscordCommandRouter {
       'Available agents:',
       ...agents.map(
         (agent) =>
-          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}${agent.source ? `, ${agent.source}` : ''})`
+          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}${agent.source ? `, ${agent.source}` : ''})`
       )
     ].join('\n')
   }
@@ -518,27 +518,27 @@ export class DiscordCommandRouter {
   ): string {
     if (authorized) {
       return [
-        'DeepChat Discord Remote is ready.',
+        'MioAgent Discord Remote is ready.',
         'Send any message to continue the bound session, or /help for commands.'
       ].join('\n')
     }
 
     if (chatType === 'channel') {
       return [
-        'DeepChat Discord Remote is online.',
+        'MioAgent Discord Remote is online.',
         'Authorize this channel with /pair <code> before using remote control here.'
       ].join('\n')
     }
 
     return [
-      'DeepChat Discord Remote is online.',
+      'MioAgent Discord Remote is online.',
       'Pair this DM with /pair <code> before using remote control.'
     ].join('\n')
   }
 
   private formatHelpMessage(): string {
     return [
-      'DeepChat Discord Remote commands:',
+      'MioAgent Discord Remote commands:',
       ...DISCORD_REMOTE_COMMANDS.map((item) => `/${item.command} - ${item.description}`),
       'Plain text sends to the current bound session unless a tool interaction is waiting.'
     ].join('\n')

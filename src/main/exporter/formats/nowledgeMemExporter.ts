@@ -191,7 +191,7 @@ export function convertDeepChatToNowledgeMemFormat(
         updated_at: conversation.updatedAt,
         model: conversation.settings.modelId || 'unknown',
         provider: conversation.settings.providerId || 'unknown',
-        description: `Exported from DeepChat - ${messages.length} messages`,
+        description: `Exported from MioAgent - ${messages.length} messages`,
         tags: [
           'deepchat-export',
           conversation.settings.providerId,

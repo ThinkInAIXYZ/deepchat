@@ -48,7 +48,7 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
-  it('maps native tool streaming events to DeepChat core events', async () => {
+  it('maps native tool streaming events to MioAgent core events', async () => {
     const events = await collectEvents(
       [
         {
@@ -284,8 +284,8 @@ describe('AI SDK stream adapter', () => {
   it('projects provider search sources alongside ordinary tool lifecycles', async () => {
     const providerSearch = {
       id: 'ws_1',
-      action: { type: 'search' as const, target: 'DeepChat' },
-      label: 'DeepChat',
+      action: { type: 'search' as const, target: 'MioAgent' },
+      label: 'MioAgent',
       provider: 'deepseek',
       results: [],
       providerReplayJson: '{"version":1}'
@@ -303,7 +303,7 @@ describe('AI SDK stream adapter', () => {
           sourceType: 'url',
           id: 'citation-1',
           url: 'https://deepchat.thinkinai.xyz/',
-          title: 'DeepChat'
+          title: 'MioAgent'
         },
         {
           type: 'source',
@@ -351,7 +351,7 @@ describe('AI SDK stream adapter', () => {
         type: 'provider_url_source',
         provider_url_source: {
           searchId: 'ws_1',
-          title: 'DeepChat',
+          title: 'MioAgent',
           url: 'https://deepchat.thinkinai.xyz/',
           rank: 0
         }

@@ -26,7 +26,7 @@ const validSnapshot = {
       updatedAt: 1,
       agent: {
         id: 'agent-1',
-        name: 'DeepChat',
+        name: 'MioAgent',
         type: 'deepchat'
       }
     }

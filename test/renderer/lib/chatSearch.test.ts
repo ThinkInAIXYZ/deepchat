@@ -39,7 +39,7 @@ describe('chatSearch', () => {
     const container = document.createElement('div')
     container.innerHTML = `
       <div data-message-content="true">
-        <p>Hello world, hello DeepChat</p>
+        <p>Hello world, hello MioAgent</p>
       </div>
     `
 
@@ -47,7 +47,7 @@ describe('chatSearch', () => {
     clearChatSearchHighlights(container)
 
     expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(0)
-    expect(container.textContent?.replace(/\s+/g, ' ').trim()).toBe('Hello world, hello DeepChat')
+    expect(container.textContent?.replace(/\s+/g, ' ').trim()).toBe('Hello world, hello MioAgent')
     expect(container.getAttribute('data-chat-search-query')).toBeNull()
   })
 

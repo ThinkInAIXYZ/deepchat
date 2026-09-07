@@ -47,7 +47,7 @@ async function createInitializerWithMocks(input: {
 
   vi.doMock('electron', () => ({
     app: {
-      getPath: vi.fn().mockReturnValue('C:/Users/test/AppData/Roaming/DeepChat')
+      getPath: vi.fn().mockReturnValue('C:/Users/test/AppData/Roaming/MioAgent')
     }
   }))
   vi.doMock('@/data/mainDatabase', () => ({

@@ -506,7 +506,7 @@ describe('DeepChatAgentRepository', () => {
         name: 'Invalid Writer',
         config: { subagentEnabled: true, subagents: [] }
       })
-    ).toThrow('Enabled DeepChat Subagents require at least one valid slot.')
+    ).toThrow('Enabled MioAgent Subagents require at least one valid slot.')
     expect(rows.size).toBe(0)
 
     const created = repository.create({
@@ -539,7 +539,7 @@ describe('DeepChatAgentRepository', () => {
           ]
         }
       })
-    ).toThrow('Enabled DeepChat Subagents require at least one valid slot.')
+    ).toThrow('Enabled MioAgent Subagents require at least one valid slot.')
     expect(rows.get(created.id)?.config_json).toBe(previousConfig)
   })
 

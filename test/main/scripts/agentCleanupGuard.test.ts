@@ -10,7 +10,7 @@ import {
 const repositoryRoot = process.cwd()
 
 describe('agent cleanup guard', () => {
-  it('rejects harness imports from every DeepChat owner directory', () => {
+  it('rejects harness imports from every MioAgent owner directory', () => {
     const ownerFiles = [
       'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
       'src/main/agent/deepchat/loop/contextCoordinator.ts',
@@ -44,7 +44,7 @@ describe('agent cleanup guard', () => {
     )
   })
 
-  it('allows the harness layer itself and adapters outside the DeepChat implementation', () => {
+  it('allows the harness layer itself and adapters outside the MioAgent implementation', () => {
     expect(
       isDeepChatHarnessImport(
         path.join(repositoryRoot, 'src/main/agent/deepchat/harness/deepChatAgentHarness.ts'),

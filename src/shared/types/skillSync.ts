@@ -1,7 +1,7 @@
 /**
  * Skills Sync System Type Definitions
  *
- * This module defines types for synchronizing skills between DeepChat
+ * This module defines types for synchronizing skills between MioAgent
  * and external AI agent tools (Claude Code, Cursor, Windsurf, etc.)
  */
 
@@ -314,7 +314,7 @@ export interface NewDiscovery {
   toolId: string
   /** Tool display name */
   toolName: string
-  /** Newly discovered skills (not in cache and not in DeepChat) */
+  /** Newly discovered skills (not in cache and not in MioAgent) */
   newSkills: ExternalSkillInfo[]
 }
 
@@ -357,7 +357,7 @@ export interface SkillSyncServicePort {
   scanAndDetectNewDiscoveries(): Promise<NewDiscovery[]>
 
   /**
-   * Get new discoveries (skills not in cache and not in DeepChat)
+   * Get new discoveries (skills not in cache and not in MioAgent)
    */
   getNewDiscoveries(): Promise<NewDiscovery[]>
 
@@ -371,7 +371,7 @@ export interface SkillSyncServicePort {
    */
   acknowledgeDiscoveries(): Promise<void>
 
-  // Import (External Tool → DeepChat)
+  // Import (External Tool → MioAgent)
   /**
    * Preview import operation
    */

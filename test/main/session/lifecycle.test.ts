@@ -279,7 +279,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
-  it('persists proactive policy only for regular DeepChat sessions', async () => {
+  it('persists proactive policy only for regular MioAgent sessions', async () => {
     const deepChatHarness = createHarness()
 
     await expect(

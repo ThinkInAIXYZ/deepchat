@@ -357,7 +357,7 @@ export async function runBuiltinMcpAllowlistCompatibilityMigration({
       const updated = await agentSettings.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
         config: { enabledMcpServerIds: null }
       })
-      if (!updated) throw new Error('Built-in DeepChat Agent not found')
+      if (!updated) throw new Error('Built-in MioAgent Agent not found')
     }
 
     const finishedAt = Date.now()

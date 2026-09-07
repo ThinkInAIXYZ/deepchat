@@ -248,7 +248,7 @@ export class CronJobToolHandler {
       server: {
         name: CRON_JOB_TOOL_SERVER_NAME,
         icons: '⏱️',
-        description: 'DeepChat Scheduled tasks'
+        description: 'MioAgent Scheduled tasks'
       }
     }
   }

@@ -209,7 +209,7 @@ describe('verify-cua-macos-helper', () => {
   })
 
   it('verifies the helper and every nested Mach-O identity before accepting the app', async () => {
-    const appPath = path.join(tempRoot, 'DeepChat.app')
+    const appPath = path.join(tempRoot, 'MioAgent.app')
     const helperAppPath = path.join(
       appPath,
       'Contents',

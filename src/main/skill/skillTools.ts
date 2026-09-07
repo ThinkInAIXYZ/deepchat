@@ -76,7 +76,7 @@ export class SkillTools {
       return {
         success: false,
         name: requestedSkillName,
-        error: 'No DeepChat Agent context available'
+        error: 'No MioAgent Agent context available'
       }
     }
 

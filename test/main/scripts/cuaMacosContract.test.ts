@@ -98,14 +98,14 @@ driver (architecture arm64):
 
     const ignored = config.mac.signIgnore.map((pattern: string) => new RegExp(pattern))
     const matches = (filePath: string) => ignored.some((pattern: RegExp) => pattern.test(filePath))
-    const helperPath = '/tmp/DeepChat.app/Contents/Helpers/DeepChat Computer Use.app'
+    const helperPath = '/tmp/MioAgent.app/Contents/Helpers/DeepChat Computer Use.app'
 
     expect(matches(helperPath)).toBe(true)
     expect(matches(`${helperPath}/Contents/MacOS/deepchat-cua-driver`)).toBe(true)
     expect(matches(`${helperPath}.backup/Contents/MacOS/deepchat-cua-driver`)).toBe(false)
-    expect(matches('/tmp/DeepChat.app/Contents/Helpers/DeepChat Helper.app')).toBe(false)
+    expect(matches('/tmp/MioAgent.app/Contents/Helpers/MioAgent Helper.app')).toBe(false)
     expect(
-      matches('/tmp/DeepChat.app/Contents/Resources/DeepChat Computer Use.app')
+      matches('/tmp/MioAgent.app/Contents/Resources/DeepChat Computer Use.app')
     ).toBe(false)
   })
 })

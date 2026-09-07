@@ -223,7 +223,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       this.requireSession(sessionId)
       const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
       if (runtime.kind !== 'deepchat') {
-        throw new Error('Pending queue resume is only available for DeepChat sessions.')
+        throw new Error('Pending queue resume is only available for MioAgent sessions.')
       }
       return await runtime.resumePendingQueue()
     })
@@ -237,7 +237,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       this.requireSession(sessionId)
       const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
       if (runtime.kind !== 'deepchat') {
-        throw new Error('Pending queue retry is only available for DeepChat sessions.')
+        throw new Error('Pending queue retry is only available for MioAgent sessions.')
       }
       return await runtime.retryPendingQueueInput(itemId)
     })
@@ -439,7 +439,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       throw new Error(`Agent ${session.agentId} does not support manual compaction.`)
     }
     if ((await runtime.snapshot())?.providerId === 'acp') {
-      throw new Error('Manual compaction is only available for DeepChat agent sessions.')
+      throw new Error('Manual compaction is only available for MioAgent agent sessions.')
     }
     return await runtime.compaction.compact()
   }

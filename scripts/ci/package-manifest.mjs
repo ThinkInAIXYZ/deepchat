@@ -145,7 +145,7 @@ export function validateMacZipEntries(output) {
       path.posix.isAbsolute(normalizedEntry) ||
       /^[A-Za-z]:/.test(normalizedEntry) ||
       segments.some((segment) => segment === '' || segment === '.' || segment === '..') ||
-      segments[0] !== 'DeepChat.app'
+      segments[0] !== 'MioAgent.app'
     ) {
       throw new Error(`macOS updater ZIP contains an unsafe entry: ${JSON.stringify(entry)}`)
     }
@@ -185,17 +185,17 @@ export async function verifyMacZipDistribution(
     const entries = await readdir(extractionRoot, { withFileTypes: true })
     if (
       entries.length !== 1 ||
-      entries[0].name !== 'DeepChat.app' ||
+      entries[0].name !== 'MioAgent.app' ||
       !entries[0].isDirectory()
     ) {
-      throw new Error('macOS updater ZIP must contain exactly one root DeepChat.app directory')
+      throw new Error('macOS updater ZIP must contain exactly one root MioAgent.app directory')
     }
 
-    const extractedAppPath = path.join(extractionRoot, 'DeepChat.app')
+    const extractedAppPath = path.join(extractionRoot, 'MioAgent.app')
     const appStat = await lstat(extractedAppPath)
     if (appStat.isSymbolicLink() || !appStat.isDirectory()) {
       throw new Error(
-        'macOS updater ZIP root DeepChat.app must be a real application directory'
+        'macOS updater ZIP root MioAgent.app must be a real application directory'
       )
     }
     await verifyCuaMacHelper(extractedAppPath, { teamId, runCommand })
@@ -714,7 +714,7 @@ export async function createPackageManifest({
       path.join(
         resolvedDistDirectory,
         definition.arch === 'arm64' ? 'mac-arm64' : 'mac',
-        'DeepChat.app'
+        'MioAgent.app'
       )
     const resolvedDmgPath = path.join(resolvedDistDirectory, dmg.name)
     const resolvedZipPath = path.join(

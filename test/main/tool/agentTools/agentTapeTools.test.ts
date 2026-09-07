@@ -22,7 +22,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     resolveConversationSessionInfo: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',
       agentId: 'deepchat',
-      agentName: 'DeepChat',
+      agentName: 'MioAgent',
       agentType: 'deepchat',
       providerId: 'openai',
       modelId: 'gpt-4.1',
@@ -154,7 +154,7 @@ const buildManager = (runtimePort = buildRuntimePort()) =>
   })
 
 describe('Agent tape tools', () => {
-  it('exposes only the atomic recall pair for DeepChat sessions', async () => {
+  it('exposes only the atomic recall pair for MioAgent sessions', async () => {
     const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
@@ -224,7 +224,7 @@ describe('Agent tape tools', () => {
     expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
   })
 
-  it('does not expose tape tools outside DeepChat sessions', async () => {
+  it('does not expose tape tools outside MioAgent sessions', async () => {
     const runtimePort = buildRuntimePort({
       resolveConversationSessionInfo: vi.fn().mockResolvedValue({
         agentType: 'acp'

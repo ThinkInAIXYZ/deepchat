@@ -171,7 +171,7 @@ function getResourcesDir(context) {
   const { appOutDir, electronPlatformName, packager } = context
 
   if (electronPlatformName === 'darwin') {
-    const productFilename = packager?.appInfo?.productFilename ?? 'DeepChat'
+    const productFilename = packager?.appInfo?.productFilename ?? 'MioAgent'
     return path.join(appOutDir, `${productFilename}.app`, 'Contents', 'Resources')
   }
 
@@ -463,7 +463,7 @@ async function assertLightOcrDependencyPin(projectDir, expectedVersion) {
   const packageJson = await readJson(path.join(projectDir, 'package.json'))
   if (packageJson.dependencies?.[LIGHT_OCR_FACADE_PACKAGE] !== expectedVersion) {
     throw new Error(
-      `DeepChat must depend on exactly ${LIGHT_OCR_FACADE_PACKAGE}@${expectedVersion}`
+      `MioAgent must depend on exactly ${LIGHT_OCR_FACADE_PACKAGE}@${expectedVersion}`
     )
   }
 }

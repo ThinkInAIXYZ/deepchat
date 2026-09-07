@@ -14,7 +14,7 @@ const originalFetch = global.fetch
 
 vi.mock('electron', () => ({
   app: {
-    getName: vi.fn(() => 'DeepChat'),
+    getName: vi.fn(() => 'MioAgent'),
     getVersion: vi.fn(() => '0.0.0-test'),
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),

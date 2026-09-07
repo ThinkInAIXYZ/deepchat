@@ -150,7 +150,7 @@ export class WatcherHostClient {
     const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
     const serviceLabel = this.hostKind === 'git' ? 'Git' : 'Content'
     const host = utilityProcess.fork(modulePath, ['--deepchat-file-watcher-host'], {
-      serviceName: `DeepChat ${serviceLabel} File Watcher`,
+      serviceName: `MioAgent ${serviceLabel} File Watcher`,
       stdio: 'ignore',
       env: {
         ...process.env,

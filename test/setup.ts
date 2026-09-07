@@ -126,7 +126,7 @@ vi.mock('electron', () => ({
     electronMockState.loginItemSettings = { openAtLogin: false }
   }),
   app: {
-    getName: vi.fn(() => 'DeepChat'),
+    getName: vi.fn(() => 'MioAgent'),
     getVersion: vi.fn(() => '0.2.3'),
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: vi.fn(() => '/mock/path'),

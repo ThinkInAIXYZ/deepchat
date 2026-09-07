@@ -42,7 +42,7 @@ const setup = async (
       {
         id: 'deepchat',
         type: 'deepchat',
-        name: 'DeepChat',
+        name: 'MioAgent',
         enabled: true,
         config: {
           enabledMcpServerIds: ['Artifacts']
@@ -55,7 +55,7 @@ const setup = async (
     updateDeepChatAgent: vi.fn().mockResolvedValue({
       id: 'deepchat',
       type: 'deepchat',
-      name: 'DeepChat',
+      name: 'MioAgent',
       enabled: true,
       config: {
         enabledMcpServerIds: ['Artifacts', 'Custom']
@@ -292,7 +292,7 @@ describe('McpSettings', () => {
     resolveUpdate({
       id: 'deepchat',
       type: 'deepchat',
-      name: 'DeepChat',
+      name: 'MioAgent',
       enabled: true,
       config: {
         enabledMcpServerIds: ['Artifacts', 'Custom']

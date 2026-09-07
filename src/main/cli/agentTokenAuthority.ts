@@ -311,7 +311,7 @@ export function parseAgentCliProgrammaticExecInvocation(input: {
     tokens[0] !== 'deepchat' ||
     tokens[1] !== 'tool'
   ) {
-    throw new Error('Programmatic Tool exec requires one canonical DeepChat Tool command')
+    throw new Error('Programmatic Tool exec requires one canonical MioAgent Tool command')
   }
 
   const verb = tokens[2]

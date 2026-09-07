@@ -45,7 +45,7 @@ pnpm run installRuntime
 - 页面里的 key 全部是 fake data，仅用于本地联调
 - 若浏览器拦截自定义协议，请允许页面打开 `deepchat://` 链接
 
-如果要验证应用内行为，建议先启动 DeepChat，再点击页面中的 `Open` 按钮。
+如果要验证应用内行为，建议先启动 MioAgent，再点击页面中的 `Open` 按钮。
 
 ### 运行测试
 

@@ -411,7 +411,7 @@ describe('afterPack', () => {
 
   it('keeps non-Linux packages unchanged', async () => {
     const afterPack = await loadAfterPack()
-    const launcherPath = path.join(tmpDir, 'DeepChat')
+    const launcherPath = path.join(tmpDir, 'MioAgent')
     await writeFile(launcherPath, 'launcher')
 
     await afterPack({
@@ -443,7 +443,7 @@ describe('afterPack', () => {
     const afterPack = await loadAfterPack()
     const extensionPath = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -462,7 +462,7 @@ describe('afterPack', () => {
       electronPlatformName: 'darwin',
       packager: {
         appInfo: {
-          productFilename: 'DeepChat'
+          productFilename: 'MioAgent'
         }
       }
     })
@@ -484,7 +484,7 @@ describe('afterPack', () => {
     const projectDir = path.join(tmpDir, 'project')
     const nodeModulesDir = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -493,7 +493,7 @@ describe('afterPack', () => {
     const { fffPackageDir, parcelPackageDir, opendalPackageDir } =
       await seedDarwinNativePrerequisites(projectDir, nodeModulesDir, archName)
 
-    await writeFile(path.join(tmpDir, 'DeepChat'), 'launcher')
+    await writeFile(path.join(tmpDir, 'MioAgent'), 'launcher')
 
     await afterPack({
       targets: [],
@@ -503,7 +503,7 @@ describe('afterPack', () => {
       packager: {
         projectDir,
         appInfo: {
-          productFilename: 'DeepChat'
+          productFilename: 'MioAgent'
         }
       }
     })
@@ -527,7 +527,7 @@ describe('afterPack', () => {
       await readFile(
         path.join(
           tmpDir,
-          'DeepChat.app',
+          'MioAgent.app',
           'Contents',
           'Resources',
           'app.asar.unpacked',
@@ -586,7 +586,7 @@ describe('afterPack', () => {
     const projectDir = path.join(tmpDir, 'project')
     const nodeModulesDir = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -614,13 +614,13 @@ describe('afterPack', () => {
       arch: 3,
       packager: {
         projectDir,
-        appInfo: { productFilename: 'DeepChat' }
+        appInfo: { productFilename: 'MioAgent' }
       }
     })
 
     const unpackedMain = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -719,7 +719,7 @@ describe('afterPack', () => {
     const projectDir = path.join(tmpDir, 'project')
     const nodeModulesDir = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -738,7 +738,7 @@ describe('afterPack', () => {
         packager: {
           projectDir,
           appInfo: {
-            productFilename: 'DeepChat'
+            productFilename: 'MioAgent'
           }
         }
       })
@@ -768,7 +768,7 @@ describe('afterPack', () => {
     const afterPack = await loadAfterPack()
     const expectedFffNodeDir = path.join(
       tmpDir,
-      'DeepChat.app',
+      'MioAgent.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
@@ -786,7 +786,7 @@ describe('afterPack', () => {
         packager: {
           projectDir: path.join(tmpDir, 'project'),
           appInfo: {
-            productFilename: 'DeepChat'
+            productFilename: 'MioAgent'
           }
         }
       })
@@ -1131,6 +1131,6 @@ describe('afterPack', () => {
         arch: 'x64',
         packager: { projectDir }
       })
-    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.5.7')
+    ).rejects.toThrow('MioAgent must depend on exactly @arcships/light-ocr@0.5.7')
   })
 })

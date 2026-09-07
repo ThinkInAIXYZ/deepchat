@@ -678,8 +678,8 @@ const setup = async (options: SetupOptions = {}) => {
 
   const sessionClient = {
     getAgents: vi.fn(async () => [
-      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-      { id: 'deepchat-alt', name: 'DeepChat Alt', type: 'deepchat', enabled: false },
+      { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+      { id: 'deepchat-alt', name: 'MioAgent Alt', type: 'deepchat', enabled: false },
       { id: 'acp-agent', name: 'ACP Agent', type: 'acp', enabled: true },
       ...(options.agents ?? [])
     ])
@@ -1843,8 +1843,8 @@ describe('RemoteSettings', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('DeepChat')
-    expect(wrapper.text()).not.toContain('DeepChat Alt')
+    expect(wrapper.text()).toContain('MioAgent')
+    expect(wrapper.text()).not.toContain('MioAgent Alt')
     expect(wrapper.text()).toContain('ACP Agent (ACP)')
   })
 

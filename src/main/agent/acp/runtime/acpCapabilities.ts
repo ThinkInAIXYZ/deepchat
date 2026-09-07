@@ -52,7 +52,7 @@ export function buildCapabilitySnapshot(
 /**
  * Build client capabilities object for ACP initialization.
  *
- * This determines what features the client (DeepChat) advertises to the agent.
+ * This determines what features the client (MioAgent) advertises to the agent.
  * Agents use these capabilities to decide which operations to request.
  */
 export function buildClientCapabilities(

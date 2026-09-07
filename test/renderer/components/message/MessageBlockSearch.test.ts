@@ -50,20 +50,20 @@ describe('MessageBlockSearch', () => {
     const wrapper = mountSearch({
       id: 'ws_1',
       type: 'search',
-      content: 'DeepChat latest release',
+      content: 'MioAgent latest release',
       status: 'success',
       timestamp: 1,
       extra: {
         total: 3,
         pages: [
-          { title: 'DeepChat', url: 'https://deepchat.thinkinai.xyz/' },
+          { title: 'MioAgent', url: 'https://deepchat.thinkinai.xyz/' },
           { title: 'Unsafe', url: 'javascript:alert(1)' },
           { title: 'Credentials', url: 'https://user:secret@example.com/private' }
         ]
       }
     })
 
-    expect(wrapper.text()).toContain('DeepChat latest release')
+    expect(wrapper.text()).toContain('MioAgent latest release')
     expect(wrapper.text()).toContain('Found 3 web pages')
     expect(wrapper.findAll('[data-testid="search-source-link"]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="icon"]').attributes('data-icon')).toBe('lucide:globe-2')

@@ -35,7 +35,7 @@ export class TrayPresenter {
     }
 
     this.tray = new Tray(image)
-    this.tray.setToolTip('DeepChat')
+    this.tray.setToolTip('MioAgent')
 
     // 获取当前系统语言
     const locale = this.settings.getLanguage()

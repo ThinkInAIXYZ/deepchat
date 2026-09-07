@@ -58,7 +58,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
 
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: 'DeepChat',
+      client_name: 'MioAgent',
       redirect_uris: [this.options.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],

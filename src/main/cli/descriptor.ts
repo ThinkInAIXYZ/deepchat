@@ -84,7 +84,7 @@ function createFallbackSocketPath(userDataPath: string): string {
     const candidate = path.join(base, directoryName, 'control.sock')
     if (Buffer.byteLength(candidate) <= MAX_POSIX_SOCKET_PATH_BYTES) return candidate
   }
-  throw new Error('No private path is short enough for the DeepChat Unix socket')
+  throw new Error('No private path is short enough for the MioAgent Unix socket')
 }
 
 export function createLocalControlLayout(

@@ -649,14 +649,14 @@ export class PluginService implements PluginServicePort {
   ): CuaRuntimeIntegrityVerifier {
     if (plugin.integrityError) {
       throw new Error(
-        `CUA runtime integrity descriptor is unavailable: ${plugin.integrityError}. Reinstall DeepChat or the CUA plugin.`
+        `CUA runtime integrity descriptor is unavailable: ${plugin.integrityError}. Reinstall MioAgent or the CUA plugin.`
       )
     }
     const descriptor = plugin.integrityDescriptor
     const runtime = plugin.manifest.runtime
     if (!descriptor || !runtime?.adapterContract) {
       throw new Error(
-        'CUA runtime integrity descriptor is missing. Reinstall DeepChat or the CUA plugin.'
+        'CUA runtime integrity descriptor is missing. Reinstall MioAgent or the CUA plugin.'
       )
     }
     const descriptorPath = runtime.integrityDescriptor!
@@ -776,7 +776,7 @@ export class PluginService implements PluginServicePort {
     }
     if (pluginId === CUA_PLUGIN_ID && runtimeManifest.adapter !== 'cua-embedded-v1') {
       throw new Error(
-        'The installed CUA runtime uses an unsupported legacy lifecycle. Repair or reinstall DeepChat before enabling Computer Use.'
+        'The installed CUA runtime uses an unsupported legacy lifecycle. Repair or reinstall MioAgent before enabling Computer Use.'
       )
     }
 

@@ -7,7 +7,7 @@ export const __resetElectronMockState = () => {
 }
 
 export const app = {
-  getName: () => 'DeepChat',
+  getName: () => 'MioAgent',
   getVersion: () => '0.0.0-test',
   getLocale: () => 'en-US',
   getSystemLocale: () => 'en-US',

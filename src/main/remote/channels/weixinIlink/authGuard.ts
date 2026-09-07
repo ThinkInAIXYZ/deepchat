@@ -18,14 +18,14 @@ export class WeixinIlinkAuthGuard {
     if (!account) {
       return {
         ok: false,
-        message: 'This Weixin iLink account is no longer available in DeepChat.'
+        message: 'This Weixin iLink account is no longer available in MioAgent.'
       }
     }
 
     if (!account.enabled) {
       return {
         ok: false,
-        message: 'This Weixin iLink account is disabled in DeepChat.'
+        message: 'This Weixin iLink account is disabled in MioAgent.'
       }
     }
 

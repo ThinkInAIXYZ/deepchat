@@ -53,7 +53,7 @@ const stubs = {
   ])
 }
 
-const deepchat: Agent = { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }
+const deepchat: Agent = { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true }
 const other: Agent = { id: 'other', name: 'Other', type: 'deepchat', enabled: true }
 const baseStatus: MemoryStatusDto = {
   total: 0,

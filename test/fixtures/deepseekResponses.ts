@@ -1,4 +1,4 @@
-export function createDeepSeekWebSearchCall(query = 'DeepChat') {
+export function createDeepSeekWebSearchCall(query = 'MioAgent') {
   return {
     type: 'web_search_call' as const,
     id: 'ws_1',
@@ -10,7 +10,7 @@ export function createDeepSeekWebSearchCall(query = 'DeepChat') {
   }
 }
 
-export function createDeepSeekReplayJson(query = 'DeepChat'): string {
+export function createDeepSeekReplayJson(query = 'MioAgent'): string {
   return JSON.stringify({
     version: 1,
     providerId: 'deepseek',

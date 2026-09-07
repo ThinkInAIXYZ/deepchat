@@ -181,7 +181,7 @@ function createRuntime() {
   }> = [
     {
       id: 'deepchat',
-      name: 'DeepChat',
+      name: 'MioAgent',
       type: 'deepchat' as const,
       enabled: true,
       protected: true,
@@ -1069,7 +1069,7 @@ function createRuntime() {
     setDefaultProjectPath: vi.fn((projectPath: string | null) => {
       settings.defaultProjectPath = projectPath
     }),
-    ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
+    ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/MioAgent'),
     getSnapshotVersion: vi.fn(() => 1),
     getSnapshot: vi.fn().mockResolvedValue({
       version: 1,
@@ -2277,8 +2277,8 @@ describe('dispatchDeepchatRoute', () => {
   it('ensures the built-in chat workspace before startup bootstrap returns', async () => {
     const { runtime, settings, projectPresenter } = createRuntime()
     vi.mocked(projectPresenter.ensureDefaultWorkspace).mockImplementation(async () => {
-      settings.defaultProjectPath = 'C:/Users/test/Documents/DeepChat'
-      return 'C:/Users/test/Documents/DeepChat'
+      settings.defaultProjectPath = 'C:/Users/test/Documents/MioAgent'
+      return 'C:/Users/test/Documents/MioAgent'
     })
 
     const result = await dispatchDeepchatRoute(
@@ -2289,8 +2289,8 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(projectPresenter.ensureDefaultWorkspace).toHaveBeenCalledTimes(1)
-    expect(result.bootstrap.defaultProjectPath).toBe('C:/Users/test/Documents/DeepChat')
-    expect(result.bootstrap.defaultChatWorkspacePath).toBe('C:/Users/test/Documents/DeepChat')
+    expect(result.bootstrap.defaultProjectPath).toBe('C:/Users/test/Documents/MioAgent')
+    expect(result.bootstrap.defaultChatWorkspacePath).toBe('C:/Users/test/Documents/MioAgent')
   })
 
   it('reads a typed settings snapshot', async () => {
@@ -2408,7 +2408,7 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('returns no memory audit events for missing or non-DeepChat agents', async () => {
+  it('returns no memory audit events for missing or non-MioAgent agents', async () => {
     const { runtime, providerSettings } = createRuntime()
     const listByAgent = vi.fn()
     ;(runtime as any).sqlitePresenter = {
@@ -2546,7 +2546,7 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('rejects directive mutations outside DeepChat agents', async () => {
+  it('rejects directive mutations outside MioAgent agents', async () => {
     const { runtime, providerSettings } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValue('acp')
     const createDirectiveResult = vi.fn()
@@ -3080,7 +3080,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
   })
 
-  it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
+  it('returns no memory view manifests for missing or non-MioAgent agents', async () => {
     const { runtime, providerSettings, tapeInspection } = createRuntime()
     const listMemoryViewManifestsByAgent = vi.mocked(tapeInspection.listMemoryViewManifestsByAgent)
     vi.mocked(providerSettings.getAgentType)
@@ -3164,7 +3164,7 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('returns an empty memory page for a non-DeepChat agent', async () => {
+  it('returns an empty memory page for a non-MioAgent agent', async () => {
     const { runtime } = createRuntime()
     const pageMemories = vi.fn()
     ;(runtime as any).memoryService = { pageMemories }
@@ -4113,7 +4113,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(restartResult).toEqual({ restarted: true })
   })
 
-  it('dispatches DeepChat agent config routes through AgentSettings', async () => {
+  it('dispatches MioAgent agent config routes through AgentSettings', async () => {
     const { runtime, providerSettings } = createRuntime()
     const context = createRendererRouteContext(42, 7)
 
@@ -6326,7 +6326,7 @@ describe('dispatchDeepchatRoute', () => {
           isDark: false,
           version: '1.2.3',
           texts: {
-            brand: 'DeepChat'
+            brand: 'MioAgent'
           }
         }
       },
@@ -6348,7 +6348,7 @@ describe('dispatchDeepchatRoute', () => {
         isDark: false,
         version: '1.2.3',
         texts: {
-          brand: 'DeepChat'
+          brand: 'MioAgent'
         }
       }
     )

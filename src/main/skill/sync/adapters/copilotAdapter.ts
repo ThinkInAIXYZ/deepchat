@@ -20,7 +20,7 @@ import type {
 } from '@shared/types/skillSync'
 
 /**
- * Tool name mappings between Copilot and DeepChat
+ * Tool name mappings between Copilot and MioAgent
  */
 const COPILOT_TO_DEEPCHAT_TOOLS: Record<string, string> = {
   read: 'Read',
@@ -58,7 +58,7 @@ export class CopilotAdapter implements IFormatAdapter {
     // Extract description from frontmatter
     const description = typeof data.description === 'string' ? data.description : ''
 
-    // Map tool names from Copilot to DeepChat format
+    // Map tool names from Copilot to MioAgent format
     const allowedTools = this.mapCopilotTools(data.tools)
 
     // Convert #file:'path' references to ${SKILL_ROOT}/references/path
@@ -97,7 +97,7 @@ export class CopilotAdapter implements IFormatAdapter {
       frontmatter.model = skill.model
     }
 
-    // Map tool names from DeepChat to Copilot format
+    // Map tool names from MioAgent to Copilot format
     if (skill.allowedTools && skill.allowedTools.length > 0) {
       frontmatter.tools = this.mapDeepChatTools(skill.allowedTools)
     }
@@ -173,7 +173,7 @@ export class CopilotAdapter implements IFormatAdapter {
   }
 
   /**
-   * Map Copilot tool names to DeepChat format
+   * Map Copilot tool names to MioAgent format
    */
   private mapCopilotTools(tools: unknown): string[] | undefined {
     if (!Array.isArray(tools)) {
@@ -194,7 +194,7 @@ export class CopilotAdapter implements IFormatAdapter {
   }
 
   /**
-   * Map DeepChat tool names to Copilot format
+   * Map MioAgent tool names to Copilot format
    */
   private mapDeepChatTools(tools: string[]): string[] {
     const mapped: string[] = []

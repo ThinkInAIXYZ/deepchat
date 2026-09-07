@@ -129,7 +129,7 @@ export class LiveDelegationSafetyCoordinator implements LiveDelegationSafetyPort
   ): Promise<void> {
     if (child.agentType === 'deepchat') {
       if (!snapshot.generationSettings) {
-        throw new Error(`DeepChat child Session ${child.sessionId} has no execution settings.`)
+        throw new Error(`MioAgent child Session ${child.sessionId} has no execution settings.`)
       }
       await this.options.executionSnapshots.applyTurnExecutionSnapshot(child.sessionId, {
         providerId: snapshot.providerId,

@@ -42,7 +42,7 @@ export const contextMenuTranslations: TranslationCollection = {
     zoomIn: '放大',
     zoomOut: '缩小',
     resetZoom: '实际大小',
-    showHide: '显示/隐藏 DeepChat'
+    showHide: '显示/隐藏 MioAgent'
   },
   'zh-TW': {
     copy: '複製',
@@ -75,7 +75,7 @@ export const contextMenuTranslations: TranslationCollection = {
     zoomIn: '放大',
     zoomOut: '縮小',
     resetZoom: '實際大小',
-    showHide: '顯示/隱藏 DeepChat'
+    showHide: '顯示/隱藏 MioAgent'
   },
   'en-US': {
     copy: 'Copy',
@@ -108,7 +108,7 @@ export const contextMenuTranslations: TranslationCollection = {
     zoomIn: 'Zoom In',
     zoomOut: 'Zoom Out',
     resetZoom: 'Actual Size',
-    showHide: 'Show/Hide DeepChat'
+    showHide: 'Show/Hide MioAgent'
   },
   'ja-JP': {
     copy: 'コピー',
@@ -224,7 +224,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Acercar',
     zoomOut: 'Alejar',
     resetZoom: 'Tamaño real',
-    showHide: 'Mostrar/ocultar DeepChat'
+    showHide: 'Mostrar/ocultar MioAgent'
   },
   'de-DE': {
     copy: 'Kopieren',
@@ -257,7 +257,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Vergrößern',
     zoomOut: 'Verkleinern',
     resetZoom: 'Originalgröße',
-    showHide: 'DeepChat ein-/ausblenden'
+    showHide: 'MioAgent ein-/ausblenden'
   },
   'tr-TR': {
     copy: 'Kopyala',
@@ -290,7 +290,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Yakınlaştır',
     zoomOut: 'Uzaklaştır',
     resetZoom: 'Gerçek boyut',
-    showHide: "DeepChat'i göster/gizle"
+    showHide: "MioAgent'i göster/gizle"
   },
   'id-ID': {
     copy: 'Salin',
@@ -323,7 +323,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Perbesar',
     zoomOut: 'Perkecil',
     resetZoom: 'Ukuran sebenarnya',
-    showHide: 'Tampilkan/sembunyikan DeepChat'
+    showHide: 'Tampilkan/sembunyikan MioAgent'
   },
   'ms-MY': {
     copy: 'Salin',
@@ -356,7 +356,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Zum masuk',
     zoomOut: 'Zum keluar',
     resetZoom: 'Saiz sebenar',
-    showHide: 'Tunjuk/sembunyikan DeepChat'
+    showHide: 'Tunjuk/sembunyikan MioAgent'
   },
   'it-IT': {
     copy: 'Copia',
@@ -389,7 +389,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Ingrandisci',
     zoomOut: 'Riduci',
     resetZoom: 'Dimensioni reali',
-    showHide: 'Mostra/nascondi DeepChat'
+    showHide: 'Mostra/nascondi MioAgent'
   },
   'pl-PL': {
     copy: 'Kopiuj',
@@ -422,7 +422,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Powiększ',
     zoomOut: 'Pomniejsz',
     resetZoom: 'Rzeczywisty rozmiar',
-    showHide: 'Pokaż/ukryj DeepChat'
+    showHide: 'Pokaż/ukryj MioAgent'
   },
   'vi-VN': {
     copy: 'Sao chép',
@@ -455,7 +455,7 @@ Object.assign(contextMenuTranslations, {
     zoomIn: 'Phóng to',
     zoomOut: 'Thu nhỏ',
     resetZoom: 'Kích thước thực',
-    showHide: 'Hiện/ẩn DeepChat'
+    showHide: 'Hiện/ẩn MioAgent'
   }
 })
 

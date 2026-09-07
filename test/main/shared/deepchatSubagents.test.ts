@@ -30,7 +30,7 @@ const availableInput = (
   ...overrides
 })
 
-describe('DeepChat Subagent capability', () => {
+describe('MioAgent Subagent capability', () => {
   it('normalizes and canonicalizes every model-visible slot field in the cache key', () => {
     const first = resolveDeepChatSubagentCapability(availableInput())
     const reordered = resolveDeepChatSubagentCapability(

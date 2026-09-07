@@ -23,7 +23,7 @@ const TOOL_SEARCH_MAX_QUERY_TOKENS = 32
 
 export interface ToolSearchResultItem {
   readonly name: string
-  readonly source: 'DeepChat' | 'MCP'
+  readonly source: 'MioAgent' | 'MCP'
   readonly description: string
   readonly effect: 'read' | 'write'
   readonly state: 'pending'
@@ -185,7 +185,7 @@ function buildSearchableEntries(
           catalogEntry: entry,
           name,
           normalizedName: name.toLocaleLowerCase('en-US'),
-          source: entry.target.source === 'agent' ? ('DeepChat' as const) : ('MCP' as const),
+          source: entry.target.source === 'agent' ? ('MioAgent' as const) : ('MCP' as const),
           description,
           normalizedDescription: description.toLocaleLowerCase('en-US')
         })

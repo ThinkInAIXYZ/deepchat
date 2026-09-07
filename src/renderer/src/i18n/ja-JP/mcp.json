@@ -143,7 +143,7 @@
   "title": "MCP設定",
   "inmemory": {
     "Artifacts": {
-      "desc": "Deepchat出力の多様化されたアーティファクトコンテンツを作成します",
+      "desc": "MioAgent出力の多様化されたアーティファクトコンテンツを作成します",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -171,11 +171,11 @@
       "desc": "FastGPT知識ベース検索サービス、FastGPT知識ベースのコンテンツを検索できます"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "Deepchatビルトインカスタムプロンプトワードサービス",
+      "desc": "MioAgentビルトインカスタムプロンプトワードサービス",
       "name": "カスタムプロンプトワード"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "Bocha検索に基づくDeepchatビルトイン詳細な研究サービス（長いコンテキストモデルを使用する必要があり、コンテキストが不十分なモデルが失敗する可能性があることに注意してください）",
+      "desc": "Bocha検索に基づくMioAgentビルトイン詳細な研究サービス（長いコンテキストモデルを使用する必要があり、コンテキストが不十分なモデルが失敗する可能性があることに注意してください）",
       "name": "DeepResearch"
     },
     "deepchat-inmemory/auto-prompting-server": {

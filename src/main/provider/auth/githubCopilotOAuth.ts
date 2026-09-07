@@ -156,7 +156,7 @@ export class GitHubCopilotOAuth {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
+          'User-Agent': 'MioAgent/1.0.0'
         },
         body: JSON.stringify({
           client_id: this.config.clientId,
@@ -199,7 +199,7 @@ export class GitHubCopilotOAuth {
       const response = await fetch('https://api.github.com/user', {
         headers: {
           Authorization: `Bearer ${token}`,
-          'User-Agent': 'DeepChat/1.0.0'
+          'User-Agent': 'MioAgent/1.0.0'
         }
       })
 

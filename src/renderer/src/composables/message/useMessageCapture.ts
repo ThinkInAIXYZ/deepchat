@@ -167,7 +167,7 @@ export function useMessageCapture() {
           isDark: themeStore.isDark,
           version: appVersion.value,
           texts: {
-            brand: 'DeepChat',
+            brand: 'MioAgent',
             tip: t('common.watermarkTip'),
             model: modelInfo?.model_name,
             provider: modelInfo?.model_provider

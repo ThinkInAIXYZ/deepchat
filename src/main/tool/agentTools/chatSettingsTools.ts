@@ -32,11 +32,11 @@ const toggleSchema = z.strictObject({
 })
 
 const languageSchema = z.strictObject({
-  language: z.enum(REQUESTED_LOCALES).describe('DeepChat language/locale.')
+  language: z.enum(REQUESTED_LOCALES).describe('MioAgent language/locale.')
 })
 
 const themeSchema = z.strictObject({
-  theme: z.enum(SUPPORTED_THEMES).describe('Theme mode for DeepChat.')
+  theme: z.enum(SUPPORTED_THEMES).describe('Theme mode for MioAgent.')
 })
 
 const fontSizeSchema = z.strictObject({
@@ -211,7 +211,7 @@ export class ChatSettingsToolHandler {
     } catch (error) {
       return buildError(
         'apply_failed',
-        'Failed to apply DeepChat toggle.',
+        'Failed to apply MioAgent toggle.',
         error instanceof Error ? error.message : String(error)
       )
     }
@@ -253,7 +253,7 @@ export class ChatSettingsToolHandler {
     } catch (error) {
       return buildError(
         'apply_failed',
-        'Failed to apply DeepChat language.',
+        'Failed to apply MioAgent language.',
         error instanceof Error ? error.message : String(error)
       )
     }
@@ -291,7 +291,7 @@ export class ChatSettingsToolHandler {
     } catch (error) {
       return buildError(
         'apply_failed',
-        'Failed to apply DeepChat theme.',
+        'Failed to apply MioAgent theme.',
         error instanceof Error ? error.message : String(error)
       )
     }
@@ -333,7 +333,7 @@ export class ChatSettingsToolHandler {
     } catch (error) {
       return buildError(
         'apply_failed',
-        'Failed to apply DeepChat font size.',
+        'Failed to apply MioAgent font size.',
         error instanceof Error ? error.message : String(error)
       )
     }
@@ -417,7 +417,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.toggle,
-        description: 'Toggle a DeepChat setting.',
+        description: 'Toggle a MioAgent setting.',
         parameters: toDeepChatJsonSchema(toggleSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -427,7 +427,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       server: {
         name: 'deepchat-settings',
         icons: 'settings',
-        description: 'DeepChat settings control'
+        description: 'MioAgent settings control'
       }
     })
   }
@@ -438,7 +438,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setLanguage,
-        description: 'Set DeepChat language/locale.',
+        description: 'Set MioAgent language/locale.',
         parameters: toDeepChatJsonSchema(languageSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -448,7 +448,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       server: {
         name: 'deepchat-settings',
         icons: 'settings',
-        description: 'DeepChat settings control'
+        description: 'MioAgent settings control'
       }
     })
   }
@@ -459,7 +459,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setTheme,
-        description: 'Set DeepChat theme mode.',
+        description: 'Set MioAgent theme mode.',
         parameters: toDeepChatJsonSchema(themeSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -469,7 +469,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       server: {
         name: 'deepchat-settings',
         icons: 'settings',
-        description: 'DeepChat settings control'
+        description: 'MioAgent settings control'
       }
     })
   }
@@ -480,7 +480,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setFontSize,
-        description: 'Set DeepChat font size level.',
+        description: 'Set MioAgent font size level.',
         parameters: toDeepChatJsonSchema(fontSizeSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -490,7 +490,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       server: {
         name: 'deepchat-settings',
         icons: 'settings',
-        description: 'DeepChat settings control'
+        description: 'MioAgent settings control'
       }
     })
   }
@@ -502,7 +502,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.open,
         description:
-          'Open DeepChat settings only when the request cannot be fulfilled via other settings tools; do not call after the change is already applied.',
+          'Open MioAgent settings only when the request cannot be fulfilled via other settings tools; do not call after the change is already applied.',
         parameters: toDeepChatJsonSchema(openSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -512,7 +512,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       server: {
         name: 'deepchat-settings',
         icons: 'settings',
-        description: 'DeepChat settings control'
+        description: 'MioAgent settings control'
       }
     })
   }

@@ -599,7 +599,7 @@ export class RemoteConversationRunner {
       const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
       if (!channelDefaultWorkdir) {
         throw new Error(
-          'Cannot switch to ACP agent: this channel has no default workdir set. Configure the channel default workdir in DeepChat first.'
+          'Cannot switch to ACP agent: this channel has no default workdir set. Configure the channel default workdir in MioAgent first.'
         )
       }
     }

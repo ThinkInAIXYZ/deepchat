@@ -735,7 +735,7 @@ export class ProviderSettings implements ProviderSettingsPort {
           } else {
             prompts.push({
               id: 'default',
-              name: 'DeepChat',
+              name: 'MioAgent',
               content: legacyDefault,
               isDefault: true,
               createdAt: now,

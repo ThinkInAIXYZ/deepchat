@@ -12,7 +12,7 @@ describe('toolNameMapping', () => {
     expect(normalizeSkillToolName('Bash')).toEqual({ canonical: 'exec', mapped: true })
   })
 
-  it('maps legacy DeepChat names to canonical names', () => {
+  it('maps legacy MioAgent names to canonical names', () => {
     expect(normalizeSkillToolName('read_file')).toEqual({ canonical: 'read', mapped: true })
     expect(normalizeSkillToolName('write_file')).toEqual({ canonical: 'write', mapped: true })
     expect(normalizeSkillToolName('execute_command')).toEqual({
@@ -32,7 +32,7 @@ describe('toolNameMapping', () => {
     expect(result.warnings.some((msg) => msg.includes('Unknown allowedTools entry'))).toBe(true)
   })
 
-  it('recognizes built-in DeepChat settings tools', () => {
+  it('recognizes built-in MioAgent settings tools', () => {
     const result = normalizeSkillAllowedTools([
       'deepchat_settings_toggle',
       'deepchat_settings_set_language',

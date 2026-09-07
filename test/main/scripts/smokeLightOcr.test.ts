@@ -698,19 +698,19 @@ describe('smoke-light-ocr', () => {
 
   it('requires stable fixture anchors without exposing recognized text', () => {
     expect(() =>
-      assertFixtureRecognized({ lines: [{ text: 'DeepChat' }, { text: 'OCR TEST 2026' }] })
+      assertFixtureRecognized({ lines: [{ text: 'MioAgent' }, { text: 'OCR TEST 2026' }] })
     ).not.toThrow()
     expect(() => assertFixtureRecognized({ lines: [{ text: 'unrelated' }] })).toThrow(
       /did not recognize/
     )
     expect(() =>
       assertDocumentFixtureRecognized([
-        { index: 0, lines: ['DeepChat', 'OCR TEST 2026'] }
+        { index: 0, lines: ['MioAgent', 'OCR TEST 2026'] }
       ])
     ).not.toThrow()
     expect(() =>
       assertDocumentFixtureRecognized([
-        { index: 0, lines: ['DeepChat'] },
+        { index: 0, lines: ['MioAgent'] },
         { index: 1, lines: ['2026'] }
       ])
     ).toThrow(/PDF OCR did not recognize/)

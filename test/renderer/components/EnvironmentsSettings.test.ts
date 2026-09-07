@@ -139,7 +139,7 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
     case 'settings.environments.actions.restore':
       return 'Restore'
     case 'settings.environments.actions.remove':
-      return 'Remove from DeepChat'
+      return 'Remove from MioAgent'
     case 'settings.environments.badges.default':
       return 'Default'
     case 'settings.environments.badges.temp':
@@ -652,7 +652,7 @@ describe('EnvironmentsSettings', () => {
 
     const removeMenuItem = wrapper
       .findAll('button')
-      .find((button) => button.text() === 'Remove from DeepChat')
+      .find((button) => button.text() === 'Remove from MioAgent')
 
     expect(removeMenuItem).toBeTruthy()
     await removeMenuItem!.trigger('click')
@@ -660,7 +660,7 @@ describe('EnvironmentsSettings', () => {
 
     const removeButtons = wrapper
       .findAll('button')
-      .filter((button) => button.text() === 'Remove from DeepChat')
+      .filter((button) => button.text() === 'Remove from MioAgent')
     expect(removeButtons.length).toBeGreaterThan(1)
 
     await removeButtons[removeButtons.length - 1].trigger('click')

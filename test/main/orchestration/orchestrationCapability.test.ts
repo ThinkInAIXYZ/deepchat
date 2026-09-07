@@ -23,7 +23,7 @@ describe('OrchestrationCapabilityResolver', () => {
     resolveDeepChatAgentConfig.mockResolvedValue({ subagentEnabled: true })
   })
 
-  it('resolves regular DeepChat session capability from the Agent policy', async () => {
+  it('resolves regular MioAgent session capability from the Agent policy', async () => {
     const resolver = createResolver()
 
     await expect(resolver.resolveSession('parent-1')).resolves.toEqual({ available: true })

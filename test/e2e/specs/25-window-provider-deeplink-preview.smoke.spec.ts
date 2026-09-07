@@ -9,7 +9,7 @@ test('settings consumes pending provider install preview without applying it @sm
 
   const preview = {
     kind: 'custom',
-    name: 'DeepChat E2E Provider Preview',
+    name: 'MioAgent E2E Provider Preview',
     type: 'openai-compatible',
     baseUrl: 'https://e2e-provider.example.com/v1',
     apiKey: 'sk-e2e-provider-preview-1234567',

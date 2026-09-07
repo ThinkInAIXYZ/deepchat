@@ -223,7 +223,7 @@
     --container: var(--black);
     --background: hsl(0 0 5% / 1);
     --foreground: var(--base-200);
-    /* Shadcn surfaces inherit the DeepChat #121212 dark baseline. */
+    /* Shadcn surfaces inherit the MioAgent #121212 dark baseline. */
     --card: hsl(0 0% 7.1%);
     --card-foreground: var(--base-200);
     --popover: hsl(0 0% 7.1%);
@@ -295,7 +295,7 @@
       --container: var(--black);
       --background: hsl(0 0 5% / 1);
       --foreground: hsl(0 0 100%);
-      /* Shadcn surfaces inherit the DeepChat #121212 dark baseline. */
+      /* Shadcn surfaces inherit the MioAgent #121212 dark baseline. */
       --card: hsl(0 0% 7.1%);
       --card-foreground: hsl(0 0 100%);
       --popover: hsl(0 0% 7.1%);

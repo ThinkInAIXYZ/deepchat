@@ -50,7 +50,7 @@ describe('PluginsSettings', () => {
         id: 'com.deepchat.plugins.feishu',
         name: 'Feishu/Lark Integration',
         version: '0.1.0',
-        publisher: 'DeepChat',
+        publisher: 'MioAgent',
         installed: true,
         enabled: false,
         trusted: true,

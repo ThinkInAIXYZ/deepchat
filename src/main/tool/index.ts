@@ -2357,7 +2357,7 @@ export class ToolService implements ToolServicePort {
 
     const toolNames = new Set(modelTools.map((tool) => tool.function.name))
     const names = modelTools.map((tool) => `\`${tool.function.name}\``).join(', ')
-    const lines = ['## Tape Tools', `DeepChat tape tools are available in this session: ${names}.`]
+    const lines = ['## Tape Tools', `MioAgent tape tools are available in this session: ${names}.`]
 
     if (toolNames.has(TAPE_TOOL_NAMES.search)) {
       lines.push(
@@ -2391,8 +2391,8 @@ export class ToolService implements ToolServicePort {
 
     const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
     return [
-      '## DeepChat Settings Tools',
-      `DeepChat settings tools are available in this session: ${names}.`,
+      '## MioAgent Settings Tools',
+      `MioAgent settings tools are available in this session: ${names}.`,
       'Prefer these tools over describing manual settings steps when a direct change is possible.'
     ].join('\n')
   }

@@ -914,7 +914,7 @@ describe('AI SDK provider options', () => {
       messages: [
         {
           role: 'system',
-          content: 'Follow DeepChat instructions.'
+          content: 'Follow MioAgent instructions.'
         },
         {
           role: 'user',
@@ -924,7 +924,7 @@ describe('AI SDK provider options', () => {
     })
 
     expect(result.providerOptions?.openai).toMatchObject({
-      instructions: 'Follow DeepChat instructions.',
+      instructions: 'Follow MioAgent instructions.',
       reasoningEffort: 'high',
       store: false
     })
@@ -948,7 +948,7 @@ describe('AI SDK provider options', () => {
     })
 
     expect(result.providerOptions?.openai).toMatchObject({
-      instructions: 'You are DeepChat, an AI assistant. Follow the user instructions.',
+      instructions: 'You are MioAgent, an AI assistant. Follow the user instructions.',
       store: false
     })
   })

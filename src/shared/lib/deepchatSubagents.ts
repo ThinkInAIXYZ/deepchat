@@ -199,6 +199,6 @@ export const normalizeDeepChatSubagentConfig = (
 export const assertDeepChatSubagentConfigInvariant = (config: DeepChatAgentConfig): void => {
   const normalized = normalizeDeepChatSubagentConfig(config)
   if (normalized.subagentEnabled !== false && (normalized.subagents?.length ?? 0) === 0) {
-    throw new Error('Enabled DeepChat Subagents require at least one valid slot.')
+    throw new Error('Enabled MioAgent Subagents require at least one valid slot.')
   }
 }

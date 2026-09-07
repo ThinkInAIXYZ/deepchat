@@ -71,7 +71,7 @@ describe('splash loading', () => {
     const wrapper = mountLoading()
 
     expect(wrapper.get('.splash-shell').classes()).toContain('splash-shell')
-    expect(wrapper.get('.loader-stage').attributes('aria-label')).toBe('DeepChat is starting')
+    expect(wrapper.get('.loader-stage').attributes('aria-label')).toBe('MioAgent is starting')
     expect(wrapper.classes()).not.toContain('splash-shell--manual-unlock')
   })
 

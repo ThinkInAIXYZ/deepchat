@@ -12,7 +12,7 @@ const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 const SAFE_ICON_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const REQUEST_TIMEOUT_MS = 30_000
 const MAX_REDIRECTS = 5
-const USER_AGENT = 'DeepChat build registry fetcher'
+const USER_AGENT = 'MioAgent build registry fetcher'
 
 const fetchText = (url, redirectCount = 0) =>
   new Promise((resolve, reject) => {

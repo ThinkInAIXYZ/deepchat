@@ -178,7 +178,7 @@ export const FileFinder = {
     }
   })
 
-  it('maps file search results into DeepChat JSON shape', async () => {
+  it('maps file search results into MioAgent JSON shape', async () => {
     const mock = createMockModule()
     const service = new FffSearchService({
       moduleLoader: vi.fn().mockResolvedValue({ FileFinder: mock.FileFinder } as any)
@@ -196,7 +196,7 @@ export const FileFinder = {
     })
   })
 
-  it('maps grep results with context into DeepChat JSON shape', async () => {
+  it('maps grep results with context into MioAgent JSON shape', async () => {
     const mock = createMockModule()
     const service = new FffSearchService({
       moduleLoader: vi.fn().mockResolvedValue({ FileFinder: mock.FileFinder } as any)

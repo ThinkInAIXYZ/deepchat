@@ -34,9 +34,9 @@ async function createFixture(platform: NodeJS.Platform = 'darwin') {
   await writeFile(path.join(cliDirectory, 'deepchat.mjs'), 'console.log("deepchat")\n')
   const electronHost =
     platform === 'darwin'
-      ? path.join(appRoot, 'MacOS', 'DeepChat')
+      ? path.join(appRoot, 'MacOS', 'MioAgent')
       : platform === 'win32'
-        ? path.join(appRoot, 'DeepChat.exe')
+        ? path.join(appRoot, 'MioAgent.exe')
         : path.join(appRoot, 'deepchat')
   await mkdir(path.dirname(electronHost), { recursive: true })
   await writeFile(electronHost, 'fixture electron\n', { mode: 0o755 })
@@ -106,12 +106,12 @@ describe('CliLauncherService', () => {
       [
         'export EDITOR=vim',
         '',
-        '# >>> DeepChat CLI >>>',
+        '# >>> MioAgent CLI >>>',
         'case ":$PATH:" in',
         '  *":$HOME/.local/bin:"*) ;;',
         '  *) export PATH="$HOME/.local/bin:$PATH" ;;',
         'esac',
-        '# <<< DeepChat CLI <<<',
+        '# <<< MioAgent CLI <<<',
         ''
       ].join('\n')
     )
@@ -243,7 +243,7 @@ describe('CliLauncherService', () => {
     await rm(commandPath)
     await writeFile(
       path.join(fixture.homeDirectory, '.zprofile'),
-      '# >>> DeepChat CLI >>>\ncustom\n# <<< DeepChat CLI <<<\n'
+      '# >>> MioAgent CLI >>>\ncustom\n# <<< MioAgent CLI <<<\n'
     )
     await expect(fixture.service.ensureInstalled()).rejects.toThrow('without an ownership marker')
   })
@@ -306,7 +306,7 @@ describe('CliLauncherService', () => {
     await writeFile(path.join(nextCliDirectory, 'deepchat'), '#!/bin/sh\n', { mode: 0o755 })
     await writeFile(path.join(nextCliDirectory, 'deepchat.mjs'), 'console.log("v2")\n')
     await mkdir(path.join(nextAppRoot, 'MacOS'), { recursive: true })
-    await writeFile(path.join(nextAppRoot, 'MacOS', 'DeepChat'), 'fixture electron v2\n', {
+    await writeFile(path.join(nextAppRoot, 'MacOS', 'MioAgent'), 'fixture electron v2\n', {
       mode: 0o755
     })
     fixture.setCliDirectory(nextCliDirectory)
@@ -415,7 +415,7 @@ describe('CliLauncherService', () => {
     const nextCliDirectory = path.join(nextAppRoot, 'resources', 'app.asar.unpacked', 'cli')
     await mkdir(nextCliDirectory, { recursive: true })
     await writeFile(path.join(nextCliDirectory, 'deepchat.mjs'), 'console.log("v2")\n')
-    await writeFile(path.join(nextAppRoot, 'DeepChat.exe'), 'fixture electron v2\n', {
+    await writeFile(path.join(nextAppRoot, 'MioAgent.exe'), 'fixture electron v2\n', {
       mode: 0o755
     })
     fixture.setCliDirectory(nextCliDirectory)

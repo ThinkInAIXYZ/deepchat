@@ -29,12 +29,12 @@ function resolveDefaultProfilePath(
   homeDirectory: string
 ): string {
   if (platform === 'darwin') {
-    return path.join(homeDirectory, 'Library', 'Application Support', 'DeepChat')
+    return path.join(homeDirectory, 'Library', 'Application Support', 'MioAgent')
   }
   if (platform === 'win32') {
-    return path.join(env.APPDATA ?? path.join(homeDirectory, 'AppData', 'Roaming'), 'DeepChat')
+    return path.join(env.APPDATA ?? path.join(homeDirectory, 'AppData', 'Roaming'), 'MioAgent')
   }
-  return path.join(env.XDG_CONFIG_HOME ?? path.join(homeDirectory, '.config'), 'DeepChat')
+  return path.join(env.XDG_CONFIG_HOME ?? path.join(homeDirectory, '.config'), 'MioAgent')
 }
 
 export function resolveCliUserDataPath(options: CliDiscoveryOptions = {}): string {
@@ -79,22 +79,22 @@ export async function loadLocalControlDescriptor(
     descriptorStat = await lstat(descriptorPath)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw unavailable('DeepChat is not running or its CLI descriptor is unavailable')
+      throw unavailable('MioAgent is not running or its CLI descriptor is unavailable')
     }
-    throw unavailable(`Cannot inspect the DeepChat CLI descriptor: ${(error as Error).message}`)
+    throw unavailable(`Cannot inspect the MioAgent CLI descriptor: ${(error as Error).message}`)
   }
   if (!descriptorStat.isFile() || descriptorStat.isSymbolicLink()) {
-    throw unavailable('DeepChat CLI descriptor is not a regular file')
+    throw unavailable('MioAgent CLI descriptor is not a regular file')
   }
   if (descriptorStat.size <= 0 || descriptorStat.size > MAX_DESCRIPTOR_BYTES) {
-    throw unavailable('DeepChat CLI descriptor has an invalid size')
+    throw unavailable('MioAgent CLI descriptor has an invalid size')
   }
   if (platform !== 'win32') {
     if (typeof process.getuid === 'function' && descriptorStat.uid !== process.getuid()) {
-      throw unavailable('DeepChat CLI descriptor is owned by another user')
+      throw unavailable('MioAgent CLI descriptor is owned by another user')
     }
     if ((descriptorStat.mode & 0o077) !== 0) {
-      throw unavailable('DeepChat CLI descriptor permissions are not private')
+      throw unavailable('MioAgent CLI descriptor permissions are not private')
     }
   }
 
@@ -102,24 +102,24 @@ export async function loadLocalControlDescriptor(
   try {
     serialized = await readFile(descriptorPath, 'utf8')
   } catch (error) {
-    throw unavailable(`Cannot read the DeepChat CLI descriptor: ${(error as Error).message}`)
+    throw unavailable(`Cannot read the MioAgent CLI descriptor: ${(error as Error).message}`)
   }
 
   let raw: unknown
   try {
     raw = JSON.parse(serialized) as unknown
   } catch {
-    throw unavailable('DeepChat CLI descriptor is not valid JSON')
+    throw unavailable('MioAgent CLI descriptor is not valid JSON')
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw unavailable('DeepChat CLI descriptor has an invalid shape')
+    throw unavailable('MioAgent CLI descriptor has an invalid shape')
   }
   const versioned = raw as Record<string, unknown>
   if (
     typeof versioned.protocolVersion !== 'number' ||
     typeof versioned.surfaceVersion !== 'number'
   ) {
-    throw unavailable('DeepChat CLI descriptor has no valid protocol version')
+    throw unavailable('MioAgent CLI descriptor has no valid protocol version')
   }
   if (
     versioned.protocolVersion !== LOCAL_CONTROL_PROTOCOL_VERSION ||
@@ -133,10 +133,10 @@ export async function loadLocalControlDescriptor(
   }
 
   const parsed = LocalControlDescriptorSchema.safeParse(raw)
-  if (!parsed.success) throw unavailable('DeepChat CLI descriptor failed validation')
+  if (!parsed.success) throw unavailable('MioAgent CLI descriptor failed validation')
   const descriptor = parsed.data
   if (!(options.processAlive ?? defaultProcessAlive)(descriptor.pid)) {
-    throw unavailable('DeepChat CLI descriptor points to a stopped process')
+    throw unavailable('MioAgent CLI descriptor points to a stopped process')
   }
 
   if (platform === 'win32') {
@@ -144,7 +144,7 @@ export async function loadLocalControlDescriptor(
       descriptor.endpoint.kind !== 'pipe' ||
       !descriptor.endpoint.name.startsWith('\\\\.\\pipe\\')
     ) {
-      throw unavailable('DeepChat CLI descriptor does not contain a local named pipe')
+      throw unavailable('MioAgent CLI descriptor does not contain a local named pipe')
     }
   } else {
     if (
@@ -152,20 +152,20 @@ export async function loadLocalControlDescriptor(
       !path.isAbsolute(descriptor.endpoint.path) ||
       Buffer.byteLength(descriptor.endpoint.path) > MAX_POSIX_SOCKET_PATH_BYTES
     ) {
-      throw unavailable('DeepChat CLI descriptor does not contain a valid Unix socket')
+      throw unavailable('MioAgent CLI descriptor does not contain a valid Unix socket')
     }
     try {
       const socketStat = await lstat(descriptor.endpoint.path)
-      if (!socketStat.isSocket()) throw unavailable('DeepChat CLI endpoint is not a Unix socket')
+      if (!socketStat.isSocket()) throw unavailable('MioAgent CLI endpoint is not a Unix socket')
       if (typeof process.getuid === 'function' && socketStat.uid !== process.getuid()) {
-        throw unavailable('DeepChat CLI endpoint is owned by another user')
+        throw unavailable('MioAgent CLI endpoint is owned by another user')
       }
       if ((socketStat.mode & 0o077) !== 0) {
-        throw unavailable('DeepChat CLI endpoint permissions are not private')
+        throw unavailable('MioAgent CLI endpoint permissions are not private')
       }
     } catch (error) {
       if (error instanceof CliClientError) throw error
-      throw unavailable('DeepChat CLI Unix socket is unavailable')
+      throw unavailable('MioAgent CLI Unix socket is unavailable')
     }
   }
   return descriptor

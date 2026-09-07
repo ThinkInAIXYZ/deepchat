@@ -166,7 +166,7 @@ function buildToolSurfaceExecutionContext(stale = false) {
       description: `${name} tool`,
       parameters: { type: 'object', properties: {} }
     },
-    server: { name: 'deepchat', icons: '', description: 'DeepChat' }
+    server: { name: 'deepchat', icons: '', description: 'MioAgent' }
   })
   const hidden = agentTool('hidden')
   const toolSearch = buildToolSearchDefinition()
@@ -2369,7 +2369,7 @@ describe('ToolService', () => {
     ).rejects.toThrow('Agent catalog unavailable')
   })
 
-  it('keeps ToolService collision resolution behind the DeepChat catalog port', async () => {
+  it('keeps ToolService collision resolution behind the MioAgent catalog port', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
@@ -3729,7 +3729,7 @@ describe('ToolService', () => {
     expect(upsertCronJob).not.toHaveBeenCalled()
   })
 
-  it('passes DeepChat agent MCP server policy context to MCP presenter', async () => {
+  it('passes MioAgent agent MCP server policy context to MCP presenter', async () => {
     const mcpService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()

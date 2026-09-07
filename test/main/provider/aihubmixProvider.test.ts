@@ -9,7 +9,7 @@ const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   app: {
-    getName: vi.fn(() => 'DeepChat'),
+    getName: vi.fn(() => 'MioAgent'),
     getVersion: vi.fn(() => '0.0.0-test'),
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),
@@ -61,7 +61,7 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
     })
   })
 
-  it('preserves the DeepChat APP-Code header in AI SDK mode', async () => {
+  it('preserves the MioAgent APP-Code header in AI SDK mode', async () => {
     const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 

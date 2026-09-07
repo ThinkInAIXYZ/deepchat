@@ -1323,7 +1323,7 @@ export class WindowPresenter implements IWindowPresenter {
       fullscreenable: false,
 
       icon: iconFile,
-      title: 'DeepChat - Settings',
+      title: 'MioAgent - Settings',
       titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
       transparent: process.platform === 'darwin',
       vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,

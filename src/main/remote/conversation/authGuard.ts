@@ -43,7 +43,7 @@ export class RemoteAuthGuard {
     return {
       ok: false,
       message:
-        'This Telegram account is not paired. Use /pair <code> from DeepChat Remote settings.'
+        'This Telegram account is not paired. Use /pair <code> from MioAgent Remote settings.'
     }
   }
 
@@ -61,7 +61,7 @@ export class RemoteAuthGuard {
     const pairing = this.bindingStore.getTelegramPairingState()
     if (!pairing.code || !pairing.expiresAt || pairing.expiresAt <= Date.now()) {
       this.bindingStore.clearPairCode('telegram')
-      return 'Pairing code is missing or expired. Generate a new code from DeepChat Remote settings.'
+      return 'Pairing code is missing or expired. Generate a new code from MioAgent Remote settings.'
     }
 
     if (pairing.code !== normalizedCode) {
@@ -70,7 +70,7 @@ export class RemoteAuthGuard {
         REMOTE_PAIR_CODE_MAX_FAILURES
       )
       if (result.exhausted) {
-        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from DeepChat Remote settings.'
+        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from MioAgent Remote settings.'
       }
       return 'Pairing code is invalid.'
     }

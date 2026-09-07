@@ -1552,7 +1552,7 @@ describe('SkillService', () => {
         { kind: 'script', path: 'scripts/run.py' }
       ])
       expect(result.content).toContain('# Skill body')
-      expect(result.content).toContain('## DeepChat Runtime Context')
+      expect(result.content).toContain('## MioAgent Runtime Context')
       expect(result.content).toContain('scripts/run.py (python)')
       expect(result.contentIdentity).toEqual(
         expect.objectContaining({
@@ -1683,7 +1683,7 @@ describe('SkillService', () => {
         })
       )
       expect(result.content).toBe('# Guide')
-      expect(result.content).not.toContain('DeepChat Runtime Context')
+      expect(result.content).not.toContain('MioAgent Runtime Context')
       expect(result.contentIdentity).toBeUndefined()
       expect(await skillService.getActiveSkills('conv-view-file-only')).toEqual([])
       expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
@@ -2610,7 +2610,7 @@ describe('SkillService', () => {
       )
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         `${syncDir}/README.md`,
-        expect.stringContaining('DeepChat Skills'),
+        expect.stringContaining('MioAgent Skills'),
         'utf-8'
       )
       expect(importPreview.items).toEqual([

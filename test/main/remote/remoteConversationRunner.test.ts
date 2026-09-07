@@ -91,7 +91,7 @@ const createCatalog = (overrides: Partial<RemoteCatalogPort> = {}): RemoteCatalo
   listAgents: vi.fn(async () => [
     {
       agentId: 'deepchat',
-      agentName: 'DeepChat',
+      agentName: 'MioAgent',
       agentType: 'deepchat'
     },
     {
@@ -1766,7 +1766,7 @@ describe('RemoteConversationRunner', () => {
       listAgents: vi.fn().mockResolvedValue([
         {
           agentId: 'deepchat',
-          agentName: 'DeepChat',
+          agentName: 'MioAgent',
           agentType: 'deepchat',
           source: 'builtin'
         },
@@ -1786,7 +1786,7 @@ describe('RemoteConversationRunner', () => {
     const agents = await runner.listAvailableAgents()
 
     expect(agents).toEqual([
-      { agentId: 'deepchat', agentName: 'DeepChat', agentType: 'deepchat', source: 'builtin' },
+      { agentId: 'deepchat', agentName: 'MioAgent', agentType: 'deepchat', source: 'builtin' },
       { agentId: 'codex', agentName: 'Codex', agentType: 'acp', source: 'registry' }
     ])
   })
@@ -1798,7 +1798,7 @@ describe('RemoteConversationRunner', () => {
       .mockResolvedValue(createSession({ id: 'session-new', agentId: 'codex' }))
     const catalog = createCatalog({
       listAgents: vi.fn().mockResolvedValue([
-        { agentId: 'deepchat', agentName: 'DeepChat', agentType: 'deepchat' },
+        { agentId: 'deepchat', agentName: 'MioAgent', agentType: 'deepchat' },
         { agentId: 'codex', agentName: 'Codex', agentType: 'deepchat' }
       ])
     })
@@ -1828,7 +1828,7 @@ describe('RemoteConversationRunner', () => {
     const catalog = createCatalog({
       listAgents: vi
         .fn()
-        .mockResolvedValue([{ agentId: 'deepchat', agentName: 'DeepChat', agentType: 'deepchat' }])
+        .mockResolvedValue([{ agentId: 'deepchat', agentName: 'MioAgent', agentType: 'deepchat' }])
     })
     const runner = createRunner(
       {

@@ -261,7 +261,7 @@ describe('renderer api clients', () => {
                 agents: [
                   {
                     id: 'deepchat',
-                    name: 'DeepChat',
+                    name: 'MioAgent',
                     type: 'deepchat',
                     enabled: true
                   }
@@ -2038,7 +2038,7 @@ describe('renderer api clients', () => {
     })
   })
 
-  it('routes DeepChat agent config calls through the shared registry names', async () => {
+  it('routes MioAgent agent config calls through the shared registry names', async () => {
     const bridge = createBridge()
     const configClient = createConfigClient(bridge)
 

@@ -131,6 +131,11 @@ editFile('src/renderer/src/components/mcp-config/McpServerForm.vue', [
   { old: 'HTTP-Referer=deepchatai.cn', new: `HTTP-Referer=github.com/${cfg.githubOwner}/${cfg.githubRepo}` }
 ])
 
+// Windows AUMID 必须与 electron-builder.yml 的 appId 一致，否则通知/跳转列表归因错乱
+editFile('src/main/app/mainProcess.ts', [
+  { old: "electronApp.setAppUserModelId('com.wefonk.deepchat')", new: `electronApp.setAppUserModelId('${cfg.appId}')`, must: true }
+])
+
 // ---------- 2. electron-builder.yml ----------
 
 editFile('electron-builder.yml', [
@@ -178,6 +183,8 @@ if (pkgDirty) {
 const I18N_VALUE_REPLACES = [
   ['DeepChat Agents', `${cfg.productName} Agents`],
   ['DeepChat', cfg.productName],
+  // 上游部分语言包混用 'Deepchat'（ja-JP/ko-KR/fa-IR/fr-FR 的 MCP 描述等），一并收敛
+  ['Deepchat', cfg.productName],
   ['ThinkInAIXYZ', cfg.githubOwner],
   // 公共 Provider 配置仓库属于上游生态（DataSettings 的 URL 本身不改），linkLabel 撤回指向上游；
   // 必须放在 ThinkInAIXYZ 规则之后，把上一条误转换的 owner 换回来
@@ -242,8 +249,12 @@ for (const entry of readdirSync(i18nDir)) {
   } catch {
     continue
   }
-  if (!text.includes('DeepChat')) continue
-  writeFileSync(tsPath, text.split('DeepChat').join(cfg.productName))
+  // 独立词元替换：不误伤 DeepchatXxx 类标识符；小写 deepchat（数据库标识）不受影响
+  const next = text
+    .replace(/DeepChat(?![A-Za-z0-9_])/g, cfg.productName)
+    .replace(/Deepchat(?![A-Za-z0-9_])/g, cfg.productName)
+  if (next === text) continue
+  writeFileSync(tsPath, next)
   report.changed.push(`i18n prose: ${entry}/index.ts`)
 }
 
@@ -277,6 +288,48 @@ editFile('test/e2e/fixtures/electronApp.ts', [
 // 断言真实产品窗口标题的用例跟着产品名走；用例自建的实体名（DeepChat E2E Hook 等）与产品无关，不动
 editFile('test/e2e/specs/32-composer-width.smoke.spec.ts', [
   { old: "getTitle() === 'DeepChat'", new: `getTitle() === '${cfg.productName}'`, must: true }
+])
+
+// macOS 更新包契约夹具：合法 ZIP 的全部条目必须挂在单一 <产品>.app 根下。
+// 两种 old 形态并存：上游原文（DeepChat 根）与本仓库清扫后的盘面（MioAgent/DeepChat 混合根）。
+// 夹具里故意保留的非法条目（../ 前缀、Other.app、重复根）不受影响——改完后仍按原意抛错。
+editFile('test/main/scripts/packageContract.test.ts', [
+  {
+    old: "stdout: 'DeepChat.app/\\nDeepChat.app/Contents/Info.plist\\n',",
+    new: `stdout: '${cfg.winExecutableName ?? cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n',`
+  },
+  {
+    old: "stdout: 'MioAgent.app/\\nDeepChat.app/Contents/Info.plist\\n',",
+    new: `stdout: '${cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n',`
+  },
+  {
+    old: "validateMacZipEntries('DeepChat.app/\\nDeepChat.app/Contents/Info.plist\\n')",
+    new: `validateMacZipEntries('${cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n')`
+  },
+  {
+    old: "validateMacZipEntries('MioAgent.app/\\nDeepChat.app/Contents/Info.plist\\n')",
+    new: `validateMacZipEntries('${cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n')`
+  },
+  {
+    old: ").toEqual(['DeepChat.app/', 'DeepChat.app/Contents/Info.plist'])",
+    new: `).toEqual(['${cfg.productName}.app/', '${cfg.productName}.app/Contents/Info.plist'])`
+  }
+])
+
+// OCR 冒烟夹具锚点：全大写 DEEPCHAT 不匹配清扫规则（清扫只命中大小写混排的 DeepChat），
+// 必须显式改锚点，与测试夹具词（MioAgent）保持同步；DEEPCHAT_* 环境变量名是受保护前缀，不能整词替换
+editFile('scripts/smoke-light-ocr.js', [
+  { old: "normalized.includes('DEEPCHAT')", new: "normalized.includes('MIOAGENT')" },
+  { old: '>DEEPCHAT</text>', new: '>MIOAGENT</text>' }
+])
+
+// 该测试位于 test/main/agent/deepchat/ 清扫排除区内（保护标识符），但其断言的是
+// src/shared/lib/deepchatSubagents.ts 的用户可见报错文案，需要显式跟随品牌化
+editFile('test/main/agent/deepchat/deepChatAgentRepository.test.ts', [
+  {
+    old: 'Enabled DeepChat Subagents require at least one valid slot.',
+    new: `Enabled ${cfg.productName} Subagents require at least one valid slot.`
+  }
 ])
 
 // ---------- 6. README（fork 版；上游原文随时可从 upstream remote 取回） ----------
@@ -326,6 +379,107 @@ Node 版本要求见 \`mise.toml\`（Node 24.x / pnpm 10.x）。
 `
 writeFileSync(join(root, 'README.md'), readme)
 report.changed.push('README.md (fork 版)')
+
+// ---------- 7. 二轮收敛：独立品牌词清扫（标识符自适应保护） ----------
+
+// 为什么用扫描而不是逐条清单：上游 merge 后新增的品牌串无需维护清单即可被再次收敛。
+// 安全性按构造保证：
+//  - 后瞻 (?![A-Za-z0-9_])：DeepChatAgentConfig / DeepChatDefaults / DeepChatAgentsSettings
+//    等标识符不匹配
+//  - 前缀自适应掩码：createdByDeepChat、getDaysWithDeepChat 这类以 DeepChat 结尾的标识符
+//    运行时自动识别并原样保留
+//  - 显式掩码：CUA 插件资产名（DeepChat Computer Use，与 signIgnore/插件清单是硬合同）、
+//    X-DeepChat-Artifact-Id 协议头
+//  - 小写 deepchat（agentType/IPC 频道/协议/表名/CLI 二进制名/DEEPCHAT_* 环境变量）
+//    大小写敏感，天然不匹配
+// DeepChat.app 保留：packageContract 的「另一个 app」非法夹具依赖它与 MioAgent.app 并存，
+// 清成双 MioAgent 根会让夹具语义从「异包」退化成「重复根」
+const SWEEP_MASKS = ['DeepChat Computer Use', 'X-DeepChat-Artifact-Id', 'x-deepchat-artifact-id', 'DeepChat.app']
+const SWEEP_STANDALONE = /DeepChat(?![A-Za-z0-9_])/g
+const SWEEP_SUFFIX_IDENT = /[A-Za-z]DeepChat(?![A-Za-z0-9_])/g
+
+function sweepTokens(relPath) {
+  const abs = join(root, relPath)
+  let text
+  try {
+    text = readFileSync(abs, 'utf8')
+  } catch {
+    return
+  }
+  const restores = []
+  let masked = text
+  for (const literal of SWEEP_MASKS) {
+    while (masked.includes(literal)) {
+      const placeholder = `\u0000${restores.length}\u0000`
+      restores.push([placeholder, literal])
+      masked = masked.replace(literal, placeholder)
+    }
+  }
+  masked = masked.replace(SWEEP_SUFFIX_IDENT, (m) => {
+    const placeholder = `\u0000${restores.length}\u0000`
+    restores.push([placeholder, m])
+    return placeholder
+  })
+  const hits = masked.match(SWEEP_STANDALONE)
+  if (!hits) return
+  masked = masked.replace(SWEEP_STANDALONE, cfg.productName)
+  for (const [placeholder, literal] of restores) {
+    masked = masked.split(placeholder).join(literal)
+  }
+  writeFileSync(abs, masked)
+  report.changed.push(`${relPath} (独立品牌词 ×${hits.length})`)
+}
+
+const SWEEP_PATH_EXCLUSIONS = [
+  /\/agent\/deepchat\//, // 内置 agent 模块：标识符与运行时合同，永不触碰
+  /\/i18n\//, // 语言包由第 4 节按「只改 value」规则处理
+  /\/plugins\//, // 上游插件包（CUA/feishu）自带品牌合同，跟随官方发布物
+  /node_modules\//, // 任意深度的依赖目录
+  /^(out|runtime)\//, // 仅仓库顶层构建产物目录；嵌套源码目录（如 agent/acp/runtime）不豁免，
+  // 否则 clientInfo 等对外身份串会漏清扫（上一版用 (^|\/)(out|runtime)\/ 连 src 里的同名目录一起跳过了）
+  /pnpm-lock\.yaml$/,
+  /electron-builder\.yml$/, // 打包合同由第 2 节精确改；signIgnore 的 CUA 资产名不能动
+  /package\.json$/
+]
+const SWEEP_CODE_EXT = /\.(ts|tsx|mts|cts|js|mjs|cjs|vue|css|scss|html|md)$/
+
+function collectSweepFiles(dirRel, acc = []) {
+  let entries
+  try {
+    entries = readdirSync(join(root, dirRel))
+  } catch {
+    return acc
+  }
+  for (const name of entries) {
+    const rel = `${dirRel}/${name}`
+    if (SWEEP_PATH_EXCLUSIONS.some((re) => re.test(rel))) continue
+    let st
+    try {
+      st = statSync(join(root, rel))
+    } catch {
+      continue
+    }
+    if (st.isDirectory()) collectSweepFiles(rel, acc)
+    else if (SWEEP_CODE_EXT.test(name)) acc.push(rel)
+  }
+  return acc
+}
+
+let sweptFiles = 0
+let sweptHits = 0
+for (const base of ['src', 'scripts', 'test']) {
+  for (const rel of collectSweepFiles(base)) {
+    const before = report.changed.length
+    sweepTokens(rel)
+    if (report.changed.length > before) {
+      sweptFiles++
+      sweptHits += Number(
+        (report.changed[report.changed.length - 1].match(/×(\d+)$/) ?? [])[1] ?? 0
+      )
+    }
+  }
+}
+report.changed.push(`二轮清扫: ${sweptFiles} 个文件 / ${sweptHits} 处独立品牌词`)
 
 // ---------- 汇总 ----------
 

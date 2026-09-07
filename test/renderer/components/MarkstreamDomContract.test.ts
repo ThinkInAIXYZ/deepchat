@@ -153,7 +153,7 @@ describe('Markstream DOM contracts used by MarkdownRenderer delegation', () => {
 
   it('marks both Markdown and normalized safe HTML links for delegation', async () => {
     const wrapper = await mountMarkstream(
-      '[DeepChat](https://deepchat.thinkinai.xyz)\n\n<a href="https://example.com/raw">Raw</a>'
+      '[MioAgent](https://deepchat.thinkinai.xyz)\n\n<a href="https://example.com/raw">Raw</a>'
     )
 
     expect(wrapper.get('a.link-node').attributes('href')).toBe('https://deepchat.thinkinai.xyz')

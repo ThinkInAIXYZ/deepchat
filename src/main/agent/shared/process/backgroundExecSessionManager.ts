@@ -1520,7 +1520,7 @@ class BackgroundExecUtilityProxy {
     const { app, utilityProcess } = await import('electron')
     const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
     const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
-      serviceName: 'DeepChat Exec Utility',
+      serviceName: 'MioAgent Exec Utility',
       stdio: 'ignore',
       env: {
         ...process.env,

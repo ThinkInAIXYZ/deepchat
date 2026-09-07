@@ -20,11 +20,11 @@ script_dir=$(CDPATH= cd -P -- "$script_dir" && pwd)
 cli_module="$script_dir/deepchat.mjs"
 electron_host=""
 for candidate in \\
-  "$script_dir/../../../MacOS/DeepChat" \\
+  "$script_dir/../../../MacOS/MioAgent" \\
   "$script_dir/../../../deepchat.bin" \\
-  "$script_dir/../../../DeepChat" \\
+  "$script_dir/../../../MioAgent" \\
   "$script_dir/../../../deepchat" \\
-  "$script_dir/../../../DeepChat.exe" \\
+  "$script_dir/../../../MioAgent.exe" \\
   "$script_dir/../../node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" \\
   "$script_dir/../../node_modules/electron/dist/electron" \\
   "$script_dir/../../node_modules/electron/dist/electron.exe"
@@ -37,7 +37,7 @@ done
 if [ -n "$electron_host" ] && [ -f "$cli_module" ]; then
   ELECTRON_RUN_AS_NODE=1 exec "$electron_host" "$cli_module" "$@"
 fi
-echo "DeepChat CLI bundled resources are unavailable." >&2
+echo "MioAgent CLI bundled resources are unavailable." >&2
 exit 127
 `
 
@@ -45,8 +45,8 @@ export const WINDOWS_LAUNCHER = `@echo off\r
 setlocal\r
 set "cli_module=%~dp0deepchat.mjs"\r
 set "electron_host=%~dp0..\\..\\node_modules\\electron\\dist\\electron.exe"\r
-if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\DeepChat.exe"\r
-if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\DeepChat"\r
+if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\MioAgent.exe"\r
+if not exist "%electron_host%" set "electron_host=%~dp0..\\..\\..\\MioAgent"\r
 if not exist "%electron_host%" goto missing_runtime\r
 if exist "%electron_host%\\" goto missing_runtime\r
 if not exist "%cli_module%" goto missing_runtime\r
@@ -54,7 +54,7 @@ set ELECTRON_RUN_AS_NODE=1\r
 "%electron_host%" "%cli_module%" %*\r
 exit /b %errorlevel%\r
 :missing_runtime\r
-echo DeepChat CLI bundled resources are unavailable. 1>&2\r
+echo MioAgent CLI bundled resources are unavailable. 1>&2\r
 exit /b 127\r
 `
 

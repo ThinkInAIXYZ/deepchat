@@ -190,7 +190,7 @@ export class SchedulerProcessManager {
     const { app, utilityProcess } = await import('electron')
     const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
     const host = utilityProcess.fork(modulePath, ['--deepchat-cron-scheduler-host'], {
-      serviceName: 'DeepChat Cron Jobs Scheduler',
+      serviceName: 'MioAgent Cron Jobs Scheduler',
       stdio: 'ignore',
       env: {
         ...process.env,

@@ -92,7 +92,7 @@ export class GitHubCopilotDeviceFlow {
         headers: {
           Authorization: `Bearer ${this.oauthToken}`,
           Accept: 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
+          'User-Agent': 'MioAgent/1.0.0'
         },
         ...(signal ? { signal } : {})
       })
@@ -166,7 +166,7 @@ export class GitHubCopilotDeviceFlow {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
+          'User-Agent': 'MioAgent/1.0.0'
         },
         body: JSON.stringify(body)
       })
@@ -497,7 +497,7 @@ export class GitHubCopilotDeviceFlow {
             headers: {
               Accept: 'application/json',
               'Content-Type': 'application/json',
-              'User-Agent': 'DeepChat/1.0.0'
+              'User-Agent': 'MioAgent/1.0.0'
             },
             body: JSON.stringify({
               client_id: this.config.clientId,

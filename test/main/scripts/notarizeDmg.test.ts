@@ -13,7 +13,7 @@ import {
   verifyDmgSignature
 } from '../../../scripts/notarize-dmg.js'
 
-const dmgPath = '/tmp/DeepChat-1.1.0-mac-arm64.dmg'
+const dmgPath = '/tmp/MioAgent-1.1.0-mac-arm64.dmg'
 const releaseEnvironment = {
   build_for_release: '2',
   DEEPCHAT_APPLE_NOTARY_USERNAME: 'release@example.com',
@@ -28,7 +28,7 @@ function createCommandRunner(events: string[] = []) {
       return {
         stdout: '',
         stderr:
-          'Authority=Developer ID Application: DeepChat (Y7P5QLKLYG)\nTimestamp=Jul 22, 2026 at 20:49:07\n'
+          'Authority=Developer ID Application: MioAgent (Y7P5QLKLYG)\nTimestamp=Jul 22, 2026 at 20:49:07\n'
       }
     }
     return { stdout: '', stderr: '' }
@@ -42,7 +42,7 @@ describe('macOS distribution notarization', () => {
       createNotarizationOptions(dmgPath, {
         build_for_release: '1'
       })
-    ).toEqual({ appPath: dmgPath, keychainProfile: 'DeepChat' })
+    ).toEqual({ appPath: dmgPath, keychainProfile: 'MioAgent' })
     expect(createNotarizationOptions(dmgPath, releaseEnvironment)).toEqual({
       appPath: dmgPath,
       appleId: 'release@example.com',
@@ -96,7 +96,7 @@ describe('macOS distribution notarization', () => {
     ).resolves.toBe(false)
     await expect(
       finalizeMacDmg(
-        { file: '/tmp/DeepChat.zip', target: { name: 'zip' } },
+        { file: '/tmp/MioAgent.zip', target: { name: 'zip' } },
         { env: releaseEnvironment, notarizeImpl, runCommand, logger }
       )
     ).resolves.toBe(false)
@@ -171,7 +171,7 @@ describe('macOS distribution notarization', () => {
       if (command === '/usr/bin/codesign' && args[0] === '--display') {
         return {
           stdout: '',
-          stderr: 'Authority=Developer ID Application: DeepChat (Y7P5QLKLYG)\nTimestamp=none\n'
+          stderr: 'Authority=Developer ID Application: MioAgent (Y7P5QLKLYG)\nTimestamp=none\n'
         }
       }
       return { stdout: '', stderr: '' }

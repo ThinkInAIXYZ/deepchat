@@ -459,7 +459,7 @@ export class McpEnterpriseIdentityManager {
     return new CrossAppAccessProvider({
       clientId: targetClientId,
       clientSecret: targetClientSecret,
-      clientName: 'DeepChat',
+      clientName: 'MioAgent',
       expectedIssuer,
       assertion: async (context) => {
         const identity = await this.getValidIdentity(profile)

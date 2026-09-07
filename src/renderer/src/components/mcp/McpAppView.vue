@@ -144,7 +144,7 @@ const hostContext = computed<McpUiHostContext>(() => {
     locale: locale.value,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     platform: 'desktop',
-    userAgent: 'DeepChat',
+    userAgent: 'MioAgent',
     deviceCapabilities: {
       touch: navigator.maxTouchPoints > 0,
       hover: window.matchMedia('(hover: hover)').matches
@@ -235,7 +235,7 @@ const connectBridge = async () => {
 
   const nextBridge = new AppBridge(
     null,
-    { name: 'DeepChat', version: hostVersion },
+    { name: 'MioAgent', version: hostVersion },
     {
       openLinks: {},
       serverTools: {},

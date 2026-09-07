@@ -137,7 +137,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
         server: {
           name: 'deepchat',
           icons: 'tool',
-          description: 'DeepChat tools'
+          description: 'MioAgent tools'
         }
       }
     ]
@@ -171,7 +171,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
         server: {
           name: 'deepchat',
           icons: 'tool',
-          description: 'DeepChat tools'
+          description: 'MioAgent tools'
         }
       }
     ])
@@ -201,7 +201,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
         server: {
           name: 'deepchat',
           icons: 'tool',
-          description: 'DeepChat tools'
+          description: 'MioAgent tools'
         }
       }
     ])

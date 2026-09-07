@@ -559,7 +559,7 @@ export class SplashWindow {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DeepChat</title>
+    <title>MioAgent</title>
     <style>
       * { box-sizing: border-box; }
       html, body { width: 100%; height: 100%; margin: 0; background: transparent; color: #fff; overflow: hidden; }
@@ -583,7 +583,7 @@ export class SplashWindow {
   <body>
     <div class="shell">
       <form id="panel" class="panel">
-        <div class="title">DeepChat</div>
+        <div class="title">MioAgent</div>
         <div id="subtitle" class="subtitle">Unlocking local database</div>
         <label id="label" for="password" hidden>SQLite password</label>
         <input id="password" type="password" autocomplete="current-password" hidden />
@@ -593,7 +593,7 @@ export class SplashWindow {
           <button id="empty" type="button" hidden>Start empty</button>
           <button id="quit" type="button">Quit</button>
         </div>
-        <p id="hint" class="hint">DeepChat is reading the saved password from the system credential store.</p>
+        <p id="hint" class="hint">MioAgent is reading the saved password from the system credential store.</p>
       </form>
     </div>
     <script>
@@ -625,7 +625,7 @@ export class SplashWindow {
           password.hidden = true
           actions.hidden = true
           subtitle.textContent = 'Unlocking local database'
-          hint.textContent = 'DeepChat is starting.'
+          hint.textContent = 'MioAgent is starting.'
           return
         }
         if (mode === 'system-unlock') {
@@ -633,7 +633,7 @@ export class SplashWindow {
           password.hidden = true
           actions.hidden = true
           subtitle.textContent = 'Unlocking local database'
-          hint.textContent = 'DeepChat is reading the saved password from the system credential store.'
+          hint.textContent = 'MioAgent is reading the saved password from the system credential store.'
           return
         }
         if (mode === 'recovery') {
@@ -761,7 +761,7 @@ export class SplashWindow {
       splash && splash.onUnlockProgress((payload) => {
         if (payload && payload.active && !requestId) {
           subtitle.textContent = 'Unlocking local database'
-          hint.textContent = 'DeepChat is reading the saved password from the system credential store.'
+          hint.textContent = 'MioAgent is reading the saved password from the system credential store.'
         }
       })
     </script>

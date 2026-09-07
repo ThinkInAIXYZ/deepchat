@@ -130,7 +130,7 @@ export class AgentCliCommandAccess {
     }
     const cliDirectory = this.options.resolveCliDirectory()
     if (!cliDirectory) {
-      throw new Error('Bundled DeepChat CLI is unavailable for the Programmatic invocation')
+      throw new Error('Bundled MioAgent CLI is unavailable for the Programmatic invocation')
     }
     return {
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },

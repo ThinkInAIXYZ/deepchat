@@ -194,7 +194,7 @@ function createHarness(
 }
 
 describe('SessionTurn', () => {
-  it('projects Queue resume availability only for DeepChat sessions', async () => {
+  it('projects Queue resume availability only for MioAgent sessions', async () => {
     const deepchat = createHarness()
     const acp = createHarness({ kind: 'acp' })
 
@@ -205,7 +205,7 @@ describe('SessionTurn', () => {
     expect(deepchat.isPendingQueueResumeAvailable).toHaveBeenCalledOnce()
   })
 
-  it('resumes a DeepChat Queue under the Session operation gate', async () => {
+  it('resumes a MioAgent Queue under the Session operation gate', async () => {
     const harness = createHarness()
 
     await expect(harness.coordinator.resumePendingQueue('s1')).resolves.toBe(true)
@@ -221,12 +221,12 @@ describe('SessionTurn', () => {
     const harness = createHarness({ kind: 'acp' })
 
     await expect(harness.coordinator.resumePendingQueue('s1')).rejects.toThrow(
-      'Pending queue resume is only available for DeepChat sessions.'
+      'Pending queue resume is only available for MioAgent sessions.'
     )
     expect(harness.resumePendingQueue).not.toHaveBeenCalled()
   })
 
-  it('retries a DeepChat Queue item under the Session operation gate', async () => {
+  it('retries a MioAgent Queue item under the Session operation gate', async () => {
     const harness = createHarness()
 
     await expect(harness.coordinator.retryPendingQueueInput('s1', 'pending-1')).resolves.toEqual({
@@ -245,7 +245,7 @@ describe('SessionTurn', () => {
     const harness = createHarness({ kind: 'acp' })
 
     await expect(harness.coordinator.retryPendingQueueInput('s1', 'pending-1')).rejects.toThrow(
-      'Pending queue retry is only available for DeepChat sessions.'
+      'Pending queue retry is only available for MioAgent sessions.'
     )
     expect(harness.retryPendingQueueInput).not.toHaveBeenCalled()
   })
@@ -636,16 +636,16 @@ describe('SessionTurn', () => {
     )
   })
 
-  it('keeps compatibility ACP sessions out of DeepChat manual compaction', async () => {
+  it('keeps compatibility ACP sessions out of MioAgent manual compaction', async () => {
     const harness = createHarness({ providerId: 'acp' })
 
     await expect(harness.coordinator.compactSession('s1')).rejects.toThrow(
-      'Manual compaction is only available for DeepChat agent sessions.'
+      'Manual compaction is only available for MioAgent agent sessions.'
     )
     expect(harness.compaction.compact).not.toHaveBeenCalled()
   })
 
-  it('delegates DeepChat compaction snapshots and mutation', async () => {
+  it('delegates MioAgent compaction snapshots and mutation', async () => {
     const harness = createHarness()
 
     await expect(harness.coordinator.getSessionCompactionSnapshot('s1')).resolves.toMatchObject({
@@ -730,7 +730,7 @@ describe('SessionTurn', () => {
     expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
   })
 
-  it('contains rejected DeepChat initial-turn acceptance', async () => {
+  it('contains rejected MioAgent initial-turn acceptance', async () => {
     const harness = createHarness()
     const error = new Error('send failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)

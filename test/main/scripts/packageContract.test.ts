@@ -354,13 +354,13 @@ describe('CI package contract', () => {
   })
 
   it('derives macOS application evidence from distribution verification commands', async () => {
-    const appPath = '/tmp/DeepChat.app'
+    const appPath = '/tmp/MioAgent.app'
     const runCommand = vi.fn(async (command: string, args: string[]) => {
       if (command === '/usr/bin/codesign' && args[0] === '--display') {
         return {
           stdout: '',
           stderr:
-            'Authority=Developer ID Application: DeepChat (Y7P5QLKLYG)\nTimestamp=Jul 23, 2026 at 20:00:00\n'
+            'Authority=Developer ID Application: MioAgent (Y7P5QLKLYG)\nTimestamp=Jul 23, 2026 at 20:00:00\n'
         }
       }
       return { stdout: '', stderr: '' }
@@ -396,18 +396,18 @@ describe('CI package contract', () => {
   })
 
   it('verifies the updater ZIP after extracting its sole application payload', async () => {
-    const zipPath = '/tmp/DeepChat-1.2.3-mac-arm64.zip'
+    const zipPath = '/tmp/MioAgent-1.2.3-mac-arm64.zip'
     let extractionRoot = ''
     const runCommand = vi.fn(async (command: string, args: string[]) => {
       if (command === '/usr/bin/unzip') {
         return {
-          stdout: 'DeepChat.app/\nDeepChat.app/Contents/Info.plist\n',
+          stdout: 'MioAgent.app/\nMioAgent.app/Contents/Info.plist\n',
           stderr: ''
         }
       }
       expect(command).toBe('/usr/bin/ditto')
       extractionRoot = args.at(-1)!
-      await mkdir(path.join(extractionRoot, 'DeepChat.app'))
+      await mkdir(path.join(extractionRoot, 'MioAgent.app'))
       return { stdout: '', stderr: '' }
     })
     const verifyCuaMacHelper = vi.fn(async () => {})
@@ -427,7 +427,7 @@ describe('CI package contract', () => {
       expect.any(Object)
     )
     expect(extractionRoot).not.toBe('')
-    const extractedAppPath = path.join(extractionRoot, 'DeepChat.app')
+    const extractedAppPath = path.join(extractionRoot, 'MioAgent.app')
     expect(verifyCuaMacHelper).toHaveBeenCalledWith(extractedAppPath, {
       teamId: 'Y7P5QLKLYG',
       runCommand
@@ -445,18 +445,18 @@ describe('CI package contract', () => {
     let extractionRoot = ''
 
     await expect(
-      verifyMacZipDistribution('/tmp/DeepChat.zip', {
+      verifyMacZipDistribution('/tmp/MioAgent.zip', {
         teamId: 'Y7P5QLKLYG',
         runCommand: async (command: string, args: string[]) => {
           if (command === '/usr/bin/unzip') {
             return {
-              stdout: 'DeepChat.app/\nDeepChat.app/Contents/Info.plist\n',
+              stdout: 'MioAgent.app/\nMioAgent.app/Contents/Info.plist\n',
               stderr: ''
             }
           }
           extractionRoot = args.at(-1)!
           await Promise.all([
-            mkdir(path.join(extractionRoot, 'DeepChat.app')),
+            mkdir(path.join(extractionRoot, 'MioAgent.app')),
             writeFile(path.join(extractionRoot, 'unexpected.txt'), 'unexpected')
           ])
           return { stdout: '', stderr: '' }
@@ -464,7 +464,7 @@ describe('CI package contract', () => {
         verifyCuaMacHelper,
         verifyMacApp
       })
-    ).rejects.toThrow(/exactly one root DeepChat.app/)
+    ).rejects.toThrow(/exactly one root MioAgent.app/)
     expect(verifyCuaMacHelper).not.toHaveBeenCalled()
     expect(verifyMacApp).not.toHaveBeenCalled()
     expect(extractionRoot).not.toBe('')
@@ -473,16 +473,16 @@ describe('CI package contract', () => {
 
   it('rejects unsafe or ambiguous updater ZIP entry paths before extraction', () => {
     expect(
-      validateMacZipEntries('DeepChat.app/\nDeepChat.app/Contents/Info.plist\n')
-    ).toEqual(['DeepChat.app/', 'DeepChat.app/Contents/Info.plist'])
+      validateMacZipEntries('MioAgent.app/\nMioAgent.app/Contents/Info.plist\n')
+    ).toEqual(['MioAgent.app/', 'MioAgent.app/Contents/Info.plist'])
 
     for (const unsafeEntries of [
-      '../DeepChat.app/Contents/Info.plist\n',
-      '/DeepChat.app/Contents/Info.plist\n',
-      'DeepChat.app\\Contents\\Info.plist\n',
+      '../MioAgent.app/Contents/Info.plist\n',
+      '/MioAgent.app/Contents/Info.plist\n',
+      'MioAgent.app\\Contents\\Info.plist\n',
       'Other.app/Contents/Info.plist\n',
-      'DeepChat.app/Contents/../escape\n',
-      'DeepChat.app/Contents/Info.plist\nDeepChat.app/Contents/Info.plist\n'
+      'MioAgent.app/Contents/../escape\n',
+      'MioAgent.app/Contents/Info.plist\nDeepChat.app/Contents/Info.plist\n'
     ]) {
       expect(() => validateMacZipEntries(unsafeEntries)).toThrow(/unsafe entry|duplicate entry/)
     }
@@ -515,7 +515,7 @@ describe('package-size contract', () => {
           getMeasuredRoles(definition).map((role) => [
             role.name,
             {
-              name: `DeepChat-${version}${role.suffixes[0]}`,
+              name: `MioAgent-${version}${role.suffixes[0]}`,
               bytes: 6,
               sha256: '0'.repeat(64),
               artifactId: '123'
@@ -528,7 +528,7 @@ describe('package-size contract', () => {
 
   it('accepts exact growth and shrink limits and rejects either overrun', async () => {
     const definition = getTargetDefinition('win32-x64')
-    const candidateName = `DeepChat-${version}-windows-x64.exe`
+    const candidateName = `MioAgent-${version}-windows-x64.exe`
     const candidatePath = path.join(tempDirectory, candidateName)
     const baseline = createBaseline()
     const policy = createDefaultPackageSizePolicy()
@@ -615,7 +615,7 @@ describe('package-size contract', () => {
     const reportPath = path.join(tempDirectory, 'report.json')
     await Promise.all([
       writeFile(
-        path.join(tempDirectory, `DeepChat-${version}-windows-x64.exe`),
+        path.join(tempDirectory, `MioAgent-${version}-windows-x64.exe`),
         '123456'
       ),
       writeFile(baselinePath, JSON.stringify(createBaseline())),
@@ -665,7 +665,7 @@ describe('package-size contract', () => {
 
   it('applies expectedDelta only when the baseline commit matches', async () => {
     const definition = getTargetDefinition('win32-x64')
-    const candidateName = `DeepChat-${version}-windows-x64.exe`
+    const candidateName = `MioAgent-${version}-windows-x64.exe`
     const candidatePath = path.join(tempDirectory, candidateName)
     const baseline = createBaseline()
     baseline.targets[definition.id].installer.bytes = 20
@@ -806,7 +806,7 @@ describe('package manifest staging', () => {
   })
 
   async function prepareWindowsPackage() {
-    const installerName = `DeepChat-${version}-windows-x64.exe`
+    const installerName = `MioAgent-${version}-windows-x64.exe`
     const installer = Buffer.from('installer')
     const installerLimits = createDefaultPackageSizePolicy().targets['win32-x64'].installer
     const blockmapName = `${installerName}.blockmap`
@@ -874,8 +874,8 @@ describe('package manifest staging', () => {
   }
 
   async function prepareMacPackage() {
-    const dmgName = `DeepChat-${version}-mac-arm64.dmg`
-    const zipName = `DeepChat-${version}-mac-arm64.zip`
+    const dmgName = `MioAgent-${version}-mac-arm64.dmg`
+    const zipName = `MioAgent-${version}-mac-arm64.zip`
     const zip = Buffer.from('updater zip')
     const smokePath = path.join(distDirectory, 'light-ocr-smoke-darwin-arm64.json')
     await Promise.all([
@@ -983,7 +983,7 @@ describe('package manifest staging', () => {
       purpose: 'distribution',
       reportPaths: [smokePath],
       actualSourceSha: sourceSha,
-      macAppPath: '/tmp/DeepChat.app',
+      macAppPath: '/tmp/MioAgent.app',
       appleTeamId: 'Y7P5QLKLYG',
       verifyCuaMacHelper,
       verifyMacApp,

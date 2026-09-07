@@ -1170,7 +1170,7 @@ describe('TelegramPoller', () => {
     }
   })
 
-  it('appends later process and answer segments in DeepChat order instead of rewriting the first answer', async () => {
+  it('appends later process and answer segments in MioAgent order instead of rewriting the first answer', async () => {
     vi.useFakeTimers()
 
     try {

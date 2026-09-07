@@ -32,7 +32,7 @@ export function formatHumanResult(
     case 'cli.status': {
       const result = contract.output.parse(value)
       return [
-        result.running ? 'DeepChat is running' : 'DeepChat is stopped',
+        result.running ? 'MioAgent is running' : 'MioAgent is stopped',
         `PID: ${result.pid}`,
         `Uptime: ${formatDuration(result.uptimeMs)}`,
         `Endpoint: ${result.endpointKind}`,
@@ -43,7 +43,7 @@ export function formatHumanResult(
     case 'cli.version': {
       const result = contract.output.parse(value)
       return [
-        `DeepChat ${result.appVersion}`,
+        `MioAgent ${result.appVersion}`,
         `CLI ${CLI_VERSION}`,
         `Protocol ${result.protocolVersion}, surface ${result.surfaceVersion}`
       ].join('\n')
@@ -61,7 +61,7 @@ export function formatHumanResult(
     case 'cli.doctor': {
       const result = contract.output.parse(value)
       return [
-        `DeepChat CLI doctor: ${result.healthy ? 'healthy' : 'unhealthy'}`,
+        `MioAgent CLI doctor: ${result.healthy ? 'healthy' : 'unhealthy'}`,
         ...result.checks.map(
           (check) => `[${check.status.toUpperCase()}] ${check.id}: ${check.message}`
         )

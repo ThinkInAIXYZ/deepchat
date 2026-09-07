@@ -46,7 +46,7 @@ const makeSession = () => ({
 
 const makeAgent = () => ({
   id: 'deepchat',
-  name: 'DeepChat',
+  name: 'MioAgent',
   type: 'deepchat',
   agentType: 'deepchat',
   enabled: true,

@@ -306,7 +306,7 @@ export interface ExecutionJournalAuditReader {
   ): readonly string[]
 }
 
-// The DeepChat provider loop needs the coordinated Tape contract as one collaborator; splitting it
+// The MioAgent provider loop needs the coordinated Tape contract as one collaborator; splitting it
 // into individual fields describes the capability types rather than the dependency.
 export interface DeepChatLoopTapePort
   extends

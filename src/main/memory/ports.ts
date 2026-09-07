@@ -355,9 +355,9 @@ export interface MemoryAgentPolicyPort {
   resolveAgentConfig(agentId: string): DeepChatAgentConfig | null
   resolveAgentDefaultModel?(agentId: string): MemoryModelRef | null
   isManagedAgent?(agentId: string): boolean
-  // Compatibility fallback for unfiltered managed DeepChat Agent enumeration.
+  // Compatibility fallback for unfiltered managed MioAgent Agent enumeration.
   listManagedAgentIds?(): string[]
-  // Bulk resolved configs for all managed DeepChat Agents, including disabled Agents.
+  // Bulk resolved configs for all managed MioAgent Agents, including disabled Agents.
   listManagedAgentConfigs?(): Array<{ agentId: string; config: DeepChatAgentConfig }>
   // Enabled Agents eligible for prewarm and maintenance scheduling.
   listManagedMemoryAgentIds?(): string[]

@@ -144,7 +144,7 @@ agent: agent
       expect(result.description).toBe('This is the prompt description')
     })
 
-    it('should map Copilot tools to DeepChat format', () => {
+    it('should map Copilot tools to MioAgent format', () => {
       const content = `---
 description: Tool test
 tools: ['read', 'edit', 'runCommands', 'search/codebase']
@@ -282,7 +282,7 @@ Content`
       expect(result).toContain('model: gpt-4-turbo')
     })
 
-    it('should map DeepChat tools to Copilot format', () => {
+    it('should map MioAgent tools to Copilot format', () => {
       const skill: CanonicalSkill = {
         name: 'test',
         description: 'Test',
