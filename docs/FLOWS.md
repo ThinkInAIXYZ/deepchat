@@ -116,13 +116,17 @@ flowchart LR
     Plugin --> MCP
 ```
 
-Tool 负责 catalog、权限预检查和执行路由。MCP 负责 server/client 生命周期。Skill 负责 per-Agent
-物理 Skill root 和 catalog。Run 只接收 `Session persisted selection ∩ current Agent valid enabled catalog`
-的闭合快照；transfer、rebind 和 Subagent entry 都重新计算该交集，缺失 manual Agent scope 不回退到
-built-in `deepchat`。Plugin 只登记 package 提供的能力，不接管 MCP、Skill 或 Tool 的运行状态。
+Tool owns catalog assembly, permission checks, and execution routing. MCP owns server/client
+lifecycles. Skill owns global packages and physical roots; Agents own logical bindings and their
+independent enabled selections. A Run receives the closed intersection of persisted Session
+selection and the current Agent's valid enabled catalog. Transfer, rebind, and Subagent entry
+recompute that intersection. A missing manual Agent scope does not fall back to built-in
+`deepchat`. Plugin registers package capabilities without owning MCP, Skill, or Tool runtime state.
 
-内部或外部 Agent Skill 导入必须显式指定 target Agent，先 preview 再由 main 重新验证并 staging copy。
-导入结果是目标 root 下的独立快照，不建立 live link；source 后续修改或删除不会传播到 target。
+Skill import explicitly selects a target Agent, previews the operation, and repeats validation in
+Main before staging an independent package snapshot in the shared root and binding it to that
+Agent. Source edits and deletion do not propagate into the imported package. See the
+[shared Skills contract](./architecture/shared-skills/spec.md).
 
 模型只能看到 `tape_search` 和 `tape_context`。Subagent 完成后，父 Session 保存指向 child Tape
 固定 head 的 link；查询时通过明确的 linked Tape view 读取，不把 child entries 复制到父 Tape。

@@ -1,10 +1,10 @@
 # Local Control Plane and Bundled CLI V1
 
-Status: accepted; implementation in progress
+Status: implemented. This specification defines the maintained local CLI contract.
 
 ## Decision
 
-DeepChat main is the sole owner of the local control plane. A bundled Node CLI connects to the
+DeepChat main is the sole owner of the local control plane. A bundled CLI hosted by Electron connects to the
 running desktop application over HTTP semantics carried by a Unix domain socket on POSIX and a
 named pipe on Windows. The CLI is a thin transport, formatting, and local file-I/O client. It does
 not load providers, credentials, Skills, MCP servers, OCR runtimes, Agent runtimes, or application
@@ -20,32 +20,21 @@ extracted from `ToolPermissionBroker`; the existing tool flow remains behind a t
 adapter, while CLI mutations use `CliMutationGuard`. A CLI request may wait for a renderer decision,
 but it can never approve itself or receive a replayable approval credential.
 
-The entire V1 is delivered on one feature branch through reviewable implementation commits. This
-document intentionally describes dependency-ordered stages rather than repository integration
-units.
+## Service Ownership
 
-## Evidence Baseline
+| Component                                              | Maintained responsibility                                                     |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `src/main/routes/routeRegistry.ts`                     | Canonical route dispatch                                                      |
+| `src/shared/contracts/routes.ts`                       | Typed input/output schemas                                                    |
+| `src/main/provider/`                                   | Provider execution, credentials, and media operations                         |
+| `src/main/session/lifecycle.ts`                        | Durable detached Session creation without starting a turn                     |
+| `src/main/cli/`                                        | Local transport, caller authority, targeted approval, and output contracts    |
+| `src/main/tool/permission/toolPermissionBroker.ts`     | Consent identity, timeout, pending state, and one-shot consumption            |
+| `src/main/tool/permission/commandPermissionService.ts` | Shell signature and syntax policy; `deepchat` is not globally safe            |
+| `src/main/ocr/`                                        | Extraction and derived-cache lifecycle, including active-work clear rejection |
 
-This design is grounded in the current DeepChat tree and the separately inspected Alma 0.0.930
-application. Statements about Alma apply only to that inspected version.
-
-| Existing DeepChat component | Reused fact |
-| --- | --- |
-| `src/main/routes/routeRegistry.ts` | Main already owns a typed route registry and dispatcher. |
-| `src/shared/contracts/routes.ts` | Route contracts are the canonical schema source. |
-| `src/main/provider/index.ts` | `coreStream` plus standalone transcription, image, and video paths already exist. |
-| `src/main/provider/providers/voiceAIProvider.ts` | Speech exists only as a stream-side implementation detail and needs a standalone contract. |
-| `src/main/session/lifecycle.ts` | `createDetachedSession` creates a durable session without binding a renderer or starting a turn. |
-| `src/main/app/composition.ts` | General events currently broadcast to every window and require targeted delivery for CLI requests. |
-| `src/main/tool/permission/toolPermissionBroker.ts` | Canonical hashing, timeout, pending state, approval, and one-shot consumption already exist. |
-| `src/main/tool/index.ts` | MCP and Agent pre-checks, including live delegation, already use the tool broker. |
-| `src/main/tool/permission/commandPermissionService.ts` | Command approval is signature-based; `deepchat` must not become globally safe, and output redirection is currently missing from critical shell syntax. |
-| `src/main/ocr/ocrRuntimeService.ts` | Image, batch, and document extraction are implemented; only an explicit public extraction contract is missing. |
-| `src/main/ocr/ocrArtifactStore.ts` | Cache clearing removes derived cache rows only and rejects clearing while work is active. |
-
-Alma contributes useful product shape: a desktop-owned local service, a bundled command, and Agent
-instructions that teach the command surface. Its inspected implementation is not adopted as a
-protocol, schema, permission, or lifecycle foundation.
+CLI access reuses these owners and does not create another domain schema, credential store, or
+approval state machine.
 
 ## Goals
 
@@ -222,9 +211,7 @@ by renderer IPC. A surface entry adds only transport and policy metadata:
 ```ts
 type CliSurfaceEntry = {
   contract: RouteContract<string, ZodType, ZodType>
-  effect:
-    | CliEffect
-    | { possible: readonly CliEffect[]; resolve(input: unknown): CliEffect }
+  effect: CliEffect | { possible: readonly CliEffect[]; resolve(input: unknown): CliEffect }
   callers: readonly CliPrincipal[]
   requiredScopes: readonly CliScope[]
   transport: 'rpc' | 'stream' | 'upload'
@@ -248,22 +235,22 @@ or diagnose the bundled CLI.
 listed scope. “Policy” means the renderer-only effect policy may be required; it never means a CLI
 confirmation flag.
 
-| Capability | Public methods / command family | Effect | Callers | Approval | Output |
-| --- | --- | --- | --- | --- | --- |
-| 1. Raw text model | `models.listPublic`, `models.getCapabilities`, `models.invoke`; `deepchat model …` | read / compute | H, scoped A | never | JSON or token/usage JSONL |
-| 2. Image generation | `images.generate`; `deepchat image generate` | compute | H, scoped A | never | progress JSONL + image artifacts |
-| 3. Audio | `speech.generate`, `audio.transcribeUpload`, `audio.transcribeArtifact`; `deepchat audio speak\|transcribe` | compute | H; scoped A uses artifacts only | never | audio artifact or bounded text |
-| 4. Video generation | `videos.generate`; `deepchat video generate` | compute | H, scoped A | never | progress JSONL + video artifact |
-| 5. Offline OCR | `ocr.getRuntimeStatus`, `ocr.extractUpload`, `ocr.extractArtifact`, `ocr.clearCache`; `deepchat ocr …` | read / compute / local-maintenance | H; scoped A uses owned inputs and cannot clear | never | bounded text/metrics JSON |
-| 6. Full Agent run | `sessions.runDetached`; `deepchat agent run` | compute | H only | never | durable run ID + targeted JSONL |
-| 7. Settings | `settings.getPublic`, `settings.updatePublic`; `deepchat settings …` | read or key-derived mutation | H; scoped A for allowlisted keys | policy by effect | redacted JSON |
-| 8. Provider/model administration | `providers.listPublic`, `providers.testPublicConnection`, `providers.addPublic`, `providers.updatePublic`, `providers.remove`, `providers.setCredential`, `models.listRuntime`, `models.setStatus`, `models.getPublicConfig`, `models.setPublicConfig`, `models.resetConfig`; `deepchat provider …`, `deepchat model config …` | read / execution-config / credential / destructive | H; A is read-only | policy for mutations | redacted JSON |
-| 9. Skills | `skills.listPublic`, `skills.setPublicStatus`, `skills.installPublicUrl`, `skills.installUpload`, `skills.uninstallPublic`; `deepchat skill …` | read / execution-config / supply-chain / destructive | H; scoped A may request allowlisted mutations | policy for mutations | JSON |
-| 10. MCP | `mcp.listPublic`, `mcp.addPublic`, `mcp.updatePublic`, `mcp.removePublic`, `mcp.setPublicStatus`, `mcp.startPublic`, `mcp.stopPublic`; `deepchat mcp …` | read / execution-config / security-config / supply-chain / credential / destructive | H; scoped A may list and request one reviewed disabled non-credential add | policy for mutations | redacted JSON/events |
-| 11. Runs, events, artifacts | `runs.get`, `runs.cancel`, `events.subscribe`, `artifacts.describe`, `artifacts.read`, `artifacts.delete`; `deepchat run …` | read / local-maintenance | H owns all; A may inspect/pass owned IDs but cannot read bytes, delete, or cancel unrelated work | never | JSONL or binary artifact for H; metadata for A |
-| 12. CLI diagnostics | `cli.status`, `cli.version`, `cli.capabilities`, `cli.doctor`; top-level commands | read | H, A | never | stable JSON/text |
-| 13. Benchmark automation | client-side stable modes over compute methods; `--json`, `--jsonl`, stdin, timeout, cancel | inherited | H, scoped A | inherited | reproducible result envelope |
-| 14. Agent-scoped CLI use | internal `agentCli.issueScopedToken` plus bundled Skill instructions | security-config (internal) | trusted main runtime issues; A consumes | not exposed on socket | short-lived in-memory authority |
+| Capability                       | Public methods / command family                                                                                                                                                                                                                                                                                                | Effect                                                                              | Callers                                                                                          | Approval              | Output                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------- | ---------------------------------------------- |
+| 1. Raw text model                | `models.listPublic`, `models.getCapabilities`, `models.invoke`; `deepchat model …`                                                                                                                                                                                                                                             | read / compute                                                                      | H, scoped A                                                                                      | never                 | JSON or token/usage JSONL                      |
+| 2. Image generation              | `images.generate`; `deepchat image generate`                                                                                                                                                                                                                                                                                   | compute                                                                             | H, scoped A                                                                                      | never                 | progress JSONL + image artifacts               |
+| 3. Audio                         | `speech.generate`, `audio.transcribeUpload`, `audio.transcribeArtifact`; `deepchat audio speak\|transcribe`                                                                                                                                                                                                                    | compute                                                                             | H; scoped A uses artifacts only                                                                  | never                 | audio artifact or bounded text                 |
+| 4. Video generation              | `videos.generate`; `deepchat video generate`                                                                                                                                                                                                                                                                                   | compute                                                                             | H, scoped A                                                                                      | never                 | progress JSONL + video artifact                |
+| 5. Offline OCR                   | `ocr.getRuntimeStatus`, `ocr.extractUpload`, `ocr.extractArtifact`, `ocr.clearCache`; `deepchat ocr …`                                                                                                                                                                                                                         | read / compute / local-maintenance                                                  | H; scoped A uses owned inputs and cannot clear                                                   | never                 | bounded text/metrics JSON                      |
+| 6. Full Agent run                | `sessions.runDetached`; `deepchat agent run`                                                                                                                                                                                                                                                                                   | compute                                                                             | H only                                                                                           | never                 | durable run ID + targeted JSONL                |
+| 7. Settings                      | `settings.getPublic`, `settings.updatePublic`; `deepchat settings …`                                                                                                                                                                                                                                                           | read or key-derived mutation                                                        | H; scoped A for allowlisted keys                                                                 | policy by effect      | redacted JSON                                  |
+| 8. Provider/model administration | `providers.listPublic`, `providers.testPublicConnection`, `providers.addPublic`, `providers.updatePublic`, `providers.remove`, `providers.setCredential`, `models.listRuntime`, `models.setStatus`, `models.getPublicConfig`, `models.setPublicConfig`, `models.resetConfig`; `deepchat provider …`, `deepchat model config …` | read / execution-config / credential / destructive                                  | H; A is read-only                                                                                | policy for mutations  | redacted JSON                                  |
+| 9. Skills                        | `skills.listPublic`, `skills.setPublicStatus`, `skills.installPublicUrl`, `skills.installUpload`, `skills.uninstallPublic`; `deepchat skill …`                                                                                                                                                                                 | read / execution-config / supply-chain / destructive                                | H; scoped A may request allowlisted mutations                                                    | policy for mutations  | JSON                                           |
+| 10. MCP                          | `mcp.listPublic`, `mcp.addPublic`, `mcp.updatePublic`, `mcp.removePublic`, `mcp.setPublicStatus`, `mcp.startPublic`, `mcp.stopPublic`; `deepchat mcp …`                                                                                                                                                                        | read / execution-config / security-config / supply-chain / credential / destructive | H; scoped A may list and request one reviewed disabled non-credential add                        | policy for mutations  | redacted JSON/events                           |
+| 11. Runs, events, artifacts      | `runs.get`, `runs.cancel`, `events.subscribe`, `artifacts.describe`, `artifacts.read`, `artifacts.delete`; `deepchat run …`                                                                                                                                                                                                    | read / local-maintenance                                                            | H owns all; A may inspect/pass owned IDs but cannot read bytes, delete, or cancel unrelated work | never                 | JSONL or binary artifact for H; metadata for A |
+| 12. CLI diagnostics              | `cli.status`, `cli.version`, `cli.capabilities`, `cli.doctor`; top-level commands                                                                                                                                                                                                                                              | read                                                                                | H, A                                                                                             | never                 | stable JSON/text                               |
+| 13. Benchmark automation         | client-side stable modes over compute methods; `--json`, `--jsonl`, stdin, timeout, cancel                                                                                                                                                                                                                                     | inherited                                                                           | H, scoped A                                                                                      | inherited             | reproducible result envelope                   |
+| 14. Agent-scoped CLI use         | internal `agentCli.issueScopedToken` plus bundled Skill instructions                                                                                                                                                                                                                                                           | security-config (internal)                                                          | trusted main runtime issues; A consumes                                                          | not exposed on socket | short-lived in-memory authority                |
 
 Surface names and contracts are frozen by `surfaceVersion`. Additive entries require an advertised
 capability and surface-version change policy; removal or semantic incompatibility requires a new
@@ -330,17 +317,17 @@ renderer context. `mcp/routes.ts` is its adapter, avoiding CLI concepts inside t
 
 Authorization is `approvalPolicy(effect, caller, operation)`, not `isWrite`.
 
-| Effect | Human CLI | Agent CLI | Examples |
-| --- | --- | --- | --- |
-| `read` | allow | allow with scope | status, redacted lists |
-| `compute` | allow with rate limits | allow with scope and quota | model/media/OCR |
-| `local-maintenance` | allow and audit | deny | OCR cache clear, owned artifact delete |
-| `preference-write` | allow and audit | renderer approval when allowlisted | language or UI-safe defaults |
-| `security-config` | renderer approval | renderer approval only when explicitly allowlisted | MCP enablement, proxy/security policy |
-| `execution-config` | renderer approval | deny | default provider/model, executable configuration |
-| `supply-chain` | renderer approval | renderer approval only when explicitly allowlisted | Skill/MCP installation |
-| `credential` | renderer approval | deny | provider or MCP secret update |
-| `destructive` | renderer approval | deny | provider/Skill/MCP removal |
+| Effect              | Human CLI              | Agent CLI                                          | Examples                                         |
+| ------------------- | ---------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| `read`              | allow                  | allow with scope                                   | status, redacted lists                           |
+| `compute`           | allow with rate limits | allow with scope and quota                         | model/media/OCR                                  |
+| `local-maintenance` | allow and audit        | deny                                               | OCR cache clear, owned artifact delete           |
+| `preference-write`  | allow and audit        | renderer approval when allowlisted                 | language or UI-safe defaults                     |
+| `security-config`   | renderer approval      | renderer approval only when explicitly allowlisted | MCP enablement, proxy/security policy            |
+| `execution-config`  | renderer approval      | deny                                               | default provider/model, executable configuration |
+| `supply-chain`      | renderer approval      | renderer approval only when explicitly allowlisted | Skill/MCP installation                           |
+| `credential`        | renderer approval      | deny                                               | provider or MCP secret update                    |
+| `destructive`       | renderer approval      | deny                                               | provider/Skill/MCP removal                       |
 
 Per-invocation provider/model selection is compute input, not an execution-config mutation. Benchmark
 harnesses must use those per-call fields rather than changing global defaults.
@@ -601,11 +588,12 @@ authentication/authorization, `5` approval denied/timeout, `6` domain failure, `
 and `8` internal/protocol failure.
 
 The packaged CLI source lives in `src/cli`; main-side transport adapters live in `src/main/cli`.
-The built standalone entry and launchers use the bundled Node runtime and ship outside `app.asar` as
-application resources. After the local control server is listening, startup automatically and
-idempotently places a small regular-file shim in the platform's user command location; there is no
-settings toggle. The shim pins the validated CLI module and bundled Node paths from the current app
-installation and never falls back to a runtime discovered through `PATH`. Startup atomically
+The built standalone entry and launchers ship outside `app.asar` as application resources. The
+launcher runs the validated CLI module with the current application's Electron executable and
+`ELECTRON_RUN_AS_NODE=1`; it does not require an official Node distribution on disk. After the local
+control server is listening, startup automatically and idempotently places a small regular-file shim
+in the platform's user command location; there is no settings toggle. The shim pins the validated CLI
+module and Electron host paths and never falls back to a runtime discovered through `PATH`. Startup atomically
 reconciles its content hash after an app move or upgrade and migrates a still-owned legacy POSIX
 symlink. It never overwrites an unowned command or modified shell block, does not install an npm
 package or copy credentials, and records enough ownership state for exact rollback during full data

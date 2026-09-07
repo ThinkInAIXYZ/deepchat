@@ -1,29 +1,15 @@
 # Notification and Feedback System Specification
 
-## Background
+## Feedback Ownership
 
-DeepChat currently treats user feedback as a rendering call rather than a product decision.
-Renderer code contains 217 direct Toast calls, including 132 destructive calls and only two
-actions. The existing `use-toast.ts` wrapper narrows Sonner's semantic API, supplies a competing
-default duration, hides stable IDs from callers, and exposes an update path that replaces the
-Sonner toast object.
+User feedback is an operation and surface decision. Main publishes typed semantic events without
+localized text or raw exception strings. The notification router selects the intended renderer, and
+the renderer manages inline feedback, Toast presentation, deduplication, and surface lifetime.
 
-Main-process notification behavior is also fragmented:
-
-- five `notification.error` emitters publish final strings and timestamp IDs;
-- three MCP emitters translate strings in the main process;
-- provider deeplink errors forward arbitrary exception messages;
-- a process-level network-error fallback decides user interruption from exception substrings;
-- main and settings renderers each implement a separate error queue and forced three-second timer;
-- the generic event publisher broadcasts the same notification to every window.
-
-These decisions produce duplicate notifications, stale localization, false success, silent
-failure, queue-driven Toast trains, and no consistent answer to whether feedback belongs inline,
-in one renderer, or nowhere.
-
-The Agent settings save flow exposes the missing model most clearly. The user can start a save, but
-the UI has no owned operation state or inline completion feedback. Adding one success Toast would
-hide that ownership gap while preserving the same problem at every other call site.
+A completed operation cannot be reported as failed because presentation failed; an unavailable or
+rejected command cannot be reported as successful. Pending actions retain owned state and useful
+failure feedback. Stable episode and operation identities prevent replayed completion, duplicate
+windows, and sequential Toast backlogs from becoming product behavior.
 
 ## Goal
 
@@ -46,14 +32,14 @@ confirmation must not create Operation, Episode, Lease, and Router state merely 
 
 Responsibilities are composed only when the scenario needs them:
 
-| Scenario | Required responsibilities |
-| --- | --- |
-| Copy confirmation | Policy -> Sonner |
-| Agent settings save | Operation -> Surface Lease -> Policy -> inline or Sonner |
-| MCP connection failure | Episode -> Policy -> Router -> Sonner |
-| Main-owned model download | Operation -> Router -> progress surface |
-| Download failure | Operation terminal -> Episode -> Policy -> Router |
-| Database repair suggestion | Episode -> Policy -> Router -> actionable Sonner |
+| Scenario                   | Required responsibilities                                |
+| -------------------------- | -------------------------------------------------------- |
+| Copy confirmation          | Policy -> Sonner                                         |
+| Agent settings save        | Operation -> Surface Lease -> Policy -> inline or Sonner |
+| MCP connection failure     | Episode -> Policy -> Router -> Sonner                    |
+| Main-owned model download  | Operation -> Router -> progress surface                  |
+| Download failure           | Operation terminal -> Episode -> Policy -> Router        |
+| Database repair suggestion | Episode -> Policy -> Router -> actionable Sonner         |
 
 No layer may become a generic God Object:
 
@@ -156,22 +142,22 @@ and overflow behavior.
 
 Initial defaults are explicit and centralized:
 
-| Policy value | Default |
-| --- | ---: |
-| Success display budget | 2,400 ms |
-| Information display budget | 4,000 ms |
-| Warning display budget | 6,000 ms |
-| Error display budget | 8,000 ms |
-| Success maximum lifetime | 15,000 ms |
-| Information maximum lifetime | 30,000 ms |
-| Warning maximum lifetime | 45,000 ms |
-| Error maximum lifetime | 60,000 ms |
-| Surface handoff grace | 200 ms |
-| Transient candidate freshness | 8,000 ms |
-| Actionable renderer queue capacity | 3 records |
-| Actionable renderer queue TTL | 10 minutes |
-| Main pending actionable capacity | 16 records |
-| Main pending actionable TTL | 10 minutes |
+| Policy value                        |    Default |
+| ----------------------------------- | ---------: |
+| Success display budget              |   2,400 ms |
+| Information display budget          |   4,000 ms |
+| Warning display budget              |   6,000 ms |
+| Error display budget                |   8,000 ms |
+| Success maximum lifetime            |  15,000 ms |
+| Information maximum lifetime        |  30,000 ms |
+| Warning maximum lifetime            |  45,000 ms |
+| Error maximum lifetime              |  60,000 ms |
+| Surface handoff grace               |     200 ms |
+| Transient candidate freshness       |   8,000 ms |
+| Actionable renderer queue capacity  |  3 records |
+| Actionable renderer queue TTL       | 10 minutes |
+| Main pending actionable capacity    | 16 records |
+| Main pending actionable TTL         | 10 minutes |
 | Default inferred-recovery quiet TTL | 30 seconds |
 
 Individual semantic codes may tighten these values. Data-integrity actionable records require
@@ -509,10 +495,6 @@ After:
 - Do not persist notification state.
 - Do not introduce a compatibility alias for the removed wrapper.
 - Keep code, identifiers, comments, and repository documentation in English.
-- Before every commit, review the complete staged diff by severity for hidden side effects,
-  compatibility, edge cases, performance, security, naming, test gaps, and maintenance cost.
-- Fix findings before committing.
-- Do not push the branch.
 
 ## Non-Goals
 

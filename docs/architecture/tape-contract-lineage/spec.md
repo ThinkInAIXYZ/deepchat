@@ -2,16 +2,13 @@
 
 ## Status
 
-V1 implementation and local validation are complete. This architecture extends DeepChat's existing
-Tape, provider View, and live-delegation execution planes with explicit task and execution contracts.
-Automatic repair/retry/override and ReplaySlice expansion remain deferred. The implementation does
-not add a second scheduler or make Tape an online permission service.
-
-Last reviewed: 2026-08-09.
+V1 is implemented. Task and execution contracts extend the existing Tape, provider View, and
+live-delegation execution planes. Automatic repair/retry/override and ReplaySlice expansion remain
+deferred. The contract adds neither a second scheduler nor an online permission service in Tape.
 
 ## Decision
 
-DeepChat will represent agent contracts at two lifetimes:
+DeepChat represents Agent contracts at two lifetimes:
 
 - `TaskContract` freezes stable task semantics for one live-delegation turn;
 - `ExecutionContract` records and constrains one provider-visible View.
@@ -239,14 +236,14 @@ previous attempt.
 
 ## Write Disciplines
 
-| Fact/path | Failure policy | Transaction rule |
-| --- | --- | --- |
-| Interactive `view/assembled` | fail-open with bounded diagnostic | independent append before request |
-| Contract-bearing `view/assembled` | fail-closed | durable before provider request |
-| `execution/*` | fail-closed | independent commit across external-effect boundary |
-| parent `contract/task_frozen` | fail-closed | same transaction as turn creation |
-| child inherited `contract/task_frozen` | fail-closed | durable before child Handoff dispatch |
-| `contract/evaluated` | fail-closed | same transaction as terminal projection/event |
+| Fact/path                              | Failure policy                    | Transaction rule                                   |
+| -------------------------------------- | --------------------------------- | -------------------------------------------------- |
+| Interactive `view/assembled`           | fail-open with bounded diagnostic | independent append before request                  |
+| Contract-bearing `view/assembled`      | fail-closed                       | durable before provider request                    |
+| `execution/*`                          | fail-closed                       | independent commit across external-effect boundary |
+| parent `contract/task_frozen`          | fail-closed                       | same transaction as turn creation                  |
+| child inherited `contract/task_frozen` | fail-closed                       | durable before child Handoff dispatch              |
+| `contract/evaluated`                   | fail-closed                       | same transaction as terminal projection/event      |
 
 This table describes write disciplines, not a count of all Tape event families.
 

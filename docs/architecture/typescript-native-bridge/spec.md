@@ -1,14 +1,14 @@
-# TypeScript Native Bridge Migration
+# TypeScript Native Bridge
 
-## Context
+## Toolchain Contract
 
-DeepChat currently type-checks renderer code with `vue-tsgo` and a dedicated
-`tsconfig.app.tsgo.json`. This duplicates the application TypeScript configuration and ties Vue
-checking to an experimental Vue-specific CLI.
+Renderer checking runs `vue-tsc` against the single `tsconfig.app.json`; main checking runs `tsc`
+against `tsconfig.node.json`. The pnpm `typescript` override selects
+`typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2` for compiler-API consumers, preserving the TypeScript
+6.0.3 API while delegating semantic checks to tsgo. Editors use `node_modules/typescript/lib`.
 
-`typescript-native-bridge` (TNB) preserves the standard TypeScript compiler API used by Vue
-language-tools while delegating semantic checking to tsgo. The current
-`6.0.3-bridge.7.tsgo.7.0.2` release matches DeepChat's TypeScript 6.0.3 API baseline.
+`vue-tsgo`, `tsconfig.app.tsgo.json`, and the direct `@typescript/native-preview` integration remain
+absent. The repository's current Node and pnpm requirements are declared in `package.json`.
 
 ## User Story
 

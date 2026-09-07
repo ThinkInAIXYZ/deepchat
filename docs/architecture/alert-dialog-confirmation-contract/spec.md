@@ -4,40 +4,21 @@
 
 Implemented.
 
-## Context
+## Confirmation Ownership
 
-DeepChat wraps `reka-ui` alert-dialog primitives in vendored shadcn components. In
-`reka-ui@2.10.1`, `AlertDialogAction` and `AlertDialogCancel` both delegate to `DialogClose`.
-`DialogClose` installs its own bubbling click handler before fallthrough consumer handlers, so a
-controlled dialog emits `update:open=false` before the business `@click` handler runs.
+A confirmation's business handler owns its pending, result, failure, and close transitions. Primitive
+close behavior must not dismiss the dialog before the handler captures its target or before an
+asynchronous failure can be shown. Explicit close actions and asynchronous confirmation actions
+therefore use distinct contracts.
 
-That ordering creates several distinct failures:
+Memory commands expose typed outcomes rather than treating every resolved Promise as success.
+Unavailable, missing, invalid, stale, or rejected state must produce the appropriate feedback and,
+where required, reconcile stale renderer projections. Internal command-result objects are not
+forwarded unchanged into model-visible tool content.
 
-- Memory list deletion clears its target during `update:open` and then performs no deletion.
-- Skill conflict overwrite clears its pending install action and then performs no overwrite.
-- OCR cache and browser sandbox cleanup run, but their failure feedback is hidden after the
-  confirmation dialog closes.
-- Data reset loses dialog-owned pending and retry context even though page feedback remains.
-- Local `.capture` and `.prevent` workarounds encode inconsistent and misleading behavior.
-
-The existing renderer tests replace alert-dialog actions with plain buttons. Those doubles erase
-the close-before-click behavior and produce false-positive deletion and overwrite tests.
-
-Memory commands expose a related truthfulness problem. Several service methods return `boolean`,
-where `false` can mean unavailable, not found, invalid state, stale conflict state, or a rejected
-transition. Five renderer call sites ignore that value and rely exclusively on `memory.updated`,
-which is not emitted for a rejected command.
-
-A post-implementation review exposed additional ownership gaps:
-
-- an async action can remain enabled after its handler eligibility changes and then return without
-  feedback;
-- regular close actions can still call locally declared `async` handlers;
-- several destructive confirmations still close before their pending and failure state settles;
-- page-level feedback can be moved into, or cleared by, an unrelated delete dialog;
-- structured Memory rejection reasons reach the renderer but are collapsed to generic copy;
-- rejected commands that prove a local projection stale do not trigger reconciliation;
-- the Memory agent tool forwards the internal command-result object into model-visible output.
+Regression tests exercise real dialog primitives at the integration seam so a plain-button mock
+cannot hide close-before-handler ordering. Handler eligibility, pending state, failure visibility,
+owned feedback, and disposal are part of the same confirmation contract.
 
 ## Goal
 
@@ -169,7 +150,6 @@ and rejection enums remain diagnostic implementation details.
 14. Pending confirmation content survives owner refresh and reconciliation feedback survives child
     removal.
 15. Focused renderer and Memory suites, formatting, i18n, lint, and type checking pass.
-16. Every commit is preceded by a severity-ordered review and no branch is pushed.
 
 ## Compatibility
 

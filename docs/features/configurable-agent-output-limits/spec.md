@@ -2,25 +2,24 @@
 
 ## Status
 
-Implemented and verified on `codex/configurable-agent-output-limits`.
-
-There are no unresolved product questions in this spec.
+Implemented and maintained.
 
 ## Source
 
 This feature addresses [GitHub issue #2102](https://github.com/ThinkInAIXYZ/deepchat/issues/2102).
 
-## Problem
+## Context
 
-DeepChat currently fixes three user-visible output limits in code:
+Each DeepChat Agent configures three user-visible output limits. Missing settings preserve these
+defaults:
 
 - file reads without an explicit `limit` are truncated at 4,500 characters;
 - selected large tool results are offloaded at 5,000 characters;
 - foreground command and skill-script results expose at most 12,000 output characters.
 
-The fixed values are conservative for small context windows but unnecessarily hide usable output
-from larger-context models. Users cannot tune the trade-off between inline context and follow-up
-file reads for each Agent.
+Users can tune the trade-off between inline context and follow-up file reads without changing
+model context safety or internal disk spooling. Saved changes apply to later tool calls in
+existing sessions.
 
 The issue also names two 10,000-character constants and a `webContentLengthLimit` setting. The
 10,000-character values are internal disk-spooling ceilings, not the effective inline command
@@ -52,11 +51,11 @@ implementation details would produce misleading settings.
 
 The Agent editor adds a collapsed **Advanced output limits** section under **Tools**.
 
-| Setting | Config field | Default | Allowed range | Meaning |
-| --- | --- | ---: | ---: | --- |
-| File read auto-truncate | `readFileAutoTruncateChars` | 4,500 | 1,000-200,000 | Maximum file content returned when `read` omits `limit` |
-| Tool output inline limit | `toolOutputInlineChars` | 5,000 | 1,000-200,000 | Maximum inline result for tools already covered by the output guard |
-| Command output inline limit | `commandOutputInlineChars` | 12,000 | 1,000-200,000 | Maximum foreground output preview for `exec` and `skill_run` |
+| Setting                     | Config field                | Default | Allowed range | Meaning                                                             |
+| --------------------------- | --------------------------- | ------: | ------------: | ------------------------------------------------------------------- |
+| File read auto-truncate     | `readFileAutoTruncateChars` |   4,500 | 1,000-200,000 | Maximum file content returned when `read` omits `limit`             |
+| Tool output inline limit    | `toolOutputInlineChars`     |   5,000 | 1,000-200,000 | Maximum inline result for tools already covered by the output guard |
+| Command output inline limit | `commandOutputInlineChars`  |  12,000 | 1,000-200,000 | Maximum foreground output preview for `exec` and `skill_run`        |
 
 Values are integers. Renderer input is normalized on save; route validation rejects values outside
 the contract. Missing fields resolve to defaults, so existing Agent records need no migration.
@@ -104,18 +103,6 @@ never removed by the context guard.
 
 ## Settings UI
 
-### BEFORE
-
-```text
-+----------------------------------------------------------+
-| Tools                                                    |
-| agent-filesystem                         [enabled]        |
-| [read] [write] [edit] [glob] [grep] [exec] [process]    |
-+----------------------------------------------------------+
-```
-
-### AFTER
-
 ```text
 +----------------------------------------------------------+
 | Tools                                                    |
@@ -152,10 +139,9 @@ collapsed state is local presentation state and is not persisted.
 ## Compatibility
 
 - Existing config JSON remains valid because all fields are optional.
-- Existing Agents behave as before for file reads and generic guarded tools.
-- Foreground commands may now remain inline up to 12,000 characters instead of being re-offloaded
-  by the generic 5,000-character guard. Their own log offload remains available above the command
-  limit.
+- Missing file-read and generic tool settings preserve their documented defaults.
+- Foreground commands use the Agent command limit without being re-offloaded by the generic tool
+  threshold. Their own log offload remains available above the command limit.
 - ACP Agents are unaffected because these fields belong to `DeepChatAgentConfig` and the DeepChat
   Agent runtime.
 
@@ -177,13 +163,9 @@ collapsed state is local presentation state and is not persisted.
 - Existing defaults remain effective when the fields are absent.
 - Focus, keyboard input, save dirty-state tracking, and nearby Agent settings remain stable.
 
-## Verification Evidence
+## Regression Protection
 
-- `pnpm format`
-- `pnpm i18n`
-- `pnpm lint`
-- `pnpm typecheck`
-- Focused main-process regression suite: 11 files, 572 tests passed.
-- Agent settings component suite: 1 file, 27 tests passed.
-- The final worktree contains only durable contract and regression tests; no temporary test files or
-  implementation-only artifacts remain.
+Shared contract tests protect default resolution, defensive normalization, and route rejection.
+Runtime tests protect raw/prepared file reads, explicit limits, command previews, context fitting,
+offload reuse, cancellation, and persistence. Agent settings component tests protect loading,
+resetting, normalizing, and saving all three fields.

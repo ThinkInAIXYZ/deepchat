@@ -1,25 +1,16 @@
 # Cache-Aware Context Runtime Specification
 
-## Background
+## Context
 
-DeepChat already persists a stronger execution model than Bub or Pi: Tape is append-only, message
-corrections are explicit, reconstruction anchors are durable, ViewManifest records provider-visible
-context, and fork or subagent reads are bounded by frozen heads. Replacing that model with another
-agent's transcript or handoff format would weaken replay and compatibility guarantees.
+Tape is the append-only source of truth for message corrections, reconstruction anchors,
+provider-visible ViewManifest records, and frozen-head fork/Subagent reads. Context projection keeps
+the provider's stable prefix separate from mutable summaries, handoff state, and recalled Memory.
+Those derived, untrusted values use bounded user-role contributions rather than acquiring system
+instruction authority.
 
-The current prompt projection nevertheless has two independent defects:
-
-1. Prompt-cache metadata is not always represented in the final AI SDK request. OpenRouter and
-   Zenmux use the OpenAI-compatible adapter, which does not consume Anthropic metadata placed on
-   message parts. Amazon Bedrock expects its own `cachePoint` metadata rather than
-   `anthropic.cacheControl`.
-2. Rolling summaries, handoff state, and recalled Memory are appended to the system prompt. These
-   mutable, untrusted values invalidate the provider's stable prefix and receive a stronger trust
-   role than their origin permits.
-
-This architecture keeps Tape as the source of truth while adopting the useful properties of Bub's
-append-stable prefix and Pi's user-role checkpoint, token-aware retained tail, and isolated
-summarization calls.
+Prompt-cache metadata is selected for the effective provider transport. OpenAI-compatible adapters
+and Bedrock cannot be assumed to consume Anthropic message-part cache metadata. Stable prefix,
+retained tail, isolated summarization, and exact View lineage are complementary contracts.
 
 ## Goals
 
@@ -75,13 +66,13 @@ disable its own platform behavior.
 
 Conversation requests use these transports:
 
-| Provider path | Cache transport |
-| --- | --- |
-| OpenAI Chat and Responses | Hashed `promptCacheKey` |
-| Official Anthropic | Top-level `anthropic.cacheControl` |
-| Amazon Bedrock | `providerOptions.bedrock.cachePoint` on a reusable message or system instruction |
-| OpenRouter fixed Claude models | Explicit content-block `cache_control` plus hashed `session_id` |
-| Zenmux fixed Claude models | Explicit content-block `cache_control` |
+| Provider path                  | Cache transport                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| OpenAI Chat and Responses      | Hashed `promptCacheKey`                                                          |
+| Official Anthropic             | Top-level `anthropic.cacheControl`                                               |
+| Amazon Bedrock                 | `providerOptions.bedrock.cachePoint` on a reusable message or system instruction |
+| OpenRouter fixed Claude models | Explicit content-block `cache_control` plus hashed `session_id`                  |
+| Zenmux fixed Claude models     | Explicit content-block `cache_control`                                           |
 
 OpenAI-compatible explicit breakpoints are applied in `transformRequestBody` after the AI SDK has
 created its final messages. The breakpoint precedes the last user-owned active turn, keeping
@@ -186,8 +177,6 @@ creation time plus trace ID as a stable tie-breaker.
 - Existing provider reasoning, tool, attachment, and tracing behavior must remain unchanged unless
   a cache transport requires preserving provider metadata that was previously discarded.
 - New Tape data is append-only and uses existing entry storage.
-- Every local commit requires a complete diff review and relevant validation before it is created.
-- SDD artifacts in this directory use English prose.
 
 ## Non-Goals
 

@@ -1,28 +1,26 @@
 # Offline Light OCR Attachment Routing
 
-Status: implemented; six-target native package behavior validated in
-[Build Application run 29978292769](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29978292769);
-the reusable packaging workflow refactor still requires its first remote run. The implemented
-[Light OCR 0.5.5 PDF support](../light-ocr-pdf-support/spec.md) increment supersedes this original
-increment's pinned runtime version and scanned-PDF non-goal while retaining its image OCR contract.
+Status: image OCR is implemented. The first remote validation of the reusable six-target packaging
+workflows remains open in this goal's task ledger. [PDF OCR](../light-ocr-pdf-support/spec.md)
+defines the document-specific routing, limits, and artifact contract alongside this image contract.
 
 ## User Need
 
-DeepChat currently prepares image attachments only as compressed image data. A model without vision
-capability receives attachment metadata but cannot recover the text in the image. Users need image
-text to remain useful with non-vision models, without silently switching models, invoking a second
-vision model, downloading runtime assets on first use, or dropping an attachment when extraction
-fails.
+DeepChat prepares image attachments according to the selected model, attachment preference, and OCR
+settings. Packaged OCR assets make image text usable by non-vision models once a compatible Node
+toolchain is configured, without silently switching models, invoking a second vision model, or
+downloading OCR assets on first use.
+Extraction failure produces an explicit attachment state instead of silently dropping the image.
 
 ## Goals
 
 - Bundle `@arcships/light-ocr` and its model/native runtime in supported installers so OCR works
-  offline immediately after installation.
+  offline after the user installs the managed Node pin or selects a compatible existing runtime.
 - Route user image attachments according to model capability, per-attachment intent and OCR
   settings.
 - Resolve the actual attachment representation before compaction and user-message persistence so
   historical turns retain the exact OCR text that was sent.
-- Run OCR outside Electron in the bundled Node 24 runtime with bounded concurrency, cancellation,
+- Run OCR outside Electron in an OCR-compatible Node 24 runtime with bounded concurrency, cancellation,
   timeout, crash recovery and idle process reclamation.
 - Keep OCR output explicitly untrusted, bounded by tokens, absent from logs/traces, and stored with
   the same lifecycle as its owning message.
@@ -33,8 +31,9 @@ fails.
 
 - No OCR of MCP sampling images, tool output, generated images or thumbnails.
 - No automatic vision-model invocation or conversation-model switching.
-- No language selection or runtime/model download flow. Scanned-PDF support is specified separately
-  by the 0.5.5 PDF increment.
+- No OCR-specific language selection or runtime/model download flow. Node setup belongs to
+  ToolchainService. Scanned-PDF support follows the separate
+  [PDF OCR contract](../light-ocr-pdf-support/spec.md).
 - No knowledge-base integration in v1. A later increment can inject the same
   `ImageTextExtractionPort` into knowledge ingestion with background priority.
 - No Linux musl support. Official Linux packages target glibc and are validated only on the
@@ -46,12 +45,12 @@ Each image can request `auto`, `image` or `ocr_text` representation.
 Inbound clients can only request a representation. The main process strips caller-supplied resolved
 representations and is the sole authority that creates a durable resolved snapshot.
 
-| Model and preference | Effective behavior |
-| --- | --- |
-| Vision + `auto`/`image` | Send the existing LLM-friendly image; do not OCR. |
-| Any model + `ocr_text` | OCR and send only extracted text. |
-| Non-vision + `auto`, automatic OCR enabled | OCR and send extracted text. |
-| Non-vision + `image`, OCR disabled, or OCR unavailable | Produce an explicit unavailable representation. |
+| Model and preference                                   | Effective behavior                                |
+| ------------------------------------------------------ | ------------------------------------------------- |
+| Vision + `auto`/`image`                                | Send the existing LLM-friendly image; do not OCR. |
+| Any model + `ocr_text`                                 | OCR and send only extracted text.                 |
+| Non-vision + `auto`, automatic OCR enabled             | OCR and send extracted text.                      |
+| Non-vision + `image`, OCR disabled, or OCR unavailable | Produce an explicit unavailable representation.   |
 
 Attachment preparation returns one of:
 
@@ -68,13 +67,17 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 ## Runtime And Packaging Contract
 
-- Pin `@arcships/light-ocr` to exactly `0.3.4` and require model bundle
-  `ppocrv6-small-native-20260719.1`.
-- Use a standalone helper launched with the bundled Node version pinned in the
-  [runtime manifest](../../resources/runtime-versions.json); never fall back to system Node.
+- Resolve the exact facade, runtime, model, native-package, and bundle pins from
+  [`resources/runtime-versions.json`](../../../resources/runtime-versions.json). Keep the installed
+  facade and packaged payloads consistent with that manifest.
+- Launch the standalone helper with `ToolchainService.resolve('node', { purpose: 'ocr' })`.
+  The selected bundled, managed, system, or custom runtime must satisfy the Node version range
+  and official module ABI defined in `src/main/toolchains/catalog.ts`. Missing or incompatible
+  selections report OCR unavailable; the resolver does not silently switch runtime sources.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
   checksums both during packaging and helper handshake.
-- Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact
+- Verify native source hashes before code signing, and Node hashes when a Node runtime is packaged.
+  Current installers omit bundled Node. Final macOS smoke keeps exact
   hashes for data files, while signed Mach-O files must have valid Apple-anchored signatures from
   the same team as the enclosing application.
 - Supported DeepChat targets are macOS x64/arm64, Windows x64/arm64 and Linux x64/arm64 on the
@@ -93,7 +96,8 @@ returns an actionable explanation instead of synthesizing a generic caption or c
   `resources/package-size-policy.json`; it does not rebuild a historical source tree.
 - The helper owns at most one engine and one recognition call. It is created lazily, closes an
   engine before changing detection strategy, and exits after 120 seconds idle.
-- First use performs no network request. Required licenses and notices ship with the app.
+- Once a compatible Node toolchain is configured, OCR performs no network request. Required licenses
+  and notices ship with the app.
 
 ## Input And Resource Limits
 
@@ -188,8 +192,9 @@ Composer representation controls use progressive disclosure:
 - Composer attachment chips keep the default path free of representation labels, expose advanced
   choices to pointer and keyboard users, suppress no-op representation controls for ACP, and never
   destroy an explicit preference merely because the selected model or Agent changes.
-- Packaged smoke verifies the bundled Node version, helper, native package, model identity, real OCR
-  and offline execution on each supported target before that target is considered enabled.
+- Packaged smoke verifies the helper, native package, model identity, real OCR and offline execution
+  on each supported target before that target is considered enabled. Without bundled Node, smoke
+  uses the CI Node executable pinned to the runtime manifest and checks its helper handshake.
 - Release and package-regression packaging compare every selected installer role against the
   committed six-target baseline and reject both growth and shrinkage beyond 90 MiB. Manual Build
   keeps the component budgets but does not run the installer delta gate.

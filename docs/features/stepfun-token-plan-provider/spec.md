@@ -2,15 +2,13 @@
 
 ## Status
 
-Implemented and validated on 2026-07-20.
+Implemented and maintained.
 
-## Problem
+## Context
 
-DeepChat currently exposes one built-in StepFun provider profile. It uses
-`https://api.stepfun.com/v1`, which is the standard pay-as-you-go endpoint. StepFun also exposes a
-separate Step Plan endpoint at `https://api.stepfun.com/step_plan/v1`. Users with a Step Plan
-subscription cannot select that billing route without manually changing the existing profile URL,
-which makes the two billing modes mutually exclusive and obscures which quota a conversation uses.
+DeepChat exposes separate built-in StepFun profiles for standard pay-as-you-go and Step Plan
+requests. Each profile has its own provider ID, base URL, credentials, enabled state, and selected
+models, so a user can configure both billing routes without replacing an existing profile.
 
 ## Goal
 
@@ -19,10 +17,10 @@ profiles while preserving existing StepFun settings.
 
 ## Provider Contract
 
-| Billing mode | Provider ID | Display name | Base URL | Model source | Check model |
-| --- | --- | --- | --- | --- | --- |
-| Standard pay-as-you-go | `stepfun` | StepFun | `https://api.stepfun.com/v1` | `stepfun` | `step-3.5-flash` |
-| Step Plan | `stepfun-step-plan` | StepFun Token Plan | `https://api.stepfun.com/step_plan/v1` | `stepfun-step-plan` | `step-3.7-flash` |
+| Billing mode           | Provider ID         | Display name       | Base URL                               | Model source        | Check model      |
+| ---------------------- | ------------------- | ------------------ | -------------------------------------- | ------------------- | ---------------- |
+| Standard pay-as-you-go | `stepfun`           | StepFun            | `https://api.stepfun.com/v1`           | `stepfun`           | `step-3.5-flash` |
+| Step Plan              | `stepfun-step-plan` | StepFun Token Plan | `https://api.stepfun.com/step_plan/v1` | `stepfun-step-plan` | `step-3.7-flash` |
 
 Both profiles use the existing OpenAI-compatible runtime and API-key credential strategy. API keys
 remain stored in main-process provider settings under each provider ID. A user may enter the same
@@ -33,15 +31,6 @@ catalogs. DeepChat must bind each profile to its matching catalog so Step Plan-o
 `step-router-v1` are not inferred from the standard billing profile.
 
 ## User Experience
-
-Before:
-
-```text
-Providers
-  StepFun                 https://api.stepfun.com/v1
-```
-
-After:
 
 ```text
 Providers

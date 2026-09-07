@@ -237,6 +237,19 @@ export function sanitizeAggregateJson(json) {
       }
       modelType ??= inferTtsModelTypeFromId(mid)
 
+      if (pid === 'aihubmix') {
+        // https://developers.openai.com/api/docs/models/gpt-5.3-codex
+        if (mid === 'gpt-5.3-codex' && limit?.output > 128000) {
+          limit.output = 128000
+        }
+        // https://docs.cohere.com/docs/reranking-best-practices
+        // https://docs.cohere.com/v2/docs/rerank
+        if (mid === 'cohere-rerank-v4.0-fast' || mid === 'cohere-rerank-v4.0-pro') {
+          modalities = { ...modalities, input: ['text'] }
+          limit = { ...limit, context: 32768 }
+        }
+      }
+
       sanitizedModels.push({
         id: mid,
         name: typeof m.name === 'string' ? m.name : undefined,
