@@ -51,7 +51,7 @@
         v-if="isCompactionExpanded"
         :id="compactionDetailsId"
         data-testid="compaction-details"
-        class="min-w-0 pl-6 pb-2"
+        class="compaction-details ml-6 min-w-0 rounded-md border border-border px-3 py-2 text-xs leading-5"
       >
         <div
           v-if="isCompactionFailed"
@@ -268,3 +268,24 @@ const onCopyImage = (
   modelInfo: { model_name: string; model_provider: string }
 ) => emit('copyImage', messageId, parentId, fromTop, modelInfo)
 </script>
+
+<style scoped>
+@reference '../../assets/style.css';
+
+.compaction-details :deep(.markstream-vue) {
+  --ms-text-body: 0.75rem;
+  --ms-leading-body: 1.5;
+}
+
+.compaction-details :deep(:is(h1, h2, h3, h4, h5, h6)) {
+  @apply my-2 text-sm font-medium leading-5;
+}
+
+.compaction-details :deep(:is(p, ul, ol)) {
+  @apply my-1.5;
+}
+
+.compaction-details :deep(li p) {
+  @apply my-0;
+}
+</style>
