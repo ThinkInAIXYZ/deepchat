@@ -17,6 +17,7 @@ const AgentMemoryTable = tableModule?.AgentMemoryTable
 const buildPendingEmbeddingSelectSql = tableModule?.buildPendingEmbeddingSelectSql
 const buildScopedImportanceCandidatesSql = tableModule?.buildScopedImportanceCandidatesSql
 const buildWorkingCandidatesSelectSql = tableModule?.buildWorkingCandidatesSelectSql
+const buildFtsSearchSql = tableModule?.buildFtsSearchSql
 const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const agentFtsScope = ftsPolicyModule?.agentFtsScope
 const buildRecallablePredicate = ftsPolicyModule?.buildRecallablePredicate
@@ -30,6 +31,7 @@ const describeIfSqlite = nativeSqliteDescribeIf(
     buildPendingEmbeddingSelectSql &&
     buildScopedImportanceCandidatesSql &&
     buildWorkingCandidatesSelectSql &&
+    buildFtsSearchSql &&
     AgentMemoryAuditTable &&
     agentFtsScope &&
     buildRecallablePredicate &&
@@ -4486,6 +4488,32 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           .get() as { tokenizer?: string } | undefined
         if (meta?.tokenizer === 'trigram') expect(likeSpy).not.toHaveBeenCalled()
       }
+    } finally {
+      db.close()
+    }
+  })
+
+  it('walks the FTS posting lists once for both recall legs', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis setup notes' })
+      if (!ftsActive(db)) return
+
+      const query = buildFtsSearchSql!(
+        'a',
+        `content : ("redis") AND agent_id : "${agentFtsScope!('a')}"`,
+        2,
+        [{ type: 'agent' }]
+      )
+      expect(db.prepare(query.sql).all(...query.params)).toHaveLength(1)
+
+      const plan = db.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params) as Array<{
+        detail: string
+      }>
+      const ftsScans = plan.filter((row) => row.detail.includes('agent_memory_fts VIRTUAL TABLE'))
+      expect(ftsScans).toHaveLength(1)
     } finally {
       db.close()
     }

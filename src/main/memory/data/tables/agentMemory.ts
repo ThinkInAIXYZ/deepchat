@@ -525,6 +525,94 @@ export function buildManagementPageSelectSql(hasCursor: boolean): string {
 }
 
 /**
+ * FTS recall runs the MATCH once and materializes the agent-scoped hits with their BM25 score. The
+ * lexical leg ranks those hits by score after the authoritative row filter; the importance leg
+ * intersects the same hits with the top importance candidates. Both legs used to repeat the MATCH,
+ * which walked the posting lists twice per recall.
+ */
+export function buildFtsSearchSql(
+  agentId: string,
+  match: string,
+  limit: number,
+  scopeFilter: readonly MemoryScope[]
+): { sql: string; params: unknown[] } {
+  const lexicalLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
+  const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
+  const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
+  const importanceCandidates = buildScopedImportanceCandidatesSql(
+    agentId,
+    scopeFilter,
+    importanceCandidateLimit
+  )
+  return {
+    sql: `WITH fts_hits AS MATERIALIZED (
+            SELECT rowid AS memory_rowid,
+                   bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
+            FROM agent_memory_fts
+            WHERE agent_memory_fts MATCH ?
+          ), lexical AS MATERIALIZED (
+            SELECT am.rowid AS memory_rowid,
+                   am.id,
+                   am.importance,
+                   am.created_at,
+                   hit.lexical_score
+            FROM fts_hits hit
+            CROSS JOIN agent_memory am NOT INDEXED
+            WHERE am.rowid = hit.memory_rowid
+              AND am.agent_id = ?
+              AND ${buildRecallablePredicate('am')}
+              AND ${scopePredicate.sql}
+            ORDER BY hit.lexical_score ASC,
+                     am.importance DESC,
+                     am.created_at DESC,
+                     am.id ASC
+            LIMIT ?
+          ), importance_candidates AS MATERIALIZED (
+            ${importanceCandidates.sql}
+          ), importance AS MATERIALIZED (
+            SELECT candidate.memory_rowid,
+                   candidate.id,
+                   candidate.importance,
+                   candidate.created_at
+            FROM importance_candidates candidate
+            WHERE EXISTS (
+              SELECT 1 FROM fts_hits hit WHERE hit.memory_rowid = candidate.memory_rowid
+            )
+            ORDER BY candidate.importance DESC,
+                     candidate.created_at DESC,
+                     candidate.id ASC
+            LIMIT ?
+          ), combined AS (
+            SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
+            FROM lexical
+            UNION ALL
+            SELECT importance.memory_rowid, 1, NULL, importance.importance,
+                   importance.created_at, importance.id
+            FROM importance
+            WHERE NOT EXISTS (
+              SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
+            )
+          )
+          SELECT am.*
+          FROM combined
+          JOIN agent_memory am ON am.rowid = combined.memory_rowid
+          ORDER BY combined.source_order ASC,
+                   combined.lexical_score ASC,
+                   combined.importance DESC,
+                   combined.created_at DESC,
+                   combined.id ASC`,
+    params: [
+      match,
+      agentId,
+      ...scopePredicate.params,
+      lexicalLimit,
+      ...importanceCandidates.params,
+      limit
+    ]
+  }
+}
+
+/**
  * Working-blob candidates in their stable ordering. The pinned partial index carries the same
  * predicate and sort, so each page is an index range read rather than a sort of every active claim.
  */
@@ -2941,91 +3029,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     limit: number,
     scopeFilter: readonly MemoryScope[] = AGENT_MEMORY_AGENT_SCOPE_FILTER
   ): AgentMemoryRow[] {
-    const lexicalScanLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
-    const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
-    const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
-    const importanceCandidates = buildScopedImportanceCandidatesSql(
-      agentId,
-      scopeFilter,
-      importanceCandidateLimit
-    )
-    return this.db
-      .prepare(
-        `WITH lexical_hits AS MATERIALIZED (
-           SELECT am.rowid AS memory_rowid,
-                  am.id,
-                  am.importance,
-                  am.created_at,
-                  bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
-           FROM agent_memory_fts
-           CROSS JOIN agent_memory am NOT INDEXED
-           WHERE agent_memory_fts MATCH ?
-             AND am.rowid = agent_memory_fts.rowid
-             AND am.agent_id = ?
-             AND ${buildRecallablePredicate('am')}
-             AND ${scopePredicate.sql}
-           ORDER BY lexical_score ASC,
-                    am.importance DESC,
-                    am.created_at DESC,
-                    am.id ASC
-           LIMIT ?
-         ), lexical AS MATERIALIZED (
-           SELECT memory_rowid,
-                  id,
-                  importance,
-                  created_at,
-                  lexical_score
-           FROM lexical_hits
-           ORDER BY lexical_score ASC,
-                    importance DESC,
-                    created_at DESC,
-                    id ASC
-           LIMIT ?
-         ), importance_candidates AS MATERIALIZED (
-           ${importanceCandidates.sql}
-         ), importance AS MATERIALIZED (
-           SELECT candidate.memory_rowid,
-                  candidate.id,
-                  candidate.importance,
-                  candidate.created_at
-           FROM agent_memory_fts f
-           CROSS JOIN importance_candidates candidate
-           WHERE agent_memory_fts MATCH ?
-             AND f.rowid = candidate.memory_rowid
-           ORDER BY candidate.importance DESC,
-                    candidate.created_at DESC,
-                    candidate.id ASC
-           LIMIT ?
-         ), combined AS (
-           SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
-           FROM lexical
-           UNION ALL
-           SELECT importance.memory_rowid, 1, NULL, importance.importance,
-                  importance.created_at, importance.id
-           FROM importance
-           WHERE NOT EXISTS (
-             SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
-           )
-         )
-         SELECT am.*
-         FROM combined
-         JOIN agent_memory am ON am.rowid = combined.memory_rowid
-         ORDER BY combined.source_order ASC,
-                  combined.lexical_score ASC,
-                  combined.importance DESC,
-                  combined.created_at DESC,
-                  combined.id ASC`
-      )
-      .all(
-        match,
-        agentId,
-        ...scopePredicate.params,
-        lexicalScanLimit,
-        limit,
-        ...importanceCandidates.params,
-        match,
-        limit
-      ) as AgentMemoryRow[]
+    const query = buildFtsSearchSql(agentId, match, limit, scopeFilter)
+    return this.db.prepare(query.sql).all(...query.params) as AgentMemoryRow[]
   }
 
   private searchLike(
