@@ -1237,6 +1237,84 @@ describe('MemoryService management', () => {
     await presenter.dispose()
   })
 
+  it('embeds only the leading span of an oversized recall query', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    )
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+
+    const callsBeforeRecall = getEmbeddings.mock.calls.length
+    const pastedDocument = `redis setup ${'😀字'.repeat(1500)}`
+    await presenter.recall('a', pastedDocument)
+
+    const queryTexts = getEmbeddings.mock.calls
+      .slice(callsBeforeRecall)
+      .map(([, , texts]) => texts[0])
+      .filter((text) => text !== 'memory warmup')
+    expect(queryTexts).toHaveLength(1)
+    expect(Array.from(queryTexts[0]).length).toBe(2000)
+    expect(pastedDocument.startsWith(queryTexts[0])).toBe(true)
+    await presenter.dispose()
+  })
+
+  it('keeps the query embedding circuit closed when the provider rejects the request shape', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let queryMode: 'healthy' | 'reject' | 'transport' = 'healthy'
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (queryMode === 'reject' && texts[0] !== 'memory warmup') {
+        throw Object.assign(new Error('input exceeds the model context length'), {
+          name: 'AI_APICallError',
+          statusCode: 413
+        })
+      }
+      if (queryMode === 'transport' && texts[0] !== 'memory warmup') {
+        throw new Error('transport unavailable')
+      }
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const [memoryId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    queryMode = 'reject'
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const recalled = await presenter.recall('a', 'redis setup')
+      expect(recalled.map((item) => item.id)).toEqual([memoryId])
+    }
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+
+    queryMode = 'transport'
+    await presenter.recall('a', 'redis setup')
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.failures).toBe(1)
+    await presenter.dispose()
+  })
+
   it('expires isolated failures outside the query embedding breaker window', async () => {
     vi.useFakeTimers()
     try {

@@ -67,6 +67,11 @@ export const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_L
 export const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
 export const MEMORY_CREATED_IDS_EVENT_LIMIT = 50
 
+/**
+ * Recall embeds the user's message only to locate atomic claims, so the leading span carries the
+ * intent; capping it keeps the request inside every provider's input limit and bounds latency.
+ */
+export const RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS = 2000
 export const RECALL_QUERY_EMBEDDING_TIMEOUT_MS = 800
 export const RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD = 2
 export const RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS = 30 * 1000

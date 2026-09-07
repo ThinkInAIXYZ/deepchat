@@ -5,6 +5,8 @@ import type {
   MemoryRetrievalOutcome,
   MemoryRetrievalPurpose
 } from '@shared/types/agent-memory'
+import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
+import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
 import {
   buildMemoryProvenanceKey,
@@ -49,6 +51,7 @@ import {
   RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
+  RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS,
   RECALL_QUERY_EMBEDDING_MAX_CONCURRENT,
   RECALL_QUERY_EMBEDDING_STALE_MS,
   RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
@@ -203,6 +206,17 @@ function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): bool
     isMemoryProviderCancellationError(error) ||
     (isDisposed && error instanceof VectorStoreLeaseUnavailableError && error.reason === 'stopped')
   )
+}
+
+/**
+ * HTTP statuses that reject this request's shape rather than report provider health. They return
+ * fast, so skipping the vector path for them would only hide recall without saving any latency.
+ */
+const PROVIDER_REQUEST_REJECTION_STATUSES: ReadonlySet<number> = new Set([400, 413, 422])
+
+function isProviderRequestRejection(error: unknown): boolean {
+  const statusCode = extractProviderFailureMetadata(error)?.statusCode
+  return statusCode !== undefined && PROVIDER_REQUEST_REJECTION_STATUSES.has(statusCode)
 }
 
 export class RetrievalService {
@@ -590,9 +604,10 @@ export class RetrievalService {
   private startQueryEmbedding(
     agentId: string,
     embedding: MemoryModelRef,
-    query: string,
+    fullQuery: string,
     signal?: AbortSignal
   ): QueryEmbeddingStartResult {
+    const query = truncateUnicodeCodePoints(fullQuery, RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS)
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
     const key = `${agentId}::${fingerprint}`
     const now = Date.now()
@@ -719,7 +734,8 @@ export class RetrievalService {
 
   private isQueryEmbeddingCircuitFailure(error: unknown): boolean {
     if ((error as { code?: string } | null)?.code === MEMORY_PROVIDER_DEADLINE_CODE) return true
-    return (error as { name?: string } | null)?.name !== 'AbortError'
+    if ((error as { name?: string } | null)?.name === 'AbortError') return false
+    return !isProviderRequestRejection(error)
   }
 
   private settleQueryEmbeddingCircuitSuccess(entry: QueryEmbeddingInFlight): void {
