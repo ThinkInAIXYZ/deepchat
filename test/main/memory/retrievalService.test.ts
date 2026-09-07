@@ -13,6 +13,7 @@ import {
 } from '@/memory/core/scoring'
 import { MEMORY_TEMPORAL_UNCERTAIN_STATE_FACTOR } from '@/memory/core/temporal'
 import { createMemoryProviderCapacityError } from '@/memory/core/providerCancellation'
+import { MEMORY_RETRIEVAL_MAX_CANDIDATES } from '@/memory/core/retrievalBudget'
 import { FTS_SIMILARITY_BASELINE } from '@/memory/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { enabledConfig, makePresenter, textToVector } from './support/memoryFakes'
@@ -367,7 +368,10 @@ describe('MemoryService recall + injection', () => {
     })
 
     expect(recalled.map((item) => item.id)).toEqual([applicableId])
-    expect(querySpy.mock.calls.map(([, options]) => options.topK)).toEqual([8, 32])
+    // One exact scan fetches the whole candidate budget; refills widen the page locally.
+    expect(querySpy.mock.calls.map(([, options]) => options.topK)).toEqual([
+      MEMORY_RETRIEVAL_MAX_CANDIDATES
+    ])
   })
 
   it('cancels an adaptive vector refill when the directive read epoch changes', async () => {
@@ -395,18 +399,17 @@ describe('MemoryService recall + injection', () => {
       topic: 'Project Saffron'
     })
     const originalQuery = store.query.bind(store)
-    const pendingRefill = deferred<Array<{ memoryId: string; distance: number }>>()
-    const querySpy = vi.spyOn(store, 'query').mockImplementation((embedding, options) => {
-      if (options.topK === 32) return pendingRefill.promise
-      return originalQuery(embedding, options)
-    })
+    const pendingScan = deferred<Array<{ memoryId: string; distance: number }>>()
+    const querySpy = vi.spyOn(store, 'query').mockImplementation(() => pendingScan.promise)
 
     const recall = presenter.recall('a', 'redis', undefined, {
       sessionId: 'session-1'
     })
-    await vi.waitFor(() => expect(querySpy).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(querySpy).toHaveBeenCalledTimes(1))
     expect(presenter.approveDirective('a', draft!.id)).toMatchObject({ status: 'active' })
-    pendingRefill.resolve(await originalQuery(textToVector('redis'), { topK: 32 }))
+    pendingScan.resolve(
+      await originalQuery(textToVector('redis'), { topK: MEMORY_RETRIEVAL_MAX_CANDIDATES })
+    )
 
     await expect(recall).resolves.toEqual([])
     expect(repo.getById(applicableId)?.access_count).toBe(0)
