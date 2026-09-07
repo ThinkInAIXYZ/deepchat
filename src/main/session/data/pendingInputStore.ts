@@ -61,7 +61,7 @@ export class SessionPendingInputStore {
   countActiveQueue(sessionId: string): number {
     return this.database.deepchatPendingInputsTable
       .listActiveBySession(sessionId)
-      .filter((row) => row.mode === 'queue').length
+      .filter((row) => row.mode === 'queue' && row.state !== 'claimed').length
   }
 
   getInput(itemId: string): PendingSessionInputRecord | null {

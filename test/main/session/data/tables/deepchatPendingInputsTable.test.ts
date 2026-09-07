@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -9,11 +8,13 @@ import {
   PENDING_INPUT_RETRY_SCHEMA_VERSION
 } from '@/session/data/tables/deepchatPendingInputs'
 import { createSessionData } from '@/session/data'
+import { SessionDatabase } from '@/session/data/database'
 import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
 const describeIfNativeSqlite = nativeSqliteDescribeIf()
+const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 
 describe('DeepChatPendingInputsTable migrations', () => {
   it('declares attachment and retry recovery migrations', () => {
@@ -29,6 +30,105 @@ describe('DeepChatPendingInputsTable migrations', () => {
     expect(table.getMigrationSQL(PENDING_INPUT_RETRY_SCHEMA_VERSION)).toContain(
       'ADD COLUMN retry_required_at INTEGER'
     )
+  })
+})
+
+describeIfNativeSqlite('SessionPendingInputs queue capacity', () => {
+  it('accepts new inputs after a full queue is claimed or an item is deleted', () => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const pending = data.pendingInputs
+      const queued = Array.from({ length: 10 }, (_, index) =>
+        pending.queuePendingInput('s1', { text: String(index + 1), files: [] })
+      )
+      const enqueue = () => pending.queuePendingInput('s1', { text: 'next', files: [] })
+
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.claimQueuedInput('s1', queued[0].id)
+      expect(pending.listPendingInputs('s1')).toHaveLength(9)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      const next = enqueue()
+      expect(pending.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        ...queued.slice(1).map((item) => item.id),
+        next.id
+      ])
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[1].id)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      expect(enqueue().state).toBe('pending')
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.getInput('s1', queued[0].id)?.state).toBe('claimed')
+    } finally {
+      connection.close()
+    }
+  })
+
+  it.each([
+    'releaseClaimedQueueInput',
+    'releaseClaimedQueueInputForRetry',
+    'releaseClaimedInput',
+    'recoverInputsAfterRestart'
+  ] as const)('preserves accepted inputs beyond capacity after %s', (release) => {
+    const connection = new MainDatabase(':memory:')
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const pending = data.pendingInputs
+      const claimed = pending.queuePendingInput(
+        's1',
+        { text: 'recover me', files: [] },
+        {
+          state: 'claimed'
+        }
+      )
+      const queued = Array.from({ length: 10 }, (_, index) =>
+        pending.queuePendingInput('s1', { text: String(index + 1), files: [] })
+      )
+
+      if (release === 'recoverInputsAfterRestart') {
+        pending.recoverInputsAfterRestart()
+      } else {
+        pending[release]('s1', claimed.id)
+      }
+
+      expect(pending.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        claimed.id,
+        ...queued.map((item) => item.id)
+      ])
+      expect(pending.getInput('s1', claimed.id)?.state).toBe(
+        release === 'releaseClaimedQueueInputForRetry' ? 'retry_required' : 'pending'
+      )
+      const enqueue = () => pending.queuePendingInput('s1', { text: 'next', files: [] })
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[0].id)
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.isAtCapacity('s1')).toBe(true)
+      expect(enqueue).toThrow('Pending input limit reached for this session.')
+
+      pending.deletePendingInput('s1', queued[1].id)
+      expect(pending.isAtCapacity('s1')).toBe(false)
+      expect(enqueue().state).toBe('pending')
+      expect(pending.listPendingInputs('s1')).toHaveLength(10)
+      expect(pending.getInput('s1', claimed.id)?.payload.text).toBe('recover me')
+    } finally {
+      connection.close()
+    }
   })
 })
 
@@ -187,8 +287,12 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       bootstrap.close()
 
       const migrated = new MainDatabase(databasePath)
-      expect(migrated.getLatestSchemaVersion()).toBe(PENDING_INPUT_RETRY_SCHEMA_VERSION)
-      expect(migrated.deepchatPendingInputsTable.get('released')).toMatchObject({
+      expect(migrated.getLatestSchemaVersion()).toBeGreaterThanOrEqual(
+        PENDING_INPUT_RETRY_SCHEMA_VERSION
+      )
+      expect(
+        new SessionDatabase(migrated).deepchatPendingInputsTable.get('released')
+      ).toMatchObject({
         state: 'blocked',
         retry_required_at: 11
       })
@@ -287,7 +391,7 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       )
 
       expect(
-        connection.deepchatPendingInputsTable
+        new SessionDatabase(connection).deepchatPendingInputsTable
           .listActiveBySession('s1')
           .filter((row) => row.mode === 'queue')
           .map((row) => [row.id, row.queue_order])
@@ -474,16 +578,14 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         { text: 'atomic queue', files: [] },
         { state: 'claimed' }
       )
-      const originalUpdate = connection.deepchatPendingInputsTable.update.bind(
-        connection.deepchatPendingInputsTable
-      )
+      const originalUpdate = DeepChatPendingInputsTable.prototype.update
       const update = vi
-        .spyOn(connection.deepchatPendingInputsTable, 'update')
-        .mockImplementation((itemId, fields) => {
+        .spyOn(DeepChatPendingInputsTable.prototype, 'update')
+        .mockImplementation(function (itemId, fields) {
           if (fields.message_ids_json) {
             throw new Error('link failed')
           }
-          return originalUpdate(itemId, fields)
+          return originalUpdate.call(this, itemId, fields)
         })
 
       expect(() =>
@@ -531,19 +633,17 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
         { text: 'second', files: [] },
         { mergeItemId: first.pendingInput.id }
       )
-      const tapeCountBeforeRecovery = connection.deepchatTapeEntriesTable.getBySession('s1').length
-      const originalUpdateStatus = connection.deepchatMessagesTable.updateStatus.bind(
-        connection.deepchatMessagesTable
-      )
-      let failedStatusUpdates = 0
-      const updateStatus = vi
-        .spyOn(connection.deepchatMessagesTable, 'updateStatus')
-        .mockImplementation((messageId, status) => {
-          originalUpdateStatus(messageId, status)
-          if (status === 'error' && ++failedStatusUpdates === 1) {
-            throw new Error('terminalization failed')
-          }
-        })
+      const database = new SessionDatabase(connection)
+      const tapeCountBeforeRecovery = database.deepchatTapeEntriesTable.getBySession('s1').length
+      connection.getDatabase().exec(`
+        CREATE TRIGGER fail_steer_terminalization
+        AFTER UPDATE OF status ON deepchat_messages
+        WHEN NEW.status = 'error'
+          AND (SELECT COUNT(*) FROM deepchat_messages WHERE status = 'error') = 2
+        BEGIN
+          SELECT RAISE(ABORT, 'terminalization failed');
+        END;
+      `)
 
       expect(() => data.pendingInputs.recoverInputsAfterRestart()).toThrow('terminalization failed')
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
@@ -552,11 +652,11 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       ])
       expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('pending')
       expect(data.pendingInputs.listPendingInputs('s1')).toHaveLength(1)
-      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+      expect(database.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
         tapeCountBeforeRecovery
       )
 
-      updateStatus.mockRestore()
+      connection.getDatabase().exec('DROP TRIGGER fail_steer_terminalization')
       data.pendingInputs.recoverInputsAfterRestart()
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
         'error',
@@ -564,7 +664,7 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       ])
       expect(data.pendingInputs.getInput('s1', first.pendingInput.id)?.state).toBe('consumed')
       expect(data.pendingInputs.listPendingInputs('s1')).toEqual([])
-      expect(connection.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+      expect(database.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
         tapeCountBeforeRecovery + 2
       )
       expect(second.pendingInput.messageIds).toEqual([first.message.id, second.message.id])

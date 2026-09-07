@@ -143,6 +143,23 @@ function buildPendingInput(
 }
 
 describe('PendingInputLane', () => {
+  it('shows every recovered input and its actual count even above the admission limit', async () => {
+    const queueItems = Array.from({ length: 11 }, (_, index) =>
+      buildPendingInput(`queue-${index + 1}`, 'queue')
+    )
+    const wrapper = mount(PendingInputLane, {
+      props: { queueItems, disableSteerAction: true }
+    })
+
+    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(11)
+    expect(wrapper.text()).toContain('Queue 11/10')
+    expect(wrapper.text()).toContain('Waiting lane is full (10).')
+
+    await wrapper.setProps({ queueItems: queueItems.slice(2), disableSteerAction: false })
+    expect(wrapper.text()).toContain('Queue 9/10')
+    expect(wrapper.text()).not.toContain('Waiting lane is full')
+  })
+
   it('exposes one disabled-aware Queue resume action in the lane header', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
