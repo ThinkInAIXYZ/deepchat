@@ -114,6 +114,8 @@
   "features": {
     "webSearch": "جستجوی وب",
     "artifactThinking": "تفکر مصنوعی",
+    "thoughtForLessThanOneSecond": "تفکر به مدت کمتر از ۱ ثانیه",
+    "thoughtForLessThanOneSecondLoading": "در حال تفکر (کمتر از ۱ ثانیه)",
     "thoughtForSeconds": "تفکر به مدت {seconds} ثانیه",
     "thoughtForSecondsLoading": "در حال تفکر ({seconds} ثانیه)",
     "modeChanged": "تغییر حالت به: {mode}"

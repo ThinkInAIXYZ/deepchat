@@ -113,6 +113,8 @@
   },
   "features": {
     "webSearch": "Busca na Web",
+    "thoughtForLessThanOneSecond": "Pensou por menos de 1s",
+    "thoughtForLessThanOneSecondLoading": "Pensando por menos de 1s...",
     "thoughtForSeconds": "Pensou por {seconds}s",
     "thoughtForSecondsLoading": "Pensando por {seconds}s...",
     "artifactThinking": "Processando Artefato",

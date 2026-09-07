@@ -74,8 +74,7 @@ const reasoningDuration = computed(() => {
   } else {
     duration = (props.usage.reasoning_end_time - props.usage.reasoning_start_time) / 1000
   }
-  // 保留小数点后最多两位，去除尾随的0
-  return parseFloat(duration.toFixed(2))
+  return duration
 })
 
 const updateDisplayedSeconds = () => {
@@ -123,6 +122,11 @@ const headerText = computed(() => {
     return t('chat.features.modeChanged', { mode: modeChangeId.value })
   }
   const seconds = displayedSeconds.value
+  if (seconds === 0) {
+    return props.block.status === 'loading'
+      ? t('chat.features.thoughtForLessThanOneSecondLoading')
+      : t('chat.features.thoughtForLessThanOneSecond')
+  }
   return props.block.status === 'loading'
     ? t('chat.features.thoughtForSecondsLoading', { seconds })
     : t('chat.features.thoughtForSeconds', { seconds })
