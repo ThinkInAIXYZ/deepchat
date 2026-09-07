@@ -265,6 +265,7 @@ export abstract class BaseLLMProvider {
    * @returns 模型列表
    */
   public async fetchModels(options?: { suppressErrors?: boolean }): Promise<MODEL_META[]> {
+    const provider = this.provider
     const suppressErrors = options?.suppressErrors ?? true
     let models: MODEL_META[]
 
@@ -295,8 +296,10 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
     )
-    // Validate that all models have correct providerId
-    const validatedModels = models.map((model) => {
+    if (provider !== this.provider) return []
+
+    // Validate a private snapshot of the shared discovery result.
+    const validatedModels = structuredClone(models).map((model) => {
       if (model.providerId !== this.provider.id) {
         logger.warn(
           `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
@@ -307,7 +310,7 @@ export abstract class BaseLLMProvider {
     })
     this.models = validatedModels
     this.providerSettings.setProviderModels(this.provider.id, validatedModels)
-    return validatedModels
+    return structuredClone(validatedModels)
   }
 
   /**

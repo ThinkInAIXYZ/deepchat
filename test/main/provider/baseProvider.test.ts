@@ -276,14 +276,68 @@ describe('BaseLLMProvider tool XML conversion', () => {
 
     provider.updateConfig({ ...provider.getProviderSnapshot(), apiKey: 'updated-key' })
     const second = provider.fetchModels()
-    resolveFirst([])
-    await first
+    resolveFirst([{ id: 'outdated-model', providerId: 'test-provider' }] as MODEL_META[])
+    await expect(first).resolves.toEqual([])
+    expect(providerSettings.setProviderModels).not.toHaveBeenCalled()
 
     const concurrent = provider.fetchModels()
     expect(fetchModels).toHaveBeenCalledTimes(2)
     const models = [{ id: 'updated-model', providerId: 'test-provider' }] as MODEL_META[]
     resolveSecond(models)
     await expect(Promise.all([second, concurrent])).resolves.toEqual([models, models])
+    expect(provider.getModels()).toEqual(models)
+  })
+
+  it('does not let stale discovery overwrite models from the current config', async () => {
+    let resolveFirst!: (models: MODEL_META[]) => void
+    const models = [{ id: 'updated-model', providerId: 'test-provider' }] as MODEL_META[]
+    const fetchModels = vi
+      .fn()
+      .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValue(models)
+    const provider = new TestProvider(providerSettings, fetchModels)
+    const first = provider.fetchModels()
+
+    provider.updateConfig({ ...provider.getProviderSnapshot(), apiKey: 'updated-key' })
+    await expect(provider.fetchModels()).resolves.toEqual(models)
+    resolveFirst([{ id: 'outdated-model', providerId: 'test-provider' }] as MODEL_META[])
+
+    await expect(first).resolves.toEqual([])
+    expect(provider.getModels()).toEqual(models)
+    expect(providerSettings.setProviderModels).toHaveBeenCalledExactlyOnceWith(
+      'test-provider',
+      models
+    )
+  })
+
+  it('isolates discovered models from callers and the provider cache', async () => {
+    const models: MODEL_META[] = [
+      {
+        id: 'model-1',
+        name: 'Model 1',
+        group: 'default',
+        providerId: 'upstream-provider',
+        supportedEndpointTypes: ['openai'],
+        selectableEndpointTypes: ['openai']
+      }
+    ]
+    const fetchModels = vi.fn().mockResolvedValue(models)
+    const provider = new TestProvider(providerSettings, fetchModels)
+    const [first, second] = await Promise.all([provider.fetchModels(), provider.fetchModels()])
+    const expected = [{ ...models[0], providerId: 'test-provider' }]
+
+    first[0].providerId = 'caller-provider'
+    first[0].supportedEndpointTypes!.push('anthropic')
+    first[0].selectableEndpointTypes!.push('anthropic')
+
+    expect(fetchModels).toHaveBeenCalledTimes(1)
+    expect(second).toEqual(expected)
+    expect(provider.getModels()).toEqual(expected)
+    expect(models[0].providerId).toBe('upstream-provider')
+    expect(models[0].supportedEndpointTypes).toEqual(['openai'])
+    for (const [, persisted] of vi.mocked(providerSettings.setProviderModels).mock.calls) {
+      expect(persisted).toEqual(expected)
+    }
   })
 
   it('preserves the caller signal identity when no model timeout is configured', () => {
