@@ -130,6 +130,8 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
       messageType: metadata.messageType === 'compaction' ? 'compaction' : 'normal',
       compactionStatus: metadata.compactionStatus,
       compactionBoundaryReason: metadata.compactionBoundaryReason ?? null,
+      compactionSummary: metadata.compactionSummary,
+      compactionError: metadata.compactionError,
       summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
     } as const
 

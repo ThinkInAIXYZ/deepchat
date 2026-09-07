@@ -198,6 +198,7 @@
   },
   "features": {
     "webSearch": "Web Search",
+    "thoughtForLessThanOneSecond": "Thought for less than 1s",
     "thoughtForSeconds": "Thought for {seconds}s",
     "thoughtForSecondsLoading": "Thinking for {seconds}s...",
     "artifactThinking": "Artifact Thinking",

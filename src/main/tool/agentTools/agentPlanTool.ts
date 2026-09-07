@@ -15,21 +15,10 @@ export const AGENT_CORE_TOOL_SERVER_NAME = 'agent-core'
 
 const MAX_PLAN_ITEMS = 12
 
-export const updatePlanToolArgsSchema = z
-  .strictObject({
-    explanation: z.string().optional(),
-    plan: z.array(agentPlanItemSchema).max(MAX_PLAN_ITEMS)
-  })
-  .superRefine((value, context) => {
-    const inProgressCount = value.plan.filter((item) => item.status === 'in_progress').length
-    if (inProgressCount > 1) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['plan'],
-        message: 'at most one step can be in_progress'
-      })
-    }
-  })
+export const updatePlanToolArgsSchema = z.strictObject({
+  explanation: z.string().optional(),
+  plan: z.array(agentPlanItemSchema).max(MAX_PLAN_ITEMS)
+})
 
 export interface AgentPlanToolCallOptions {
   toolCallId?: string
@@ -57,7 +46,7 @@ export class AgentPlanTool {
       function: {
         name: UPDATE_PLAN_TOOL_NAME,
         description:
-          'Update the visible progress checklist for the current multi-step task. Provide the complete current plan snapshot every time. Use short, concrete, verifiable steps. At most one step may be in_progress.',
+          'Update the visible progress checklist for the current multi-step task. Provide the complete current plan snapshot every time. Use short, concrete, verifiable steps. Multiple steps may be in_progress when work runs in parallel, including delegated subagent tasks.',
         parameters: toDeepChatJsonSchema(updatePlanToolArgsSchema) as {
           type: string
           properties: Record<string, unknown>

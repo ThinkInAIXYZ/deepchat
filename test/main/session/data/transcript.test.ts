@@ -1242,6 +1242,85 @@ describe('SessionTranscript', () => {
   })
 
   describe('updateCompactionMessage', () => {
+    it('persists a failed compaction and its error in the transcript and tape indicator', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        createMessageRow({ id: 'compaction-message', role: 'assistant', content: '[]' })
+      )
+
+      store.updateCompactionMessage('compaction-message', 'failed', null, {
+        compactionAttemptId: 'failed-attempt',
+        error: 'Summary provider unavailable'
+      })
+
+      const record = sqlitePresenter.deepchatMessagesTable.upsert.mock.calls[0][0]
+      expect(record.status).toBe('error')
+      expect(JSON.parse(record.content)).toMatchObject([
+        { type: 'error', status: 'error', content: 'Summary provider unavailable' }
+      ])
+      expect(JSON.parse(record.metadata)).toMatchObject({
+        messageType: 'compaction',
+        compactionStatus: 'failed',
+        compactionError: 'Summary provider unavailable'
+      })
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'message/compaction_indicator',
+          data: expect.objectContaining({ status: 'failed', metadata: record.metadata })
+        })
+      )
+    })
+
+    it('projects each historical summary from its own attempt anchor when loading messages', () => {
+      const metadata = (attemptId: string) =>
+        JSON.stringify({
+          messageType: 'compaction',
+          compactionStatus: 'compacted',
+          compactionAttemptId: attemptId
+        })
+      const rows = ['old-attempt', 'new-attempt', 'boundary-only'].map((id, index) =>
+        createMessageRow({
+          id,
+          session_id: 's1',
+          role: 'assistant',
+          order_seq: index + 1,
+          content: '[]',
+          metadata: metadata(id)
+        })
+      )
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(rows)
+      const anchors = {
+        getReconstructionAnchorByCompactionAttemptId: vi.fn(
+          (_sessionId: string, attemptId: string) => ({
+            payload_json: JSON.stringify({
+              state:
+                attemptId === 'boundary-only'
+                  ? { reason: 'summary_unavailable', priorSummary: 'A previous summary' }
+                  : { summary: attemptId === 'old-attempt' ? 'Original summary' : 'Later summary' }
+            })
+          })
+        )
+      }
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        undefined,
+        anchors as never
+      )
+
+      const records = store.getMessages('s1')
+      expect(records.map((record) => JSON.parse(record.metadata).compactionSummary)).toEqual([
+        'Original summary',
+        'Later summary',
+        undefined
+      ])
+      expect(anchors.getReconstructionAnchorByCompactionAttemptId.mock.calls).toEqual([
+        ['s1', 'old-attempt'],
+        ['s1', 'new-attempt'],
+        ['s1', 'boundary-only']
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.upsert).not.toHaveBeenCalled()
+    })
+
     it('records compaction status updates in tape with revision provenance', () => {
       const appendEvent = vi.fn()
       const transaction = vi.fn((operation: () => unknown) => () => operation())

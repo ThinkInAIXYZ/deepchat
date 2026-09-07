@@ -1314,7 +1314,8 @@ describe('CompactionService', () => {
     expect(result).toEqual({
       outcome: 'boundary_only',
       anchorCommitted: true,
-      summaryState: boundaryState
+      summaryState: boundaryState,
+      summaryError: 'provider request id must not be persisted'
     })
     expect(sessionStore.compareAndSetSummaryState).toHaveBeenCalledWith(
       's1',

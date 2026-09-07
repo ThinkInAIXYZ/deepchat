@@ -66,7 +66,8 @@ function renderCodeModeProgressPrompt(executionCatalog: readonly MCPToolDefiniti
   return [
     '## Progress Checklist in Code Mode',
     `Use the \`${UPDATE_PLAN_TOOL_NAME}\` subtool for non-trivial multi-step tasks by calling \`await tools.${UPDATE_PLAN_TOOL_NAME}(args)\` inside the code entrypoint.`,
-    'Each call must provide the complete current checklist snapshot with at most one step in_progress.',
+    'Each call must provide the complete current checklist snapshot.',
+    'Multiple steps may be in_progress when work runs in parallel, including delegated subagent tasks.',
     'Keep the checklist current as work progresses and reconcile it before ending the turn.'
   ].join('\n')
 }

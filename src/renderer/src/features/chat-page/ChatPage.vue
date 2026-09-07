@@ -416,6 +416,7 @@ const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
 )
 const stoppingSessionIds = ref<Set<string>>(new Set())
+const manualCompactionSessionIds = ref<Set<string>>(new Set())
 const isStopping = computed(() => stoppingSessionIds.value.has(props.sessionId))
 const streamingMessageId = computed(() =>
   isCurrentSessionStreaming.value ? messageStore.currentStreamMessageId : null
@@ -846,7 +847,13 @@ const {
   messageStore,
   sessionStore,
   modelStore,
-  isGenerating,
+  // Compaction keeps the session busy without starting an assistant reply.
+  isGenerating: computed(
+    () =>
+      isGenerating.value &&
+      !manualCompactionSessionIds.value.has(props.sessionId) &&
+      sessionStore.activeCompactionState?.status !== 'compacting'
+  ),
   isSessionViewCommitted,
   isCurrentSessionStreaming
 })
@@ -1202,6 +1209,10 @@ const {
   isSessionViewPreparing,
   isAcpWorkdirMissing,
   isGenerating,
+  setManualCompacting: (sessionId, compacting) => {
+    if (compacting) manualCompactionSessionIds.value.add(sessionId)
+    else manualCompactionSessionIds.value.delete(sessionId)
+  },
   hasBlockingInteraction: () =>
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   getActiveModelSelection,

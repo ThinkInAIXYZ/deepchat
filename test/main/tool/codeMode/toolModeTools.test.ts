@@ -197,6 +197,7 @@ describe('Tool Mode provider contracts', () => {
 
     for (const prompt of [functionSdk, codexDescription]) {
       expect(prompt).toContain('## Progress Checklist in Code Mode')
+      expect(prompt).toContain('Multiple steps may be in_progress when work runs in parallel')
       expect(prompt).toContain(
         'Use the `update_plan` subtool for non-trivial multi-step tasks by calling `await tools.update_plan(args)` inside the code entrypoint.'
       )

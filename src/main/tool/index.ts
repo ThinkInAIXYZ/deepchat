@@ -2340,8 +2340,8 @@ export class ToolService implements ToolServicePort {
       'Each call must provide the complete current checklist snapshot.',
       'Keep each step short, concrete, and verifiable.',
       'Keep the checklist current as work progresses.',
-      'At most one step may be in_progress at a time.',
-      'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
+      'Multiple steps may be in_progress when work runs in parallel, including delegated subagent tasks.',
+      'When a step completes, mark it completed immediately and keep every other step accurate in the same snapshot.',
       'Before ending the turn, reconcile the checklist so no step remains in_progress.',
       'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')

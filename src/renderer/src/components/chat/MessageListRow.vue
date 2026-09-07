@@ -8,20 +8,68 @@
     <div
       v-if="isCompactionMessageItem(item)"
       data-compaction-indicator="true"
-      :data-compaction-status="item.compactionStatus ?? 'compacted'"
+      :data-compaction-status="
+        isCompactionFailed ? 'failed' : (item.compactionStatus ?? 'compacted')
+      "
       :data-compaction-boundary-reason="item.compactionBoundaryReason ?? undefined"
-      class="compaction-divider"
+      class="flex min-w-0 flex-col gap-1.5 pl-11 pr-11 pt-4"
     >
-      <div class="compaction-divider__line" />
-      <span
-        class="compaction-divider__label"
-        :class="{
-          'compaction-divider__label--compacting': item.compactionStatus === 'compacting'
-        }"
+      <button
+        type="button"
+        data-testid="compaction-trigger"
+        class="inline-flex w-fit max-w-full min-w-0 min-h-7 items-center gap-2 rounded-sm py-1 text-left text-sm leading-5 text-foreground/60 select-none transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+        :disabled="isCompacting"
+        :aria-expanded="isCompacting ? undefined : isCompactionExpanded"
+        :aria-controls="isCompactionExpanded ? compactionDetailsId : undefined"
+        @click="isCompactionExpanded = !isCompactionExpanded"
       >
-        {{ getCompactionCopy(item.compactionStatus, item.compactionBoundaryReason) }}
-      </span>
-      <div class="compaction-divider__line" />
+        <Icon
+          :icon="
+            isCompactionFailed
+              ? 'lucide:circle-alert'
+              : isCompacting
+                ? 'lucide:loader-circle'
+                : 'lucide:fold-vertical'
+          "
+          class="h-4 w-4 shrink-0"
+          :class="{
+            'text-destructive': isCompactionFailed,
+            'animate-spin motion-reduce:animate-none': isCompacting
+          }"
+          aria-hidden="true"
+        />
+        <span class="min-w-0 truncate" :title="compactionLabel">{{ compactionLabel }}</span>
+        <Icon
+          v-if="!isCompacting"
+          icon="lucide:chevron-right"
+          class="h-3.5 w-3.5 shrink-0 transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
+          :class="isCompactionExpanded ? 'rotate-90' : 'rotate-0'"
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        v-if="isCompactionExpanded"
+        :id="compactionDetailsId"
+        data-testid="compaction-details"
+        class="compaction-details ml-6 min-w-0 rounded-md border border-border px-3 py-2 text-xs leading-5"
+      >
+        <div
+          v-if="isCompactionFailed"
+          class="whitespace-pre-wrap break-words text-xs text-destructive dark:text-red-400"
+        >
+          {{ compactionDetails }}
+        </div>
+        <MarkdownRenderer
+          v-else
+          :content="compactionDetails"
+          :message-id="item.id"
+          :thread-id="item.conversationId"
+          mode="minimal"
+          :final="true"
+          :smooth-streaming="false"
+          :virtualize-nodes="!disableMarkdownVirtualization"
+        />
+      </div>
     </div>
     <MessageItemUser
       v-else-if="item.role === 'user'"
@@ -54,17 +102,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, useId, watch, onMounted, onBeforeUnmount } from 'vue'
+import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
+import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
 import {
   type DisplayAssistantMessage,
   isCompactionMessageItem,
   type DisplayUserMessage,
   type MessageListItem
 } from '@/features/chat-page/model/displayMessage'
-import type { SessionCompactionBoundaryReason } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
@@ -105,8 +154,38 @@ const emit = defineEmits<{
   measure: [payload: { messageId: string; height: number }]
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const rowRef = ref<HTMLElement | null>(null)
+const isCompactionExpanded = ref(false)
+const compactionDetailsId = `compaction-details-${useId()}`
+const isCompactionFailed = computed(
+  () => props.item.compactionStatus === 'failed' || props.item.status === 'error'
+)
+const isCompacting = computed(
+  () => !isCompactionFailed.value && props.item.compactionStatus === 'compacting'
+)
+const compactionLabel = computed(() => {
+  if (isCompactionFailed.value) return t('chat.compaction.failedTitle')
+  if (isCompacting.value) return t('chat.compaction.compacting')
+  if (props.item.compactionBoundaryReason === 'summary_unavailable') {
+    return t('chat.compaction.compactedWithoutSummary')
+  }
+  if (props.item.compactionBoundaryReason === 'summary_rejected_larger') {
+    return t('chat.compaction.compactedWithoutLargerSummary')
+  }
+  return t('chat.compaction.compacted')
+})
+const compactionDetails = computed(() => {
+  if (isCompactionFailed.value) {
+    const detail = props.item.compactionError
+    const error =
+      (typeof detail === 'string' ? detail : '') || props.item.error || 'common.unknownError'
+    return te(error) ? t(error) : error
+  }
+  const summary = props.item.compactionSummary
+  if (typeof summary === 'string' && summary.trim()) return summary
+  return props.item.compactionBoundaryReason ? compactionLabel.value : t('common.noContent')
+})
 let resizeObserver: ResizeObserver | null = null
 let measureFrame: number | null = null
 let measureRetryTimer: number | null = null
@@ -154,6 +233,7 @@ onMounted(() => {
 watch(
   () => props.item?.renderKey ?? props.item?.id,
   () => {
+    isCompactionExpanded.value = false
     lastMeasuredHeight = 0
     emitMeasuredHeight()
   },
@@ -173,20 +253,6 @@ onBeforeUnmount(() => {
   }
 })
 
-const getCompactionCopy = (
-  status?: 'compacting' | 'compacted',
-  boundaryReason?: SessionCompactionBoundaryReason | null
-): string => {
-  if (status === 'compacting') return t('chat.compaction.compacting')
-  if (boundaryReason === 'summary_unavailable') {
-    return t('chat.compaction.compactedWithoutSummary')
-  }
-  if (boundaryReason === 'summary_rejected_larger') {
-    return t('chat.compaction.compactedWithoutLargerSummary')
-  }
-  return t('chat.compaction.compacted')
-}
-
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)
 const onFork = (messageId: string) => emit('fork', messageId)
@@ -204,57 +270,22 @@ const onCopyImage = (
 </script>
 
 <style scoped>
-.compaction-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 1rem 0;
-  user-select: none;
+@reference '../../assets/style.css';
+
+.compaction-details :deep(.markstream-vue) {
+  --ms-text-body: 0.75rem;
+  --ms-leading-body: 1.5;
 }
 
-.compaction-divider__line {
-  height: 1px;
-  flex: 1 1 2.5rem;
-  min-width: 2.5rem;
-  background-color: rgb(120 120 120 / 0.32);
+.compaction-details :deep(:is(h1, h2, h3, h4, h5, h6)) {
+  @apply my-2 text-sm font-medium leading-5;
 }
 
-.compaction-divider__label {
-  flex: none;
-  color: hsl(var(--muted-foreground) / 0.78);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+.compaction-details :deep(:is(p, ul, ol)) {
+  @apply my-1.5;
 }
 
-.compaction-divider__label--compacting {
-  color: hsl(var(--foreground) / 0.92);
-  animation: compaction-breathe 2s ease-in-out infinite;
-}
-
-@keyframes compaction-breathe {
-  0%,
-  100% {
-    color: hsl(var(--muted-foreground) / 0.74);
-    opacity: 0.82;
-    text-shadow: none;
-  }
-
-  50% {
-    color: hsl(var(--foreground) / 0.94);
-    opacity: 1;
-    text-shadow: 0 0 10px hsl(var(--foreground) / 0.16);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .compaction-divider__label--compacting {
-    animation: none;
-    color: hsl(var(--muted-foreground) / 0.78);
-    opacity: 1;
-    text-shadow: none;
-  }
+.compaction-details :deep(li p) {
+  @apply my-0;
 }
 </style>
