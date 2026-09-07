@@ -3039,7 +3039,7 @@
     "acpUnavailableTitle": "ACP Agent 无法使用插件",
     "acpUnavailableDescription": "ACP Agent 通过自己的运行时管理工具和扩展。请选择一个 DeepChat Agent 后再使用插件。",
     "agentScopeUnsupported": "Agent 级扩展配置仅支持 DeepChat Agent。",
-    "scopeGlobalPlugins": "当前页为应用全局：官方插件的安装、启用与进程对所有 DeepChat Agent 共享。",
+    "scopeGlobalPlugins": "插件的安装、启用与进程状态由所有 DeepChat Agent 共享。",
     "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会影响全局插件的安装、启用状态或进程状态。",
     "currentAgentFallback": "当前 Agent"
   },
@@ -3346,5 +3346,47 @@
       "unsupported_platform": "当前平台没有官方运行时构建。"
     },
     "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。当前运行时可供聊天和 MCP 使用，但不能用于 OCR。请安装官方运行时。"
+  },
+  "userPlugins": {
+    "install": "安装插件",
+    "update": "检查并审阅更新",
+    "installDescription": "从 Git 或 ZIP 直接安装 Codex 格式的插件包。启用前请审阅插件内容。",
+    "gitUrl": "公开的 HTTPS Git 地址",
+    "gitRef": "分支、标签或提交（可选）",
+    "subdirectory": "插件子目录（可选）",
+    "chooseZip": "选择 ZIP 文件",
+    "chooseDirectory": "选择插件目录",
+    "inspect": "检查插件包",
+    "executionNotice": "Hooks 和 stdio MCP 会以你的账户权限运行本地代码，能够访问文件和网络。请只启用你信任的代码。npx、uvx 等命令可能在服务启动时下载依赖。",
+    "useSkills": "使用附带的 Skills",
+    "allowHooks": "我已审阅这些命令，允许运行自动上下文 hooks",
+    "allowMcp": "我已审阅这些命令、端点和变量绑定，允许建立 MCP 连接",
+    "sharedData": "此安装的插件数据在不同会话间共享。",
+    "requiredVariables": "需要的环境变量或凭据",
+    "applyUpdate": "应用已审阅的更新",
+    "uninstall": "卸载",
+    "source": "安装来源",
+    "selected": "已选择",
+    "notSelected": "未选择",
+    "reviewed": "命令已审阅",
+    "hooksNotEnabled": "尚未授权自动 hooks。可通过审阅更新来启用；仅使用 Skills 不会自动激活 hooks。",
+    "diagnostics": "最近的 hook 活动",
+    "noInvocations": "本次应用运行中暂无 hook 调用记录。",
+    "retryHook": "重新执行 hook",
+    "mcpSetupDescription": "启用插件以注册服务器。在此填写或更换变量值；宿主环境变量不会自动共享。认证方式可在 MCP 设置中管理。",
+    "saveMcp": "保存并重新连接",
+    "manageMcp": "打开 MCP 设置",
+    "uninstallDescription": "删除此插件、私有数据、Skill 分配及所属 MCP 服务。会话历史会保留。",
+    "fromGit": "从 Git 安装",
+    "fromZip": "从 ZIP 安装",
+    "userPlugin": "用户插件",
+    "hookStatus": {
+      "started": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "uncertain": "中断，结果未知"
+    },
+    "technicalDetails": "技术详情",
+    "hooks": "自动钩子"
   }
 }

@@ -51,7 +51,9 @@ flowchart TD
 ```
 
 - Session 拥有长期身份、settings、transcript、Tape 和 pending input。
-- DeepChat Agent 拥有自己的配置和物理 Skill root；Session 只保存 Agent assignment 和所选 Skill 名称。
+- Each DeepChat Agent owns its configuration and logical Skill bindings. Mutable Skill packages,
+  the catalog cache, and the watcher belong to the application-level Skills service. Sessions store
+  only their Agent assignment and selected Skill names.
 - 已载入 Session 在一个 backend 中最多有一个 instance。
 - 每次执行创建独立 UUID Run，Run 拥有取消信号、logical round、request sequence、physical attempt 和
   临时输出；loop、resume 和 deferred tool execution 都不得复用旧 Run identity。
@@ -153,8 +155,9 @@ Subagent 可用性只由当前 Agent delegation policy、正规化 slot 和 `ses
 - 只有 regular DeepChat parent 且存在有效 slot 时才暴露 `subagent_orchestrator`；
 - Subagent child 不能再次创建 Subagent；
 - admission 后的 run 使用已固定的 task/slot snapshot，真正调用前仍重新检查 host policy；
-- child 使用独立 Session、workspace authorization、Tool mapping、Memory namespace、permission state
-  和目标 Agent Skill catalog；不继承 parent Agent 的 Skill 文件或 mutable cache；
+- Each child uses an independent Session, workspace authorization, Tool mapping, Memory namespace,
+  and permission state. Its Skill catalog is the global package set filtered by the destination
+  Agent's bindings; it does not inherit the parent's bindings or runtime Skill state.
 - 完成后父 Session 记录 child Tape 的 frozen-head link，不复制 child entries。
 
 每个 Subagent run 有独立 deadline；默认 `300000ms`，允许 `1000-1800000ms`。一个 parent 最多同时
@@ -165,10 +168,12 @@ timeout/deadline/reason；run 的终止不能无限等待被阻塞的 child clea
 
 ## 删除与 transfer
 
-删除不依赖当前 agent descriptor 是否仍有效：先清理两个 backend 的 cache/durable binding，再清
-Session data、permission、Skill selection、manual Agent 私有 Skill root 和 app-session row。删除 source
-Agent 不影响已经导入到其他 Agent 的快照副本。ACP 与 DeepChat transfer 必须先验证目标、提交 ownership
-并按目标 Agent catalog 重新过滤 Session Skill selection，再关闭旧 backend；失败时保留原 assignment。
+Deletion does not depend on a currently valid Agent descriptor. It clears both backends' cached and
+durable bindings, then Session data, permissions, Skill selections, Agent Skill bindings, and the
+app-session row. Deleting an Agent preserves globally stored Skill packages and other Agents'
+bindings. ACP and DeepChat transfer validate the destination, commit ownership, and filter Session
+Skill selections through the destination Agent's assigned catalog before closing the old backend.
+Failure preserves the original assignment.
 
 DeepChat Agent 删除与 Session create、detached create、Subagent create、transfer、fork 共享按 Agent ID
 的 lifecycle gate。删除先阻止新的 assignment，再等待已进入的 assignment 完成，最后重新检查持久化
@@ -176,9 +181,10 @@ Session 引用；不得留下指向已删除 Agent row 的 Session。
 
 ## 防回归
 
-`scripts/agent-cleanup-guard.mjs` 阻止旧 Agent/Session Presenter 路径和 import 回流。配置物化和独立
-解析、Agent Skill root 隔离、Session/catalog 交集、Backend、Subagent 与 Tape 的行为约束由对应的
-unit/integration tests 验证，不再维护全仓库启发式 architecture guard。
+`scripts/agent-cleanup-guard.mjs` prevents retired Agent/Session Presenter paths and imports from
+returning. Unit and integration tests protect configuration materialization and independent
+resolution, Agent Skill binding isolation, Session/catalog intersection, backend behavior, Subagents,
+and Tape. There is no repository-wide heuristic architecture guard.
 
 `pnpm run test:agent:eval` 提供离线 deterministic Agent 行为基线，使用 scripted provider/tool 直接
 覆盖 production loop。场景包括 direct completion、多轮 tool、tool failure、permission pause、cancel、

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -11,6 +12,7 @@ vi.unmock('node:path')
 
 import {
   downloadVerifiedFile,
+  probeArtifactUrl,
   resetProbeCacheForTests,
   selectDownloadUrl
 } from '../../../src/main/toolchains/downloader'
@@ -25,6 +27,29 @@ afterEach(() => {
 })
 
 describe('toolchain downloader', () => {
+  it('closes an unused probe body when the server ignores Range', async () => {
+    let closed = false
+    let range: string | undefined
+    const server = createServer((request, response) => {
+      range = request.headers.range
+      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+      response.write(Buffer.alloc(1024))
+      response.on('close', () => {
+        closed = true
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address() as { port: number }
+    try {
+      expect(await probeArtifactUrl(`http://127.0.0.1:${address.port}/archive`, fetch)).toBe(true)
+      expect(range).toBe('bytes=0-0')
+      await expect.poll(() => closed, { timeout: 1000 }).toBe(true)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
   it('resumes a partial file with Range and verifies sha256', async () => {
     const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')
     const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
@@ -142,15 +167,23 @@ describe('toolchain downloader', () => {
   it('uses official URL when a failed mirror probe is not cached as success', async () => {
     const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
     const mirror = 'https://mirror.example/node.tar.gz'
+    const cancelled: string[] = []
     const url = await selectDownloadUrl(
       official,
       async (candidate) => {
-        if (candidate === mirror) return new Response(null, { status: 500 })
-        return new Response(Buffer.from('x'), { status: 206 })
+        return new Response(
+          new ReadableStream({
+            cancel: () => {
+              cancelled.push(candidate)
+            }
+          }),
+          { status: candidate === mirror ? 500 : 206 }
+        )
       },
       { mirrorUrl: mirror, allowProbe: true }
     )
     expect(url).toBe(official)
+    expect(cancelled.sort()).toEqual([official, mirror].sort())
   })
 
   it('picks the faster successful probe instead of mirror-first order', async () => {
@@ -194,6 +227,35 @@ describe('toolchain downloader', () => {
     expect(url).toBe(mirror)
     expect(Date.now() - started).toBeLessThan(1000)
   })
+
+  it.each(['pending', 'rejected'] as const)(
+    'selects a download URL when response body cancellation stays %s',
+    async (cancellation) => {
+      const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
+      const mirror = 'https://mirror.example/node.tar.gz'
+      const cancelled: string[] = []
+      const url = await selectDownloadUrl(
+        official,
+        async (candidate) =>
+          new Response(
+            new ReadableStream({
+              cancel: () => {
+                cancelled.push(candidate)
+                return cancellation === 'pending'
+                  ? new Promise<void>(() => {})
+                  : Promise.reject(new Error('body cancellation failed'))
+              }
+            }),
+            { status: candidate === mirror ? 500 : 206 }
+          ),
+        { mirrorUrl: mirror, allowProbe: true, probeTimeoutMs: 40 }
+      )
+
+      expect(url).toBe(official)
+      expect(cancelled.sort()).toEqual([official, mirror].sort())
+    },
+    1000
+  )
 
   it('does not treat a slow but progressing download as stalled', async () => {
     const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')

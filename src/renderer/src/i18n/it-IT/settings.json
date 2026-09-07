@@ -3346,5 +3346,47 @@
       "unsupported_platform": "Questa piattaforma non ha un runtime ufficiale."
     },
     "ocrPinHint": "OCR richiede Node ufficiale v24.18.0 (ABI 137). Questo runtime va bene per chat e MCP, ma non per OCR. Installa il runtime ufficiale."
+  },
+  "userPlugins": {
+    "install": "Installa un plugin",
+    "update": "Esamina aggiornamento",
+    "installDescription": "Installa un pacchetto in formato Codex direttamente da Git o ZIP. Esaminalo prima di attivare i componenti.",
+    "gitUrl": "URL Git HTTPS pubblico",
+    "gitRef": "Branch, tag o commit (facoltativo)",
+    "subdirectory": "Sottodirectory del pacchetto (facoltativa)",
+    "chooseZip": "Scegli file ZIP",
+    "chooseDirectory": "Scegli directory del plugin",
+    "inspect": "Ispeziona pacchetto",
+    "executionNotice": "Gli hook e i server MCP stdio eseguono codice locale con i permessi di accesso ai file e alla rete del tuo account. Attiva solo codice affidabile. Comandi come npx o uvx possono scaricare dipendenze all’avvio del server.",
+    "useSkills": "Usa le Skills incluse",
+    "allowHooks": "Ho esaminato questi comandi e autorizzo gli hook di contesto automatici",
+    "allowMcp": "Ho esaminato questi comandi, endpoint e associazioni delle variabili e autorizzo le connessioni MCP",
+    "sharedData": "I dati del plugin sono condivisi tra le sessioni di questa installazione.",
+    "requiredVariables": "Variabili d’ambiente o credenziali richieste",
+    "applyUpdate": "Applica aggiornamento esaminato",
+    "uninstall": "Disinstalla",
+    "source": "Origine dell’installazione",
+    "selected": "Selezionato",
+    "notSelected": "Non selezionato",
+    "reviewed": "Comandi esaminati",
+    "hooksNotEnabled": "Gli hook automatici non sono autorizzati. Esamina un aggiornamento per attivarli; le Skills da sole non attivano gli hook automatici.",
+    "diagnostics": "Attività recente degli hook",
+    "noInvocations": "Nessuna chiamata a hook registrata dall’avvio dell’app.",
+    "retryHook": "Esegui di nuovo l’hook",
+    "mcpSetupDescription": "Attiva il plugin per registrare i server. Inserisci o sostituisci qui i valori delle variabili; le variabili d’ambiente dell’host non vengono mai condivise automaticamente. Gestisci l’autenticazione nelle impostazioni MCP.",
+    "saveMcp": "Salva e riconnetti",
+    "manageMcp": "Apri impostazioni MCP",
+    "uninstallDescription": "Rimuovi questo plugin, i suoi dati privati, le assegnazioni delle Skills e i server MCP associati. La cronologia delle conversazioni viene conservata.",
+    "fromGit": "Installa da Git",
+    "fromZip": "Installa da ZIP",
+    "userPlugin": "Plugin utente",
+    "hookStatus": {
+      "started": "In esecuzione",
+      "completed": "Completato",
+      "failed": "Non riuscito",
+      "uncertain": "Interrotto; esito sconosciuto"
+    },
+    "technicalDetails": "Dettagli tecnici",
+    "hooks": "Hook"
   }
 }

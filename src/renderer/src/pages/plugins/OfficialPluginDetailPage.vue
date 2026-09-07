@@ -206,7 +206,9 @@
           </AlertDescription>
         </Alert>
 
-        <DcSectionCard :title="t('settings.plugins.runtime')">
+        <UserPluginDetails v-if="plugin.userPlugin" :key="plugin.id" :plugin="plugin" />
+
+        <DcSectionCard v-else :title="t('settings.plugins.runtime')">
           <template #actions>
             <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
               <DcButton
@@ -287,6 +289,7 @@
 </template>
 
 <script setup lang="ts">
+import UserPluginDetails from './UserPluginDetails.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -400,6 +403,7 @@ const pluginDescription = computed(() => {
   if (isFeishuPlugin.value) {
     return t('settings.remote.feishu.description')
   }
+  if (plugin.value?.userPlugin) return plugin.value.userPlugin.package.description
   return plugin.value ? `${plugin.value.publisher} · ${plugin.value.id}` : ''
 })
 const cuaMcpRuntime = computed(() =>

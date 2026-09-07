@@ -1,22 +1,15 @@
 # Model Config Source of Truth Specification
 
-## Background
+## Source of Truth
 
-DeepChat currently stores provider-discovered model facts twice:
+`provider_models.model_json` stores sparse facts returned by provider discovery. `model_configs`
+persists explicit user intent. Effective configuration is derived from those facts, the resolved
+catalog identity, provider-family compatibility policy, and safe fallbacks; derived fallback values
+are not written back as provider-owned facts.
 
-- `provider_models.model_json` stores sparse `MODEL_META` returned by provider discovery;
-- `model_configs.config_json` stores a complete provider-managed `ModelConfig` derived from those
-  facts, the provider catalog, or safe fallbacks.
-
-The second write loses provenance. In particular, New API model discovery asks for the current
-effective configuration before the model's owner and route identity are supplied. An ambiguous
-unqualified model such as `gpt-5.6-sol` therefore resolves to the safe `16000 / 4096` fallback.
-The discovery loop then persists that fallback as `source: provider`, and later reads prefer the
-stored values over the correctly resolved OpenAI catalog limits.
-
-Resetting a model configuration or invalidating derived configurations on an app-version change
-removes an older correct cache and exposes the same failure. Provider refresh then makes the wrong
-value durable again.
+Provider refresh, configuration reset, and app-version changes must not make an ambiguous lookup's
+fallback limits durable or replace correctly resolved catalog facts. Migration preserves user intent
+and removes obsolete provider-managed projections through the guarded migration boundary.
 
 ## Goals
 
@@ -179,9 +172,6 @@ case/prefix compatibility fallback.
 - Do not infer OpenAI ownership merely from OpenAI-compatible transport.
 - Do not use value-based heuristics to delete historical configuration.
 - Keep the change local to model facts, effective configuration, migration, and their tests.
-- Every local commit requires a severity-ordered review covering hidden side effects,
-  compatibility, boundaries, performance, security, naming, tests, and maintenance.
-- Do not push the branch.
 
 ## Non-Goals
 

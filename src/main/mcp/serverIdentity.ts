@@ -95,7 +95,9 @@ const generationMaterial = (config: Partial<MCPServerConfig>): Record<string, un
   args: config.args ?? [],
   env: config.env ?? {},
   customHeaders: config.customHeaders ?? {},
-  inheritEnv: config.inheritEnv
+  inheritEnv: config.inheritEnv,
+  cwd: config.cwd,
+  environmentVariables: config.environmentVariables
 })
 
 export const computeMcpBindingHash = (config: Partial<MCPServerConfig>): string =>

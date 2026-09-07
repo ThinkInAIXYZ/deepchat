@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import os from 'os'
+import { SessionDatabase } from '@/session/data/database'
+import { AgentDatabase } from '@/agent/data/database'
 
 const fsMock = await import('fs')
 const realFs = await vi.importActual<typeof import('fs')>('fs')
@@ -109,7 +111,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     const repairReport = await presenter.repairSchema()
     expect(repairReport.status).toBe('repaired')
 
-    const conversationList = await presenter.getConversationList(1, 20)
+    const conversationList = await new SessionDatabase(presenter).getConversationList(1, 20)
     expect(conversationList.total).toBe(0)
     expect(conversationList.list).toEqual([])
     presenter.close()
@@ -224,7 +226,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
 
     const presenter = new MainDatabaseCtor(dbPath)
     expect(presenter.getLatestSchemaVersion()).toBeGreaterThanOrEqual(44)
-    expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+    expect(new SessionDatabase(presenter).newSessionsTable.get('session-1')).toMatchObject({
       title: 'Existing session',
       project_dir: '/work/app',
       is_pinned: 1,
@@ -233,8 +235,10 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
       revision: 0
     })
 
-    presenter.newSessionsTable.update('session-1', { title: 'Generated title' })
-    expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+    new SessionDatabase(presenter).newSessionsTable.update('session-1', {
+      title: 'Generated title'
+    })
+    expect(new SessionDatabase(presenter).newSessionsTable.get('session-1')).toMatchObject({
       title: 'Generated title',
       revision: 1
     })
@@ -340,6 +344,40 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it.each([false, true])(
+    'rejects a future database with a missing session table: %s',
+    (missingTable) => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-future-'))
+      tempDirs.push(tempDir)
+      const dbPath = path.join(tempDir, 'agent.db')
+      const current = new MainDatabaseCtor(dbPath)
+      const latestVersion = current.getLatestSchemaVersion()
+      current.close()
+
+      const bootstrap = new DatabaseCtor(dbPath)
+      if (missingTable) bootstrap.exec('DROP TABLE deepchat_sessions')
+      bootstrap
+        .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
+        .run(latestVersion + 1, Date.now())
+      bootstrap.close()
+
+      expect(() => new MainDatabaseCtor(dbPath)).toThrow(
+        `Recorded database schema version ${latestVersion + 1} exceeds supported version ${latestVersion}`
+      )
+      const verification = new DatabaseCtor(dbPath)
+      const table = verification
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'deepchat_sessions'"
+        )
+        .get()
+      expect(table).toEqual(missingTable ? undefined : { name: 'deepchat_sessions' })
+      expect(
+        verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
+      ).toEqual({ version: latestVersion + 1 })
+      verification.close()
+    }
+  )
+
   it('migrates ACP agent aliases without requiring legacy conversations tables', async () => {
     vi.useFakeTimers()
     try {
@@ -350,28 +388,44 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
       const presenter = new MainDatabaseCtor(dbPath)
 
       vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
-      presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
-      presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli', 'full_access')
-      await presenter.upsertAcpSession('conversation-1', 'kimi-cli', {
+      new SessionDatabase(presenter).newSessionsTable.create(
+        'session-1',
+        'kimi-cli',
+        'Recovered session',
+        null
+      )
+      new SessionDatabase(presenter).deepchatSessionsTable.create(
+        'session-1',
+        'acp',
+        'kimi-cli',
+        'full_access'
+      )
+      await new AgentDatabase(presenter).upsertAcpSession('conversation-1', 'kimi-cli', {
         sessionId: 'acp-session-1',
         status: 'active'
       })
 
       vi.setSystemTime(new Date('2026-01-01T00:00:01.000Z'))
       await expect(
-        presenter.migrateAcpAgentReferences({
+        new AgentDatabase(presenter).migrateAcpAgentReferences({
           'kimi-cli': 'kimi'
         })
       ).resolves.toBeUndefined()
 
-      expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+      expect(new SessionDatabase(presenter).newSessionsTable.get('session-1')).toMatchObject({
         agent_id: 'kimi',
         revision: 1,
         updated_at: Date.parse('2026-01-01T00:00:01.000Z')
       })
-      expect(presenter.deepchatSessionsTable.get('session-1')?.model_id).toBe('kimi')
-      expect(await presenter.getAcpSession('conversation-1', 'kimi-cli')).toBeNull()
-      expect(await presenter.getAcpSession('conversation-1', 'kimi')).toMatchObject({
+      expect(new SessionDatabase(presenter).deepchatSessionsTable.get('session-1')?.model_id).toBe(
+        'kimi'
+      )
+      expect(
+        await new AgentDatabase(presenter).getAcpSession('conversation-1', 'kimi-cli')
+      ).toBeNull()
+      expect(
+        await new AgentDatabase(presenter).getAcpSession('conversation-1', 'kimi')
+      ).toMatchObject({
         conversationId: 'conversation-1',
         agentId: 'kimi',
         sessionId: 'acp-session-1'
@@ -399,7 +453,12 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new MainDatabaseCtor(dbPath)
-    presenter.newSessionsTable.create('session-1', 'agent-1', 'Recovered session', null)
+    new SessionDatabase(presenter).newSessionsTable.create(
+      'session-1',
+      'agent-1',
+      'Recovered session',
+      null
+    )
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -523,6 +582,21 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
       subagent_meta_json: null
     })
 
+    checkDb
+      .prepare(`
+      INSERT INTO live_delegations (
+        delegation_id, parent_session_id, slot_id, target_agent_id, title, status,
+        created_at, updated_at
+      ) VALUES ('delegation-1', 'session-1', 'slot-1', 'agent-1', 'Review', 'queued', 1, 1)
+    `)
+      .run()
+    expect(() =>
+      checkDb
+        .prepare(
+          "UPDATE live_delegations SET child_session_id = 'session-1' WHERE delegation_id = 'delegation-1'"
+        )
+        .run()
+    ).toThrow('live delegation child session is invalid')
     checkDb.close()
   })
 
@@ -693,7 +767,12 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new MainDatabaseCtor(dbPath)
-    presenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o', 'full_access')
+    new SessionDatabase(presenter).deepchatSessionsTable.create(
+      'session-1',
+      'openai',
+      'gpt-4o',
+      'full_access'
+    )
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -787,7 +866,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new MainDatabaseCtor(dbPath)
-    presenter.deepchatSessionsTable.updateGenerationSettings('session-1', {
+    new SessionDatabase(presenter).deepchatSessionsTable.updateGenerationSettings('session-1', {
       forceInterleavedThinkingCompat: true
     })
     presenter.close()
@@ -1055,7 +1134,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     const dbPath = path.join(tempDir, 'agent.db')
     const presenter = new MainDatabaseCtor(dbPath)
 
-    presenter.newSessionsTable.create(
+    new SessionDatabase(presenter).newSessionsTable.create(
       'parent-session',
       'deepchat',
       'Parent session',
@@ -1064,15 +1143,21 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
         sessionKind: 'regular'
       }
     )
-    presenter.newSessionsTable.create('child-session', 'deepchat', 'Child session', '/workspace', {
-      sessionKind: 'subagent',
-      parentSessionId: 'parent-session'
-    })
+    new SessionDatabase(presenter).newSessionsTable.create(
+      'child-session',
+      'deepchat',
+      'Child session',
+      '/workspace',
+      {
+        sessionKind: 'subagent',
+        parentSessionId: 'parent-session'
+      }
+    )
 
-    const childRows = presenter.newSessionsTable.list({
+    const childRows = new SessionDatabase(presenter).newSessionsTable.list({
       parentSessionId: 'parent-session'
     })
-    const defaultRows = presenter.newSessionsTable.list()
+    const defaultRows = new SessionDatabase(presenter).newSessionsTable.list()
 
     expect(childRows.map((row) => row.id)).toEqual(['child-session'])
     expect(defaultRows.map((row) => row.id)).toEqual(['parent-session'])

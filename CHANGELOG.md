@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.2-beta.2 (2026-09-07)
+- Added installation and management of Codex-compatible user plugin packages from Git repositories, ZIP archives, and local folders, with selectable Skills, supported context hooks, and MCP configurations
+- Preserved new conversation drafts across Agent switches and removed drafts when their Agent is deleted
+- Increased the pending message queue limit to 10 and restored queue capacity after messages leave the queue
+- Restored prompt editor scrolling and desktop notifications, and added error feedback when saving the tool mode fails
+- Improved conversation history recovery and prevented duplicated usage totals when forking sessions
+- Refreshed the built-in model and ACP catalogs
+- 新增兼容 Codex 的用户插件包安装与管理，支持 Git 仓库、ZIP 压缩包和本地文件夹，并可选择导入 Skills、受支持的上下文钩子及 MCP 配置
+- 在切换 Agent 时保留新对话草稿，并在删除 Agent 时清理对应草稿
+- 将待处理消息队列上限提升至 10 条，并在消息离开队列后恢复可用容量
+- 恢复提示词编辑器滚动与桌面通知，并在工具模式保存失败时显示错误反馈
+- 改进对话历史恢复，并修复分叉会话重复累计用量的问题
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.2-beta.1 (2026-09-04)
 - Added an Open With picker for workspace files, with detected editors and terminals, remembered preferences, and system-default fallback
 - Restored DeepSeek Responses tool streaming, native web search, and follow-up replay

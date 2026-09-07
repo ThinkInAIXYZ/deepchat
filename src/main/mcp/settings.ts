@@ -7,6 +7,8 @@ import ElectronStore from 'electron-store'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
+import type { SecretStore } from '../config/secretStore'
+import { mcpVariableBindingScope } from './environmentBindings'
 import type { McpDatabase } from './data/database'
 import { McpDbStore } from './settingsDbStore'
 import {
@@ -293,7 +295,12 @@ export class McpSettings {
   private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
   private mcpDatabase?: McpDatabase
 
-  constructor() {
+  constructor(
+    private readonly variableSecrets?: Pick<
+      SecretStore,
+      'get' | 'getWrapped' | 'wrap' | 'setWrapped' | 'restoreWrapped'
+    >
+  ) {
     // Initialize MCP settings storage
     this.mcpStore = new ElectronStore<IMcpSettings>({
       name: 'mcp-settings',
@@ -744,6 +751,86 @@ export class McpSettings {
     )
   }
 
+  /** Keep rollback material with MCP settings, never in plugin metadata or renderer state. */
+  async preparePluginUpdate(pluginId: string): Promise<void> {
+    const snapshots = (this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+      string,
+      Record<string, MCPServerConfig>
+    >
+    const servers = await this.getMcpServers()
+    const variableSnapshots = this.mcpStore.get<Record<string, Record<string, string | undefined>>>(
+      'pluginUpdateVariableSnapshots',
+      {}
+    )
+    this.mcpStore.set('pluginUpdateVariableSnapshots', {
+      ...variableSnapshots,
+      [pluginId]: Object.fromEntries(
+        Object.values(servers)
+          .filter((config) => config.ownerPluginId === pluginId && config.serverId)
+          .map((config) => [
+            config.serverId!,
+            this.variableSecrets?.getWrapped(`mcpVariableBindings.${config.serverId}`)
+          ])
+      )
+    })
+    this.mcpStore.set('pluginUpdateSnapshots', {
+      ...snapshots,
+      [pluginId]: Object.fromEntries(
+        Object.entries(servers).filter(([, config]) => config.ownerPluginId === pluginId)
+      )
+    })
+  }
+
+  async restorePluginUpdate(pluginId: string): Promise<void> {
+    const snapshots = (this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+      string,
+      Record<string, MCPServerConfig>
+    >
+    const previous = snapshots[pluginId]
+    if (!previous) throw new Error('MCP rollback snapshot is unavailable')
+    const current = await this.getMcpServers()
+    for (const [name, config] of Object.entries(previous)) {
+      if (current[name] && current[name].ownerPluginId !== pluginId)
+        throw new Error('MCP rollback would replace another owner')
+      previous[name] = {
+        ...config,
+        enabled: false,
+        configGeneration:
+          Math.max(config.configGeneration ?? 1, current[name]?.configGeneration ?? 1) + 1
+      }
+    }
+    const variableSnapshots = this.mcpStore.get<Record<string, Record<string, string | undefined>>>(
+      'pluginUpdateVariableSnapshots',
+      {}
+    )
+    for (const [serverId, wrapped] of Object.entries(variableSnapshots[pluginId] ?? {})) {
+      if (wrapped && !this.variableSecrets) throw new Error('MCP credential storage is unavailable')
+      this.variableSecrets?.restoreWrapped(`mcpVariableBindings.${serverId}`, wrapped)
+    }
+    await this.setMcpServers({
+      ...Object.fromEntries(
+        Object.entries(current).filter(([, config]) => config.ownerPluginId !== pluginId)
+      ),
+      ...previous
+    })
+  }
+
+  commitPluginUpdate(pluginId: string): void {
+    const snapshots = {
+      ...((this.mcpStore.get('pluginUpdateSnapshots') ?? {}) as Record<
+        string,
+        Record<string, MCPServerConfig>
+      >)
+    }
+    delete snapshots[pluginId]
+    const variableSnapshots = {
+      ...this.mcpStore.get<Record<string, unknown>>('pluginUpdateVariableSnapshots', {})
+    }
+    delete variableSnapshots[pluginId]
+    this.mcpStore.set('pluginUpdateVariableSnapshots', variableSnapshots)
+    this.mcpStore.set('pluginUpdateSnapshots', snapshots)
+  }
+
   // 添加MCP服务器
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()
@@ -848,11 +935,55 @@ export class McpSettings {
   // 移除MCP服务器
   async removeMcpServer(name: string): Promise<void> {
     const mcpServers = await this.getMcpServers()
+    const serverId = mcpServers[name]?.serverId
+    if (serverId) this.variableSecrets?.restoreWrapped(`mcpVariableBindings.${serverId}`, undefined)
     delete mcpServers[name]
     if (this.isBuiltInServer(name)) {
       this.markBuiltInServerRemoved(name)
     }
     await this.setMcpServers(mcpServers)
+  }
+
+  getMcpVariableBindings(config: Partial<MCPServerConfig>): Record<string, string> {
+    if (!config.serverId) return {}
+    const raw = this.variableSecrets?.get(`mcpVariableBindings.${config.serverId}`)
+    if (!raw) return {}
+    try {
+      const stored = JSON.parse(raw)
+      if (
+        stored?.scope !== mcpVariableBindingScope(config) ||
+        !stored.values ||
+        typeof stored.values !== 'object' ||
+        Array.isArray(stored.values)
+      )
+        return {}
+      return Object.fromEntries(
+        Object.entries(stored.values).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string'
+        )
+      )
+    } catch {
+      return {}
+    }
+  }
+
+  setMcpVariableBindings(config: MCPServerConfig, values: Record<string, string>): void {
+    if (!config.serverId || !this.variableSecrets)
+      throw new Error('MCP credential storage is unavailable')
+    if (
+      Object.entries(values).some(
+        ([name, value]) =>
+          !config.environmentVariables?.includes(name) || !value || Buffer.byteLength(value) > 32768
+      )
+    )
+      throw new Error('Invalid MCP variable binding')
+    const wrapped = this.variableSecrets.wrap(
+      JSON.stringify({
+        scope: mcpVariableBindingScope(config),
+        values: { ...this.getMcpVariableBindings(config), ...values }
+      })
+    )
+    this.variableSecrets.setWrapped(`mcpVariableBindings.${config.serverId}`, wrapped)
   }
 
   // 更新MCP服务器配置

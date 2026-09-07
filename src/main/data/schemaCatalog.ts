@@ -131,6 +131,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'new_sessions',
     createTable: (db) => new NewSessionsTable(db),
+    afterRepair: (db) => {
+      const delegations = db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'live_delegations'")
+        .get()
+      if (delegations) {
+        new LiveDelegationsTable(db).createTable()
+      }
+    },
     repairableColumns: {
       is_draft: 'ALTER TABLE new_sessions ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;',
       active_skills:

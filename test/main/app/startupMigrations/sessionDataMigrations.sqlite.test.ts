@@ -4,6 +4,7 @@ import {
   type SessionDataMigrationSQLitePort
 } from '@/app/startupMigrations/sessionDataMigrations'
 import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sessionsModule = sqliteModule
@@ -57,6 +58,7 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       const disabledTools = new NewSessionDisabledAgentToolsTableCtor(db)
       const environments = new NewEnvironmentsTableCtor(db)
       sessions.createTable()
+      new NewSessionActiveSkillsTable(db).createTable()
       disabledTools.createTable()
       environments.createTable()
 
@@ -100,7 +102,12 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       expect(sessions.list().map((row) => row.id)).toEqual(['newer', 'older'])
       expect(sessions.get('older')).toMatchObject({
         disabled_agent_tools: JSON.stringify(['read']),
-        updated_at: 100
+        updated_at: 100,
+        revision: 1
+      })
+      expect(sessions.get('newer')).toMatchObject({
+        updated_at: 200,
+        revision: 0
       })
       expect(disabledTools.listBySession('older')).toEqual([
         { session_id: 'older', ordinal: 0, tool_name: 'read' }
@@ -120,6 +127,7 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       const sessions = new NewSessionsTableCtor(db)
       const disabledTools = new NewSessionDisabledAgentToolsTableCtor(db)
       sessions.createTable()
+      new NewSessionActiveSkillsTable(db).createTable()
       disabledTools.createTable()
 
       const originalDisabledTools = [TAPE_TOOL_NAMES.search, 'read']
@@ -156,7 +164,8 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
 
       expect(sessions.get('session-1')).toMatchObject({
         disabled_agent_tools: JSON.stringify(originalDisabledTools),
-        updated_at: 100
+        updated_at: 100,
+        revision: 0
       })
       expect(disabledTools.listBySession('session-1')).toEqual([
         { session_id: 'session-1', ordinal: 0, tool_name: TAPE_TOOL_NAMES.search },

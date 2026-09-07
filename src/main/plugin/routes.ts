@@ -1,4 +1,10 @@
 import {
+  pluginsInspectSourceRoute,
+  pluginsInstallUserRoute,
+  pluginsUninstallUserRoute,
+  pluginsDiscardPreparedRoute,
+  pluginsConfigureMcpRoute,
+  pluginsRetryHookRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
@@ -10,6 +16,57 @@ import type { PluginServicePort } from './index'
 
 export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRouteMap {
   return createRouteMap([
+    [
+      pluginsInspectSourceRoute.name,
+      async (rawInput) => {
+        const input = pluginsInspectSourceRoute.input.parse(rawInput)
+        return { prepared: await pluginService.inspectSource(input.source, input.requestId) }
+      }
+    ],
+    [
+      pluginsInstallUserRoute.name,
+      async (rawInput) => {
+        const input = pluginsInstallUserRoute.input.parse(rawInput)
+        return { result: await pluginService.installUserPlugin(input) }
+      }
+    ],
+    [
+      pluginsUninstallUserRoute.name,
+      async (rawInput) => {
+        const input = pluginsUninstallUserRoute.input.parse(rawInput)
+        return { result: await pluginService.uninstallUserPlugin(input.pluginId) }
+      }
+    ],
+    [
+      pluginsDiscardPreparedRoute.name,
+      async (rawInput) => {
+        const input = pluginsDiscardPreparedRoute.input.parse(rawInput)
+        await pluginService.discardPrepared(input.operationId)
+        return {}
+      }
+    ],
+    [
+      pluginsConfigureMcpRoute.name,
+      async (rawInput) => {
+        const input = pluginsConfigureMcpRoute.input.parse(rawInput)
+        return {
+          result: await pluginService.configurePluginMcp(
+            input.pluginId,
+            input.serverName,
+            input.values
+          )
+        }
+      }
+    ],
+    [
+      pluginsRetryHookRoute.name,
+      async (rawInput) => {
+        const input = pluginsRetryHookRoute.input.parse(rawInput)
+        await pluginService.retryPluginHook(input.pluginId, input.invocationId)
+        return {}
+      }
+    ],
+
     [
       pluginsListRoute.name,
       async (rawInput) => {

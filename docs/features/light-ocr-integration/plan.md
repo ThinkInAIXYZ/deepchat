@@ -11,8 +11,10 @@ Introduce four main-process boundaries:
    runtime identity.
 4. `OcrArtifactStore` owns only encrypted machine-local derived artifacts and leases.
 
-`OcrRuntimeAssetResolver` resolves immutable bundled paths and availability. It has no download or
-installation behavior.
+`OcrRuntimeAssetResolver` resolves immutable packaged OCR assets and availability. The composition
+root supplies the Node executable through `ToolchainService` with purpose `ocr`, enforcing its
+version and ABI requirements for the selected runtime source. The asset resolver has no download
+or installation behavior.
 
 ## Data Flow
 
@@ -68,7 +70,8 @@ representation is retained without unbounded index growth.
 ## Helper And Extraction
 
 Compile a separate Electron Vite main entry that contains no Electron imports. Keep
-`@arcships/light-ocr` external so bundled Node resolves the flattened unpacked packages.
+`@arcships/light-ocr` external so the resolved standalone Node host loads the flattened unpacked
+packages.
 
 Use newline-delimited JSON over stdio:
 
@@ -97,11 +100,14 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 
 ## Packaging
 
-- Centralize runtime locks: injector `1.2.0`, Node `v24.14.1`, uv `0.9.18`, RTK `v0.43.0`.
-- Add exact `@arcships/light-ocr: 0.3.4` dependency.
-- Unpack/copy the facade, model, matching native package and compiled helper next to bundled Node.
-- Verify versions, platform package, manifest bundle ID, SHA256SUMS, helper and runtime executable in
-  `afterPack`.
+- Resolve runtime and OCR package locks from
+  [`resources/runtime-versions.json`](../../../resources/runtime-versions.json).
+- Keep the installed `@arcships/light-ocr` facade consistent with that manifest's facade pin.
+- Unpack/copy the facade, model, matching native package and compiled helper into the packaged OCR
+  asset layout; resolve the helper's Node host separately through `ToolchainService`.
+- Verify versions, platform package, manifest bundle ID, SHA256SUMS and helper in `afterPack`.
+  Verify the Node runtime executable only when the packaged manifest includes it; current
+  installers obtain Node through ToolchainService.
 - Keep pre-sign SHA-256 verification byte-exact. In final signed macOS bundles, allow Node and native
   Mach-O bytes to change only when their Apple-anchored signatures remain valid and match the
   enclosing application's team identifier; model and metadata files remain byte-exact.
@@ -186,9 +192,10 @@ The post-implementation review identified merge blockers that are part of this f
 - macOS direct-download DMGs are signed, notarized, stapled and Gatekeeper-assessed after creation;
   updater metadata contains only the already-stable ZIP payload so no checksum can predate DMG
   stapling;
-- bundled Node is verified by exact version and target-specific executable SHA-256 after install
-  and `afterPack`; final smoke accepts the original hash or, for signed macOS code only, a valid
-  application-matching Apple signature;
+- when included, bundled Node is verified by exact version and target-specific executable SHA-256
+  after install and `afterPack`; final smoke accepts the original hash or, for signed macOS code
+  only, a valid application-matching Apple signature. Without bundled Node, smoke uses the
+  manifest-pinned CI Node executable and verifies its helper handshake;
 - attachment preparation has a submission-scoped cancellation path that never stops an unrelated
   provider generation;
 - renderer drafts, blocked attempts and initial recovery are isolated by session, and acceptance

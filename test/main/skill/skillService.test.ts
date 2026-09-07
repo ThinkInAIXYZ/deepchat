@@ -2487,7 +2487,8 @@ describe('SkillService', () => {
       )
       expect((matter as any).stringify).toHaveBeenCalledWith(
         '# PPT',
-        expect.objectContaining({ name: 'guizang-ppt-skill-1' })
+        expect.objectContaining({ name: 'guizang-ppt-skill-1' }),
+        expect.any(Object)
       )
       expect(configSettings.get('skills.managementState')).toMatchObject({
         skills: {

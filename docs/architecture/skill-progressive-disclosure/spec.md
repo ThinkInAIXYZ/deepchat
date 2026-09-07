@@ -7,15 +7,11 @@ activation projection, and Tape-backed Skill context materialization described b
 
 ## User Need
 
-DeepChat already lazy-loads full `SKILL.md` bodies, but it unconditionally places every enabled
-Skill's complete frontmatter description in the leading system prompt. Neither one description nor
-the complete catalog has a prompt budget. The current `skill_list` tool repeats the same problem by
-returning the complete catalog, including arbitrary metadata objects, in one unbounded tool result.
-
-Users need Skills to remain easy to discover without making every first request scale with the
-number or verbosity of installed Skills. Selecting or viewing a Skill must also preserve its exact
-runtime instructions without duplicating the full body, destabilizing the system-prompt prefix, or
-creating content outside Tape's append-only fact lineage.
+Installed Skills must remain discoverable without making every first request scale with the full
+catalog or verbose frontmatter. The bounded routing catalog and deterministic discovery pages limit
+prompt and tool-result size. Selecting or viewing a Skill preserves its exact runtime instructions
+without duplicating full bodies, destabilizing the system prefix, or bypassing Tape's append-only
+materialization lineage.
 
 ## Decision
 
@@ -209,11 +205,11 @@ code different from the provider-visible contract.
 
 ### Projection By Scope
 
-| Activation source | Lifetime | Provider-visible projection |
-| --- | --- | --- |
-| Message `@skill` or panel selection | Current execution | Active-turn user context from a materialization fact |
-| Root `skill_view` | Current tool loop | Exact tool result fact |
-| Existing Session active state | Session, until removed | Stable Active Skills system section from a materialization fact |
+| Activation source                   | Lifetime               | Provider-visible projection                                     |
+| ----------------------------------- | ---------------------- | --------------------------------------------------------------- |
+| Message `@skill` or panel selection | Current execution      | Active-turn user context from a materialization fact            |
+| Root `skill_view`                   | Current tool loop      | Exact tool result fact                                          |
+| Existing Session active state       | Session, until removed | Stable Active Skills system section from a materialization fact |
 
 Within one provider request, one Skill's complete effective body appears at most once. The
 deduplication precedence is Session-active system body, then message active-turn body, then runtime
@@ -309,9 +305,8 @@ provider dispatch and is never truncated or replaced with an offload marker. Fac
 Session-scoped, may be reused by equal identity and content in that Session, and expire with Session
 Tape reset or deletion. They do not receive independent garbage collection.
 
-Schema 2 is the first shipped form of `skill/materialized`; schema 1 existed only on the unmerged
-feature branch and is intentionally rejected rather than being reinterpreted with an invented empty
-execution package.
+Schema 2 is the supported `skill/materialized` format. Schema 1 is rejected rather than being
+reinterpreted with an invented empty execution package.
 
 ### Two-Phase Admission
 
@@ -469,8 +464,7 @@ overwrite provider configuration or become Tape facts.
     cancellation, and context isolation remain intact.
 19. No generic Tape writer, Skill sidecar store, embedding/LLM router, silent body truncation, or
     user-input summarization is added.
-20. No remote Git operation is performed.
-21. Direct ACP compatibility never projects a local full Skill body without DeepChat Tape
+20. Direct ACP compatibility never projects a local full Skill body without DeepChat Tape
     materialization authority.
 
 ## Constraints
@@ -480,9 +474,6 @@ overwrite provider configuration or become Tape facts.
 - Keep Oxfmt style and existing typed main/preload/renderer boundaries.
 - New Tape facts use existing Session Tape storage and narrow capability composition.
 - Security-sensitive exact content and raw provider errors are not logged.
-- Each implementation commit receives a full risk-oriented diff review and relevant validation
-  before commit.
-- SDD artifacts in this directory use English prose.
 
 ## Non-Goals
 
