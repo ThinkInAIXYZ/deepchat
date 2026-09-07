@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, onMounted, onUnmounted } from 'vue'
+import { defineComponent, nextTick, onMounted, onUnmounted } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
@@ -564,6 +564,37 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="search-block"]').exists()).toBe(true)
   })
+
+  it.each(['MessageBlockThink', 'MessageBlockToolCall'])(
+    'preserves a manually expanded %s when the reply finishes',
+    async (componentName) => {
+      const wrapper = mount(MessageItemAssistant, {
+        props: {
+          message: createMessage('pending', [createThinkingBlock(), createToolCallBlock()]),
+          isCapturingImage: false,
+          isStreamingMessage: true
+        },
+        global
+      })
+      const expandedBlock = wrapper.findComponent({ name: componentName })
+      const originalElement = expandedBlock.element
+      expandedBlock.vm.$emit('manual-toggle', true)
+
+      await wrapper.setProps({
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isStreamingMessage: false
+      })
+
+      expect(wrapper.findComponent({ name: componentName }).element).toBe(originalElement)
+      expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
+
+      expandedBlock.vm.$emit('manual-toggle', false)
+      await nextTick()
+
+      expect(wrapper.findComponent({ name: componentName }).exists()).toBe(false)
+      expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('2')
+    }
+  )
 
   it('does not remount an MCP App when live activity becomes grouped', async () => {
     let appMountCount = 0

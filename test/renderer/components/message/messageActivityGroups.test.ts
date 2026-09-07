@@ -394,6 +394,27 @@ describe('messageActivityGroups', () => {
     expect(items.map((item) => item.kind)).toEqual(['block', 'block'])
   })
 
+  it('keeps unfinished, failed and action-required activity visible outside completed groups', () => {
+    const visibleBlocks = [
+      createBlock('tool_call', { status: 'error' }),
+      createBlock('tool_call', { status: 'cancelled' }),
+      createBlock('tool_call', { extra: { needsUserAction: true } }),
+      createBlock('search', { status: 'reading', extra: { actionType: 'open_page' } }),
+      createBlock('search', { status: 'optimizing', extra: { actionType: 'search' } })
+    ]
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [createBlock('tool_call'), ...visibleBlocks]
+    })
+
+    expect(items[0].kind).toBe('activity-group')
+    expect(items.slice(1)).toEqual(
+      visibleBlocks.map((block) => expect.objectContaining({ kind: 'block', block }))
+    )
+  })
+
   it('does not group pending or loading activity blocks', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',

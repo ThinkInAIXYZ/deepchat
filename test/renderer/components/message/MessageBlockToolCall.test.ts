@@ -556,7 +556,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
       'today bilibili hot videos'
     )
-    expect(wrapper.get('[data-testid="tool-call-name"]').classes()).toContain('shrink-0')
+    expect(wrapper.get('[data-testid="tool-call-name"]').attributes('title')).toBe('search')
   })
 
   it('stringifies nested first parameter values into a single-line summary', () => {
@@ -774,6 +774,48 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it.each([
+    { status: 'error' as const },
+    { status: 'cancelled' as const },
+    { status: 'success' as const, extra: { needsUserAction: true } }
+  ])('keeps automatically opened output visible when attention is needed: %j', async (outcome) => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-attention', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+    await wrapper.setProps({ block: { ...block, ...outcome } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    expect(wrapper.emitted('manual-toggle')).toBeUndefined()
+  })
+
+  it('keeps manually reopened output expanded after successful completion', async () => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-manual', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    await trigger.trigger('click')
+    await trigger.trigger('click')
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
   })
 
   it('auto expands background exec calls while loading and collapses them when finished', async () => {

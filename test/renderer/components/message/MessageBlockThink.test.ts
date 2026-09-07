@@ -37,6 +37,30 @@ vi.mock('@/components/think-content', () => ({
 import MessageBlockThink from '@/components/message/MessageBlockThink.vue'
 
 describe('MessageBlockThink', () => {
+  it('preserves manual expansion when the saved preference arrives after user interaction', async () => {
+    let resolveSetting!: (value: boolean) => void
+    configClient.getSetting.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveSetting = resolve
+      })
+    )
+    const wrapper = mount(MessageBlockThink, {
+      props: {
+        block: { type: 'reasoning_content', content: 'thinking', status: 'success', timestamp: 0 },
+        usage: { reasoning_start_time: 0, reasoning_end_time: 0 }
+      }
+    })
+    const content = wrapper.findComponent({ name: 'ThinkContent' })
+
+    content.vm.$emit('toggle')
+    content.vm.$emit('toggle')
+    resolveSetting(true)
+    await flushPromises()
+
+    expect(content.props('expanded')).toBe(true)
+    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
+  })
+
   it('renders seconds from block.reasoning_time when present', async () => {
     const wrapper = mount(MessageBlockThink, {
       props: {

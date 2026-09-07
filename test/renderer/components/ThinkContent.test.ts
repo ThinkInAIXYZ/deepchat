@@ -107,6 +107,24 @@ describe('ThinkContent', () => {
     expect(ensureMarkdownWorkersMock).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes an accessible disclosure without leaving collapsed content focusable', async () => {
+    const wrapper = await mountThinkContent()
+    const trigger = wrapper.get('button')
+    const contentId = trigger.attributes('aria-controls')
+
+    expect(trigger.attributes('type')).toBe('button')
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get(`#${contentId}`).text()).toBe('reasoning content')
+
+    await trigger.trigger('click')
+    expect(wrapper.emitted('toggle')).toHaveLength(1)
+    await wrapper.setProps({ expanded: false })
+
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find(`#${contentId}`).exists()).toBe(false)
+    expect(trigger.attributes('aria-controls')).toBe(contentId)
+  })
+
   it('uses Markstream lifecycle props for live and completed thinking', async () => {
     const wrapper = await mountThinkContent()
     const renderer = wrapper.getComponent({ name: 'NodeRenderer' })

@@ -1,24 +1,32 @@
 <template>
-  <div class="flex flex-col w-full" data-testid="activity-group">
+  <div class="flex min-w-0 flex-col w-full" data-testid="activity-group">
     <button
       type="button"
       data-testid="activity-group-toggle"
-      class="inline-flex max-w-full min-w-0 items-center gap-1 self-start text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 select-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      class="inline-flex max-w-full min-w-0 min-h-7 items-center gap-2 self-start py-1 text-sm leading-5 text-foreground/60 select-none rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
       :aria-expanded="isExpanded"
+      :aria-controls="bodyId"
       :aria-label="toggleLabel"
       @click="toggleExpanded"
     >
       <Icon
-        icon="lucide:chevron-right"
-        class="w-[14px] h-[14px] shrink-0 text-[rgba(37,37,37,0.5)] dark:text-white/50 transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
-        :class="isExpanded ? 'rotate-90' : 'rotate-0'"
+        :icon="toolCallCount > 0 ? 'lucide:wrench' : 'lucide:message-circle'"
+        class="w-4 h-4 shrink-0"
+        aria-hidden="true"
       />
       <span class="min-w-0 truncate">
         {{ titleText }}
       </span>
+      <Icon
+        icon="lucide:chevron-right"
+        class="w-3.5 h-3.5 shrink-0 transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
+        :class="isExpanded ? 'rotate-90' : 'rotate-0'"
+        aria-hidden="true"
+      />
     </button>
 
     <div
+      :id="bodyId"
       class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
@@ -31,7 +39,7 @@
     >
       <div
         v-if="shouldRenderBody"
-        class="min-h-0 flex flex-col w-full gap-1.5 overflow-hidden"
+        class="min-h-0 min-w-0 flex flex-col w-full gap-0.5 overflow-hidden"
         data-testid="activity-group-body"
       >
         <template v-for="(block, index) in blocks" :key="buildActivityBlockKey(block, index)">
@@ -67,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, useId } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import type {
@@ -98,6 +106,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const isExpanded = ref(false)
+const bodyId = `activity-group-${useId()}`
 const shouldRenderBody = ref(false)
 // Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
 const BODY_UNMOUNT_DELAY_MS = 240

@@ -28,6 +28,7 @@ export type BuildAssistantRenderItemsOptions = {
   messageId: string
   messageUpdatedAt: number
   shouldGroup: boolean
+  expandedBlockKeys?: ReadonlySet<string>
   isInternalToolCall?: (block: DisplayAssistantMessageBlock) => boolean
 }
 
@@ -74,7 +75,7 @@ export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): b
     return false
   }
 
-  if (block.status === 'loading' || block.status === 'pending') {
+  if (block.status !== 'success' || block.extra?.needsUserAction) {
     return false
   }
 
@@ -138,6 +139,7 @@ export const buildAssistantRenderItems = ({
   messageId,
   messageUpdatedAt,
   shouldGroup,
+  expandedBlockKeys,
   isInternalToolCall
 }: BuildAssistantRenderItemsOptions): AssistantRenderItem[] => {
   const items: AssistantRenderItem[] = []
@@ -200,7 +202,9 @@ export const buildAssistantRenderItems = ({
       return
     }
 
-    if (shouldGroup && isCompletedActivityBlock(block)) {
+    const blockKey = buildBlockKey(block, messageId, index)
+    const standaloneKey = block.tool_call?.mcpResult?.app ? `${blockKey}:tool` : blockKey
+    if (shouldGroup && isCompletedActivityBlock(block) && !expandedBlockKeys?.has(standaloneKey)) {
       activityBuffer.push({ block, index })
       return
     }

@@ -1,32 +1,32 @@
 <template>
-  <div
-    class="text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 flex flex-col gap-[6px]"
-  >
-    <div
-      class="inline-flex items-center gap-[10px] select-none self-start"
+  <div class="min-w-0 text-xs leading-4 text-foreground/60 flex flex-col gap-1.5">
+    <button
+      type="button"
+      class="inline-flex max-w-full min-w-0 min-h-7 items-center gap-2 py-1 text-sm leading-5 select-none self-start rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+      :aria-expanded="expanded"
+      :aria-controls="contentId"
       @click="$emit('toggle')"
     >
-      <span class="whitespace-nowrap">
+      <Icon icon="lucide:message-circle" class="w-4 h-4 shrink-0" aria-hidden="true" />
+      <span class="min-w-0 truncate" :title="label">
         {{ label }}
       </span>
       <Icon
         v-if="thinking && !expanded"
         icon="lucide:ellipsis"
-        class="w-[14px] h-[14px] text-[rgba(37,37,37,0.5)] dark:text-white/50 animate-[pulse_1s_ease-in-out_infinite]"
+        class="w-3.5 h-3.5 shrink-0 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
+        aria-hidden="true"
       />
       <Icon
         v-else-if="expanded"
         icon="lucide:chevron-down"
-        class="w-[14px] h-[14px] text-[rgba(37,37,37,0.5)] dark:text-white/50"
+        class="w-3.5 h-3.5 shrink-0"
+        aria-hidden="true"
       />
-      <Icon
-        v-else
-        icon="lucide:chevron-right"
-        class="w-[14px] h-[14px] text-[rgba(37,37,37,0.5)] dark:text-white/50"
-      />
-    </div>
+      <Icon v-else icon="lucide:chevron-right" class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+    </button>
 
-    <div v-if="expanded" class="w-full relative">
+    <div v-if="expanded" :id="contentId" class="w-full min-w-0 pl-6 relative">
       <NodeRenderer
         v-if="sanitizedContent"
         class="think-prose w-full max-w-full"
@@ -46,7 +46,8 @@
     <Icon
       v-if="thinking && expanded"
       icon="lucide:ellipsis"
-      class="w-[14px] h-[14px] text-[rgba(37,37,37,0.5)] dark:text-white/50 animate-[pulse_1s_ease-in-out_infinite]"
+      class="ml-6 w-3.5 h-3.5 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
+      aria-hidden="true"
     />
   </div>
 </template>
@@ -54,7 +55,7 @@
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h, computed, onMounted, watch } from 'vue'
+import { h, computed, onMounted, useId, watch } from 'vue'
 import NodeRenderer, { setCustomComponents, PreCodeNode } from 'markstream-vue'
 import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
@@ -75,6 +76,7 @@ defineEmits<{
   (e: 'toggle'): void
 }>()
 const customId = 'thinking-content'
+const contentId = `thinking-content-${useId()}`
 const themeStore = useThemeStore()
 const thinkingCodeBlockProps = {
   isShowPreview: false,

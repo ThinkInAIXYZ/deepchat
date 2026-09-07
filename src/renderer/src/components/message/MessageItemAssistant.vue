@@ -76,6 +76,7 @@
                 :block="item.block"
                 :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
+                @manual-toggle="handleManualActivityToggle(item.key, $event)"
               />
               <MessageBlockSearch
                 v-else-if="isProviderSearchBlock(item.block)"
@@ -94,6 +95,7 @@
                     ? permissionStatusByToolCallId[item.block.tool_call.id]
                     : undefined
                 "
+                @manual-toggle="handleManualActivityToggle(item.key, $event)"
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -484,6 +486,21 @@ const shouldGroupActivity = computed(() => {
   return currentMessage.value.status !== 'pending'
 })
 
+const manuallyExpandedBlockKeys = ref(new Set<string>())
+
+const handleManualActivityToggle = (key: string, expanded: boolean) => {
+  if (expanded) {
+    manuallyExpandedBlockKeys.value.add(key)
+  } else {
+    manuallyExpandedBlockKeys.value.delete(key)
+  }
+}
+
+watch(
+  () => currentMessage.value.id,
+  () => manuallyExpandedBlockKeys.value.clear()
+)
+
 const permissionStatusByToolCallId = computed(() =>
   buildResolvedPermissionStatusByToolCallId(currentContent.value)
 )
@@ -510,6 +527,7 @@ const currentRenderItems = computed(() =>
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
+    expandedBlockKeys: manuallyExpandedBlockKeys.value,
     isInternalToolCall
   })
 )

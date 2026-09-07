@@ -4,7 +4,7 @@
     :expanded="!collapse"
     :thinking="block.status === 'loading'"
     :content="block.content"
-    @toggle="collapse = !collapse"
+    @toggle="toggleExpanded"
   />
 </template>
 
@@ -25,6 +25,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'toggle-collapse', isCollapsed: boolean): void
+  (e: 'manual-toggle', expanded: boolean): void
 }>()
 const { t } = useI18n()
 
@@ -33,6 +34,14 @@ const configClient = createConfigClient()
 // kept for potential future scroll anchoring; currently unused
 
 const collapse = ref(false)
+let hasManualToggle = false
+
+const toggleExpanded = () => {
+  hasManualToggle = true
+  collapse.value = !collapse.value
+  emit('manual-toggle', !collapse.value)
+}
+
 const displayedSeconds = ref(0)
 const UPDATE_INTERVAL = 1000
 const UPDATE_OFFSET = 80
@@ -162,7 +171,8 @@ watch(
 )
 
 onMounted(async () => {
-  collapse.value = Boolean(await configClient.getSetting('think_collapse'))
+  const savedCollapse = Boolean(await configClient.getSetting('think_collapse'))
+  if (!hasManualToggle) collapse.value = savedCollapse
 })
 
 onBeforeUnmount(() => {

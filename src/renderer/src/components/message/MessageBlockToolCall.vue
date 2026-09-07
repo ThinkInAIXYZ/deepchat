@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col w-full">
+  <div class="flex min-w-0 flex-col w-full">
     <LiveDelegationToolCallCard
       v-if="liveDelegationSpawn && threadId"
       :parent-session-id="threadId"
@@ -15,7 +15,7 @@
       v-else-if="renderMode !== 'app-only'"
       type="button"
       data-testid="tool-call-trigger"
-      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-left text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      class="inline-flex w-fit max-w-full min-w-0 min-h-7 items-center gap-2 rounded-sm py-1 text-left text-sm leading-5 text-foreground/60 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
       :aria-expanded="isExpanded"
       :aria-controls="detailsId"
       @click="toggleExpanded"
@@ -30,29 +30,42 @@
         ]"
         aria-hidden="true"
       />
-      <Icon v-else :icon="statusIconName" :class="['w-3.5 h-3.5 shrink-0', statusIconClass]" />
-      <div class="tool-call-labels flex items-center gap-2 font-mono font-medium min-w-0">
-        <span data-testid="tool-call-name" class="shrink-0 text-xs text-foreground/80 leading-none">
+      <Icon
+        v-else
+        :icon="statusIconName"
+        :class="['w-4 h-4 shrink-0', statusIconClass]"
+        aria-hidden="true"
+      />
+      <span class="tool-call-labels flex min-w-0 items-baseline gap-1.5">
+        <span
+          data-testid="tool-call-name"
+          class="tool-call-name truncate"
+          :title="displayFunctionName"
+        >
           {{ displayFunctionName }}
         </span>
         <span
           v-if="summaryText"
           data-testid="tool-call-summary"
-          class="tool-call-summary text-[11px]"
+          class="tool-call-summary"
           :title="summaryText"
         >
           {{ summaryText }}
         </span>
-      </div>
+      </span>
+      <span
+        v-if="statusVariant === 'error' && permissionStatus !== 'denied'"
+        class="shrink-0 text-xs text-destructive"
+      >
+        {{ t('toolCall.failed') }}
+      </span>
       <span
         v-if="permissionStatus"
         data-testid="tool-call-permission-badge"
         :data-permission-status="permissionStatus"
         :class="[
-          'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
-          permissionStatus === 'granted'
-            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-            : 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300'
+          'shrink-0 text-xs',
+          permissionStatus === 'granted' ? 'text-muted-foreground' : 'text-destructive'
         ]"
       >
         {{
@@ -62,14 +75,14 @@
       <span
         v-if="showRtkBadge"
         data-testid="tool-call-rtk-badge"
-        class="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-300"
+        class="shrink-0 text-[10px] text-muted-foreground"
       >
         {{ t('toolCall.badge.rtk') }}
       </span>
       <span
         v-if="hasImagePreviews"
         data-testid="tool-call-image-badge"
-        class="inline-flex shrink-0 items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300"
+        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
         :title="t('toolCall.imagePreviewCount', { count: imagePreviews.length })"
       >
         <Icon icon="lucide:image" class="h-3 w-3" />
@@ -88,7 +101,7 @@
       class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
-          ? 'mt-2 mb-4 grid-rows-[1fr] opacity-100'
+          ? 'mt-1 mb-2 grid-rows-[1fr] opacity-100'
           : 'mt-0 mb-0 grid-rows-[0fr] opacity-0 pointer-events-none'
       "
       :aria-hidden="!isExpanded"
@@ -99,7 +112,7 @@
           v-if="shouldRenderDetails"
           :id="detailsId"
           :data-testid="isExpanded ? 'tool-call-details' : undefined"
-          class="w-full rounded-lg border bg-muted px-2 py-3 text-card-foreground overscroll-contain"
+          class="w-full min-w-0 pl-6 py-1 text-card-foreground overscroll-contain"
         >
           <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
             <button
@@ -109,20 +122,23 @@
               type="button"
               :disabled="!task.sessionId"
               :class="[
-                'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
-                task.sessionId
-                  ? 'bg-background hover:bg-accent/60'
-                  : 'cursor-default bg-background/80 opacity-70'
+                'inline-flex w-full min-w-0 min-h-7 items-center gap-2 rounded-sm py-1 text-left text-xs leading-5 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                task.sessionId ? 'hover:bg-accent/40' : 'cursor-default opacity-70'
               ]"
               @click.stop="handleSubagentSessionOpen(task)"
             >
-              <span
-                :class="getSubagentStatusClass(task.status)"
-                class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
-              >
+              <Icon
+                icon="lucide:git-fork"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span :class="getSubagentStatusClass(task.status)" class="shrink-0 text-xs">
                 {{ getSubagentStatusLabel(task.status) }}
               </span>
-              <span class="shrink-0 font-semibold text-foreground">
+              <span
+                class="min-w-0 max-w-[35%] truncate text-foreground/80"
+                :title="task.targetAgentName"
+              >
                 {{ task.targetAgentName }}
               </span>
               <span class="text-muted-foreground">·</span>
@@ -137,22 +153,20 @@
             </button>
           </div>
 
-          <div v-else class="flex flex-col gap-4">
+          <div v-else class="flex min-w-0 flex-col gap-3">
             <div
               v-if="expandedToolTitle"
               data-testid="tool-call-expanded-title"
-              class="truncate text-xs font-mono font-medium text-foreground/75"
+              class="truncate text-xs font-mono text-muted-foreground"
+              :title="expandedToolTitle"
             >
               {{ expandedToolTitle }}
             </div>
 
-            <!-- 参数 -->
+            <!-- Parameters -->
             <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
-                <h5
-                  class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
-                >
-                  <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
+                <h5 class="text-xs font-medium text-muted-foreground">
                   {{ t('toolCall.params') }}
                 </h5>
                 <DcCopyButton
@@ -166,24 +180,16 @@
               </div>
               <div
                 data-testid="tool-call-params"
-                class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
+                class="dc-overscroll-contain rounded-md bg-muted/50 font-mono text-xs p-2 whitespace-pre-wrap break-words min-h-0 max-h-20 overflow-auto"
               >
                 {{ paramsText }}
               </div>
             </div>
 
-            <hr v-if="hasParams && hasResponse" class="sm:hidden" />
-
-            <!-- 响应 -->
+            <!-- Response -->
             <div v-if="hasResponse" :class="responseLayoutClass">
               <div class="flex items-center justify-between gap-2">
-                <h5
-                  class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
-                >
-                  <Icon
-                    :icon="isTerminalTool ? 'lucide:terminal' : 'lucide:arrow-down-to-dot'"
-                    class="w-4 h-4 text-foreground"
-                  />
+                <h5 class="text-xs font-medium text-muted-foreground">
                   {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
                 </h5>
                 <DcCopyButton
@@ -211,7 +217,7 @@
                     :loading="false"
                     :stream="false"
                     :show-header="false"
-                    class="rounded-md border bg-background text-xs p-2 h-full min-h-0"
+                    class="rounded-md bg-muted/50 text-xs p-2 h-full min-h-0"
                   />
                 </div>
                 <div
@@ -223,7 +229,7 @@
               </template>
               <pre
                 v-else
-                class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                class="dc-overscroll-contain rounded-md bg-muted/50 text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
                 >{{ responseText }}</pre
               >
             </div>
@@ -282,6 +288,10 @@ const props = defineProps<{
   readOnly?: boolean
   renderMode?: 'full' | 'tool-only' | 'app-only'
   permissionStatus?: 'granted' | 'denied'
+}>()
+
+const emit = defineEmits<{
+  'manual-toggle': [expanded: boolean]
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null
@@ -529,36 +539,31 @@ const toggleExpanded = () => {
     }
     isExpanded.value = false
     expansionSource.value = null
+    emit('manual-toggle', false)
     return
   }
 
   isExpanded.value = true
   expansionSource.value = 'manual'
+  emit('manual-toggle', true)
 }
 
 const statusIconName = computed(() => {
-  if (!props.block.tool_call) return 'lucide:circle-small'
-  switch (statusVariant.value) {
-    case 'error':
-      return 'lucide:x'
-    case 'success':
-    case 'neutral':
-      return 'lucide:circle-small'
-    default:
-      return 'lucide:circle-small'
-  }
+  if (statusVariant.value === 'error') return 'lucide:circle-alert'
+  if (isTerminalTool.value || isProcessTool.value) return 'lucide:terminal'
+  if (matchesToolContractName(rawToolName.value, 'read')) return 'lucide:book-open'
+  if (
+    matchesToolContractName(rawToolName.value, 'write') ||
+    matchesToolContractName(rawToolName.value, 'edit_text')
+  )
+    return 'lucide:pencil'
+  if (matchesToolContractName(rawToolName.value, 'search')) return 'lucide:search'
+  return 'lucide:wrench'
 })
 
-const statusIconClass = computed(() => {
-  switch (statusVariant.value) {
-    case 'error':
-      return 'text-destructive'
-    case 'success':
-      return 'text-emerald-500'
-    default:
-      return 'text-muted-foreground'
-  }
-})
+const statusIconClass = computed(() =>
+  statusVariant.value === 'error' ? 'text-destructive' : 'text-muted-foreground'
+)
 
 const isDiffTool = computed(() => {
   const name = props.block.tool_call?.name ?? ''
@@ -634,8 +639,7 @@ const showRtkBadge = computed(
 
 const syncAutoExpansionState = (
   status: DisplayAssistantMessageBlock['status'],
-  autoExpandable: boolean,
-  previousStatus?: DisplayAssistantMessageBlock['status']
+  autoExpandable: boolean
 ) => {
   if (status === 'loading' && autoExpandable && !autoExpandDismissed.value && !isExpanded.value) {
     isExpanded.value = true
@@ -643,7 +647,11 @@ const syncAutoExpansionState = (
     return
   }
 
-  if (previousStatus === 'loading' && status !== 'loading' && expansionSource.value === 'auto') {
+  if (
+    status === 'success' &&
+    !props.block.extra?.needsUserAction &&
+    expansionSource.value === 'auto'
+  ) {
     isExpanded.value = false
     expansionSource.value = null
     autoExpandDismissed.value = false
@@ -663,9 +671,9 @@ watch(toolCallIdentity, (nextIdentity, previousIdentity) => {
 })
 
 watch(
-  [() => props.block.status, shouldAutoExpand],
-  ([status, autoExpandable], previousValue) => {
-    syncAutoExpansionState(status, autoExpandable, previousValue?.[0])
+  [() => props.block.status, shouldAutoExpand, () => props.block.extra?.needsUserAction],
+  ([status, autoExpandable]) => {
+    syncAutoExpansionState(status, autoExpandable)
   },
   { immediate: true }
 )
@@ -697,15 +705,15 @@ watch(
 
 const getSubagentStatusClass = (status: string): string => {
   if (status === 'completed') {
-    return 'bg-emerald-500/10 text-emerald-600'
+    return 'text-muted-foreground'
   }
   if (status === 'error' || status === 'cancelled') {
-    return 'bg-destructive/10 text-destructive'
+    return 'text-destructive'
   }
   if (status.startsWith('waiting')) {
-    return 'bg-amber-500/10 text-amber-600'
+    return 'text-amber-700 dark:text-amber-400'
   }
-  return 'bg-muted text-muted-foreground'
+  return 'text-muted-foreground'
 }
 
 const handleSubagentSessionOpen = (task: SubagentProgressTask) => {
@@ -757,12 +765,9 @@ function getSubagentStatusLabel(status: string): string {
 </script>
 
 <style scoped>
-.tool-call-pill {
-  max-width: min(48rem, calc(100% - 0.75rem));
-}
-
-.tool-call-labels {
-  min-width: 0;
+.tool-call-name {
+  max-width: min(28ch, 100%);
+  flex-shrink: 0;
 }
 
 .tool-call-summary {
@@ -772,36 +777,32 @@ function getSubagentStatusLabel(status: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.2;
-  padding-block: 1px;
-  color: hsl(var(--muted-foreground) / 0.9);
-  font-weight: 400;
 }
 
 .tool-call-status-ring {
-  position: relative;
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 1rem;
+  height: 1rem;
   border-radius: 9999px;
   box-sizing: border-box;
-  border: 1px solid hsl(var(--muted-foreground) / 0.32);
-}
-
-.tool-call-status-ring::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  border: 1px solid hsl(45 96% 62% / 0.88);
-  opacity: 0.9;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  animation: tool-call-spin 1s linear infinite;
 }
 
 .tool-call-status-ring-reviewing {
-  border-color: hsl(45 96% 62% / 0.42);
+  color: var(--muted-foreground);
 }
 
-.tool-call-status-ring-reviewing::after {
-  background: hsl(45 96% 62% / 0.88);
+@keyframes tool-call-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-status-ring {
+    animation: none;
+  }
 }
 
 pre {

@@ -1,16 +1,24 @@
 <template>
   <article
-    class="w-full max-w-2xl rounded-lg border bg-muted/20 px-3 py-2.5"
+    class="w-full min-w-0 py-1 text-foreground/60"
     :data-testid="`live-delegation-tool-card-${delegationId || 'pending'}`"
   >
     <div class="flex flex-wrap items-center gap-2">
-      <span class="h-2 w-2 shrink-0 rounded-full" :class="statusDotClass" aria-hidden="true"></span>
-      <Icon icon="lucide:git-fork" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <div class="min-w-32 flex-1">
-        <p class="truncate text-xs font-medium text-foreground" :title="title">
+      <Icon
+        icon="lucide:git-fork"
+        class="h-4 w-4 shrink-0"
+        :class="statusTextClass"
+        aria-hidden="true"
+      />
+      <div class="flex min-w-0 flex-1 items-baseline gap-2">
+        <p class="min-w-0 truncate text-sm" :title="title">
           {{ title }}
         </p>
-        <p class="mt-0.5 truncate text-[10px] text-muted-foreground" :title="slotId">
+        <p
+          v-if="slotId !== title"
+          class="min-w-0 max-w-[40%] truncate text-xs text-muted-foreground"
+          :title="slotId"
+        >
           {{ slotId }}
         </p>
       </div>
@@ -19,74 +27,70 @@
         data-testid="tool-call-permission-badge"
         :data-permission-status="permissionStatus"
         :class="[
-          'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
-          permissionStatus === 'granted'
-            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-            : 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300'
+          'shrink-0 text-xs',
+          permissionStatus === 'granted' ? 'text-muted-foreground' : 'text-destructive'
         ]"
       >
         {{
           permissionStatus === 'granted' ? t('toolCall.badge.allowed') : t('toolCall.badge.denied')
         }}
       </span>
-      <span
-        class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
-        :class="statusBadgeClass"
-        aria-live="polite"
-      >
+      <span class="shrink-0 text-xs" :class="statusTextClass" aria-live="polite">
         {{ statusLabel }}
       </span>
-      <DcButton
-        v-if="delegationId && (childSessionId || !authoritative)"
-        :variant="statusPresentation.actionRequired ? 'default' : 'ghost'"
-        size="sm"
-        class="h-7 px-2 text-[10px]"
-        :data-testid="`live-delegation-tool-open-${delegationId}`"
-        :data-action-required="statusPresentation.actionRequired ? 'true' : undefined"
-        :disabled="opening || (authoritative && !childSessionId)"
-        @click="openChild"
-      >
-        <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
-        {{ t('chat.orchestration.actions.openChild') }}
-      </DcButton>
-      <DcButton
-        v-if="canInterrupt"
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7 text-destructive hover:text-destructive"
-        :aria-label="t('common.cancel')"
-        :data-testid="`live-delegation-tool-interrupt-${delegationId}`"
-        :disabled="interrupting || readOnly"
-        @click="interrupt"
-        :tooltip="t('common.cancel')"
-      >
-        <Icon icon="lucide:square" class="h-3 w-3" />
-      </DcButton>
-      <button
-        type="button"
-        class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-label="t('chat.toolCall.clickToView')"
-        :aria-expanded="detailsExpanded"
-        :aria-controls="detailsId"
-        data-testid="live-delegation-tool-details"
-        @click="emit('toggleDetails')"
-      >
-        <Icon
-          icon="lucide:chevron-right"
-          class="h-3.5 w-3.5 transition-transform"
-          :class="detailsExpanded && 'rotate-90'"
-        />
-      </button>
+      <div class="ml-auto inline-flex shrink-0 items-center gap-0.5">
+        <DcButton
+          v-if="delegationId && (childSessionId || !authoritative)"
+          :variant="statusPresentation.actionRequired ? 'default' : 'ghost'"
+          size="sm"
+          class="h-7 px-2 text-xs"
+          :data-testid="`live-delegation-tool-open-${delegationId}`"
+          :data-action-required="statusPresentation.actionRequired ? 'true' : undefined"
+          :disabled="opening || (authoritative && !childSessionId)"
+          @click="openChild"
+        >
+          <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
+          {{ t('chat.orchestration.actions.openChild') }}
+        </DcButton>
+        <DcButton
+          v-if="canInterrupt"
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7 text-muted-foreground hover:text-destructive"
+          :aria-label="t('common.cancel')"
+          :data-testid="`live-delegation-tool-interrupt-${delegationId}`"
+          :disabled="interrupting || readOnly"
+          @click="interrupt"
+          :tooltip="t('common.cancel')"
+        >
+          <Icon icon="lucide:square" class="h-3 w-3" />
+        </DcButton>
+        <button
+          type="button"
+          class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :aria-label="t('chat.toolCall.clickToView')"
+          :aria-expanded="detailsExpanded"
+          :aria-controls="detailsId"
+          data-testid="live-delegation-tool-details"
+          @click="emit('toggleDetails')"
+        >
+          <Icon
+            icon="lucide:chevron-right"
+            class="h-3.5 w-3.5 transition-transform motion-reduce:transition-none"
+            :class="detailsExpanded && 'rotate-90'"
+          />
+        </button>
+      </div>
     </div>
 
     <p
       v-if="preview"
-      class="mt-2 line-clamp-3 whitespace-pre-wrap break-words text-[11px]"
+      class="mt-1 pl-6 line-clamp-2 whitespace-pre-wrap break-words text-xs"
       :class="delegation?.errorPreview ? 'text-destructive' : 'text-muted-foreground'"
     >
       {{ preview }}
     </p>
-    <p v-if="actionError" class="mt-2 break-words text-[11px] text-destructive">
+    <p v-if="actionError" class="mt-1 pl-6 break-words text-xs text-destructive">
       {{ actionError }}
     </p>
   </article>
@@ -154,8 +158,11 @@ const interrupting = computed(() =>
     : false
 )
 const statusLabel = computed(() => t(statusPresentation.value.labelKey))
-const statusDotClass = computed(() => statusPresentation.value.dotClass)
-const statusBadgeClass = computed(() => statusPresentation.value.badgeClass)
+const statusTextClass = computed(() => {
+  if (status.value === 'failed' || status.value === 'tool_error') return 'text-destructive'
+  if (statusPresentation.value.actionRequired) return 'text-amber-700 dark:text-amber-400'
+  return 'text-muted-foreground'
+})
 
 async function openChild(): Promise<void> {
   const id = delegationId.value

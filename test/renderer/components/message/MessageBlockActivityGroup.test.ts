@@ -165,6 +165,9 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'true'
     )
+    expect(wrapper.get('[data-testid="activity-group-toggle"]').attributes('aria-controls')).toBe(
+      wrapper.get('[data-testid="activity-group-body-shell"]').attributes('id')
+    )
     expect(wrapper.get('[data-testid="activity-group-body-shell"]').attributes('aria-hidden')).toBe(
       'false'
     )
