@@ -437,6 +437,18 @@ const AGENT_MEMORY_SCOPE_INDEX_SQL = `
       AND kind NOT IN ('persona', 'working');
 `
 
+// Ensured at startup next to the scope index rather than shipped inside the v51 migration text, so
+// the historical migration stays byte-stable while migrated databases still gain it on next open.
+const AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_working_candidates_v1
+    ON agent_memory(agent_id, importance DESC, access_count DESC, created_at DESC, id DESC)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND scope_type = 'agent'
+      AND scope_id IS NULL
+      AND kind IN ('semantic', 'reflection', 'episodic');
+`
+
 function embeddingRefsState(
   row: Pick<AgentMemoryRow, 'embedding_id' | 'embedding_dim' | 'embedding_model'>
 ): MemoryEmbeddingRefsState {
@@ -509,6 +521,32 @@ export function buildManagementPageSelectSql(hasCursor: boolean): string {
             AND kind NOT IN ('persona', 'working')
             ${cursorPredicate}
           ORDER BY created_at DESC, id DESC
+          LIMIT ?`
+}
+
+/**
+ * Working-blob candidates in their stable ordering. The pinned partial index carries the same
+ * predicate and sort, so each page is an index range read rather than a sort of every active claim.
+ */
+export function buildWorkingCandidatesSelectSql(hasCursor: boolean): string {
+  const cursorPredicate = hasCursor
+    ? `AND (
+           importance < ?
+           OR (importance = ? AND access_count < ?)
+           OR (importance = ? AND access_count = ? AND created_at < ?)
+           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
+         )`
+    : ''
+  return `SELECT *
+          FROM agent_memory INDEXED BY idx_agent_memory_working_candidates_v1
+          WHERE agent_id = ?
+            AND scope_type = 'agent'
+            AND scope_id IS NULL
+            AND superseded_by IS NULL
+            AND lifecycle_state = 'active'
+            AND kind IN ('semantic', 'reflection', 'episodic')
+            ${cursorPredicate}
+          ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
           LIMIT ?`
 }
 
@@ -957,6 +995,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       ${AGENT_MEMORY_CANONICAL_INDEX_SQL}
       ${AGENT_MEMORY_TEMPORAL_TRIGGER_SQL}
       ${AGENT_MEMORY_SCOPE_INDEX_SQL}
+      ${AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL}
       ${AGENT_MEMORY_SCOPE_TRIGGER_SQL}
       ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_SQL}
     `
@@ -1188,6 +1227,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     ]
     if (indexColumns.every((column) => columns.has(column))) {
       this.db.exec(AGENT_MEMORY_SCOPE_INDEX_SQL)
+      if (columns.has('access_count')) this.db.exec(AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL)
     }
   }
 
@@ -4932,14 +4972,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   ): AgentMemoryRow[] {
     const cappedLimit = Math.max(0, Math.floor(limit))
     if (cappedLimit === 0) return []
-    const cursorSql = after
-      ? `AND (
-           importance < ?
-           OR (importance = ? AND access_count < ?)
-           OR (importance = ? AND access_count = ? AND created_at < ?)
-           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
-         )`
-      : ''
     const params: unknown[] = [agentId]
     if (after) {
       params.push(
@@ -4957,19 +4989,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     }
     params.push(cappedLimit)
     return this.db
-      .prepare(
-        `SELECT *
-         FROM agent_memory
-         WHERE agent_id = ?
-           AND scope_type = 'agent'
-           AND scope_id IS NULL
-           AND superseded_by IS NULL
-           AND lifecycle_state = 'active'
-           AND kind IN ('semantic', 'reflection', 'episodic')
-           ${cursorSql}
-         ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
-         LIMIT ?`
-      )
+      .prepare(buildWorkingCandidatesSelectSql(after !== undefined))
       .all(...params) as AgentMemoryRow[]
   }
 

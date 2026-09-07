@@ -16,6 +16,7 @@ const ftsPolicyModule = Database
 const AgentMemoryTable = tableModule?.AgentMemoryTable
 const buildPendingEmbeddingSelectSql = tableModule?.buildPendingEmbeddingSelectSql
 const buildScopedImportanceCandidatesSql = tableModule?.buildScopedImportanceCandidatesSql
+const buildWorkingCandidatesSelectSql = tableModule?.buildWorkingCandidatesSelectSql
 const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const agentFtsScope = ftsPolicyModule?.agentFtsScope
 const buildRecallablePredicate = ftsPolicyModule?.buildRecallablePredicate
@@ -28,6 +29,7 @@ const describeIfSqlite = nativeSqliteDescribeIf(
     AgentMemoryTable &&
     buildPendingEmbeddingSelectSql &&
     buildScopedImportanceCandidatesSql &&
+    buildWorkingCandidatesSelectSql &&
     AgentMemoryAuditTable &&
     agentFtsScope &&
     buildRecallablePredicate &&
@@ -3322,6 +3324,19 @@ describeIfSqlite('AgentMemoryTable', () => {
         id: cursorRow.id
       })
       expect(secondPage.map((row) => row.id)).toEqual(['m2', 'm1'])
+
+      for (const hasCursor of [false, true]) {
+        const params = hasCursor
+          ? ['a', 0.9, 0.9, 1, 0.9, 1, 3000, 0.9, 1, 3000, 'm3', 2]
+          : ['a', 2]
+        const plan = db
+          .prepare(`EXPLAIN QUERY PLAN ${buildWorkingCandidatesSelectSql!(hasCursor)}`)
+          .all(...params) as Array<{ detail: string }>
+        expect(
+          plan.some((row) => row.detail.includes('idx_agent_memory_working_candidates_v1'))
+        ).toBe(true)
+        expect(plan.some((row) => row.detail.includes('TEMP B-TREE'))).toBe(false)
+      }
     } finally {
       db.close()
     }
