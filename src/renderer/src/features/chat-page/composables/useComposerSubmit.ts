@@ -146,6 +146,7 @@ type UseComposerSubmitOptions = {
   isSessionViewPreparing: ComputedRef<boolean>
   isAcpWorkdirMissing: ComputedRef<boolean>
   isGenerating: ComputedRef<boolean>
+  setManualCompacting: (sessionId: string, compacting: boolean) => void
   hasBlockingInteraction: () => boolean
   getActiveModelSelection: () => { providerId: string; modelId: string } | null
   /** Outgoing-turn UX: pending-assistant placeholder + plan turn reset. */
@@ -967,6 +968,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       return true
     }
 
+    options.setManualCompacting(sessionId, true)
     try {
       const result = await sessionClient.compactSession(sessionId)
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return true
@@ -991,6 +993,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         title: t('chat.compaction.failedTitle'),
         description: error instanceof Error ? error.message : String(error)
       })
+    } finally {
+      options.setManualCompacting(sessionId, false)
     }
     return true
   }

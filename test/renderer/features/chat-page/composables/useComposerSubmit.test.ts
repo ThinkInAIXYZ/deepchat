@@ -154,6 +154,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       isSessionViewPreparing: computed(() => isPreparingSession.value),
       isAcpWorkdirMissing: computed(() => isAcpWorkdirMissing.value),
       isGenerating: computed(() => isGenerating.value),
+      setManualCompacting: vi.fn(),
       hasBlockingInteraction: () => false,
       getActiveModelSelection: () => activeModelSelection.value,
       createPendingAssistantPlaceholder,
