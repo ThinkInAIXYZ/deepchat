@@ -15,14 +15,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createConfigClient } from '@api/ConfigClient'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { useThrottleFn } from '@vueuse/core'
-const props = defineProps<{
-  block: DisplayAssistantMessageBlock
-  initiallyExpanded?: boolean
-  usage: {
-    reasoning_start_time: number
-    reasoning_end_time: number
-  }
-}>()
+const props = withDefaults(
+  defineProps<{
+    block: DisplayAssistantMessageBlock
+    initiallyExpanded?: boolean
+    usage: {
+      reasoning_start_time: number
+      reasoning_end_time: number
+    }
+  }>(),
+  { initiallyExpanded: undefined }
+)
 
 const emit = defineEmits<{
   (e: 'toggle-collapse', isCollapsed: boolean): void
@@ -34,8 +37,8 @@ const configClient = createConfigClient()
 
 // kept for potential future scroll anchoring; currently unused
 
-const collapse = ref(false)
-let hasManualToggle = Boolean(props.initiallyExpanded)
+const collapse = ref(props.initiallyExpanded === false)
+let hasManualToggle = props.initiallyExpanded !== undefined
 
 const toggleExpanded = () => {
   hasManualToggle = true

@@ -622,10 +622,18 @@ describe('MessageItemAssistant', () => {
     }
   )
 
-  it.each(['thinking', 'tool', 'mcp-tool'])(
-    'preserves manually opened grouped %s details across regrouping and updates',
+  it.each(['thinking', 'tool', 'mcp-tool', 'plan'])(
+    'keeps grouped %s details in place and restores disclosure state when the group reopens',
     async (kind) => {
       const selectedBlock = kind === 'thinking' ? createThinkingBlock() : createToolCallBlock()
+      if (kind === 'plan') {
+        selectedBlock.tool_call = {
+          id: 'plan-1',
+          name: 'update_plan',
+          params: '{"plan":[{"step":"Inspect code","status":"completed"}]}',
+          response: '{}'
+        }
+      }
       if (kind === 'mcp-tool') {
         selectedBlock.tool_call!.mcpResult = {
           schemaVersion: 1,
@@ -672,6 +680,7 @@ describe('MessageItemAssistant', () => {
       await flushPromises()
       const appElement =
         kind === 'mcp-tool' ? wrapper.get('[data-testid="mcp-app-view"]').element : undefined
+      const groupElement = wrapper.get('[data-testid="activity-group"]').element
       await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
       await flushPromises()
       const componentName = kind === 'thinking' ? 'MessageBlockThink' : 'MessageBlockToolCall'
@@ -685,8 +694,11 @@ describe('MessageItemAssistant', () => {
 
       const expanded = wrapper.getComponent({ name: componentName })
       expect(expanded.get('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
-      const standaloneElement = expanded.element
-      expect(expanded.element.closest('[data-testid="activity-group"]')).toBeNull()
+      expect(expanded.element).toBe(groupedBlock.element)
+      expect(expanded.element.closest('[data-testid="activity-group"]')).toBe(groupElement)
+      expect(
+        wrapper.getComponent({ name: 'MessageBlockActivityGroup' }).props('blocks')
+      ).toHaveLength(2)
       expect(document.activeElement).toBe(expanded.get('button[aria-expanded]').element)
       if (kind === 'thinking') {
         expect(configClient.setSetting).toHaveBeenCalledWith('think_collapse', false)
@@ -699,21 +711,56 @@ describe('MessageItemAssistant', () => {
         ])
       })
       await flushPromises()
-      expect(wrapper.getComponent({ name: componentName }).element).toBe(standaloneElement)
+      expect(wrapper.getComponent({ name: componentName }).element).toBe(groupedBlock.element)
       expect(expanded.get('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
       if (kind === 'mcp-tool') {
         expect(wrapper.get('[data-testid="mcp-app-view"]').element).toBe(appElement)
       }
 
-      await expanded.get('button[aria-expanded]').trigger('click')
+      const groupTrigger = wrapper.get<HTMLButtonElement>('[data-testid="activity-group-toggle"]')
+      groupTrigger.element.focus()
+      await groupTrigger.trigger('click')
+      await vi.waitFor(() => {
+        expect(wrapper.find('[data-testid="activity-group-body"]').exists()).toBe(false)
+      })
+      expect(wrapper.get('[data-testid="activity-group"]').element).toBe(groupElement)
+      expect(document.activeElement).toBe(groupTrigger.element)
+      await groupTrigger.trigger('click')
+      await flushPromises()
+
+      const restored = wrapper.getComponent({ name: componentName })
+      expect(restored.get('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
+      expect(restored.element.closest('[data-testid="activity-group"]')).toBe(groupElement)
+      if (kind === 'mcp-tool') {
+        expect(wrapper.get('[data-testid="mcp-app-view"]').element).toBe(appElement)
+      }
+
+      const restoredTrigger = restored.get<HTMLButtonElement>('button[aria-expanded]')
+      restoredTrigger.element.focus()
+      await restoredTrigger.trigger('click')
       await nextTick()
       expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
       expect(
         wrapper.getComponent({ name: 'MessageBlockActivityGroup' }).props('blocks')
       ).toHaveLength(2)
-      expect(document.activeElement).toBe(
-        wrapper.get('[data-testid="activity-group-toggle"]').element
-      )
+      expect(document.activeElement).toBe(restoredTrigger.element)
+
+      await groupTrigger.trigger('click')
+      await vi.waitFor(() => {
+        expect(wrapper.find('[data-testid="activity-group-body"]').exists()).toBe(false)
+      })
+      // A saved per-call choice wins over a later global thinking preference.
+      if (kind === 'thinking') configClient.getSetting.mockResolvedValueOnce(false)
+      await groupTrigger.trigger('click')
+      await flushPromises()
+      expect(
+        wrapper
+          .getComponent({ name: componentName })
+          .get('button[aria-expanded]')
+          .attributes('aria-expanded')
+      ).toBe('false')
+      expect(wrapper.get('[data-testid="activity-group"]').element).toBe(groupElement)
+      wrapper.unmount()
     }
   )
 

@@ -50,6 +50,7 @@
             "
             :block="block"
             :usage="usage"
+            :initially-expanded="activityExpansion?.get(blockKeys[index])"
             :data-activity-key="blockKeys[index]"
             @toggle-collapse="handleChildCollapseToggle"
             @manual-toggle="emit('manual-toggle', blockKeys[index], $event)"
@@ -57,6 +58,7 @@
           <MessageBlockToolCall
             v-else-if="block.type === 'tool_call'"
             :block="block"
+            :initially-expanded="activityExpansion?.get(blockKeys[index])"
             :data-activity-key="blockKeys[index]"
             :message-id="messageId"
             :thread-id="threadId"
@@ -95,6 +97,7 @@ import MessageBlockSearch from './MessageBlockSearch.vue'
 const props = defineProps<{
   blocks: DisplayAssistantMessageBlock[]
   blockKeys: string[]
+  activityExpansion?: ReadonlyMap<string, boolean>
   messageId: string
   threadId: string
   usage: DisplayMessageUsage

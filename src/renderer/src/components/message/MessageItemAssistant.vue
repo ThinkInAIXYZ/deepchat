@@ -42,6 +42,7 @@
                 v-if="item.kind === 'activity-group'"
                 :blocks="item.blocks"
                 :block-keys="item.blockKeys"
+                :activity-expansion="groupedActivityExpansion"
                 :data-activity-key="item.key"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
@@ -52,7 +53,7 @@
                 :read-only="isReadOnly"
                 :permission-status-by-tool-call-id="permissionStatusByToolCallId"
                 @toggle-collapse="handleCollapseToggle"
-                @manual-toggle="handleManualActivityToggle"
+                @manual-toggle="(key, expanded) => groupedActivityExpansion.set(key, expanded)"
               />
               <MessageBlockToolCall
                 v-else-if="item.kind === 'mcp-app'"
@@ -78,7 +79,7 @@
                 "
                 :block="item.block"
                 :usage="currentMessage.usage"
-                :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
+                :initially-expanded="manuallyExpandedBlockKeys.has(item.key) || undefined"
                 :data-activity-key="item.key"
                 @toggle-collapse="handleCollapseToggle"
                 @manual-toggle="handleManualActivityToggle(item.key, $event)"
@@ -489,6 +490,8 @@ const shouldGroupActivity = computed(() => {
 })
 
 const manuallyExpandedBlockKeys = ref(new Set<string>())
+// Disclosure inside an existing group must not change that group's membership.
+const groupedActivityExpansion = ref(new Map<string, boolean>())
 
 const handleManualActivityToggle = (key: string, expanded: boolean) => {
   const focusedElement = document.activeElement as HTMLElement | null
@@ -515,7 +518,10 @@ const handleManualActivityToggle = (key: string, expanded: boolean) => {
 
 watch(
   () => currentMessage.value.id,
-  () => manuallyExpandedBlockKeys.value.clear()
+  () => {
+    manuallyExpandedBlockKeys.value.clear()
+    groupedActivityExpansion.value.clear()
+  }
 )
 
 const permissionStatusByToolCallId = computed(() =>
