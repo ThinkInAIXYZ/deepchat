@@ -156,6 +156,9 @@ function createHarness(options?: {
     createCompactionMessageAtOrderSeq: vi.fn().mockReturnValue('compaction-message'),
     deleteMessage: vi.fn(),
     getMessages: vi.fn().mockReturnValue([]),
+    readProjectionCursor: vi.fn().mockReturnValue(null),
+    writeProjectionCursor: vi.fn(),
+    applyTapeEntries: vi.fn(),
     getNextOrderSeq: vi.fn().mockReturnValue(7),
     recordCompactionModelCall: vi.fn(),
     updateCompactionMessage: vi.fn()
@@ -636,6 +639,29 @@ describe('CompactionRuntimeCoordinator', () => {
       expect.objectContaining({ status: 'compacting', cursorOrderSeq: 5 }),
       expect.objectContaining({ status: 'compacted', cursorOrderSeq: 5 })
     ])
+  })
+
+  it('finishes compaction projection after a post-commit hook dispatch rejects', async () => {
+    const f = createHarness()
+    f.prepareForManualCompaction.mockResolvedValueOnce(createIntent())
+    f.deps.pluginContext = {
+      hasHooks: () => true,
+      accept: vi.fn().mockRejectedValue(new Error('Hook history unavailable')),
+      getContext: () => []
+    }
+    await expect(f.coordinator.compact(SESSION_ID)).resolves.toMatchObject({
+      compacted: true,
+      state: { status: 'compacted' }
+    })
+    expect(f.deps.pluginContext.accept).toHaveBeenCalled()
+    expect(f.messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'compacted',
+      1,
+      expect.any(Object)
+    )
+    expect(f.initialInstance?.getCompactionState().status).toBe('compacted')
+    expect(f.publishedEvents.at(-1)?.payload).toMatchObject({ status: 'compacted' })
   })
 
   it('persists each observed summary call against the compaction marker identity', async () => {

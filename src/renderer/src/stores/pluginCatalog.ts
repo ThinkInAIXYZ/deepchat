@@ -31,6 +31,11 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
         : plugins.value.map((item) => (item.id === plugin.id ? plugin : item))
   }
 
+  const removePlugin = (pluginId: string) => {
+    pluginMutationVersion += 1
+    plugins.value = plugins.value.filter((plugin) => plugin.id !== pluginId)
+  }
+
   const capturePluginRefresh = (): number => pluginMutationVersion
 
   const replacePlugins = (nextPlugins: PluginListItem[], version: number): boolean => {
@@ -165,6 +170,7 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
     ocrStatus,
     ocrStatusHasError,
     getPlugin,
+    removePlugin,
     capturePluginRefresh,
     replacePlugins,
     replacePlugin,

@@ -130,6 +130,81 @@ describe('SkillService shared Skills', () => {
     vi.restoreAllMocks()
   })
 
+  it('keeps official plugin activation available when a user Skill has the same name', async () => {
+    writeSkill(skillsRoot, 'computer-use', '# User computer skill')
+    await migrate()
+    const skillRoot = writeSkill(
+      path.join(temporaryRoot, 'official'),
+      'computer-use',
+      '# Official computer skill'
+    )
+    await expect(
+      service.registerPluginSkill({ ownerPluginId: 'deepchat.cua', id: 'computer-use', skillRoot })
+    ).resolves.toBeUndefined()
+    const skills = await service.getMetadataList('writer')
+    expect(skills.filter((skill) => skill.name === 'computer-use')).toHaveLength(1)
+    expect(skills.find((skill) => skill.name === 'computer-use')?.skillRoot).toBe(
+      path.join(skillsRoot, 'computer-use')
+    )
+    await expect(
+      service.registerPluginSkill({ ownerPluginId: 'user.cua', id: 'computer-use', skillRoot })
+    ).rejects.toThrow('another source')
+  })
+
+  it('preserves plugin assignments while disabled and rejects execution from a revoked revision', async () => {
+    await migrate()
+    const root = writeSkill(
+      path.join(temporaryRoot, 'plugins', 'user', 'fixture', 'versions', 'one'),
+      'plugin-example',
+      '# Plugin'
+    )
+    await service.registerPluginSkill({
+      ownerPluginId: 'user.fixture',
+      id: 'example',
+      skillRoot: root
+    })
+    expect(
+      (storedState as SkillManagementState).agents.writer.bindings['plugin-example'].assigned
+    ).toBe(true)
+    await service.unregisterPluginSkillsByOwner('user.fixture', { preserveAssignments: true })
+    expect(
+      (storedState as SkillManagementState).agents.writer.bindings['plugin-example'].assigned
+    ).toBe(true)
+    expect(
+      (await service.getMetadataList('writer')).some((skill) => skill.name === 'plugin-example')
+    ).toBe(false)
+    await expect(
+      service.resolveSkillRuntimeEnvironmentBinding('writer', 'plugin-example', null, root)
+    ).rejects.toThrow('disabled, removed or belongs to a replaced revision')
+    await service.registerPluginSkill({
+      ownerPluginId: 'user.fixture',
+      id: 'example',
+      skillRoot: root
+    })
+    expect(
+      (await service.getMetadataList('writer')).some((skill) => skill.name === 'plugin-example')
+    ).toBe(true)
+    const conflict = writeSkill(
+      path.join(temporaryRoot, 'another-plugin'),
+      'plugin-example',
+      '# Other'
+    )
+    await expect(
+      service.registerPluginSkill({
+        ownerPluginId: 'user.other',
+        id: 'example',
+        skillRoot: conflict
+      })
+    ).rejects.toThrow('another source')
+    await service.unregisterPluginSkillsByOwner('user.fixture')
+    expect(
+      (storedState as SkillManagementState).agents.writer.bindings['plugin-example']
+    ).toBeUndefined()
+    await expect(
+      service.resolveSkillRuntimeEnvironmentBinding('writer', 'plugin-example', null, root)
+    ).rejects.toThrow('disabled, removed or belongs to a replaced revision')
+  })
+
   it('deduplicates equal private packages and renames different variants during v2 migration', async () => {
     const globalRoot = writeSkill(skillsRoot, 'review', '# shared')
     const writerRoot = resolveAgentSkillsRoot(skillsRoot, 'writer')

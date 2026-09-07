@@ -41,7 +41,7 @@ function parseArgs(argv) {
     )
     process.exit(1)
   }
-  if (args.action !== 'verify' && !args.name) {
+  if (args.action !== 'verify' && !args.name && !(args.action === 'validate' && args.pluginRoot)) {
     console.error('Missing required --name <plugin> argument')
     process.exit(1)
   }
@@ -167,6 +167,14 @@ function stageCuaManagedHelper(pluginDir, targetPlatform, targetArch) {
 }
 
 try {
+  if (args.action === 'validate' && args.pluginRoot) {
+    if (Number(process.versions.node.split('.')[0]) < 24) {
+      throw new Error('Portable source validation requires Node 24 or later; app inspection is also available')
+    }
+    const { readUserPluginPackage } = await import('../src/main/plugin/userPluginPackage.ts')
+    console.log(JSON.stringify(readUserPluginPackage(args.pluginRoot), null, 2))
+    process.exit(0)
+  }
   if (args.action === 'verify') {
     verifyArtifacts(args)
     process.exit(0)

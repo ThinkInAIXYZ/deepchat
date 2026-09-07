@@ -75,6 +75,15 @@ Project-directory resolution, generation-setting resolution, Agent identity, hoo
 provider capabilities remain explicit collaborator dependencies. The scope must not cache or
 duplicate mutable facts already owned by `DeepChatAgentInstance` or Session data.
 
+Portable plugin context hooks use a narrow `PluginContextPort`, separate from asynchronous
+notification delivery. The Turn Coordinator admits full input before provider assembly;
+committed compaction supplies its own boundary. Plugin hooks persist attributed results in Tape,
+and the loop projects current `plugin_context` instructions using the accepted user message ID.
+Projection and provider retries do not execute hooks. Disable revokes subsequent contributions;
+provider authority rechecks projection before dispatch. Active-run/update exclusion protects
+revision replacement. Context output has no permission, request-rewrite or tool-decision channel.
+The supported lifecycle and budgets are defined in [User Plugins](../../features/user-plugins/spec.md).
+
 Lifecycle ownership has four distinct fence semantics and must not collapse them into one generic
 `ownsTurn()` predicate:
 

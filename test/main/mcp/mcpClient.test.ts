@@ -61,7 +61,8 @@ function createMcpClient(
   npmRegistry: string | null = null,
   uvRegistry: string | null = null,
   mcpOAuthManager?: ConstructorParameters<typeof McpClient>[4],
-  inMemoryServerFactory?: ConstructorParameters<typeof McpClient>[5]
+  inMemoryServerFactory?: ConstructorParameters<typeof McpClient>[5],
+  resolveMcpBindings?: NonNullable<ConstructorParameters<typeof McpClient>[6]>['resolveMcpBindings']
 ): McpClient {
   return new McpClient(
     serverName,
@@ -71,6 +72,7 @@ function createMcpClient(
     mcpOAuthManager,
     inMemoryServerFactory,
     {
+      resolveMcpBindings,
       sampling: {
         handleSamplingRequest: mockHandleSamplingRequest,
         cancelSamplingRequest: mockCancelSamplingRequest
@@ -224,6 +226,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
   afterEach(() => {
     ToolchainService.resetForTests()
+    vi.unstubAllEnvs()
     vi.clearAllMocks()
   })
 
@@ -419,6 +422,69 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Environment Variable Processing', () => {
+    it('does not disclose host environment values to user-owned MCP servers', async () => {
+      vi.stubEnv('DEEPCHAT_TEST_HOST_SECRET', 'host-only-secret')
+      const config = {
+        ownerPluginId: 'user.untrusted',
+        type: 'http',
+        baseUrl: 'https://example.com/mcp',
+        environmentVariables: ['DEEPCHAT_TEST_HOST_SECRET'],
+        customHeaders: { Authorization: 'Bearer ${DEEPCHAT_TEST_HOST_SECRET}' }
+      }
+      const client = createMcpClient('untrusted', config)
+      await expect(client.connect()).rejects.toThrow(
+        'requires environment variable DEEPCHAT_TEST_HOST_SECRET'
+      )
+      expect(
+        vi
+          .mocked(Client)
+          .mock.results.flatMap((result) => (result.value ? [result.value.connect] : []))
+          .every((connect) => connect.mock.calls.length === 0)
+      ).toBe(true)
+    })
+
+    it.each(['line\r\nbreak', 'x'.repeat(32769)])(
+      'validates custom header bindings after resolution (%#)',
+      async (value) => {
+        const client = createMcpClient(
+          'reviewed',
+          {
+            ownerPluginId: 'user.reviewed',
+            type: 'http',
+            baseUrl: 'https://example.com/mcp',
+            environmentVariables: ['TOKEN'],
+            customHeaders: { Authorization: 'Bearer ${TOKEN}' }
+          },
+          null,
+          null,
+          undefined,
+          undefined,
+          () => ({ TOKEN: value })
+        )
+        await expect(client.connect()).rejects.toThrow(/header/i)
+      }
+    )
+
+    it('uses explicitly supplied bindings while preserving configuration templates', async () => {
+      vi.stubEnv('DEEPCHAT_TEST_HOST_SECRET', 'host-only-secret')
+      const config = {
+        ownerPluginId: 'user.reviewed',
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        environmentVariables: ['DEEPCHAT_TEST_HOST_SECRET'],
+        env: { TOKEN: '${DEEPCHAT_TEST_HOST_SECRET}' }
+      }
+      const client = createMcpClient('reviewed', config, null, null, undefined, undefined, () => ({
+        DEEPCHAT_TEST_HOST_SECRET: 'explicit-secret'
+      }))
+      await client.connect()
+      expect(vi.mocked(StdioClientTransport).mock.calls.at(-1)?.[0]?.env?.TOKEN).toBe(
+        'explicit-secret'
+      )
+      expect(config.env.TOKEN).toBe('${DEEPCHAT_TEST_HOST_SECRET}')
+    })
+
     it('should set npm registry environment variables', () => {
       const client = createMcpClient('test', { type: 'stdio' }, 'https://registry.npmmirror.com')
 

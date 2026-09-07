@@ -3346,5 +3346,47 @@
       "unsupported_platform": "このプラットフォームには公式ランタイムがありません。"
     },
     "ocrPinHint": "OCR には公式 Node v24.18.0（ABI 137）が必要です。このランタイムはチャットと MCP では利用できますが、OCR では使えません。公式ランタイムをインストールしてください。"
+  },
+  "userPlugins": {
+    "install": "プラグインをインストール",
+    "update": "更新内容を確認",
+    "installDescription": "Git または ZIP から Codex 形式のパッケージを直接インストールします。各機能を有効にする前に内容を確認してください。",
+    "gitUrl": "公開 HTTPS Git URL",
+    "gitRef": "ブランチ、タグ、コミット（任意）",
+    "subdirectory": "パッケージのサブディレクトリ（任意）",
+    "chooseZip": "ZIP ファイルを選択",
+    "chooseDirectory": "プラグインのディレクトリを選択",
+    "inspect": "パッケージを検査",
+    "executionNotice": "フックと stdio MCP サーバーは、お使いのアカウントのファイルとネットワークへのアクセス権限でローカルコードを実行します。信頼できるコードのみ有効にしてください。npx や uvx などのコマンドは、サーバー起動時に依存関係をダウンロードする場合があります。",
+    "useSkills": "同梱のスキルを使用",
+    "allowHooks": "これらのコマンドを確認し、自動コンテキストフックの実行を許可します",
+    "allowMcp": "これらのコマンド、接続先、変数の割り当てを確認し、MCP 接続を許可します",
+    "sharedData": "このインストールのプラグインデータはセッション間で共有されます。",
+    "requiredVariables": "必要な環境変数または認証情報の変数",
+    "applyUpdate": "確認済みの更新を適用",
+    "uninstall": "アンインストール",
+    "source": "インストール元",
+    "selected": "選択済み",
+    "notSelected": "未選択",
+    "reviewed": "コマンド確認済み",
+    "hooksNotEnabled": "自動フックは許可されていません。有効にするには更新内容を確認してください。スキルだけでは自動フックは有効になりません。",
+    "diagnostics": "最近のフック実行",
+    "noInvocations": "アプリ起動後のフック実行記録はありません。",
+    "retryHook": "フックを再実行",
+    "mcpSetupDescription": "プラグインを有効にするとサーバーが登録されます。ここで変数の値を入力または変更してください。ホストの環境変数が自動的に共有されることはありません。認証は MCP 設定で管理できます。",
+    "saveMcp": "保存して再接続",
+    "manageMcp": "MCP 設定を開く",
+    "uninstallDescription": "このプラグイン、専用データ、スキルの割り当て、関連 MCP サーバーを削除します。会話履歴は保持されます。",
+    "fromGit": "Git からインストール",
+    "fromZip": "ZIP からインストール",
+    "userPlugin": "ユーザープラグイン",
+    "hookStatus": {
+      "started": "実行中",
+      "completed": "完了",
+      "failed": "失敗",
+      "uncertain": "中断・結果不明"
+    },
+    "technicalDetails": "技術的な詳細",
+    "hooks": "フック"
   }
 }

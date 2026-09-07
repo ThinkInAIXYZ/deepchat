@@ -3346,5 +3346,47 @@
       "unsupported_platform": "Platform ini tidak memiliki runtime resmi."
     },
     "ocrPinHint": "OCR membutuhkan Node resmi v24.18.0 (ABI 137). Runtime ini siap untuk chat dan MCP, tetapi tidak untuk OCR. Pasang runtime resmi."
+  },
+  "userPlugins": {
+    "install": "Pasang plugin",
+    "update": "Tinjau pembaruan",
+    "installDescription": "Pasang paket berformat Codex langsung dari Git atau ZIP. Tinjau paket sebelum mengaktifkan komponennya.",
+    "gitUrl": "URL Git HTTPS publik",
+    "gitRef": "Branch, tag, atau commit (opsional)",
+    "subdirectory": "Subdirektori paket (opsional)",
+    "chooseZip": "Pilih berkas ZIP",
+    "chooseDirectory": "Pilih direktori plugin",
+    "inspect": "Periksa paket",
+    "executionNotice": "Hook dan server MCP stdio menjalankan kode lokal dengan hak akses berkas dan jaringan akun Anda. Aktifkan hanya kode yang Anda percayai. Perintah seperti npx atau uvx dapat mengunduh dependensi saat server dimulai.",
+    "useSkills": "Gunakan Skills yang disertakan",
+    "allowHooks": "Saya telah meninjau perintah ini dan mengizinkan hook konteks otomatis",
+    "allowMcp": "Saya telah meninjau perintah, endpoint, dan pengikatan variabel ini serta mengizinkan koneksi MCP",
+    "sharedData": "Data plugin pada pemasangan ini dibagikan antarsesi.",
+    "requiredVariables": "Variabel lingkungan atau kredensial yang diperlukan",
+    "applyUpdate": "Terapkan pembaruan yang telah ditinjau",
+    "uninstall": "Hapus pemasangan",
+    "source": "Sumber pemasangan",
+    "selected": "Dipilih",
+    "notSelected": "Tidak dipilih",
+    "reviewed": "Perintah telah ditinjau",
+    "hooksNotEnabled": "Hook otomatis belum diizinkan. Tinjau pembaruan untuk mengaktifkannya; Skills saja tidak mengaktifkan hook otomatis.",
+    "diagnostics": "Aktivitas hook terbaru",
+    "noInvocations": "Belum ada pemanggilan hook yang tercatat sejak aplikasi dimulai.",
+    "retryHook": "Jalankan hook lagi",
+    "mcpSetupDescription": "Aktifkan plugin untuk mendaftarkan servernya. Masukkan atau ganti nilai variabel di sini; variabel lingkungan host tidak pernah dibagikan secara otomatis. Kelola autentikasi di pengaturan MCP.",
+    "saveMcp": "Simpan dan hubungkan kembali",
+    "manageMcp": "Buka pengaturan MCP",
+    "uninstallDescription": "Hapus plugin ini, data pribadinya, penetapan Skills, dan server MCP miliknya. Riwayat percakapan tetap disimpan.",
+    "fromGit": "Pasang dari Git",
+    "fromZip": "Pasang dari ZIP",
+    "userPlugin": "Plugin pengguna",
+    "hookStatus": {
+      "started": "Berjalan",
+      "completed": "Selesai",
+      "failed": "Gagal",
+      "uncertain": "Terputus; hasil tidak diketahui"
+    },
+    "technicalDetails": "Detail teknis",
+    "hooks": "Hook"
   }
 }

@@ -19877,32 +19877,6 @@
           "type": "chat"
         },
         {
-          "id": "NousResearch/Hermes-4-70B:thinking",
-          "name": "Hermes 4 (Thinking)",
-          "display_name": "Hermes 4 (Thinking)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-09-17",
-          "last_updated": "2025-09-17",
-          "type": "chat"
-        },
-        {
           "id": "NousResearch/hermes-4-405b",
           "name": "Hermes 4 Large",
           "display_name": "Hermes 4 Large",
@@ -21836,8 +21810,8 @@
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 32768
+            "context": 400000,
+            "output": 128000
           },
           "tool_call": true,
           "reasoning": {
@@ -21931,6 +21905,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -22010,7 +21985,7 @@
             ]
           },
           "limit": {
-            "context": 922000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": true,
@@ -23140,7 +23115,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
@@ -23878,6 +23853,34 @@
           "type": "chat"
         },
         {
+          "id": "TheDrummer/Artemis-v1.1",
+          "name": "TheDrummer/Artemis v1.1",
+          "display_name": "TheDrummer/Artemis v1.1",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-09-06",
+          "last_updated": "2026-09-06",
+          "type": "chat"
+        },
+        {
           "id": "TheDrummer/Cydonia-24B-v2",
           "name": "The Drummer Cydonia 24B v2",
           "display_name": "The Drummer Cydonia 24B v2",
@@ -23942,7 +23945,7 @@
             ]
           },
           "limit": {
-            "context": 131072,
+            "context": 32000,
             "output": 16384
           },
           "tool_call": false,
@@ -50194,6 +50197,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -59366,6 +59370,96 @@
           "knowledge": "2025-05",
           "release_date": "2026-04-24",
           "last_updated": "2026-04-24",
+          "type": "chat"
+        },
+        {
+          "id": "kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "display_name": "DeepSeek V4 Pro",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "The DeepSeek API maps medium and xhigh to high for V4 models; effort_options lists distinct model-effective levels."
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-12",
+          "last_updated": "2026-08-22",
           "type": "chat"
         }
       ]
@@ -99604,6 +99698,35 @@
           "type": "chat"
         },
         {
+          "id": "inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-08-15",
+          "last_updated": "2026-09-05",
+          "type": "chat"
+        },
+        {
           "id": "glm-5",
           "name": "GLM-5",
           "display_name": "GLM-5",
@@ -110257,6 +110380,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -131643,6 +131767,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -139470,6 +139595,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-05",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -151446,8 +151572,8 @@
         },
         {
           "id": "google/gemini-3-pro-image-preview",
-          "name": "Nano Banana Pro",
-          "display_name": "Nano Banana Pro",
+          "name": "Nano Banana Pro Preview",
+          "display_name": "Nano Banana Pro Preview",
           "modalities": {
             "input": [
               "text",
@@ -151578,8 +151704,8 @@
         },
         {
           "id": "google/gemini-3.1-flash-image-preview",
-          "name": "Nano Banana 2",
-          "display_name": "Nano Banana 2",
+          "name": "Nano Banana 2 Preview",
+          "display_name": "Nano Banana 2 Preview",
           "modalities": {
             "input": [
               "text",
@@ -154888,6 +155014,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -161120,6 +161247,57 @@
           "open_weights": false,
           "release_date": "2026-06-14",
           "last_updated": "2026-06-14",
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-v4-flash-vision-exp",
+          "name": "DeepSeek V4 Flash Vision Exp",
+          "display_name": "DeepSeek V4 Flash Vision Exp",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "The DeepSeek API maps medium and xhigh to high for V4 models; effort_options lists distinct model-effective levels."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-21",
+          "last_updated": "2026-08-21",
           "type": "chat"
         },
         {
@@ -170106,7 +170284,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 256000,
             "output": 16384
           },
           "temperature": true,
@@ -170487,7 +170665,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -174751,8 +174929,8 @@
         },
         {
           "id": "google/gemini-3-pro-image-preview",
-          "name": "Nano Banana Pro",
-          "display_name": "Nano Banana Pro",
+          "name": "Nano Banana Pro Preview",
+          "display_name": "Nano Banana Pro Preview",
           "modalities": {
             "input": [
               "image",
@@ -175071,8 +175249,8 @@
         },
         {
           "id": "google/gemini-3.1-flash-image-preview",
-          "name": "Nano Banana 2",
-          "display_name": "Nano Banana 2",
+          "name": "Nano Banana 2 Preview",
+          "display_name": "Nano Banana 2 Preview",
           "modalities": {
             "input": [
               "text",
@@ -175800,8 +175978,8 @@
             ]
           },
           "limit": {
-            "context": 32768,
-            "output": 26214
+            "context": 1024000,
+            "output": 819200
           },
           "temperature": true,
           "tool_call": true,
@@ -176431,7 +176609,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -178634,6 +178812,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -183758,6 +183937,42 @@
           "open_weights": true,
           "release_date": "2023-11-07",
           "last_updated": "2023-11-07",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "display_name": "GPT-6 Astra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-30",
+          "release_date": "2026-09-04",
+          "last_updated": "2026-09-04",
           "type": "chat"
         },
         {
@@ -195674,6 +195889,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -200174,8 +200390,8 @@
         },
         {
           "id": "gemini-3-pro-image-preview",
-          "name": "Nano Banana Pro",
-          "display_name": "Nano Banana Pro",
+          "name": "Nano Banana Pro Preview",
+          "display_name": "Nano Banana Pro Preview",
           "modalities": {
             "input": [
               "text",
@@ -200736,8 +200952,8 @@
         },
         {
           "id": "gemini-3.1-flash-image-preview",
-          "name": "Nano Banana 2",
-          "display_name": "Nano Banana 2",
+          "name": "Nano Banana 2 Preview",
+          "display_name": "Nano Banana 2 Preview",
           "modalities": {
             "input": [
               "text",
@@ -203797,6 +204013,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -207095,116 +207312,6 @@
       "doc": "https://platform.moonshot.cn/docs/api/chat",
       "models": [
         {
-          "id": "kimi-k2-thinking-turbo",
-          "name": "Kimi K2 Thinking Turbo",
-          "display_name": "Kimi K2 Thinking Turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-08",
-          "release_date": "2025-11-06",
-          "last_updated": "2025-11-06",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2.5",
-          "name": "Kimi K2.5",
-          "display_name": "Kimi K2.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": false,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2025-01",
-          "release_date": "2026-01",
-          "last_updated": "2026-01",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-0905-preview",
-          "name": "Kimi K2 0905",
-          "display_name": "Kimi K2 0905",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-09-05",
-          "last_updated": "2025-09-05",
-          "type": "chat"
-        },
-        {
           "id": "kimi-k3",
           "name": "Kimi K3",
           "display_name": "Kimi K3",
@@ -207243,74 +207350,6 @@
           "open_weights": true,
           "release_date": "2026-07-16",
           "last_updated": "2026-07-16",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-0711-preview",
-          "name": "Kimi K2 0711",
-          "display_name": "Kimi K2 0711",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 16384
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-07-14",
-          "last_updated": "2025-07-14",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-thinking",
-          "name": "Kimi K2 Thinking",
-          "display_name": "Kimi K2 Thinking",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-08",
-          "release_date": "2025-11-06",
-          "last_updated": "2025-11-06",
           "type": "chat"
         },
         {
@@ -207355,34 +207394,6 @@
           "knowledge": "2025-01",
           "release_date": "2026-04-21",
           "last_updated": "2026-04-21",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-turbo-preview",
-          "name": "Kimi K2 Turbo",
-          "display_name": "Kimi K2 Turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-09-05",
-          "last_updated": "2025-09-05",
           "type": "chat"
         },
         {
@@ -213833,6 +213844,42 @@
           "type": "chat"
         },
         {
+          "id": "openai/gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "display_name": "GPT-6 Astra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-30",
+          "release_date": "2026-09-04",
+          "last_updated": "2026-09-04",
+          "type": "chat"
+        },
+        {
           "id": "openai/gpt-4.1-mini",
           "name": "GPT-4.1 mini",
           "display_name": "GPT-4.1 mini",
@@ -216765,6 +216812,43 @@
           "type": "chat"
         },
         {
+          "id": "gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "display_name": "GPT-6 Astra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-30",
+          "release_date": "2026-09-04",
+          "last_updated": "2026-09-04",
+          "type": "chat"
+        },
+        {
           "id": "claude-opus-4-5",
           "name": "Claude Opus 4.5 (latest)",
           "display_name": "Claude Opus 4.5 (latest)",
@@ -216919,6 +217003,63 @@
           "knowledge": "2025-01",
           "release_date": "2026-02-19",
           "last_updated": "2026-02-19",
+          "type": "chat"
+        },
+        {
+          "id": "claude-fable-5-1",
+          "name": "Claude Fable 5.1",
+          "display_name": "Claude Fable 5.1",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Adaptive thinking is always on for Claude Fable 5 and Claude Mythos 5; thinking.type = \"disabled\" is rejected.",
+                "Manual budget_tokens requests return 400 on Claude Fable 5 and Claude Mythos 5.",
+                "thinking.display defaults to omitted; set display to summarized to receive readable thinking summaries."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06",
+          "release_date": "2026-09-01",
+          "last_updated": "2026-09-01",
           "type": "chat"
         },
         {
@@ -217331,6 +217472,37 @@
           "type": "chat"
         },
         {
+          "id": "glm-5-3-flash",
+          "name": "GLM-5.3 Flash",
+          "display_name": "GLM-5.3 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-26",
+          "last_updated": "2026-08-26",
+          "type": "chat"
+        },
+        {
           "id": "meta-llama-3-1-8b-instruct",
           "name": "Llama 3.1 8B Instruct",
           "display_name": "Llama 3.1 8B Instruct",
@@ -217707,6 +217879,36 @@
           "knowledge": "2025-12-01",
           "release_date": "2026-04-23",
           "last_updated": "2026-04-23",
+          "type": "chat"
+        },
+        {
+          "id": "grok-4-6",
+          "name": "Grok 4.6",
+          "display_name": "Grok 4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 524288
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-01",
+          "release_date": "2026-08-12",
+          "last_updated": "2026-08-12",
           "type": "chat"
         },
         {
@@ -219949,6 +220151,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -225626,34 +225829,6 @@
           "type": "chat"
         },
         {
-          "id": "kimi-k2-turbo-preview",
-          "name": "Kimi K2 Turbo",
-          "display_name": "Kimi K2 Turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-09-05",
-          "last_updated": "2025-09-05",
-          "type": "chat"
-        },
-        {
           "id": "kimi-k2.7-code",
           "name": "Kimi K2.7 Code",
           "display_name": "Kimi K2.7 Code",
@@ -225698,74 +225873,6 @@
           "type": "chat"
         },
         {
-          "id": "kimi-k2-thinking",
-          "name": "Kimi K2 Thinking",
-          "display_name": "Kimi K2 Thinking",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-08",
-          "release_date": "2025-11-06",
-          "last_updated": "2025-11-06",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-0711-preview",
-          "name": "Kimi K2 0711",
-          "display_name": "Kimi K2 0711",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 16384
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-07-14",
-          "last_updated": "2025-07-14",
-          "type": "chat"
-        },
-        {
           "id": "kimi-k3",
           "name": "Kimi K3",
           "display_name": "Kimi K3",
@@ -225804,116 +225911,6 @@
           "open_weights": true,
           "release_date": "2026-07-16",
           "last_updated": "2026-07-16",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-0905-preview",
-          "name": "Kimi K2 0905",
-          "display_name": "Kimi K2 0905",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-10",
-          "release_date": "2025-09-05",
-          "last_updated": "2025-09-05",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2.5",
-          "name": "Kimi K2.5",
-          "display_name": "Kimi K2.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": false,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2025-01",
-          "release_date": "2026-01",
-          "last_updated": "2026-01",
-          "type": "chat"
-        },
-        {
-          "id": "kimi-k2-thinking-turbo",
-          "name": "Kimi K2 Thinking Turbo",
-          "display_name": "Kimi K2 Thinking Turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2024-08",
-          "release_date": "2025-11-06",
-          "last_updated": "2025-11-06",
           "type": "chat"
         }
       ]
@@ -234470,35 +234467,6 @@
       "doc": "https://inference-docs.cerebras.ai/models/overview",
       "models": [
         {
-          "id": "gemma-4-31b",
-          "name": "Gemma 4 31B IT",
-          "display_name": "Gemma 4 31B IT",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 40960
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-04-02",
-          "last_updated": "2026-07-01",
-          "type": "chat"
-        },
-        {
           "id": "gpt-oss-120b",
           "name": "GPT OSS 120B",
           "display_name": "GPT OSS 120B",
@@ -234529,6 +234497,35 @@
           "open_weights": true,
           "release_date": "2025-08-05",
           "last_updated": "2026-06-10",
+          "type": "chat"
+        },
+        {
+          "id": "qwen-3.8-27b",
+          "name": "Qwen3.8 27B",
+          "display_name": "Qwen3.8 27B",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-09-03",
           "type": "chat"
         }
       ]
@@ -246755,8 +246752,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
@@ -246904,8 +246900,8 @@
       "models": [
         {
           "id": "qwen/deepseek-v4-pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (Alibaba)",
+          "display_name": "DeepSeek V4 Pro 0813 (Alibaba)",
           "modalities": {
             "input": [
               "text"
@@ -246937,8 +246933,8 @@
         },
         {
           "id": "qwen/deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Alibaba)",
+          "display_name": "DeepSeek V4 Flash 0731 (Alibaba)",
           "modalities": {
             "input": [
               "text"
@@ -247607,8 +247603,8 @@
         },
         {
           "id": "groq/openai/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (Groq)",
+          "display_name": "GPT OSS 20B (Groq)",
           "modalities": {
             "input": [
               "text"
@@ -247640,8 +247636,8 @@
         },
         {
           "id": "groq/openai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Groq)",
+          "display_name": "GPT OSS 120B (Groq)",
           "modalities": {
             "input": [
               "text"
@@ -247673,8 +247669,8 @@
         },
         {
           "id": "scaleway/deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Scaleway)",
+          "display_name": "DeepSeek V4 Flash 0731 (Scaleway)",
           "modalities": {
             "input": [
               "text"
@@ -247707,8 +247703,8 @@
         },
         {
           "id": "scaleway/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Scaleway)",
+          "display_name": "GPT OSS 120B (Scaleway)",
           "modalities": {
             "input": [
               "text"
@@ -247740,8 +247736,8 @@
         },
         {
           "id": "scaleway/llama-3.3-70b-instruct",
-          "name": "Llama-3.3-70B-Instruct",
-          "display_name": "Llama-3.3-70B-Instruct",
+          "name": "Llama-3.3-70B-Instruct (Scaleway)",
+          "display_name": "Llama-3.3-70B-Instruct (Scaleway)",
           "modalities": {
             "input": [
               "text"
@@ -247768,8 +247764,8 @@
         },
         {
           "id": "nebius/deepseek-ai/DeepSeek-V4-Flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Nebius)",
+          "display_name": "DeepSeek V4 Flash 0731 (Nebius)",
           "modalities": {
             "input": [
               "text"
@@ -247802,8 +247798,8 @@
         },
         {
           "id": "nebius/nvidia/Nemotron-3-Ultra-550b-a55b",
-          "name": "Nemotron 3 Ultra 550B A55B",
-          "display_name": "Nemotron 3 Ultra 550B A55B",
+          "name": "Nemotron 3 Ultra 550B A55B (Nebius)",
+          "display_name": "Nemotron 3 Ultra 550B A55B (Nebius)",
           "modalities": {
             "input": [
               "text"
@@ -247835,8 +247831,8 @@
         },
         {
           "id": "nebius/nvidia/nemotron-3-super-120b-a12b",
-          "name": "Nemotron 3 Super 120B A12B",
-          "display_name": "Nemotron 3 Super 120B A12B",
+          "name": "Nemotron 3 Super 120B A12B (Nebius)",
+          "display_name": "Nemotron 3 Super 120B A12B (Nebius)",
           "modalities": {
             "input": [
               "text"
@@ -247868,8 +247864,8 @@
         },
         {
           "id": "nebius/meta-llama/Llama-3.3-70B-Instruct",
-          "name": "Llama-3.3-70B-Instruct",
-          "display_name": "Llama-3.3-70B-Instruct",
+          "name": "Llama-3.3-70B-Instruct (Nebius)",
+          "display_name": "Llama-3.3-70B-Instruct (Nebius)",
           "modalities": {
             "input": [
               "text"
@@ -247896,8 +247892,8 @@
         },
         {
           "id": "nebius/openai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Nebius)",
+          "display_name": "GPT OSS 120B (Nebius)",
           "modalities": {
             "input": [
               "text"
@@ -248102,8 +248098,8 @@
         },
         {
           "id": "ovhcloud/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (OVHcloud)",
+          "display_name": "GPT OSS 20B (OVHcloud)",
           "modalities": {
             "input": [
               "text"
@@ -248135,8 +248131,8 @@
         },
         {
           "id": "ovhcloud/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (OVHcloud)",
+          "display_name": "GPT OSS 120B (OVHcloud)",
           "modalities": {
             "input": [
               "text"
@@ -248227,8 +248223,8 @@
         },
         {
           "id": "anthropic/claude-fable-latest",
-          "name": "Claude Fable 5.1",
-          "display_name": "Claude Fable 5.1",
+          "name": "Claude Fable Latest (Claude Fable 5.1)",
+          "display_name": "Claude Fable Latest (Claude Fable 5.1)",
           "modalities": {
             "input": [
               "text",
@@ -248494,8 +248490,8 @@
         },
         {
           "id": "anthropic/claude-opus-latest",
-          "name": "Claude Opus 5",
-          "display_name": "Claude Opus 5",
+          "name": "Claude Opus Latest (Claude Opus 5)",
+          "display_name": "Claude Opus Latest (Claude Opus 5)",
           "modalities": {
             "input": [
               "text",
@@ -248639,8 +248635,8 @@
         },
         {
           "id": "anthropic/claude-sonnet-latest",
-          "name": "Claude Sonnet 5",
-          "display_name": "Claude Sonnet 5",
+          "name": "Claude Sonnet Latest (Claude Sonnet 5)",
+          "display_name": "Claude Sonnet Latest (Claude Sonnet 5)",
           "modalities": {
             "input": [
               "text",
@@ -248821,8 +248817,8 @@
         },
         {
           "id": "google/gemini-pro-latest",
-          "name": "Gemini 3.1 Pro Preview",
-          "display_name": "Gemini 3.1 Pro Preview",
+          "name": "Gemini Pro Latest (Gemini 3.1 Pro Preview)",
+          "display_name": "Gemini Pro Latest (Gemini 3.1 Pro Preview)",
           "modalities": {
             "input": [
               "text",
@@ -249320,8 +249316,8 @@
         },
         {
           "id": "google/gemini-3-pro-image-preview",
-          "name": "Nano Banana Pro",
-          "display_name": "Nano Banana Pro",
+          "name": "Nano Banana Pro Preview",
+          "display_name": "Nano Banana Pro Preview",
           "modalities": {
             "input": [
               "text",
@@ -249523,8 +249519,8 @@
         },
         {
           "id": "google/gemini-flash-latest",
-          "name": "Gemini 3.7 Flash",
-          "display_name": "Gemini 3.7 Flash",
+          "name": "Gemini Flash Latest (Gemini 3.8 Flash)",
+          "display_name": "Gemini Flash Latest (Gemini 3.8 Flash)",
           "modalities": {
             "input": [
               "text",
@@ -249549,15 +249545,14 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2026-03",
-          "release_date": "2026-08-13",
-          "last_updated": "2026-08-13",
+          "release_date": "2026-09-02",
+          "last_updated": "2026-09-02",
           "type": "chat"
         },
         {
           "id": "google/gemini-3.1-flash-image-preview",
-          "name": "Nano Banana 2",
-          "display_name": "Nano Banana 2",
+          "name": "Nano Banana 2 Preview",
+          "display_name": "Nano Banana 2 Preview",
           "modalities": {
             "input": [
               "image",
@@ -249592,8 +249587,8 @@
         },
         {
           "id": "tensorx/deepseek/deepseek-v4-pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (TensorX)",
+          "display_name": "DeepSeek V4 Pro 0813 (TensorX)",
           "modalities": {
             "input": [
               "text"
@@ -249625,8 +249620,8 @@
         },
         {
           "id": "tensorx/deepseek/deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (TensorX)",
+          "display_name": "DeepSeek V4 Flash 0731 (TensorX)",
           "modalities": {
             "input": [
               "text"
@@ -249659,8 +249654,8 @@
         },
         {
           "id": "tensorx/moonshotai/kimi-k2.5",
-          "name": "Kimi K2.5",
-          "display_name": "Kimi K2.5",
+          "name": "Kimi K2.5 (TensorX)",
+          "display_name": "Kimi K2.5 (TensorX)",
           "modalities": {
             "input": [
               "text",
@@ -249700,8 +249695,8 @@
         },
         {
           "id": "flexai/deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (FlexAI)",
+          "display_name": "DeepSeek V4 Flash 0731 (FlexAI)",
           "modalities": {
             "input": [
               "text"
@@ -249734,8 +249729,8 @@
         },
         {
           "id": "flexai/Nemotron-3-Super-120B-A12B",
-          "name": "Nemotron 3 Super 120B A12B",
-          "display_name": "Nemotron 3 Super 120B A12B",
+          "name": "Nemotron 3 Super 120B A12B (FlexAI)",
+          "display_name": "Nemotron 3 Super 120B A12B (FlexAI)",
           "modalities": {
             "input": [
               "text"
@@ -249767,8 +249762,8 @@
         },
         {
           "id": "flexai/Step-3.7-Flash",
-          "name": "Step 3.7 Flash",
-          "display_name": "Step 3.7 Flash",
+          "name": "Step 3.7 Flash (FlexAI)",
+          "display_name": "Step 3.7 Flash (FlexAI)",
           "modalities": {
             "input": [
               "text",
@@ -249797,8 +249792,8 @@
         },
         {
           "id": "flexai/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (FlexAI)",
+          "display_name": "GPT OSS 20B (FlexAI)",
           "modalities": {
             "input": [
               "text"
@@ -249830,8 +249825,8 @@
         },
         {
           "id": "flexai/Muse-Glimmer-30B",
-          "name": "Muse Glimmer 30B",
-          "display_name": "Muse Glimmer 30B",
+          "name": "Muse Glimmer 30B (FlexAI)",
+          "display_name": "Muse Glimmer 30B (FlexAI)",
           "modalities": {
             "input": [
               "text",
@@ -249860,8 +249855,8 @@
         },
         {
           "id": "flexai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (FlexAI)",
+          "display_name": "GPT OSS 120B (FlexAI)",
           "modalities": {
             "input": [
               "text"
@@ -249893,8 +249888,8 @@
         },
         {
           "id": "databricks/databricks-deepseek-v4-pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (Databricks)",
+          "display_name": "DeepSeek V4 Pro 0813 (Databricks)",
           "modalities": {
             "input": [
               "text"
@@ -249921,8 +249916,8 @@
         },
         {
           "id": "databricks/databricks-gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (Databricks)",
+          "display_name": "GPT OSS 20B (Databricks)",
           "modalities": {
             "input": [
               "text"
@@ -249949,8 +249944,8 @@
         },
         {
           "id": "databricks/databricks-deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Databricks)",
+          "display_name": "DeepSeek V4 Flash 0731 (Databricks)",
           "modalities": {
             "input": [
               "text"
@@ -249977,9 +249972,38 @@
           "type": "chat"
         },
         {
+          "id": "databricks/databricks-inkling",
+          "name": "Inkling (Databricks)",
+          "display_name": "Inkling (Databricks)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1048576
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "type": "chat"
+        },
+        {
           "id": "databricks/databricks-gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Databricks)",
+          "display_name": "GPT OSS 120B (Databricks)",
           "modalities": {
             "input": [
               "text"
@@ -250006,8 +250030,8 @@
         },
         {
           "id": "deepinfra/nemotron-3-ultra-550b-a55b",
-          "name": "Nemotron 3 Ultra 550B A55B",
-          "display_name": "Nemotron 3 Ultra 550B A55B",
+          "name": "Nemotron 3 Ultra 550B A55B (Deep Infra)",
+          "display_name": "Nemotron 3 Ultra 550B A55B (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250039,8 +250063,8 @@
         },
         {
           "id": "deepinfra/ByteDance/Seed-2.0-mini",
-          "name": "Seed 2.0 Mini",
-          "display_name": "Seed 2.0 Mini",
+          "name": "Seed 2.0 Mini (Deep Infra)",
+          "display_name": "Seed 2.0 Mini (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250068,8 +250092,8 @@
         },
         {
           "id": "deepinfra/ByteDance/Seed-2.0-code",
-          "name": "Seed 2.0 Code",
-          "display_name": "Seed 2.0 Code",
+          "name": "Seed 2.0 Code (Deep Infra)",
+          "display_name": "Seed 2.0 Code (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250097,8 +250121,8 @@
         },
         {
           "id": "deepinfra/stepfun-ai/Step-3.7-Flash",
-          "name": "Step 3.7 Flash",
-          "display_name": "Step 3.7 Flash",
+          "name": "Step 3.7 Flash (Deep Infra)",
+          "display_name": "Step 3.7 Flash (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250128,8 +250152,8 @@
         },
         {
           "id": "deepinfra/stepfun-ai/Step-3.5-Flash",
-          "name": "Step 3.5 Flash",
-          "display_name": "Step 3.5 Flash",
+          "name": "Step 3.5 Flash (Deep Infra)",
+          "display_name": "Step 3.5 Flash (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250157,8 +250181,8 @@
         },
         {
           "id": "deepinfra/deepseek-ai/DeepSeek-V3",
-          "name": "DeepSeek-V3",
-          "display_name": "DeepSeek-V3",
+          "name": "DeepSeek-V3 (Deep Infra)",
+          "display_name": "DeepSeek-V3 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250184,8 +250208,8 @@
         },
         {
           "id": "deepinfra/deepseek-ai/DeepSeek-V3-0324",
-          "name": "DeepSeek V3 0324",
-          "display_name": "DeepSeek V3 0324",
+          "name": "DeepSeek V3 0324 (Deep Infra)",
+          "display_name": "DeepSeek V3 0324 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250211,8 +250235,8 @@
         },
         {
           "id": "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Deep Infra)",
+          "display_name": "DeepSeek V4 Flash 0731 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250245,8 +250269,8 @@
         },
         {
           "id": "deepinfra/deepseek-ai/DeepSeek-V4-Pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (Deep Infra)",
+          "display_name": "DeepSeek V4 Pro 0813 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250278,8 +250302,8 @@
         },
         {
           "id": "deepinfra/deepseek-ai/DeepSeek-R1",
-          "name": "DeepSeek-R1",
-          "display_name": "DeepSeek-R1",
+          "name": "DeepSeek-R1 (Deep Infra)",
+          "display_name": "DeepSeek-R1 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250318,8 +250342,8 @@
         },
         {
           "id": "deepinfra/nvidia/Llama-3.1-Nemotron-70B-Instruct",
-          "name": "Llama 3.1 Nemotron 70B Instruct",
-          "display_name": "Llama 3.1 Nemotron 70B Instruct",
+          "name": "Llama 3.1 Nemotron 70B Instruct (Deep Infra)",
+          "display_name": "Llama 3.1 Nemotron 70B Instruct (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250345,8 +250369,8 @@
         },
         {
           "id": "deepinfra/nvidia/Nemotron-3-Nano-30B-A3B",
-          "name": "Nemotron 3 Nano 30B A3B",
-          "display_name": "Nemotron 3 Nano 30B A3B",
+          "name": "Nemotron 3 Nano 30B A3B (Deep Infra)",
+          "display_name": "Nemotron 3 Nano 30B A3B (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250378,8 +250402,8 @@
         },
         {
           "id": "deepinfra/meta-models/Muse-Glimmer-30B",
-          "name": "Muse Glimmer 30B",
-          "display_name": "Muse Glimmer 30B",
+          "name": "Muse Glimmer 30B (Deep Infra)",
+          "display_name": "Muse Glimmer 30B (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250408,8 +250432,8 @@
         },
         {
           "id": "deepinfra/zai-org/GLM-4.7-Flash",
-          "name": "GLM-4.7-Flash",
-          "display_name": "GLM-4.7-Flash",
+          "name": "GLM-4.7-Flash (Deep Infra)",
+          "display_name": "GLM-4.7-Flash (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250442,8 +250466,8 @@
         },
         {
           "id": "deepinfra/thinkingmachines/Inkling-Small",
-          "name": "Inkling Small",
-          "display_name": "Inkling Small",
+          "name": "Inkling Small (Deep Infra)",
+          "display_name": "Inkling Small (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250472,8 +250496,8 @@
         },
         {
           "id": "deepinfra/thinkingmachines/Inkling",
-          "name": "Inkling",
-          "display_name": "Inkling",
+          "name": "Inkling (Deep Infra)",
+          "display_name": "Inkling (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250502,8 +250526,8 @@
         },
         {
           "id": "deepinfra/meta-llama/Llama-Guard-3-8B",
-          "name": "Llama-Guard-3-8B",
-          "display_name": "Llama-Guard-3-8B",
+          "name": "Llama-Guard-3-8B (Deep Infra)",
+          "display_name": "Llama-Guard-3-8B (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250530,8 +250554,8 @@
         },
         {
           "id": "deepinfra/meta-llama/Llama-3.3-70B-Instruct",
-          "name": "Llama-3.3-70B-Instruct",
-          "display_name": "Llama-3.3-70B-Instruct",
+          "name": "Llama-3.3-70B-Instruct (Deep Infra)",
+          "display_name": "Llama-3.3-70B-Instruct (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250558,8 +250582,8 @@
         },
         {
           "id": "deepinfra/meta-llama/Llama-3.2-11B-Vision-Instruct",
-          "name": "Llama-3.2-11B-Vision-Instruct",
-          "display_name": "Llama-3.2-11B-Vision-Instruct",
+          "name": "Llama-3.2-11B-Vision-Instruct (Deep Infra)",
+          "display_name": "Llama-3.2-11B-Vision-Instruct (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250587,8 +250611,8 @@
         },
         {
           "id": "deepinfra/openai/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (Deep Infra)",
+          "display_name": "GPT OSS 20B (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250620,8 +250644,8 @@
         },
         {
           "id": "deepinfra/openai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Deep Infra)",
+          "display_name": "GPT OSS 120B (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250653,8 +250677,8 @@
         },
         {
           "id": "deepinfra/moonshotai/Kimi-K2.5",
-          "name": "Kimi K2.5",
-          "display_name": "Kimi K2.5",
+          "name": "Kimi K2.5 (Deep Infra)",
+          "display_name": "Kimi K2.5 (Deep Infra)",
           "modalities": {
             "input": [
               "text",
@@ -250694,8 +250718,8 @@
         },
         {
           "id": "deepinfra/tencent/Hy3",
-          "name": "Hy3",
-          "display_name": "Hy3",
+          "name": "Hy3 (Deep Infra)",
+          "display_name": "Hy3 (Deep Infra)",
           "modalities": {
             "input": [
               "text"
@@ -250866,8 +250890,8 @@
         },
         {
           "id": "azure/gpt-5.1-codex-mini",
-          "name": "GPT-5.1 Codex mini",
-          "display_name": "GPT-5.1 Codex mini",
+          "name": "GPT-5.1 Codex mini (Azure)",
+          "display_name": "GPT-5.1 Codex mini (Azure)",
           "modalities": {
             "input": [
               "text",
@@ -250918,8 +250942,8 @@
         },
         {
           "id": "azure/gpt-5.1-codex",
-          "name": "GPT-5.1 Codex",
-          "display_name": "GPT-5.1 Codex",
+          "name": "GPT-5.1 Codex (Azure)",
+          "display_name": "GPT-5.1 Codex (Azure)",
           "modalities": {
             "input": [
               "text",
@@ -250970,8 +250994,8 @@
         },
         {
           "id": "azure/gpt-5.2-codex",
-          "name": "GPT-5.2 Codex",
-          "display_name": "GPT-5.2 Codex",
+          "name": "GPT-5.2 Codex (Azure)",
+          "display_name": "GPT-5.2 Codex (Azure)",
           "modalities": {
             "input": [
               "text",
@@ -251022,8 +251046,8 @@
         },
         {
           "id": "azure/gpt-5.1-codex-max",
-          "name": "GPT-5.1 Codex Max",
-          "display_name": "GPT-5.1 Codex Max",
+          "name": "GPT-5.1 Codex Max (Azure)",
+          "display_name": "GPT-5.1 Codex Max (Azure)",
           "modalities": {
             "input": [
               "text",
@@ -251255,8 +251279,8 @@
         },
         {
           "id": "fireworks_ai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Fireworks AI)",
+          "display_name": "GPT OSS 120B (Fireworks AI)",
           "modalities": {
             "input": [
               "text"
@@ -251288,8 +251312,8 @@
         },
         {
           "id": "fireworks_ai/accounts/fireworks/models/deepseek-v4-pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (Fireworks AI)",
+          "display_name": "DeepSeek V4 Pro 0813 (Fireworks AI)",
           "modalities": {
             "input": [
               "text"
@@ -251321,8 +251345,8 @@
         },
         {
           "id": "fireworks_ai/accounts/fireworks/models/deepseek-v4-flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Fireworks AI)",
+          "display_name": "DeepSeek V4 Flash 0731 (Fireworks AI)",
           "modalities": {
             "input": [
               "text"
@@ -251355,8 +251379,8 @@
         },
         {
           "id": "fireworks_ai/accounts/fireworks/models/muse-glimmer-30b",
-          "name": "Muse Glimmer 30B",
-          "display_name": "Muse Glimmer 30B",
+          "name": "Muse Glimmer 30B (Fireworks AI)",
+          "display_name": "Muse Glimmer 30B (Fireworks AI)",
           "modalities": {
             "input": [
               "text",
@@ -251385,8 +251409,8 @@
         },
         {
           "id": "fireworks_ai/accounts/fireworks/models/inkling",
-          "name": "Inkling",
-          "display_name": "Inkling",
+          "name": "Inkling (Fireworks AI)",
+          "display_name": "Inkling (Fireworks AI)",
           "modalities": {
             "input": [
               "text",
@@ -251414,8 +251438,8 @@
         },
         {
           "id": "amazon/moonshotai.kimi-k2.5",
-          "name": "Kimi K2.5",
-          "display_name": "Kimi K2.5",
+          "name": "Kimi K2.5 (Amazon Bedrock)",
+          "display_name": "Kimi K2.5 (Amazon Bedrock)",
           "modalities": {
             "input": [
               "text",
@@ -251444,8 +251468,8 @@
         },
         {
           "id": "amazon/moonshot.kimi-k2-thinking",
-          "name": "Kimi K2 Thinking",
-          "display_name": "Kimi K2 Thinking",
+          "name": "Kimi K2 Thinking (Amazon Bedrock)",
+          "display_name": "Kimi K2 Thinking (Amazon Bedrock)",
           "modalities": {
             "input": [
               "text"
@@ -251473,8 +251497,8 @@
         },
         {
           "id": "amazon/zai.glm-4.7-flash",
-          "name": "GLM-4.7-Flash",
-          "display_name": "GLM-4.7-Flash",
+          "name": "GLM-4.7-Flash (Amazon Bedrock)",
+          "display_name": "GLM-4.7-Flash (Amazon Bedrock)",
           "modalities": {
             "input": [
               "text"
@@ -251714,8 +251738,8 @@
         },
         {
           "id": "openai/gpt-latest",
-          "name": "GPT-6 Astra",
-          "display_name": "GPT-6 Astra",
+          "name": "GPT Latest (GPT-6 Astra)",
+          "display_name": "GPT Latest (GPT-6 Astra)",
           "modalities": {
             "input": [
               "text",
@@ -251738,6 +251762,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -251773,6 +251798,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"
@@ -252786,8 +252812,8 @@
         },
         {
           "id": "openai/gpt-mini-latest",
-          "name": "GPT-5.4 mini",
-          "display_name": "GPT-5.4 mini",
+          "name": "GPT Mini Latest (GPT-5.4 mini)",
+          "display_name": "GPT Mini Latest (GPT-5.4 mini)",
           "modalities": {
             "input": [
               "pdf",
@@ -252861,8 +252887,8 @@
         },
         {
           "id": "openai/gpt-pro-latest",
-          "name": "GPT-5.5 Pro",
-          "display_name": "GPT-5.5 Pro",
+          "name": "GPT Pro Latest (GPT-5.5 Pro)",
+          "display_name": "GPT Pro Latest (GPT-5.5 Pro)",
           "modalities": {
             "input": [
               "text",
@@ -253240,8 +253266,8 @@
         },
         {
           "id": "xai/grok-latest",
-          "name": "Grok 4.6",
-          "display_name": "Grok 4.6",
+          "name": "Grok Latest (Grok 4.6)",
+          "display_name": "Grok Latest (Grok 4.6)",
           "modalities": {
             "input": [
               "text",
@@ -253746,8 +253772,8 @@
         },
         {
           "id": "together_ai/deepseek-ai/DeepSeek-V4-Flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "display_name": "DeepSeek V4 Flash 0731",
+          "name": "DeepSeek V4 Flash 0731 (Together AI)",
+          "display_name": "DeepSeek V4 Flash 0731 (Together AI)",
           "modalities": {
             "input": [
               "text"
@@ -253780,8 +253806,8 @@
         },
         {
           "id": "together_ai/deepseek-ai/DeepSeek-V4-Pro-0813",
-          "name": "DeepSeek V4 Pro 0813",
-          "display_name": "DeepSeek V4 Pro 0813",
+          "name": "DeepSeek V4 Pro 0813 (Together AI)",
+          "display_name": "DeepSeek V4 Pro 0813 (Together AI)",
           "modalities": {
             "input": [
               "text"
@@ -253813,8 +253839,8 @@
         },
         {
           "id": "together_ai/meta-models/Muse-Glimmer-30B",
-          "name": "Muse Glimmer 30B",
-          "display_name": "Muse Glimmer 30B",
+          "name": "Muse Glimmer 30B (Together AI)",
+          "display_name": "Muse Glimmer 30B (Together AI)",
           "modalities": {
             "input": [
               "text",
@@ -253843,8 +253869,8 @@
         },
         {
           "id": "together_ai/thinkingmachines/Inkling-Small",
-          "name": "Inkling Small",
-          "display_name": "Inkling Small",
+          "name": "Inkling Small (Together AI)",
+          "display_name": "Inkling Small (Together AI)",
           "modalities": {
             "input": [
               "text",
@@ -253873,8 +253899,8 @@
         },
         {
           "id": "together_ai/thinkingmachines/Inkling",
-          "name": "Inkling",
-          "display_name": "Inkling",
+          "name": "Inkling (Together AI)",
+          "display_name": "Inkling (Together AI)",
           "modalities": {
             "input": [
               "text",
@@ -253903,8 +253929,8 @@
         },
         {
           "id": "together_ai/openai/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
+          "name": "GPT OSS 20B (Together AI)",
+          "display_name": "GPT OSS 20B (Together AI)",
           "modalities": {
             "input": [
               "text"
@@ -253936,8 +253962,8 @@
         },
         {
           "id": "together_ai/openai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Together AI)",
+          "display_name": "GPT OSS 120B (Together AI)",
           "modalities": {
             "input": [
               "text"
@@ -254319,8 +254345,8 @@
         },
         {
           "id": "vertex/gemini-pro-latest",
-          "name": "Gemini 3.1 Pro Preview",
-          "display_name": "Gemini 3.1 Pro Preview",
+          "name": "Gemini Pro Latest (Gemini 3.1 Pro Preview, Vertex AI)",
+          "display_name": "Gemini Pro Latest (Gemini 3.1 Pro Preview, Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254352,8 +254378,8 @@
         },
         {
           "id": "vertex/gemini-3.1-flash-lite-image",
-          "name": "Nano Banana 2 Lite",
-          "display_name": "Nano Banana 2 Lite",
+          "name": "Nano Banana 2 Lite (Vertex AI)",
+          "display_name": "Nano Banana 2 Lite (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254388,8 +254414,8 @@
         },
         {
           "id": "vertex/gemini-2.5-flash-image",
-          "name": "Nano Banana",
-          "display_name": "Nano Banana",
+          "name": "Nano Banana (Vertex AI)",
+          "display_name": "Nano Banana (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254419,8 +254445,8 @@
         },
         {
           "id": "vertex/gemini-3-pro-image",
-          "name": "Nano Banana Pro",
-          "display_name": "Nano Banana Pro",
+          "name": "Nano Banana Pro (Vertex AI)",
+          "display_name": "Nano Banana Pro (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254467,8 +254493,8 @@
         },
         {
           "id": "vertex/gemini-3.1-pro-preview",
-          "name": "Gemini 3.1 Pro Preview",
-          "display_name": "Gemini 3.1 Pro Preview",
+          "name": "Gemini 3.1 Pro Preview (Vertex AI)",
+          "display_name": "Gemini 3.1 Pro Preview (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254517,8 +254543,8 @@
         },
         {
           "id": "vertex/gemini-3.6-flash",
-          "name": "Gemini 3.6 Flash",
-          "display_name": "Gemini 3.6 Flash",
+          "name": "Gemini 3.6 Flash (Vertex AI)",
+          "display_name": "Gemini 3.6 Flash (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254569,8 +254595,8 @@
         },
         {
           "id": "vertex/gemini-3.1-flash-lite",
-          "name": "Gemini 3.1 Flash Lite",
-          "display_name": "Gemini 3.1 Flash Lite",
+          "name": "Gemini 3.1 Flash Lite (Vertex AI)",
+          "display_name": "Gemini 3.1 Flash Lite (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254607,8 +254633,8 @@
         },
         {
           "id": "vertex/gemini-3.5-flash",
-          "name": "Gemini 3.5 Flash",
-          "display_name": "Gemini 3.5 Flash",
+          "name": "Gemini 3.5 Flash (Vertex AI)",
+          "display_name": "Gemini 3.5 Flash (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254659,8 +254685,8 @@
         },
         {
           "id": "vertex/gemini-3.1-flash-image",
-          "name": "Nano Banana 2",
-          "display_name": "Nano Banana 2",
+          "name": "Nano Banana 2 (Vertex AI)",
+          "display_name": "Nano Banana 2 (Vertex AI)",
           "modalities": {
             "input": [
               "image",
@@ -254695,8 +254721,8 @@
         },
         {
           "id": "vertex/gemini-3.5-flash-lite",
-          "name": "Gemini 3.5 Flash Lite",
-          "display_name": "Gemini 3.5 Flash Lite",
+          "name": "Gemini 3.5 Flash Lite (Vertex AI)",
+          "display_name": "Gemini 3.5 Flash Lite (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254733,8 +254759,8 @@
         },
         {
           "id": "vertex/gemini-3-flash-preview",
-          "name": "Gemini 3 Flash Preview",
-          "display_name": "Gemini 3 Flash Preview",
+          "name": "Gemini 3 Flash Preview (Vertex AI)",
+          "display_name": "Gemini 3 Flash Preview (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254785,8 +254811,8 @@
         },
         {
           "id": "vertex/gemini-3.8-flash",
-          "name": "Gemini 3.8 Flash",
-          "display_name": "Gemini 3.8 Flash",
+          "name": "Gemini 3.8 Flash (Vertex AI)",
+          "display_name": "Gemini 3.8 Flash (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254836,8 +254862,8 @@
         },
         {
           "id": "vertex/gemini-3.7-flash",
-          "name": "Gemini 3.7 Flash",
-          "display_name": "Gemini 3.7 Flash",
+          "name": "Gemini 3.7 Flash (Vertex AI)",
+          "display_name": "Gemini 3.7 Flash (Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254888,8 +254914,8 @@
         },
         {
           "id": "vertex/gemini-flash-latest",
-          "name": "Gemini 3.7 Flash",
-          "display_name": "Gemini 3.7 Flash",
+          "name": "Gemini Flash Latest (Gemini 3.8 Flash, Vertex AI)",
+          "display_name": "Gemini Flash Latest (Gemini 3.8 Flash, Vertex AI)",
           "modalities": {
             "input": [
               "text",
@@ -254914,15 +254940,14 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2026-03",
-          "release_date": "2026-08-13",
-          "last_updated": "2026-08-13",
+          "release_date": "2026-09-02",
+          "last_updated": "2026-09-02",
           "type": "chat"
         },
         {
           "id": "cerebras/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (Cerebras)",
+          "display_name": "GPT OSS 120B (Cerebras)",
           "modalities": {
             "input": [
               "text"
@@ -254954,8 +254979,8 @@
         },
         {
           "id": "ionos/meta-llama/Llama-3.3-70B-Instruct",
-          "name": "Llama-3.3-70B-Instruct",
-          "display_name": "Llama-3.3-70B-Instruct",
+          "name": "Llama-3.3-70B-Instruct (IONOS)",
+          "display_name": "Llama-3.3-70B-Instruct (IONOS)",
           "modalities": {
             "input": [
               "text"
@@ -254982,8 +255007,8 @@
         },
         {
           "id": "ionos/openai/gpt-oss-120b",
-          "name": "GPT OSS 120B",
-          "display_name": "GPT OSS 120B",
+          "name": "GPT OSS 120B (IONOS)",
+          "display_name": "GPT OSS 120B (IONOS)",
           "modalities": {
             "input": [
               "text"
@@ -282551,6 +282576,46 @@
           "type": "chat"
         },
         {
+          "id": "mai-image-2.6",
+          "name": "mai-image-2.6",
+          "display_name": "mai-image-2.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "mai-image-2.6-flash",
+          "name": "mai-image-2.6-flash",
+          "display_name": "mai-image-2.6-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "minimax-m2.7-free",
           "name": "minimax-m2.7-free",
           "display_name": "minimax-m2.7-free",
@@ -298409,6 +298474,34 @@
           "type": "chat"
         },
         {
+          "id": "qwen2.5-math-1.5b-instruct",
+          "name": "qwen2.5-math-1.5b-instruct",
+          "display_name": "qwen2.5-math-1.5b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen2.5-math-72b-instruct",
+          "name": "qwen2.5-math-72b-instruct",
+          "display_name": "qwen2.5-math-72b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen2.5-math-7b-instruct",
           "name": "qwen2.5-math-7b-instruct",
           "display_name": "qwen2.5-math-7b-instruct",
@@ -300387,34 +300480,6 @@
           "id": "qwen2.5-coder-7b-instruct",
           "name": "qwen2.5-coder-7b-instruct",
           "display_name": "qwen2.5-coder-7b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-math-1.5b-instruct",
-          "name": "qwen2.5-math-1.5b-instruct",
-          "display_name": "qwen2.5-math-1.5b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-math-72b-instruct",
-          "name": "qwen2.5-math-72b-instruct",
-          "display_name": "qwen2.5-math-72b-instruct",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -302754,7 +302819,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {
@@ -310811,8 +310876,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 32768
+            "context": 262144,
+            "output": 235929
           },
           "tool_call": true,
           "reasoning": {
@@ -311125,7 +311190,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 256000,
             "output": 16384
           },
           "temperature": true,
@@ -311163,7 +311228,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -312239,8 +312304,8 @@
             ]
           },
           "limit": {
-            "context": 32768,
-            "output": 26214
+            "context": 1024000,
+            "output": 819200
           },
           "tool_call": true,
           "reasoning": {
@@ -312820,8 +312885,8 @@
             ]
           },
           "limit": {
-            "context": 204800,
-            "output": 131072
+            "context": 198000,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -313049,30 +313114,6 @@
           "type": "chat"
         },
         {
-          "id": "z-ai/glm-5.2:free",
-          "name": "Z.ai: GLM 5.2 (free)",
-          "display_name": "Z.ai: GLM 5.2 (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 230400
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "type": "chat"
-        },
-        {
           "id": "z-ai/glm-5.3",
           "name": "Z.ai: GLM 5.3",
           "display_name": "Z.ai: GLM 5.3",
@@ -313086,7 +313127,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 262144
+            "output": 943718
           },
           "temperature": true,
           "tool_call": true,
@@ -323187,7 +323228,7 @@
             ]
           },
           "limit": {
-            "context": 922000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": true,
@@ -323396,7 +323437,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
@@ -323662,6 +323703,7 @@
           },
           "attachment": true,
           "open_weights": false,
+          "knowledge": "2026-04-30",
           "release_date": "2026-09-04",
           "last_updated": "2026-09-04",
           "type": "chat"

@@ -11,7 +11,7 @@
  * - No description field (can be embedded as blockquote)
  */
 
-import matter from 'gray-matter'
+import { parseSkillFrontmatter as matter } from '@/skill/frontmatter'
 import type {
   IFormatAdapter,
   CanonicalSkill,

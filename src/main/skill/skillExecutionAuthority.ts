@@ -201,7 +201,8 @@ export class SkillExecutionAuthorityResolver implements SkillExecutionAuthorityP
     const environment = await this.dependencies.environments.resolveSkillRuntimeEnvironmentBinding(
       before.payload.agentId,
       before.payload.skillName,
-      before.payload.executionPackage.environmentBindingId
+      before.payload.executionPackage.environmentBindingId,
+      before.payload.sourceId
     )
     const current = this.readAuthority(request)
     assertReadAuthorityUnchanged(before, current)
@@ -227,7 +228,8 @@ export class SkillExecutionAuthorityResolver implements SkillExecutionAuthorityP
     const environment = await this.dependencies.environments.resolveSkillRuntimeEnvironmentBinding(
       before.payload.agentId,
       before.payload.skillName,
-      before.payload.executionPackage.environmentBindingId
+      before.payload.executionPackage.environmentBindingId,
+      before.payload.sourceId
     )
     if (
       canonicalJsonStringifyData(environment) !== canonicalJsonStringifyData(authority.environment)
