@@ -79,17 +79,6 @@ import type {
 class MaintenanceRevisionConflictError extends Error {}
 class MaintenanceClaimSuppressedError extends Error {}
 
-/**
- * Fence for one consolidation pass: the agent execution fence plus the
- * maintenance generation the pass started in. Stopping background maintenance
- * bumps the generation so in-flight passes stop at their next checkpoint even
- * though the agent itself stays healthy.
- */
-interface MaintenancePassFence {
-  readonly operation: MemoryOperationFence
-  readonly generation: number
-}
-
 export interface MemoryMaintenanceDrainOutcome {
   timedOut: boolean
   pendingAgentIds: string[]
@@ -108,7 +97,6 @@ export class MaintenanceService {
   private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
   private maintenancePaused = false
-  private maintenanceGeneration = 0
 
   constructor(
     private readonly ports: {
@@ -200,14 +188,16 @@ export class MaintenanceService {
 
   /**
    * Synchronously fences background maintenance: no timer stays armed, no new
-   * pass is admitted, and in-flight passes stop at their next checkpoint.
-   * `startBackgroundMaintenance` re-arms after the caller's maintenance window;
-   * `drainBackgroundMaintenance` waits for the fenced passes to settle.
+   * pass is admitted, and every agent with an in-flight pass has its execution
+   * fence invalidated and its provider requests aborted, so the pass and the
+   * sub-services it delegates to stop at their next checkpoint instead of
+   * waiting out a provider deadline. `startBackgroundMaintenance` re-arms after
+   * the caller's maintenance window; `drainBackgroundMaintenance` waits for the
+   * fenced passes to settle.
    */
   stopBackgroundMaintenance(): void {
     this.maintenanceStarted = false
     this.maintenancePaused = true
-    this.maintenanceGeneration += 1
     if (this.prewarmStartTimer) {
       clearTimeout(this.prewarmStartTimer)
       this.prewarmStartTimer = null
@@ -221,6 +211,9 @@ export class MaintenanceService {
     for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
     this.consolidationTimers.clear()
     this.consolidationTimerDueAt.clear()
+    for (const agentId of this.consolidationPasses.keys()) {
+      this.ctx.invalidateAgentOperations(agentId)
+    }
   }
 
   async drainBackgroundMaintenance(
@@ -375,19 +368,9 @@ export class MaintenanceService {
     return tracked
   }
 
-  private canContinuePass(fence: MaintenancePassFence): boolean {
-    return (
-      fence.generation === this.maintenanceGeneration &&
-      this.ctx.canContinueOperation(fence.operation)
-    )
-  }
-
   private async runConsolidationPassInternal(agentId: string, now: number): Promise<void> {
     if (!this.ctx.canWriteAgentMemory(agentId)) return
-    const operationFence: MaintenancePassFence = {
-      operation: this.ctx.captureOperationFence(agentId),
-      generation: this.maintenanceGeneration
-    }
+    const operationFence = this.ctx.captureOperationFence(agentId)
     let last = this.lastConsolidationAt.get(agentId)
     if (last === undefined) {
       last =
@@ -409,7 +392,7 @@ export class MaintenanceService {
     if (!model) {
       this.archiveStale(agentId, now)
       await this.pruneDeadVectors(agentId)
-      if (!this.canContinuePass(operationFence)) return
+      if (!this.ctx.canContinueOperation(operationFence)) return
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/maintenance_llm',
         actorType: 'scheduler',
@@ -428,7 +411,7 @@ export class MaintenanceService {
     }
     await this.heavySemaphore.run(async () => {
       const heavyStartedAt = performance.now()
-      if (!this.canContinuePass(operationFence)) return
+      if (!this.ctx.canContinueOperation(operationFence)) return
       const previousLast = last ?? 0
       this.lastConsolidationAt.set(agentId, now)
 
@@ -444,7 +427,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.canContinuePass(operationFence)) return
+        if (!this.ctx.canContinueOperation(operationFence)) return
         try {
           const merge = await this.mergeNearDuplicates(agentId, now, model, operationFence, budget)
           this.addLlmStats(llmStats, merge)
@@ -452,7 +435,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.canContinuePass(operationFence)) return
+        if (!this.ctx.canContinueOperation(operationFence)) return
         try {
           const reflectionPass = await this.ports.maybeReflect(agentId, model, budget)
           this.addLlmStats(llmStats, reflectionPass)
@@ -471,7 +454,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.canContinuePass(operationFence)) return
+        if (!this.ctx.canContinueOperation(operationFence)) return
         try {
           const personaPass = await this.ports.maybeEvolvePersona(agentId, model, budget)
           this.addLlmStats(llmStats, personaPass)
@@ -494,7 +477,7 @@ export class MaintenanceService {
             `[Memory] background persona evolution failed for ${agentId}: ${String(error)}`
           )
         }
-        if (!this.canContinuePass(operationFence)) return
+        if (!this.ctx.canContinueOperation(operationFence)) return
         if (this.didAllAttemptedLlmCallsFail(llmStats)) {
           this.lastConsolidationAt.set(agentId, previousLast)
           this.lastConsolidationFailureAt.set(agentId, now)
@@ -511,7 +494,7 @@ export class MaintenanceService {
         }
         this.archiveStale(agentId, now)
         await this.pruneDeadVectors(agentId)
-        if (!this.canContinuePass(operationFence)) return
+        if (!this.ctx.canContinueOperation(operationFence)) return
         this.ctx.writeAudit(agentId, {
           eventType: 'memory/maintenance_llm',
           actorType: 'scheduler',
@@ -547,7 +530,7 @@ export class MaintenanceService {
     agentId: string,
     now: number,
     model: MemoryModelRef,
-    operationFence: MaintenancePassFence,
+    operationFence: MemoryOperationFence,
     budget: MaintenanceBudget
   ): Promise<MemoryMaintenanceStepResult> {
     const result: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
@@ -575,7 +558,7 @@ export class MaintenanceService {
         return result
       }
       await this.ports.warmVectorStore(agentId, currentEmbedding)
-      if (!this.canContinuePass(operationFence)) return result
+      if (!this.ctx.canContinueOperation(operationFence)) return result
 
       const seedsByMemoryId = new Map(dirtySeeds.map((seed) => [seed.memoryId, seed]))
       const settledSeeds = new Map<string, MemoryDirtySeed>()
@@ -594,6 +577,9 @@ export class MaintenanceService {
       }
 
       for (const seed of dirtySeeds) {
+        // A fenced pass must not issue another decision request after its
+        // in-flight one was aborted.
+        if (!this.ctx.canContinueOperation(operationFence)) return result
         if (budget.snapshot().inputTokens >= MAINTENANCE_MAX_INPUT_TOKENS) break
         if (processedMemoryIds.has(seed.memoryId)) {
           settleSeed(seed)
@@ -626,7 +612,7 @@ export class MaintenanceService {
           deferSeed(seed)
           continue
         }
-        if (!this.canContinuePass(operationFence)) return result
+        if (!this.ctx.canContinueOperation(operationFence)) return result
         let neighbor: AgentMemoryRow | null = null
         for (const match of matches) {
           if (match.memoryId === source.id || processedMemoryIds.has(match.memoryId)) continue
@@ -714,7 +700,7 @@ export class MaintenanceService {
           deferSeed(seed)
           continue
         }
-        if (!this.canContinuePass(operationFence)) return result
+        if (!this.ctx.canContinueOperation(operationFence)) return result
 
         if (
           decision.mergedContent !== null &&
@@ -745,7 +731,7 @@ export class MaintenanceService {
         }
         this.ports.repository.setLastConsolidatedAt(source.id, now)
       }
-      if (!this.canContinuePass(operationFence)) return result
+      if (!this.ctx.canContinueOperation(operationFence)) return result
       this.ports.repository.runInTransaction(() => {
         this.ports.repository.settleDirtySeeds(agentId, [...settledSeeds.values()])
         this.ports.repository.deferDirtySeeds(agentId, [...deferredSeeds.values()], now)

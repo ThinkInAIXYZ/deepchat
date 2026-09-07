@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { MaintenanceBudget } from '@/memory/core/maintenanceBudget'
-import type { AgentMemoryRow } from '@/memory/domain/types'
+import type { AgentMemoryRow, MemoryVectorMatch } from '@/memory/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { createControlledPromise } from './serviceHarness'
 import {
@@ -1201,7 +1201,8 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     }
   })
 
-  it('fences an in-flight pass on stop and drains it before the maintenance window', async () => {
+  it('aborts an in-flight pass on stop so the maintenance window drains promptly', async () => {
+    // The decision request never settles on its own; only the provider abort can free the pass.
     const decision = createControlledPromise<string>()
     const generateText = vi.fn(async (_p: string, _m: string, prompt: string) =>
       prompt.includes('Choose exactly ONE decision') ? decision.promise : ''
@@ -1217,20 +1218,18 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     await vi.waitFor(() => expect(decisionCalls(generateText)).toBe(1))
 
     presenter.stopBackgroundMaintenance()
-    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual({
-      timedOut: true,
-      pendingAgentIds: ['a']
-    })
-
-    decision.resolve(
-      '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
-    )
-    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual({
+    await expect(presenter.drainBackgroundMaintenance(500)).resolves.toEqual({
       timedOut: false,
       pendingAgentIds: []
     })
     await pass
-    // The fenced pass stopped at its checkpoint: no merge, no completed heavy pass.
+    // The fenced pass neither merged nor issued another decision after the abort,
+    // and a late provider settlement changes nothing.
+    decision.resolve(
+      '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    )
+    await flushMicrotasks()
+    expect(decisionCalls(generateText)).toBe(1)
     expect(repo.getById(firstId)?.superseded_by).toBeNull()
     expect(repo.getById(secondId)?.superseded_by).toBeNull()
     expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
@@ -1242,6 +1241,38 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     presenter.startBackgroundMaintenance()
     await presenter.runConsolidationPass('a', now + 60 * 1000)
     expect(decisionCalls(generateText)).toBe(2)
+  })
+
+  it('reports a pass that cannot be aborted as a timed-out drain', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now
+    repo.rows.get(secondId)!.created_at = now + 1
+    // Wedge the pass inside the native neighbor query, which no provider abort reaches.
+    const neighborQuery = createControlledPromise<MemoryVectorMatch[]>()
+    const querySpy = vi.spyOn(store, 'queryByMemoryId').mockReturnValueOnce(neighborQuery.promise)
+
+    const pass = presenter.runConsolidationPass('a', now)
+    await vi.waitFor(() => expect(querySpy).toHaveBeenCalledTimes(1))
+
+    presenter.stopBackgroundMaintenance()
+    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual({
+      timedOut: true,
+      pendingAgentIds: ['a']
+    })
+
+    neighborQuery.resolve([])
+    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual({
+      timedOut: false,
+      pendingAgentIds: []
+    })
+    await pass
+    expect(decisionCalls(generateText)).toBe(0)
   })
 
   it('prewarms enabled active agents before the delayed maintenance arm', async () => {
