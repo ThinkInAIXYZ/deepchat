@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.2-beta.3 (2026-09-07)
+- Simplified tool, reasoning, and compaction activity with persistent expand/collapse state, readable historical plans, and restored parent-session navigation
+- Preserved workspace conversation history and pagination, kept Agent filters stable, and reused the workspace's latest Agent for new conversations
+- Restored browser preview frames and screenshots on macOS
+- Repaired vector recall recovery, prevented repeated memory extraction when forking conversations, recovered invalid memory records, and coordinated background maintenance with database operations
+- Restored partially migrated legacy databases and preserved conversation recency during migration
+- Reduced duplicate model discovery requests, project preference lookups, and plugin history scans; canceled abandoned embedding requests and released download probe responses
+- Refreshed the built-in model catalog
+- 简化工具、思考与上下文压缩活动展示，保留展开与折叠状态、提供可读的历史计划，并恢复返回父会话的导航
+- 保留工作区对话历史与分页状态，保持 Agent 筛选稳定，并为新对话沿用工作区最近使用的 Agent
+- 恢复 macOS 浏览器预览画面与截图
+- 修复向量召回恢复、分叉对话重复提取记忆及异常记忆记录问题，并协调后台维护与数据库操作
+- 恢复部分迁移的旧版数据库，并在迁移时保留对话最近活动时间
+- 减少重复模型发现请求、项目偏好读取和插件历史扫描；取消已放弃的嵌入请求，并释放下载探测响应
+- 刷新内置模型目录
+
 ## v1.1.2-beta.2 (2026-09-07)
 - Added installation and management of Codex-compatible user plugin packages from Git repositories, ZIP archives, and local folders, with selectable Skills, supported context hooks, and MCP configurations
 - Preserved new conversation drafts across Agent switches and removed drafts when their Agent is deleted
