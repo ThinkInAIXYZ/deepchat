@@ -50,7 +50,10 @@ function tape() {
       rows.length = 0
       incarnationId = randomUUID()
     },
-    getBySession: (sessionId: string) => rows.filter((row) => row.session_id === sessionId),
+    getBySession: (sessionId: string, name?: string) =>
+      rows.filter(
+        (row) => row.session_id === sessionId && (name === undefined || row.name === name)
+      ),
     appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
       const row: DeepChatTapeEntryRow = {
         session_id: input.sessionId,
@@ -226,6 +229,12 @@ describe('reviewed context hook execution', () => {
     const history = tape()
     history.appendAnchor({ sessionId: 's', name: 'plugin/context-hook', state: {} })
     history.rows[0].payload_json = '{broken'
+    history.appendAnchor({
+      sessionId: 's',
+      name: 'unrelated/anchor',
+      state: { invocationId: 'unrelated', status: 'completed' }
+    })
+    const readHistory = vi.spyOn(history, 'getBySession')
     const host = new UserPluginHooks(history)
     const owner = {
       pluginId: 'user.edit',
@@ -246,6 +255,7 @@ describe('reviewed context hook execution', () => {
     const restored = new UserPluginHooks(history)
     restored.register(owner)
     await restored.accept({ ...input, prompt: 'Edited' })
+    expect(readHistory).toHaveBeenCalledWith('s', 'plugin/context-hook')
     expect(history.rows).toHaveLength(count)
     expect(restored.getContext('s', 'm').map((item) => item.content)).toEqual(['startup', 'Edited'])
     history.reset()

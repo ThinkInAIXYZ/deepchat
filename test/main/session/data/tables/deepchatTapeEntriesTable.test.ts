@@ -103,6 +103,33 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('filters non-context history by exact name without truncating or crossing sessions', () => {
+    const { db, table } = createTable()
+    try {
+      const expected = Array.from({ length: 25 }, (_, index) =>
+        table.appendAnchor({
+          sessionId: 's1',
+          name: 'plugin/context-hook',
+          state: { invocationId: `hook-${index}` }
+        })
+      )
+      table.appendAnchor({ sessionId: 's1', name: 'plugin/context-hook-extra', state: {} })
+      table.appendAnchor({ sessionId: 's2', name: 'plugin/context-hook', state: {} })
+      db.prepare(
+        `INSERT INTO deepchat_tape_entries
+           (session_id, entry_id, kind, name, payload_json, meta_json, created_at)
+         VALUES ('s1', 100, 'context', 'plugin/context-hook', '{}', '{}', 1)`
+      ).run()
+
+      expect(table.getBySessionExcludingContext('s1', 'plugin/context-hook')).toEqual(expected)
+      expect(table.getBySessionExcludingContext('s1')).toHaveLength(26)
+      expect(table.getBySessionExcludingContext('s1', 'plugin/%')).toEqual([])
+      expect(table.getBySessionExcludingContext('missing', 'plugin/context-hook')).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
   it('reads the latest request evidence through indexed lookups', () => {
     const { db, table } = createTable()
 

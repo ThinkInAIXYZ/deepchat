@@ -1227,15 +1227,15 @@ export class DeepChatTapeEntriesTable
       ) as DeepChatTapeEntryRow[]
   }
 
-  getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[] {
+  getBySessionExcludingContext(sessionId: string, name?: string): DeepChatTapeEntryRow[] {
     return this.db
       .prepare(
         `SELECT *
          FROM deepchat_tape_entries
-         WHERE session_id = ? AND kind != 'context'
+         WHERE session_id = ? AND kind != 'context'${name === undefined ? '' : ' AND name = ?'}
          ORDER BY entry_id ASC`
       )
-      .all(sessionId) as DeepChatTapeEntryRow[]
+      .all(...(name === undefined ? [sessionId] : [sessionId, name])) as DeepChatTapeEntryRow[]
   }
 
   getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
