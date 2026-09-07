@@ -9,11 +9,7 @@
       :aria-label="toggleLabel"
       @click="toggleExpanded"
     >
-      <Icon
-        :icon="toolCallCount > 0 ? 'lucide:wrench' : 'lucide:message-circle'"
-        class="w-4 h-4 shrink-0"
-        aria-hidden="true"
-      />
+      <Icon icon="lucide:activity" class="w-4 h-4 shrink-0" aria-hidden="true" />
       <span class="min-w-0 truncate">
         {{ titleText }}
       </span>

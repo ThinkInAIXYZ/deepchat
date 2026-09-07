@@ -7,7 +7,7 @@
       :aria-controls="expanded ? contentId : undefined"
       @click="$emit('toggle')"
     >
-      <Icon icon="lucide:message-circle" class="w-4 h-4 shrink-0" aria-hidden="true" />
+      <Icon icon="lucide:brain" class="w-4 h-4 shrink-0" aria-hidden="true" />
       <span class="min-w-0 truncate" :title="label">
         {{ label }}
       </span>
