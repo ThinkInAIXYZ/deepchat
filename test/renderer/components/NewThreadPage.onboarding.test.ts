@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
@@ -50,6 +50,7 @@ const createChatInputBoxStub = () =>
 
 const setup = async () => {
   vi.resetModules()
+  vi.doMock('pinia', () => vi.importActual('pinia'))
   chatInputFocusMock.mockReset()
   chatInputTriggerAttachMock.mockReset()
 
@@ -112,7 +113,10 @@ const setup = async () => {
     }))
   })
 
-  const draftStore = reactive({
+  const { createPinia } = await import('pinia')
+  const { useDraftStore } =
+    await vi.importActual<typeof import('@/stores/ui/draft')>('@/stores/ui/draft')
+  const draftStore = Object.assign(useDraftStore(createPinia()), {
     projectDir: '/tmp/workspace',
     providerId: 'openai' as string | undefined,
     modelId: 'gpt-4.1' as string | undefined,
@@ -264,6 +268,8 @@ const setup = async () => {
 }
 
 describe('NewThreadPage guided onboarding', () => {
+  beforeEach(() => localStorage.clear())
+
   it('does not render a popup primary action for the first-chat guide', async () => {
     const { wrapper } = await setup()
 

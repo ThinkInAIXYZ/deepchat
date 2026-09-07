@@ -298,6 +298,7 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
+  const chatInputGetDocumentSnapshot = vi.fn()
   const chatInputClearPendingSkills = vi.fn()
   const chatStatusBarOpenModelPicker = vi.fn(() => true)
   const attachmentPreparationStore = reactive({
@@ -512,6 +513,7 @@ const setup = async (options: SetupOptions = {}) => {
           triggerAttach: chatInputTriggerAttach,
           insertWorkspaceReference: chatInputInsertWorkspaceReference,
           getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
+          getDocumentSnapshot: chatInputGetDocumentSnapshot,
           clearPendingSkills: chatInputClearPendingSkills
         })
       },
@@ -705,6 +707,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputInsertWorkspaceReference,
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
+    chatInputGetDocumentSnapshot,
     chatInputClearPendingSkills,
     chatStatusBarOpenModelPicker,
     recentMessageMeasurementCache,
@@ -3764,11 +3767,19 @@ describe('ChatPage', () => {
     // (covered by the useComposerSubmit remount test) can restore it.
     const first = await setup()
     const firstInput = first.wrapper.findComponent({ name: 'ChatInputBox' })
+    const document = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { id: 'reference' } }] }]
+    }
+    first.chatInputGetDocumentSnapshot.mockReturnValue(document)
+    first.chatInputGetPendingSkillsSnapshot.mockReturnValue(['review'])
     firstInput.vm.$emit('update:modelValue', 'draft from previous page')
     await flushPromises()
     first.wrapper.unmount()
 
     const stored = JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.s1') ?? 'null')
     expect(stored?.rawMessage).toBe('draft from previous page')
+    expect(stored?.activeSkills).toEqual(['review'])
+    expect(stored?.document).toEqual(document)
   })
 })

@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setup = async (
   pendingModelId: string,
@@ -21,8 +21,12 @@ const setup = async (
   }
 ) => {
   vi.resetModules()
+  vi.doMock('pinia', () => vi.importActual('pinia'))
 
-  const draftStore = reactive({
+  const { createPinia } = await import('pinia')
+  const { useDraftStore } =
+    await vi.importActual<typeof import('@/stores/ui/draft')>('@/stores/ui/draft')
+  const draftStore = Object.assign(useDraftStore(createPinia()), {
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
     projectDir: '/workspace/demo',
@@ -268,6 +272,8 @@ const setup = async (
 }
 
 describe('NewThreadPage start deeplink prefill', () => {
+  beforeEach(() => localStorage.clear())
+
   it('applies exact model matches and appends mentions into the input', async () => {
     const { wrapper, draftStore } = await setup('deepseek-chat')
 
