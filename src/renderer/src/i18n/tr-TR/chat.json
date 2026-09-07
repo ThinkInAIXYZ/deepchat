@@ -197,7 +197,8 @@
   "mode": {
     "current": "Geçerli mod: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Mod seçimi kaydedilemedi"
   },
   "topbar": {
     "backToParent": "Ebeveyne Geri Dön",

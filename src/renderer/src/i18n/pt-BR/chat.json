@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "current": "Modo atual: {mode}"
+    "current": "Modo atual: {mode}",
+    "saveFailed": "Não foi possível salvar a seleção de modo"
   },
   "topbar": {
     "share": "Compartilhar",

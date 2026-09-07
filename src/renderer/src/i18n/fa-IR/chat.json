@@ -180,7 +180,8 @@
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
-    "current": "حالت فعلی: {mode}"
+    "current": "حالت فعلی: {mode}",
+    "saveFailed": "ذخیره انتخاب حالت ناموفق بود"
   },
   "topbar": {
     "share": "اشتراک‌گذاری",

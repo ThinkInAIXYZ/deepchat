@@ -197,7 +197,8 @@
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",
-    "current": "當前模式：{mode}"
+    "current": "當前模式：{mode}",
+    "saveFailed": "無法儲存模式選擇"
   },
   "topbar": {
     "share": "分享",

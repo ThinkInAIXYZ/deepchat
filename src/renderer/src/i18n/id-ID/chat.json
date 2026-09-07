@@ -197,7 +197,8 @@
   "mode": {
     "current": "Modus saat ini: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Gagal menyimpan pilihan mode"
   },
   "topbar": {
     "backToParent": "Kembali ke sesi orang tua",
