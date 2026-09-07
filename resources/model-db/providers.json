@@ -285859,12 +285859,11 @@
           "display_name": "cohere-rerank-v4.0-fast",
           "modalities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ]
           },
           "limit": {
-            "context": 8192,
+            "context": 32768,
             "output": 8192
           },
           "tool_call": false,
@@ -285879,12 +285878,11 @@
           "display_name": "cohere-rerank-v4.0-pro",
           "modalities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ]
           },
           "limit": {
-            "context": 8192,
+            "context": 32768,
             "output": 8192
           },
           "tool_call": false,
@@ -287127,7 +287125,7 @@
           },
           "limit": {
             "context": 400000,
-            "output": 400000
+            "output": 128000
           },
           "tool_call": true,
           "reasoning": {

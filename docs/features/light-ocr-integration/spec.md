@@ -7,19 +7,20 @@ defines the document-specific routing, limits, and artifact contract alongside t
 ## User Need
 
 DeepChat prepares image attachments according to the selected model, attachment preference, and OCR
-settings. Bundled offline OCR makes image text usable by non-vision models without silently
-switching models, invoking a second vision model, or downloading runtime assets on first use.
+settings. Packaged OCR assets make image text usable by non-vision models once a compatible Node
+toolchain is configured, without silently switching models, invoking a second vision model, or
+downloading OCR assets on first use.
 Extraction failure produces an explicit attachment state instead of silently dropping the image.
 
 ## Goals
 
 - Bundle `@arcships/light-ocr` and its model/native runtime in supported installers so OCR works
-  offline immediately after installation.
+  offline after the user installs the managed Node pin or selects a compatible existing runtime.
 - Route user image attachments according to model capability, per-attachment intent and OCR
   settings.
 - Resolve the actual attachment representation before compaction and user-message persistence so
   historical turns retain the exact OCR text that was sent.
-- Run OCR outside Electron in the bundled Node 24 runtime with bounded concurrency, cancellation,
+- Run OCR outside Electron in an OCR-compatible Node 24 runtime with bounded concurrency, cancellation,
   timeout, crash recovery and idle process reclamation.
 - Keep OCR output explicitly untrusted, bounded by tokens, absent from logs/traces, and stored with
   the same lifecycle as its owning message.
@@ -30,7 +31,8 @@ Extraction failure produces an explicit attachment state instead of silently dro
 
 - No OCR of MCP sampling images, tool output, generated images or thumbnails.
 - No automatic vision-model invocation or conversation-model switching.
-- No language selection or runtime/model download flow. Scanned-PDF support follows the separate
+- No OCR-specific language selection or runtime/model download flow. Node setup belongs to
+  ToolchainService. Scanned-PDF support follows the separate
   [PDF OCR contract](../light-ocr-pdf-support/spec.md).
 - No knowledge-base integration in v1. A later increment can inject the same
   `ImageTextExtractionPort` into knowledge ingestion with background priority.
@@ -68,11 +70,14 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 - Resolve the exact facade, runtime, model, native-package, and bundle pins from
   [`resources/runtime-versions.json`](../../../resources/runtime-versions.json). Keep the installed
   facade and packaged payloads consistent with that manifest.
-- Use a standalone helper launched with the bundled Node version pinned in the
-  [runtime manifest](../../../resources/runtime-versions.json); never fall back to system Node.
+- Launch the standalone helper with `ToolchainService.resolve('node', { purpose: 'ocr' })`.
+  The selected bundled, managed, system, or custom runtime must satisfy the Node version range
+  and official module ABI defined in `src/main/toolchains/catalog.ts`. Missing or incompatible
+  selections report OCR unavailable; the resolver does not silently switch runtime sources.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
   checksums both during packaging and helper handshake.
-- Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact
+- Verify native source hashes before code signing, and Node hashes when a Node runtime is packaged.
+  Current installers omit bundled Node. Final macOS smoke keeps exact
   hashes for data files, while signed Mach-O files must have valid Apple-anchored signatures from
   the same team as the enclosing application.
 - Supported DeepChat targets are macOS x64/arm64, Windows x64/arm64 and Linux x64/arm64 on the
@@ -91,7 +96,8 @@ returns an actionable explanation instead of synthesizing a generic caption or c
   `resources/package-size-policy.json`; it does not rebuild a historical source tree.
 - The helper owns at most one engine and one recognition call. It is created lazily, closes an
   engine before changing detection strategy, and exits after 120 seconds idle.
-- First use performs no network request. Required licenses and notices ship with the app.
+- Once a compatible Node toolchain is configured, OCR performs no network request. Required licenses
+  and notices ship with the app.
 
 ## Input And Resource Limits
 
@@ -186,8 +192,9 @@ Composer representation controls use progressive disclosure:
 - Composer attachment chips keep the default path free of representation labels, expose advanced
   choices to pointer and keyboard users, suppress no-op representation controls for ACP, and never
   destroy an explicit preference merely because the selected model or Agent changes.
-- Packaged smoke verifies the bundled Node version, helper, native package, model identity, real OCR
-  and offline execution on each supported target before that target is considered enabled.
+- Packaged smoke verifies the helper, native package, model identity, real OCR and offline execution
+  on each supported target before that target is considered enabled. Without bundled Node, smoke
+  uses the CI Node executable pinned to the runtime manifest and checks its helper handshake.
 - Release and package-regression packaging compare every selected installer role against the
   committed six-target baseline and reject both growth and shrinkage beyond 90 MiB. Manual Build
   keeps the component budgets but does not run the installer delta gate.

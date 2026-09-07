@@ -12,7 +12,7 @@ the representation choice, and persistence retains the exact bounded PDF text us
 
 ## Goals
 
-- Upgrade the stable Light OCR facade to 0.5.6 without changing the existing image-recognition
+- Use the stable Light OCR facade pinned by the runtime manifest without changing image-recognition
   semantics.
 - Package the model-free runtime and the matching six native packages, including each platform's
   PDFium payload and fallback-font resources, with no postinstall download or runtime network
@@ -47,10 +47,10 @@ The four independently versioned components are pinned exactly:
 
 | Component          | Package                                       | Version |
 | ------------------ | --------------------------------------------- | ------- |
-| Stable facade      | `@arcships/light-ocr`                         | `0.5.6` |
-| Model-free runtime | `@arcships/light-ocr-runtime`                 | `0.1.6` |
+| Stable facade      | `@arcships/light-ocr`                         | `0.5.7` |
+| Model-free runtime | `@arcships/light-ocr-runtime`                 | `0.1.7` |
 | Small model        | `@arcships/light-ocr-model-ppocrv6-small`     | `0.3.4` |
-| Native packages    | six `@arcships/light-ocr-<platform>` packages | `0.5.6` |
+| Native packages    | six `@arcships/light-ocr-<platform>` packages | `0.5.7` |
 
 The facade entry point is `src/index.cjs`. The runtime is a required packaged dependency because the
 facade imports `@arcships/light-ocr-runtime/facade`, and native-package resolution belongs to that
@@ -310,7 +310,7 @@ If turn-level attachment packing cannot retain any otherwise valid PDF OCR text,
 ## Acceptance Criteria
 
 - Existing image OCR routing, cache behavior, cancellation, and real packaged image smoke still pass
-  with the 0.5.6 facade.
+  with the facade version pinned by the runtime manifest.
 - A textual PDF in `Auto` uses its embedded snapshot without starting the OCR helper.
 - A scanned PDF in `Auto`, and any PDF explicitly set to `ocr_text`, streams offline OCR text into
   the provider context.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Lifecycle ownership and the CUA 0.17 model-facing contract migration are complete and host-native
+Lifecycle ownership and the CUA `0.19.2/0.6.0` model-facing contract are complete and host-native
 validated; native cross-platform release gates remain pending.
 
 ## 1. Freeze the contracts

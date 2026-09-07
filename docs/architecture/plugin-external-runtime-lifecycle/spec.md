@@ -307,8 +307,8 @@ projects only its reviewed effect, route, delivery, evidence-kind, and escalatio
 not promote runtime prose, and it states explicitly that delivery is not task completion.
 `verify_state` receives a separate bounded projection of aggregate status/stability and at most
 eight predicate statuses; application-derived `observed_json` is not promoted into model-visible
-instructions. Exact details and privacy boundaries are maintained in the 0.17 migration
-architecture specification.
+instructions. Exact details and privacy boundaries are maintained in the
+[CUA 0.19.2/0.6.0 contract](../cua-driver-0-17-contract-migration/spec.md).
 
 ### CUA tool-contract changes
 

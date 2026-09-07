@@ -3,6 +3,36 @@ import { describe, expect, it } from 'vitest'
 import { sanitizeAggregateJson } from '../../../scripts/fetch-provider-db.mjs'
 
 describe('fetch-provider-db', () => {
+  it('corrects known Aihubmix limits and rerank input capabilities', () => {
+    const models = [
+      {
+        id: 'gpt-5.3-codex',
+        limit: { context: 400000, output: 400000 },
+        modalities: { input: ['text', 'image'] }
+      },
+      ...['cohere-rerank-v4.0-fast', 'cohere-rerank-v4.0-pro'].map((id) => ({
+        id,
+        type: 'rerank',
+        limit: { context: 8192, output: 8192 },
+        modalities: { input: ['text', 'image'] }
+      }))
+    ]
+    const sanitized = sanitizeAggregateJson({
+      providers: {
+        aihubmix: { id: 'aihubmix', models },
+        other: { id: 'other', models }
+      }
+    })
+
+    expect(sanitized?.providers.aihubmix.models).toMatchObject([
+      { limit: { context: 400000, output: 128000 }, modalities: { input: ['text', 'image'] } },
+      { type: 'rerank', limit: { context: 32768 }, modalities: { input: ['text'] } },
+      { type: 'rerank', limit: { context: 32768 }, modalities: { input: ['text'] } }
+    ])
+    expect(sanitized?.providers.other.models).toMatchObject(models)
+    expect(models[0].limit.output).toBe(400000)
+  })
+
   it('preserves media types, omits pricing, and classifies pinned OpenAI speech model IDs', () => {
     const sanitized = sanitizeAggregateJson({
       providers: {
