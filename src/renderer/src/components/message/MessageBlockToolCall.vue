@@ -153,6 +153,50 @@
             </button>
           </div>
 
+          <div v-else-if="planSnapshot" data-testid="tool-call-plan" class="space-y-2">
+            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <span class="font-medium">{{ t('chat.workspace.plan.section') }}</span>
+              <span>
+                {{
+                  t('chat.workspace.plan.completedCount', {
+                    completed: planSnapshot.plan.filter((entry) => entry.status === 'completed')
+                      .length,
+                    total: planSnapshot.plan.length
+                  })
+                }}
+              </span>
+            </div>
+            <p
+              v-if="planSnapshot.explanation"
+              class="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground"
+            >
+              {{ planSnapshot.explanation }}
+            </p>
+            <ul v-if="planSnapshot.plan.length" class="space-y-1">
+              <li
+                v-for="(entry, index) in planSnapshot.plan"
+                :key="index"
+                class="flex items-start gap-1.5 py-1 text-[13px] leading-5"
+                :class="resolveStepPresentation(entry.status).textClass"
+                :aria-label="entryAriaLabel(t, entry)"
+              >
+                <span
+                  class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
+                  :class="resolveStepPresentation(entry.status).badgeClass"
+                >
+                  <Icon
+                    :icon="resolveStepPresentation(entry.status).icon"
+                    class="h-3 w-3 shrink-0"
+                    :class="resolveStepPresentation(entry.status).iconClass"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span class="min-w-0 flex-1 whitespace-pre-wrap break-words">{{ entry.step }}</span>
+              </li>
+            </ul>
+            <p v-else class="text-xs text-muted-foreground">{{ t('chat.workspace.plan.empty') }}</p>
+          </div>
+
           <div v-else class="flex min-w-0 flex-col gap-3">
             <div
               v-if="expandedToolTitle"
@@ -265,6 +309,8 @@ import { useI18n } from 'vue-i18n'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
+import { normalizeAgentPlanEntries, UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
+import { entryAriaLabel, resolveStepPresentation } from '@/composables/useAgentPlanStatus'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
@@ -453,7 +499,29 @@ const matchesToolContractName = (toolName: string, expectedName: string): boolea
 const normalizeOptionalText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : ''
 
+const isUpdatePlan = computed(
+  () => rawToolName.value === UPDATE_PLAN_TOOL_NAME && props.block.extra?.toolSource !== 'mcp'
+)
+
+const planSnapshot = computed(() => {
+  if (
+    !isUpdatePlan.value ||
+    props.block.status !== 'success' ||
+    props.block.extra?.needsUserAction
+  ) {
+    return null
+  }
+  const args = parsedParamsRecord.value
+  if (!Array.isArray(args?.plan)) return null
+  const plan = normalizeAgentPlanEntries(args.plan)
+  if (plan.length !== args.plan.length) return null
+
+  // Each call stores its own full plan; the dock's latest snapshot would rewrite history.
+  return { plan, explanation: normalizeOptionalText(args.explanation) }
+})
+
 const summaryText = computed(() => {
+  if (isUpdatePlan.value) return ''
   if (isSubagentOrchestrator.value) {
     const progress =
       parseSubagentProgress(props.block.extra?.subagentProgress) ??
@@ -551,6 +619,7 @@ const toggleExpanded = () => {
 
 const statusIconName = computed(() => {
   if (statusVariant.value === 'error') return 'lucide:circle-alert'
+  if (isUpdatePlan.value) return 'lucide:list-checks'
   if (isTerminalTool.value || isProcessTool.value) return 'lucide:terminal'
   if (matchesToolContractName(rawToolName.value, 'read')) return 'lucide:book-open'
   if (
