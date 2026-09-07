@@ -226,22 +226,22 @@ describe('BaseLLMProvider tool XML conversion', () => {
     )
   })
 
-  it('suppresses asynchronous model fetch failures by default', async () => {
-    const provider = new TestProvider(providerSettings, async () => {
-      throw new Error('model endpoint returned 404')
-    })
+  it('preserves each caller error policy and retries failed model discovery', async () => {
+    const error = new Error('model endpoint returned 404')
+    const models = [{ id: 'model-1', providerId: 'test-provider' }] as MODEL_META[]
+    const fetchModels = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(models)
+    const provider = new TestProvider(providerSettings, fetchModels)
 
-    await expect(provider.fetchModels()).resolves.toEqual([])
-  })
+    await expect(
+      Promise.allSettled([provider.fetchModels(), provider.fetchModels({ suppressErrors: false })])
+    ).resolves.toEqual([
+      { status: 'fulfilled', value: [] },
+      { status: 'rejected', reason: error }
+    ])
+    expect(fetchModels).toHaveBeenCalledTimes(1)
 
-  it('rethrows asynchronous model fetch failures when suppression is disabled', async () => {
-    const provider = new TestProvider(providerSettings, async () => {
-      throw new Error('model endpoint returned 404')
-    })
-
-    await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
-      'model endpoint returned 404'
-    )
+    await expect(provider.fetchModels()).resolves.toEqual(models)
+    expect(fetchModels).toHaveBeenCalledTimes(2)
   })
 
   it('does not suppress provider model persistence failures', async () => {
@@ -262,6 +262,28 @@ describe('BaseLLMProvider tool XML conversion', () => {
     ])
 
     await expect(provider.fetchModels()).rejects.toThrow('model persistence failed')
+  })
+
+  it('starts fresh discovery after a config change while keeping new queries shared', async () => {
+    let resolveFirst!: (models: MODEL_META[]) => void
+    let resolveSecond!: (models: MODEL_META[]) => void
+    const fetchModels = vi
+      .fn()
+      .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveSecond = resolve)))
+    const provider = new TestProvider(providerSettings, fetchModels)
+    const first = provider.fetchModels()
+
+    provider.updateConfig({ ...provider.getProviderSnapshot(), apiKey: 'updated-key' })
+    const second = provider.fetchModels()
+    resolveFirst([])
+    await first
+
+    const concurrent = provider.fetchModels()
+    expect(fetchModels).toHaveBeenCalledTimes(2)
+    const models = [{ id: 'updated-model', providerId: 'test-provider' }] as MODEL_META[]
+    resolveSecond(models)
+    await expect(Promise.all([second, concurrent])).resolves.toEqual([models, models])
   })
 
   it('preserves the caller signal identity when no model timeout is configured', () => {

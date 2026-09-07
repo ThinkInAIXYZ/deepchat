@@ -51,6 +51,7 @@ export abstract class BaseLLMProvider {
   protected isInitialized: boolean = false
   protected providerSettings: ProviderSettingsPort
   private readonly locale: ProviderLocalePort
+  private modelFetchPromise: Promise<MODEL_META[]> | null = null
 
   protected defaultHeaders: Record<string, string> = {
     'HTTP-Referer': 'https://deepchatai.cn',
@@ -113,6 +114,7 @@ export abstract class BaseLLMProvider {
 
   public updateConfig(provider: LLM_PROVIDER): void {
     this.provider = { ...provider }
+    this.modelFetchPromise = null
     this.loadCachedModels()
   }
 
@@ -267,7 +269,15 @@ export abstract class BaseLLMProvider {
     let models: MODEL_META[]
 
     try {
-      models = await this.fetchProviderModels()
+      if (!this.modelFetchPromise) {
+        const pending = this.fetchProviderModels().finally(() => {
+          if (this.modelFetchPromise === pending) {
+            this.modelFetchPromise = null
+          }
+        })
+        this.modelFetchPromise = pending
+      }
+      models = await this.modelFetchPromise
     } catch (e) {
       logger.error(
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
