@@ -219,7 +219,10 @@ lifecycle、persona、conflict、projection 和 maintenance 路径。每个同�
 tombstone 并删除 256 行，同时原子维护 FTS；batch 之间让出 event loop。最后一个 claim batch 删除
 derivation/dirty state 并进入 vector phase，vector cleanup 完成或被 vector manager 明确延后后才
 移除 job。进程中断时，已提交 batch 不回滚；下次启动从持久 phase 继续，期间 claim 始终不可见且
-SQLite trigger 拒绝 INSERT/UPDATE 逃逸。
+SQLite trigger 拒绝 INSERT/UPDATE 逃逸。vector reset 遇到非 quarantine 的失败时 clear 仍以 fail-open
+结束：manager 在进程内于下一次 lease 前重试 reset，不因此 fence 该 Agent 的后续写入。该重试是进程内
+状态；若重启后 sidecar 仍残留已清除 claim 的向量，它们没有 ready certificate 因而不会被 recall
+使用，并在首次 warm-up coverage 校验时作为 orphan 被批量删除。
 
 该操作保留 tombstone，防止既有 Tape replay 重新填充，并删除 factual claim、persona 和 working
 projection；它不删除 standing directive，directive trust plane 在清理期间仍可读取和管理。UI 必须

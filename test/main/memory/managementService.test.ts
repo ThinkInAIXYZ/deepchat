@@ -371,6 +371,51 @@ describe('MemoryService management', () => {
     expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
   })
 
+  it('reconciles vectors left by a failed reset after a restart loses the deferred retry', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    const getEmbeddings = async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    const first = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: vi.fn(async () => {
+        throw new Error('sidecar file is busy')
+      })
+    })
+    first.writeMemoriesSync([{ kind: 'semantic', content: 'redis before clear' }], {
+      agentId: 'a'
+    })
+    await first.processPendingEmbeddings('a')
+    expect(store.vectors.size).toBe(1)
+
+    // The clear completes fail-open: claims are gone, the reset is deferred to the next lease.
+    await expect(first.clearMemories('a')).resolves.toBe(1)
+    expect(repo.listByAgent('a')).toEqual([])
+    expect(store.vectors.size).toBe(1)
+    await first.dispose()
+
+    // A fresh runtime over the same repository and sidecar has no memory of that deferral.
+    const second = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const internals = memoryRuntimeForTests(second)
+    await expect(second.recall('a', 'redis')).resolves.toEqual([])
+    await waitForMemoryCondition(
+      () => store.vectors.size === 0 && internals.isVectorReady('a'),
+      'warm-up coverage did not reconcile the residual vectors'
+    )
+    await second.dispose()
+  })
+
   it('cleanupDeletedAgentResources clears runtime state even when vector reset fails', async () => {
     const repo = createFakeRepository()
     const store = new FakeVectorStore()
