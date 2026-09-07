@@ -228,6 +228,35 @@ describe('toolchain downloader', () => {
     expect(Date.now() - started).toBeLessThan(1000)
   })
 
+  it.each(['pending', 'rejected'] as const)(
+    'selects a download URL when response body cancellation stays %s',
+    async (cancellation) => {
+      const official = 'https://nodejs.org/dist/v24.18.0/node.tar.gz'
+      const mirror = 'https://mirror.example/node.tar.gz'
+      const cancelled: string[] = []
+      const url = await selectDownloadUrl(
+        official,
+        async (candidate) =>
+          new Response(
+            new ReadableStream({
+              cancel: () => {
+                cancelled.push(candidate)
+                return cancellation === 'pending'
+                  ? new Promise<void>(() => {})
+                  : Promise.reject(new Error('body cancellation failed'))
+              }
+            }),
+            { status: candidate === mirror ? 500 : 206 }
+          ),
+        { mirrorUrl: mirror, allowProbe: true, probeTimeoutMs: 40 }
+      )
+
+      expect(url).toBe(official)
+      expect(cancelled.sort()).toEqual([official, mirror].sort())
+    },
+    1000
+  )
+
   it('does not treat a slow but progressing download as stalled', async () => {
     const payload = Buffer.from('abcdefghijklmnopqrstuvwxyz')
     const destPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'dc-dl-')), 'archive.bin')
