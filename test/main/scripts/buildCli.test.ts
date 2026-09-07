@@ -30,22 +30,15 @@ async function runGeneratedLauncher(outputDirectory: string) {
 
 async function provisionElectronHost(outputDirectory: string): Promise<void> {
   const appRoot = path.resolve(outputDirectory, '..', '..', '..')
-  const hostName = process.platform === 'win32' ? 'DeepChat.exe' : 'DeepChat'
-  const hosts = [
-    path.join(appRoot, hostName),
-    path.join(appRoot, 'MacOS', 'DeepChat'),
-    path.join(appRoot, 'deepchat')
-  ]
-  for (const host of hosts) {
-    await mkdir(path.dirname(host), { recursive: true })
-    try {
-      await symlink(process.execPath, host)
-    } catch {
-      await copyFile(process.execPath, host)
-      if (process.platform !== 'win32') {
-        await chmod(host, 0o755)
-      }
-    }
+  const host =
+    process.platform === 'darwin'
+      ? path.join(appRoot, 'MacOS', 'DeepChat')
+      : path.join(appRoot, process.platform === 'win32' ? 'DeepChat.exe' : 'deepchat.bin')
+  await mkdir(path.dirname(host), { recursive: true })
+  // Keep the running interpreter outside the fixture, including on case-insensitive filesystems.
+  await copyFile(process.execPath, host)
+  if (process.platform !== 'win32') {
+    await chmod(host, 0o755)
   }
 }
 
