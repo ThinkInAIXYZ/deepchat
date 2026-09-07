@@ -157,6 +157,9 @@ terminal turn projection
 ```
 
 - terminal extraction 在后台运行，不延迟已完成回复；
+- Subagent 会话（`sessionKind: 'subagent'`）仍接收其 Agent 的 memory injection，但不进入 terminal 或
+  compaction extraction：子会话的 "user" turn 是 parent Agent 写下的任务描述，抽取会把 parent 的指令
+  当作用户事实；子任务的结论由 parent 会话从 parent Agent 的回复中抽取；
 - A fork keeps native `message/<role>` facts for its cloned messages. Its Memory cursor maps only
   the source's successfully extracted prefix onto the densely renumbered clone, excluding failed
   messages and compaction markers. Later terminal turns extract the unprocessed cloned tail and
