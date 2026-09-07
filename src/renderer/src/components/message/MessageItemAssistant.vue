@@ -84,7 +84,7 @@
                 :thread-id="currentThreadId"
               />
               <MessageBlockToolCall
-                v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
+                v-else-if="item.block.type === 'tool_call'"
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
@@ -237,8 +237,7 @@ import {
   type DisplayAssistantMessageBlock,
   buildResolvedPermissionStatusByToolCallId,
   filterRenderableAssistantBlocks,
-  getResolvedPermissionStatus,
-  isInternalAssistantToolCallBlock
+  getResolvedPermissionStatus
 } from '@/features/chat-page/model/displayMessage'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
@@ -314,10 +313,6 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
     return AUDIO_EXTENSIONS.some((ext) => lower.includes(ext))
   }
   return false
-}
-
-const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
-  return isInternalAssistantToolCallBlock(block)
 }
 
 const isVideoUrl = (value: string): boolean => {
@@ -527,8 +522,7 @@ const currentRenderItems = computed(() =>
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
-    expandedBlockKeys: manuallyExpandedBlockKeys.value,
-    isInternalToolCall
+    expandedBlockKeys: manuallyExpandedBlockKeys.value
   })
 )
 

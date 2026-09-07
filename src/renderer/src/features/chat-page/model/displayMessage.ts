@@ -3,11 +3,7 @@ import type {
   SessionCompactionBoundaryReason,
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
-import {
-  UPDATE_PLAN_TOOL_NAME,
-  type AgentPlanDisplayItem,
-  type AgentPlanTerminalReason
-} from '@shared/types/agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
@@ -240,14 +236,6 @@ export type DisplayMessage = DisplayUserMessage | DisplayAssistantMessage
 
 export type MessageListItem = DisplayMessage
 
-export function isInternalAssistantToolCallBlock(block: DisplayAssistantMessageBlock): boolean {
-  return (
-    block.type === 'tool_call' &&
-    block.tool_call?.name === UPDATE_PLAN_TOOL_NAME &&
-    block.extra?.internalTool === true
-  )
-}
-
 export type ResolvedPermissionStatus = 'granted' | 'denied'
 
 export function getResolvedPermissionStatus(
@@ -286,15 +274,7 @@ export function buildResolvedPermissionStatusByToolCallId(
 }
 
 export function isRenderableAssistantBlock(block: DisplayAssistantMessageBlock): boolean {
-  if (block.type === 'plan') {
-    return false
-  }
-
-  if (isInternalAssistantToolCallBlock(block)) {
-    return false
-  }
-
-  return true
+  return block.type !== 'plan'
 }
 
 export function filterRenderableAssistantBlocks(

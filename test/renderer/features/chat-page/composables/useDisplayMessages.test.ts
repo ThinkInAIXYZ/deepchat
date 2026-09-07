@@ -103,6 +103,57 @@ function createHarness(
 }
 
 describe('useDisplayMessages', () => {
+  it('keeps plan tool calls visible through progress, completion and history reload', () => {
+    const { display, messageStore, records, streaming } = createHarness([], [])
+    const running: AssistantMessageBlock = {
+      type: 'tool_call',
+      status: 'loading',
+      timestamp: 2,
+      tool_call: {
+        id: 'plan-call',
+        name: 'update_plan',
+        params: JSON.stringify({ plan: [{ step: 'Check layout', status: 'completed' }] })
+      }
+    }
+    messageStore.streamingBlocks = [running]
+    messageStore.streamRevision += 1
+
+    expect(display.displayMessages.value).toMatchObject([{ id: 'stream', content: [running] }])
+
+    const marked = { ...running, extra: { internalTool: true } }
+    messageStore.streamingBlocks = [marked]
+    messageStore.streamRevision += 1
+    expect(display.displayMessages.value).toMatchObject([{ id: 'stream', content: [marked] }])
+
+    const completed: AssistantMessageBlock = {
+      ...marked,
+      status: 'success',
+      tool_call: { ...marked.tool_call!, response: '{}' }
+    }
+    messageStore.streamingBlocks = [completed]
+    messageStore.streamRevision += 1
+    expect(display.displayMessages.value).toMatchObject([{ id: 'stream', content: [completed] }])
+
+    const record = {
+      ...assistantRecord('stream', 2, '', 'sent', 3),
+      content: JSON.stringify([completed])
+    }
+    records.set('stream', record)
+    messageStore.messageIds.push('stream')
+    messageStore.lastPersistedRevision += 1
+    streaming.active = false
+    messageStore.streamingBlocks = []
+    messageStore.currentStreamMessageId = null
+
+    expect(display.displayMessages.value).toMatchObject([{ id: 'stream', content: [completed] }])
+
+    const restored = createHarness(['stream'], [record])
+    restored.streaming.active = false
+    expect(restored.display.displayMessages.value).toMatchObject([
+      { id: 'stream', content: [completed] }
+    ])
+  })
+
   it('ignores a non-string persisted runStopReason without failing the session list', () => {
     const record = assistantRecord('history', 1, 'settled')
     record.metadata = JSON.stringify({ runStopReason: 123 })

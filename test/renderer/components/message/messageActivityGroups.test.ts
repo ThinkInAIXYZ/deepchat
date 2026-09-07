@@ -461,36 +461,6 @@ describe('messageActivityGroups', () => {
     expect(items.map((item) => item.key)).toEqual(['m1:tc1:0', 'm1:tc1:1'])
   })
 
-  it('skips internal hidden tool calls', () => {
-    const items = buildAssistantRenderItems({
-      messageId: 'm1',
-      messageUpdatedAt: 12_000,
-      shouldGroup: true,
-      isInternalToolCall: (block) =>
-        block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true,
-      blocks: [
-        createBlock('tool_call', {
-          extra: {
-            internalTool: true
-          },
-          tool_call: {
-            id: 'tc1',
-            name: 'update_plan'
-          }
-        }),
-        createBlock('content', { content: 'visible' })
-      ]
-    })
-
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({
-      kind: 'block',
-      block: {
-        type: 'content'
-      }
-    })
-  })
-
   it('formats duration up to days, hours, minutes, and seconds', () => {
     expect(formatActivityDuration(8_900, zhDurationLabels)).toBe('8秒')
     expect(formatActivityDuration(192_000, zhDurationLabels)).toBe('3分钟12秒')

@@ -29,7 +29,6 @@ export type BuildAssistantRenderItemsOptions = {
   messageUpdatedAt: number
   shouldGroup: boolean
   expandedBlockKeys?: ReadonlySet<string>
-  isInternalToolCall?: (block: DisplayAssistantMessageBlock) => boolean
 }
 
 export type ActivityDurationLabels = {
@@ -139,8 +138,7 @@ export const buildAssistantRenderItems = ({
   messageId,
   messageUpdatedAt,
   shouldGroup,
-  expandedBlockKeys,
-  isInternalToolCall
+  expandedBlockKeys
 }: BuildAssistantRenderItemsOptions): AssistantRenderItem[] => {
   const items: AssistantRenderItem[] = []
   let activityBuffer: BufferedActivityBlock[] = []
@@ -184,10 +182,6 @@ export const buildAssistantRenderItems = ({
   }
 
   blocks.forEach((block, index) => {
-    if (block.type === 'tool_call' && isInternalToolCall?.(block)) {
-      return
-    }
-
     if (shouldGroup && isEmptyReasoningBlock(block)) {
       return
     }

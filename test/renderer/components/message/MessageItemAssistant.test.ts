@@ -461,23 +461,31 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.text()).not.toContain('Old plan')
   })
 
-  it('renders non-internal tool calls even when they are named update_plan', () => {
+  it('retains plan tool calls after execution and includes them in completed activity', async () => {
+    const running = createToolCallBlock({
+      status: 'loading',
+      tool_call: { id: 'tc-plan', name: 'update_plan' }
+    })
     const wrapper = mount(MessageItemAssistant, {
       props: {
-        message: createMessage('pending', [
-          createToolCallBlock({
-            tool_call: {
-              id: 'external-plan-tool',
-              name: 'update_plan'
-            }
-          })
-        ]),
+        message: createMessage('pending', [createThinkingBlock(), running]),
         isCapturingImage: false
       },
       global
     })
+    const trigger = wrapper.findComponent({ name: 'MessageBlockToolCall' }).element
+    const completed = { ...running, status: 'success' as const, extra: { internalTool: true } }
 
-    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+    await wrapper.setProps({
+      message: createMessage('pending', [createThinkingBlock(), completed])
+    })
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).element).toBe(trigger)
+
+    await wrapper.setProps({
+      message: createMessage('sent', [createThinkingBlock(), completed])
+    })
+    const group = wrapper.findComponent({ name: 'MessageBlockActivityGroup' })
+    expect(group.props('blocks')).toEqual([createThinkingBlock(), completed])
   })
 
   it('groups completed assistant activity blocks after the turn is settled', () => {
@@ -684,32 +692,6 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
-  })
-
-  it('excludes internal tool calls from activity groups', () => {
-    const wrapper = mount(MessageItemAssistant, {
-      props: {
-        message: createMessage('sent', [
-          createThinkingBlock(),
-          createToolCallBlock({
-            extra: {
-              internalTool: true
-            },
-            tool_call: {
-              id: 'tc-plan',
-              name: 'update_plan'
-            }
-          })
-        ]),
-        isCapturingImage: false,
-        isInGeneratingThread: false
-      },
-      global
-    })
-
-    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
-    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
   })
 
   it('opens turn memories with the primary assistant message id when a variant is selected', async () => {
