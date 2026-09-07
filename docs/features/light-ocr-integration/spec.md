@@ -1,18 +1,15 @@
 # Offline Light OCR Attachment Routing
 
-Status: implemented; six-target native package behavior validated in
-[Build Application run 29978292769](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29978292769);
-the reusable packaging workflow refactor still requires its first remote run. The implemented
-[Light OCR 0.5.5 PDF support](../light-ocr-pdf-support/spec.md) increment supersedes this original
-increment's pinned runtime version and scanned-PDF non-goal while retaining its image OCR contract.
+Status: image OCR is implemented. The first remote validation of the reusable six-target packaging
+workflows remains open in this goal's task ledger. [PDF OCR](../light-ocr-pdf-support/spec.md)
+defines the document-specific routing, limits, and artifact contract alongside this image contract.
 
 ## User Need
 
-DeepChat currently prepares image attachments only as compressed image data. A model without vision
-capability receives attachment metadata but cannot recover the text in the image. Users need image
-text to remain useful with non-vision models, without silently switching models, invoking a second
-vision model, downloading runtime assets on first use, or dropping an attachment when extraction
-fails.
+DeepChat prepares image attachments according to the selected model, attachment preference, and OCR
+settings. Bundled offline OCR makes image text usable by non-vision models without silently
+switching models, invoking a second vision model, or downloading runtime assets on first use.
+Extraction failure produces an explicit attachment state instead of silently dropping the image.
 
 ## Goals
 
@@ -33,8 +30,8 @@ fails.
 
 - No OCR of MCP sampling images, tool output, generated images or thumbnails.
 - No automatic vision-model invocation or conversation-model switching.
-- No language selection or runtime/model download flow. Scanned-PDF support is specified separately
-  by the 0.5.5 PDF increment.
+- No language selection or runtime/model download flow. Scanned-PDF support follows the separate
+  [PDF OCR contract](../light-ocr-pdf-support/spec.md).
 - No knowledge-base integration in v1. A later increment can inject the same
   `ImageTextExtractionPort` into knowledge ingestion with background priority.
 - No Linux musl support. Official Linux packages target glibc and are validated only on the
@@ -46,12 +43,12 @@ Each image can request `auto`, `image` or `ocr_text` representation.
 Inbound clients can only request a representation. The main process strips caller-supplied resolved
 representations and is the sole authority that creates a durable resolved snapshot.
 
-| Model and preference | Effective behavior |
-| --- | --- |
-| Vision + `auto`/`image` | Send the existing LLM-friendly image; do not OCR. |
-| Any model + `ocr_text` | OCR and send only extracted text. |
-| Non-vision + `auto`, automatic OCR enabled | OCR and send extracted text. |
-| Non-vision + `image`, OCR disabled, or OCR unavailable | Produce an explicit unavailable representation. |
+| Model and preference                                   | Effective behavior                                |
+| ------------------------------------------------------ | ------------------------------------------------- |
+| Vision + `auto`/`image`                                | Send the existing LLM-friendly image; do not OCR. |
+| Any model + `ocr_text`                                 | OCR and send only extracted text.                 |
+| Non-vision + `auto`, automatic OCR enabled             | OCR and send extracted text.                      |
+| Non-vision + `image`, OCR disabled, or OCR unavailable | Produce an explicit unavailable representation.   |
 
 Attachment preparation returns one of:
 
@@ -68,10 +65,11 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 ## Runtime And Packaging Contract
 
-- Pin `@arcships/light-ocr` to exactly `0.3.4` and require model bundle
-  `ppocrv6-small-native-20260719.1`.
+- Resolve the exact facade, runtime, model, native-package, and bundle pins from
+  [`resources/runtime-versions.json`](../../../resources/runtime-versions.json). Keep the installed
+  facade and packaged payloads consistent with that manifest.
 - Use a standalone helper launched with the bundled Node version pinned in the
-  [runtime manifest](../../resources/runtime-versions.json); never fall back to system Node.
+  [runtime manifest](../../../resources/runtime-versions.json); never fall back to system Node.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
   checksums both during packaging and helper handshake.
 - Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact

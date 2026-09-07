@@ -1,47 +1,18 @@
 # Agent Memory Evolution
 
-## Status
+## Contract
 
-- State: In progress
-- Initial implementation completed: 2026-07-26
-- Post-implementation hardening opened: 2026-07-27
-- Branch: `feat/agent-memory-evolution`
-- Classification: Architecture evolution with user-visible behavior
-- Naming: This work does not assign a numeric version to the Agent Memory system. Existing `v1` and
-  `v2` names remain scoped to the DuckDB vector-store format.
+Agent Memory stores time-aware, correctable atomic claims with durable provenance, exact deletion
+suppression, explicit trusted directives, and bounded runtime projection. SQLite owns claims and
+derivation edges; per-Agent vector stores and working memory remain rebuildable projections.
 
-## Context
+Temporal validity and temporal-parse confidence are separate from factual confidence. Repeated
+confirmation cannot make an uncertain date interpretation authoritative. Audit retention cannot
+replace durable lineage, and forgetting cannot release the provenance key for background replay.
+Trusted directives require explicit user action and remain separate from untrusted recalled data.
 
-DeepChat already has a mature per-agent memory subsystem:
-
-- Tape-backed extraction with provenance;
-- SQLite rows as durable synthesized memory;
-- FTS and per-agent DuckDB vector retrieval;
-- background conflict handling, consolidation, reflection, persona drafting, and decay;
-- a rebuildable working-memory projection;
-- bounded, sanitized user-role injection;
-- management, diagnostics, and retrieval-quality gates.
-
-The remaining quality failures are semantic rather than infrastructural:
-
-1. A fact can remain highly ranked after it has stopped being true because temporal validity is not
-   represented.
-2. Evidence confidence and temporal-parse confidence share no explicit boundary.
-3. Repeated confirmation monotonically raises factual confidence, so overloading it with temporal
-   confidence would make a bad date interpretation increasingly authoritative.
-4. Derived claims have source data in operational audit events, but audit retention is not a durable
-   lineage contract.
-5. Explicit deletion hard-deletes the row and releases the provenance key, allowing the same source
-   span to recreate the memory.
-6. User directives cannot safely share the read-only memory container: memory content is untrusted
-   data, while an executable directive is trusted only after an explicit user action.
-7. The current working blob is rebuildable but does not expose temporal state or allocate its budget
-   against query recall through one explicit policy.
-8. `user_scope` exists without a complete applicability contract.
-
-The design is informed by the behavior demonstrated in OpenAI's memory research, especially
-carry-forward, preference adherence, and temporal correctness. It does not claim to reproduce
-OpenAI's undisclosed implementation.
+The architecture has no numeric Agent Memory product version. `v1` and `v2` refer only to DuckDB
+vector-store formats.
 
 ## Goal
 
@@ -127,14 +98,14 @@ an active directive.
 
 Each authoritative claim gains:
 
-| Field | Contract |
-| --- | --- |
-| `temporal_kind` | `atemporal`, `state`, `event`, `plan`, or `recurring` |
-| `valid_from` | Inclusive epoch milliseconds, nullable |
-| `valid_until` | Exclusive epoch milliseconds, nullable |
+| Field                 | Contract                                                                |
+| --------------------- | ----------------------------------------------------------------------- |
+| `temporal_kind`       | `atemporal`, `state`, `event`, `plan`, or `recurring`                   |
+| `valid_from`          | Inclusive epoch milliseconds, nullable                                  |
+| `valid_until`         | Exclusive epoch milliseconds, nullable                                  |
 | `temporal_confidence` | Independent parse confidence in `[0, 1]`, nullable for atemporal claims |
-| `temporal_precision` | `exact`, `day`, `week`, `month`, `quarter`, `year`, or `unknown` |
-| `temporal_timezone` | IANA timezone used to interpret local temporal text, nullable |
+| `temporal_precision`  | `exact`, `day`, `week`, `month`, `quarter`, `year`, or `unknown`        |
+| `temporal_timezone`   | IANA timezone used to interpret local temporal text, nullable           |
 
 Validation rules:
 
@@ -194,7 +165,7 @@ Behavior:
    requires at least two visible base characters. New writes are rejected and malformed persisted
    topics are ignored so a single broad character cannot suppress unrelated recall.
 8. The current contribution policy orders active directives deterministically by `updated_at DESC,
-   id ASC` before applying its hard budget. This is recency ordering, not semantic priority, and
+id ASC` before applying its hard budget. This is recency ordering, not semantic priority, and
    active persistence alone does not guarantee that an instruction fits in every prompt.
 9. `priority` or `pinned` semantics require a separate product contract, persistence migration, and
    user-visible controls. They must not be inferred from directive text or source.
@@ -274,11 +245,11 @@ one Agent and cannot cross its ownership boundary.
 
 Current runtime capability:
 
-| Scope | Persistence / explicit API | Normal DeepChat recall | Automatic extraction |
-| --- | --- | --- | --- |
-| `agent` | Supported and default | Fully wired | Writes Agent scope |
-| `session` | Supported | Wired when the current Session ID is supplied | Does not assign Session scope |
-| `user` | Supported as an internal typed capability | No user identity is supplied by the normal chat runtime | Does not assign User scope |
+| Scope     | Persistence / explicit API                | Normal DeepChat recall                                     | Automatic extraction          |
+| --------- | ----------------------------------------- | ---------------------------------------------------------- | ----------------------------- |
+| `agent`   | Supported and default                     | Fully wired                                                | Writes Agent scope            |
+| `session` | Supported                                 | Wired when the current Session ID is supplied              | Does not assign Session scope |
+| `user`    | Supported as an internal typed capability | No user identity is supplied by the normal chat runtime    | Does not assign User scope    |
 | `project` | Supported as an internal typed capability | No project identity is supplied by the normal chat runtime | Does not assign Project scope |
 
 Until DeepChat has authoritative user/project identity sources and lifecycle rules, user/project
@@ -349,7 +320,7 @@ that DTO and route support alone enables it.
 - No forgotten plaintext appears in tombstones, logs, audit refs, or diagnostics.
 - Hot-path database and vector work remains bounded.
 
-### AC-9: Post-implementation hardening
+### AC-9: Persistence and Runtime Boundaries
 
 - Every Memory-owned test is classified into exactly one maintained gate; native trust-boundary
   tests execute in the native gate.
@@ -371,37 +342,23 @@ that DTO and route support alone enables it.
 - Working projection and reflection tests prove that narrow-scope claims cannot be promoted into
   Agent-wide projections.
 
-## Review disposition
+## Compatibility and Scope Limits
 
-The 2026-07-27 post-implementation review was verified against the branch rather than accepted as a
-premise:
-
-- Confirmed: test-scope classification, upgraded-schema temporal enforcement, import isolation,
-  temporal merge preservation, explicit user relearning, retired-index churn, scoped FTS ordering,
-  directive display controls and capacity results, projection/reflection scope tests, strict
-  extraction temporal validation, management-search visibility, lineage self-edges, directive
-  overflow fallback, Chinese locale gaps, migration/boundary/idempotency coverage, and live system
-  timezone resolution.
-- Corrected after trust-boundary verification: `memory_remember` retains the structured
-  `forgotten` domain result but maps it to `requires_user_reauthorization`; only the explicit
-  renderer add action can atomically release matching tombstones. Generic deletion now rejects
-  internal persona and working rows.
-- Corrected after suppression-boundary verification: single-character CJK topics are rejected at
-  write time, ignored if already persisted, and explained in the directive editor.
-- Corrected after recall-completeness verification: fixed oversampling now grows adaptively after
-  post-query filtering, reuses the existing embedding, and reports bounded exhaustion.
-- Corrected after clear-performance verification: Agent clear now uses a durable two-phase job,
-  immediate claim-access fencing, 256-row transactions, event-loop yields, startup recovery, and
-  completion only after vector cleanup. Directives remain on their independent trust plane.
-- Documented rather than guessed: directive contribution ordering is recency-based and has no
-  semantic priority/pinning contract; user/project scopes are persisted internal capabilities but
-  are not wired end to end by the normal chat runtime.
-- Rejected: adding an unknown allocation lane does not null Tape inspection. The parser ignores
-  unknown object fields while retaining the four known lanes, and a Tape-to-route allocation
-  fixture already exists.
-- Deferred as unrelated or tuning-only: pre-existing vector-sidecar cleanup and abort/resume access
-  deduplication, directive lane share tuning, downgrade release notes, and translations that require
-  native-language review beyond the maintained Chinese variants.
+- `memory_remember` preserves the structured `forgotten` domain result and maps it to
+  `requires_user_reauthorization`. Only the explicit renderer add action can atomically release
+  matching tombstones. Generic deletion rejects internal persona and working rows.
+- Single-character CJK suppression topics are rejected at write time and ignored if already
+  persisted; the directive editor explains the constraint.
+- Recall oversampling grows adaptively after post-query filtering, reuses the existing embedding,
+  and reports bounded exhaustion.
+- Agent clear uses a durable two-phase job, immediate claim-access fencing, 256-row transactions,
+  event-loop yields, and startup recovery. Completion requires vector cleanup. Directives remain
+  on their independent trust plane.
+- Directive ordering is recency-based and has no semantic priority or pinning contract. User and
+  project scopes are persisted internal capabilities without normal-chat end-to-end identity wiring.
+- Tape inspection ignores unknown allocation fields while retaining the four known lanes.
+- Vector-sidecar cleanup, abort/resume access deduplication, directive lane-share tuning, downgrade
+  release notes, and broader native-language translation review remain outside this contract.
 
 ## Non-goals
 

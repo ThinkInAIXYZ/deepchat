@@ -6,32 +6,18 @@
 
 ## Context
 
-DeepChat can start ACP v1 agents, initialize a connection, preserve the returned `authMethods`, and
-execute agent-requested terminal commands. It cannot complete the separate interactive terminal
-login flow defined by ACP. The normal process initializer currently advertises filesystem and
-terminal capabilities, but omits `clientCapabilities.auth.terminal`; an agent therefore cannot
-advertise a `terminal` authentication method to the normal product flow.
+DeepChat exposes ACP authentication for Registry and manual agents through a shared runtime and
+typed desktop UI. The process initializer advertises `clientCapabilities.auth.terminal` only when
+the desktop runtime can launch and present the interactive flow. `AcpProcessHandle` retains the
+methods returned by `initialize`; a numeric `auth_required` response creates a caller-owned
+challenge instead of requiring the user to restart the app or guess a login command.
 
-The missing product path affects both Registry agents and manual agents. A user with credentials
-already stored by an agent can create sessions, while a first-time user receives an authentication
-failure without an actionable login surface.
+`AcpAuthService` orchestrates method selection and recovery. `AcpTerminalAuthRunner` uses
+`node-pty` to execute the agent's materialized command and arguments directly, while
+`AcpAuthDialog` presents the terminal through xterm. Agent-requested `terminal/*` commands remain
+a separate ACP session capability.
 
-The current repository already contains the required foundations:
-
-- `@agentclientprotocol/sdk` is `0.16.1` and includes the v1 `AuthMethodTerminal` and
-  `clientCapabilities.auth.terminal` types.
-- `buildClientCapabilities` already accepts `enableTerminalAuth`.
-- `AcpProcessHandle` already retains `authMethods` from `initialize`.
-- `AcpLaunchSpecService` and `AcpProcessManager` already resolve Registry and manual launch specs and
-  start the protocol process without a shell.
-- `node-pty` and `@xterm/xterm` are already dependencies.
-- Typed ACP terminal routes/events exist, but their old shell-injection helper is not connected to a
-  renderer product flow and is not safe to reuse unchanged.
-
-No new dependency or ACP SDK upgrade is required. The feature is implementable on the current
-`dev` branch.
-
-## Protocol Sources and Correction
+## Protocol Contract
 
 The normative references are:
 
@@ -43,9 +29,8 @@ Terminal authentication is currently a Preview capability carried by the v1 draf
 installed TypeScript SDK still marks the relevant generated types as unstable, so the feature must
 remain isolated behind capability negotiation and protocol-shaped tests.
 
-The implementation intentionally corrects one requirement in issue #2144: after a terminal login
-process succeeds, DeepChat **must not** call `authenticate` with the terminal method ID. ACP defines
-terminal authentication as an out-of-band flow:
+After a terminal login process succeeds, DeepChat **must not** call `authenticate` with the
+terminal method ID. Terminal authentication is an out-of-band flow:
 
 1. initialize and receive a `terminal` auth method;
 2. run the configured agent program interactively with the method's additional arguments and
@@ -81,8 +66,8 @@ no explicit `type` discriminator.
 - Do not parse terminal output to infer success. ACP defines the exit status as the interoperable
   signal.
 - Do not collect or persist credentials in DeepChat. The interactive agent process owns them.
-- Do not productize the legacy `env_var` auth descriptor in this change. It is rendered as
-  unsupported with guidance to use the existing manual environment override.
+- Legacy `env_var` auth descriptors remain unsupported, with guidance to use the existing manual
+  environment override.
 - Do not automatically choose a method when the agent advertises more than one supported method.
 - Do not automatically replay a user prompt. Only session preparation blocked before a prompt is
   eligible for the one-shot retry.
@@ -302,9 +287,8 @@ Every mutation route must use `RouteContext` to bind the run to the initiating `
 Input, cancel, and output delivery must reject or ignore a different renderer. A destroyed initiating
 window cancels its active PTY run.
 
-The existing global `acpTerminal.input/kill` singleton contract must not remain as an unscoped path.
-It is either migrated to the run-ID/caller-owned auth contract or removed after all references are
-updated.
+Terminal-auth input and cancellation use the run-ID/caller-owned auth contract. The unscoped
+`acpTerminal.input/kill` singleton routes are not exposed.
 
 ## UI/UX
 
@@ -313,17 +297,7 @@ and a valid workdir. `AcpSettings` also exposes `Check sign-in` on installed Reg
 agent cards; when no configured or reusable workdir exists, the runtime uses its constrained ACP
 temporary workdir.
 
-Before:
-
-```text
-+----------------------------------------------------+
-| Agent: MiniMax Code      Workspace: /work/project  |
-|                                                    |
-| Session preparation fails; no actionable UI.       |
-+----------------------------------------------------+
-```
-
-After an auth-required response:
+Auth-required state:
 
 ```text
 +----------------------------------------------------+
@@ -393,13 +367,13 @@ UX rules:
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-| --- | --- |
-| Preview schema changes in a later SDK | Keep schema handling localized, capability-gated, and covered by descriptor-shape tests |
-| Shell injection through agent args | Direct `node-pty.spawn(command, args)` only; display strings are never executed |
-| A settings edit changes the binary before login | Bind challenges to the immutable live launch signature and reject stale runs |
-| Multiple windows race or read terminal output | Bind every run and event to the initiating `webContentsId` |
-| Resume/load fallback hides auth required | Match numeric error code before fallback and surface one typed challenge |
-| Exit zero but the new connection is unusable | Report success only after reconnect and `initialize` complete |
-| Automatic retry loops | Close the resolved challenge before one explicit draft retry; a repeated auth-required response remains actionable but is not retried again |
-| Secrets leak through logs | Log metadata only; never log env values or PTY transcripts |
+| Risk                                            | Mitigation                                                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preview schema changes in a later SDK           | Keep schema handling localized, capability-gated, and covered by descriptor-shape tests                                                     |
+| Shell injection through agent args              | Direct `node-pty.spawn(command, args)` only; display strings are never executed                                                             |
+| A settings edit changes the binary before login | Bind challenges to the immutable live launch signature and reject stale runs                                                                |
+| Multiple windows race or read terminal output   | Bind every run and event to the initiating `webContentsId`                                                                                  |
+| Resume/load fallback hides auth required        | Match numeric error code before fallback and surface one typed challenge                                                                    |
+| Exit zero but the new connection is unusable    | Report success only after reconnect and `initialize` complete                                                                               |
+| Automatic retry loops                           | Close the resolved challenge before one explicit draft retry; a repeated auth-required response remains actionable but is not retried again |
+| Secrets leak through logs                       | Log metadata only; never log env values or PTY transcripts                                                                                  |

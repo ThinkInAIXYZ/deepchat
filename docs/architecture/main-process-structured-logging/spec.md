@@ -56,13 +56,13 @@ subsystem concern.
 Every existing Main log call that previously reached the file through interception must be
 classified for its persistent disposition before the cutover.
 
-| Classification | Persistent behavior | Examples |
-| --- | --- | --- |
-| Required | Typed event in `main.jsonl` | startup terminal, database migration failure, process crash, Run terminal, delegation settlement, queue-full admission |
-| Console-only | No file output | legacy diagnostics that remain outside the persistent contract |
-| Aggregate or rate-limit | Typed summary or transition event | repeated provider fallback, watcher restart, embedding retry, tool catalog degradation |
-| Exclude | No persistent output | stream chunks, PTY/stdout/stderr text, prompt/messages, tool payloads, full URLs, SQL/params, environment dumps |
-| Add | New typed event or bounded metric | Agent admission wait/hold, Run start/terminal, delegation child bind/suspend/resume/terminal |
+| Classification          | Persistent behavior               | Examples                                                                                                               |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Required                | Typed event in `main.jsonl`       | startup terminal, database migration failure, process crash, Run terminal, delegation settlement, queue-full admission |
+| Console-only            | No file output                    | legacy diagnostics that remain outside the persistent contract                                                         |
+| Aggregate or rate-limit | Typed summary or transition event | repeated provider fallback, watcher restart, embedding retry, tool catalog degradation                                 |
+| Exclude                 | No persistent output              | stream chunks, PTY/stdout/stderr text, prompt/messages, tool payloads, full URLs, SQL/params, environment dumps        |
+| Add                     | New typed event or bounded metric | Agent admission wait/hold, Run start/terminal, delegation child bind/suspend/resume/terminal                           |
 
 An event is valuable only when it can change a diagnosis or an operational action. A log that merely
 proves a function ran, repeats an unchanged state, or emits one record per stream/protocol chunk is not
@@ -363,9 +363,6 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
     delegation, or admission behavior.
 13. Targeted tests, format, i18n, lint, node/web typecheck, and relevant Main suites pass, except for
     environment-gated coverage whose blocker and skipped tests are documented explicitly.
-14. Every implementation commit is reviewed for hidden side effects, compatibility, edge cases,
-    performance, security, naming, tests, and maintenance cost before commit.
-15. No remote Git operation is performed.
 
 ## Constraints
 

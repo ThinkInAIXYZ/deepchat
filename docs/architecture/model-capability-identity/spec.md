@@ -1,31 +1,17 @@
 # Model Capability Identity Specification
 
-## Background
+## Identity Contract
 
-DeepChat serves models through provider profiles such as Moonshot, New API, OpenCode Go, and
-ZenMux. A provider profile identifies credentials and a service endpoint, while an effective
-transport identifies the HTTP protocol used for one model. Neither identity necessarily names the
-provider-db entry that owns the model's capabilities.
+A provider profile identifies credentials and a service endpoint. An effective transport identifies
+one model's wire protocol. The provider-db entry that owns the model's capabilities is a separate
+identity. Resolving an OpenAI-compatible route cannot overwrite a known capability owner with
+`openai`.
 
-The current runtime conflates these identities. New API correctly matches `kimi-k3` to
-`moonshot/kimi-k3` while resolving its route, but the AI SDK runtime later derives capability
-ownership from the OpenAI-compatible endpoint and replaces `moonshot` with `openai`. The resulting
-`openai/kimi-k3` lookup is unknown, unknown temperature support is flattened to `true`, and the
-request sends the stored default temperature. Kimi K3 rejects that request.
-
-The same duplicated resolution affects OpenCode Go's Anthropic routes. Renderer settings also
-derive capability ownership locally, so fixing only the request path would leave controls and
-effective wire behavior inconsistent. Reasoning portraits currently have an independent
-cross-provider fallback; for `openai/kimi-k3` it deterministically selects the incomplete
-`aihubmix/kimi-k3` portrait instead of Moonshot's complete record.
-
-The first renderer convergence still leaves generation-control presentation split across multiple
-paths. ModelConfigDialog and ChatStatusBar consume request policy, while ChatConfig receives only
-the flattened temperature-support boolean from `useModelCapabilities`. This produces a stable
-wire/UI mismatch for provider records such as `aihubmix/kimi-k3`: its catalog temperature is
-unknown, so the legacy boolean becomes `true`, but the K3 wire policy still omits temperature.
-Capability loading and failure are also represented as passthrough policy plus unknown support, so
-an editable control can appear before resolution or remain after an IPC failure.
+The canonical capability and request-policy resolution drives both the actual provider request and
+renderer generation controls. Unknown support remains unknown, loading/error state cannot enable an
+unsupported control, and renderer code cannot invent an independent owner or cross-provider
+reasoning-profile fallback. A stored generation value is not evidence that the resolved wire policy
+allows sending it.
 
 ## Goals
 
@@ -198,10 +184,10 @@ the stored values without migration or destructive normalization.
 
 Kimi behavior is:
 
-| Model family | Temperature | Top P | Reasoning | Legacy `thinking` |
-| --- | --- | --- | --- | --- |
+| Model family                | Temperature                       | Top P       | Reasoning         | Legacy `thinking` |
+| --------------------------- | --------------------------------- | ----------- | ----------------- | ----------------- |
 | K2 fixed-temperature models | Fixed by existing reasoning state | Passthrough | Existing behavior | Existing behavior |
-| K3 | Omit | Omit | Required | Omit |
+| K3                          | Omit                              | Omit        | Required          | Omit              |
 
 K3 matching uses exact canonical model identities rather than substring matching. It remains safe
 when provider-db is unavailable or an aggregator exposes a recognized K3-qualified model ID.
@@ -220,11 +206,11 @@ neither independently combines policy with the legacy flattened support boolean.
 
 Renderer number controls project the normalized policy without provider or model-family branches:
 
-| Effective policy | Renderer control |
-| --- | --- |
-| `passthrough` | Editable |
-| `fixed(value)` | Visible, locked, and explained using `value` |
-| `omit` | Hidden |
+| Effective policy | Renderer control                             |
+| ---------------- | -------------------------------------------- |
+| `passthrough`    | Editable                                     |
+| `fixed(value)`   | Visible, locked, and explained using `value` |
+| `omit`           | Hidden                                       |
 
 Reasoning-effort support is not a sampling-policy proxy. Effort-capable models with explicit
 temperature support remain editable; models such as OpenAI GPT-5 and o3 remain hidden because their
@@ -279,7 +265,7 @@ The existing provider-db indexes remain the catalog lookup mechanism. No revisio
 new persistent cache, or benchmark gate is introduced. No request-path disk or network access is
 added.
 
-### External review hardening
+### Capability Resolution Boundaries
 
 Owner and namespace normalization must preserve provider identity across common separator forms.
 In particular, `x-ai` owner metadata resolves to xAI after separator normalization, and recognized
@@ -325,7 +311,7 @@ consumer instead of resolving the same model configuration and snapshot twice.
 8. ZenMux Anthropic behavior remains correct without a duplicate shared routing rule.
 9. Unknown custom OpenAI-compatible models retain pass-through generation behavior.
 10. K3 effort controls expose exactly `low`, `high`, and `max`, defaulting to `max`; later explicit
-   provider-db metadata overrides the local fallback.
+    provider-db metadata overrides the local fallback.
 11. Non-K3 effort-capable and non-effort models retain their previous runtime model-config values.
 12. New API K3 `reasoningEffort: max` produces final wire field `reasoning_effort: "max"`.
 13. Grok Mini `reasoningEffort: high` produces final wire field `reasoning_effort: "high"`;
@@ -390,10 +376,6 @@ consumer instead of resolving the same model configuration and snapshot twice.
   rebuilding remains authoritative.
 - Provider IDs, API keys, base URLs, and model settings remain backward compatible.
 - New user-facing policy descriptions use typed renderer contracts and i18n keys.
-- Every local commit requires a severity-ordered review covering hidden side effects,
-  compatibility, boundary cases, performance, security, naming, tests, and maintenance cost.
-- No branch push, pull request, or GitHub issue is created as part of this work.
-- SDD artifacts in this directory use English prose.
 
 ## Non-Goals
 

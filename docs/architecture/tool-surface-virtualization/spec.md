@@ -2,8 +2,9 @@
 
 ## Status
 
-Approved architecture contract. Revised 2026-08-11. This decision preserves V1 compatibility and
-defines the Programmatic and Execution Journal v2 work that remains to be implemented.
+Implemented architecture contract for the shared capability foundation, immutable Provider and
+Programmatic surfaces, and Execution Journal v2. V1 compatibility and the explicit default-enable
+acceptance gates below remain part of the contract.
 
 ## Decision
 
@@ -199,12 +200,12 @@ Capability assembly and invocation-grant derivation are distinct boundaries.
 
 Exactly one adapter is selected at Run admission and cannot silently change within that Run:
 
-| Conditions | Adapter | Provider exposure |
-| --- | --- | --- |
-| small catalog | Direct Native | eligible native tools |
-| large catalog, Agent mode has exec, model is proven CLI-capable, and maximum ceiling-derived Programmatic set fits hard bounds | CLI Programmatic | fixed exec/native entry plus Programmatic Surface out of band |
-| large catalog without exec or with incapable model | Native Activation | bounded native active set and native discovery/activation |
-| maximum ceiling-derived Programmatic set exceeds hard bounds | Native Activation, or admission failure when unavailable | bounded native active set; no truncated Programmatic authority |
+| Conditions                                                                                                                     | Adapter                                                  | Provider exposure                                              |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------------- |
+| small catalog                                                                                                                  | Direct Native                                            | eligible native tools                                          |
+| large catalog, Agent mode has exec, model is proven CLI-capable, and maximum ceiling-derived Programmatic set fits hard bounds | CLI Programmatic                                         | fixed exec/native entry plus Programmatic Surface out of band  |
+| large catalog without exec or with incapable model                                                                             | Native Activation                                        | bounded native active set and native discovery/activation      |
+| maximum ceiling-derived Programmatic set exceeds hard bounds                                                                   | Native Activation, or admission failure when unavailable | bounded native active set; no truncated Programmatic authority |
 
 ACP is excluded. Route selection uses session mode, provider, model, Agent profile, catalog size,
 and measured model capability. Selection is per-Run frozen; cross-Run state may use sticky assignment
@@ -229,14 +230,14 @@ The recent-use hint affects deterministic initial selection only. It cannot make
 survive definition drift, or act as cross-Run authority. `deepchat_question` remains user-configurable
 and is never treated as an unconditional mandatory host tool.
 
-| Transition | Direct Native | Native Activation | CLI Programmatic |
-| --- | --- | --- | --- |
-| transient retry | reuse exact View | reuse exact View | reuse exact View/capability |
-| discovery | n/a | activation only in later View | no expansion or seen ledger |
-| context recovery | new View | new View | new View/capability |
-| effective Skill/surface change | new View | new View | new View |
-| current revocation | deny now; shrink next | deny now; shrink next | deny now; shrink next |
-| new capability | new Run | new Run | new Run |
+| Transition                     | Direct Native         | Native Activation             | CLI Programmatic            |
+| ------------------------------ | --------------------- | ----------------------------- | --------------------------- |
+| transient retry                | reuse exact View      | reuse exact View              | reuse exact View/capability |
+| discovery                      | n/a                   | activation only in later View | no expansion or seen ledger |
+| context recovery               | new View              | new View                      | new View/capability         |
+| effective Skill/surface change | new View              | new View                      | new View                    |
+| current revocation             | deny now; shrink next | deny now; shrink next         | deny now; shrink next       |
+| new capability                 | new Run               | new Run                       | new Run                     |
 
 Native policy separately bounds initial count/tokens, activation-reserve count/tokens, search
 results, settled-batch additions, Run batches/appends, provider count/tokens, and V5 identities.
@@ -455,20 +456,20 @@ copies raw arguments, result/error text, MCP envelopes, binary data, or temporar
 
 ## Failure Matrix
 
-| Event | Required state |
-| --- | --- |
-| known success or known target error | child T2 before nested projection |
-| denial before child T1 | no child fact; later batch children are `not_started` |
-| pending approval | remain before child T1 |
-| crash | no plan recovery or automatic retry |
-| cancel before child T1 | no child fact |
-| cancel after child T1 with known outcome | child T2 |
-| cancel after child T1 without known outcome | T1-only, `indeterminate` |
-| CLI exit after reserve/materialize with no unknown child | known outer process error; no invented child fact |
-| CLI exit after local control records the complete result | reuse that exact process-live result for outer T2 |
-| Journal failure/corruption | Run-fatal |
-| every child has T2 but outer T2 is missing | incomplete; no automatic projection |
-| explicit model retry | new provider operation and new identities |
+| Event                                                    | Required state                                        |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| known success or known target error                      | child T2 before nested projection                     |
+| denial before child T1                                   | no child fact; later batch children are `not_started` |
+| pending approval                                         | remain before child T1                                |
+| crash                                                    | no plan recovery or automatic retry                   |
+| cancel before child T1                                   | no child fact                                         |
+| cancel after child T1 with known outcome                 | child T2                                              |
+| cancel after child T1 without known outcome              | T1-only, `indeterminate`                              |
+| CLI exit after reserve/materialize with no unknown child | known outer process error; no invented child fact     |
+| CLI exit after local control records the complete result | reuse that exact process-live result for outer T2     |
+| Journal failure/corruption                               | Run-fatal                                             |
+| every child has T2 but outer T2 is missing               | incomplete; no automatic projection                   |
+| explicit model retry                                     | new provider operation and new identities             |
 
 T1-only operations are parked. `AbortError` by name is not cancellation evidence. The owned abort
 signal authorizes revoking the exact local-control grant, terminating its attached CLI process, and

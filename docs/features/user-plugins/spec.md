@@ -1,6 +1,6 @@
 # User Plugins and Codex Package Compatibility
 
-Status: implemented. Execution and verification evidence are tracked in [plan.md](plan.md).
+Status: implemented and maintained.
 Author instructions and complete examples are in [authoring.md](authoring.md).
 
 ## 1. Product and compatibility boundary
@@ -25,19 +25,19 @@ events, but no MCP configuration. Independent stdio and authenticated HTTP fixtu
 
 ## 2. Ownership and change locations
 
-| Owner | Implementation | Responsibility |
-| --- | --- | --- |
-| Plugin host | `src/main/plugin/index.ts`, `userPlugins.ts` | Combined official/user catalog, installation records, serialized lifecycle and contribution ownership |
-| Source preparation | `src/main/plugin/userPluginSource.ts` | Git transport, ZIP/directory inspection, private snapshots, hashes, cancellation and staging |
-| Package reader | `src/main/plugin/userPluginPackage.ts` | Static Codex manifest, Skill, hook and MCP normalization |
-| Context hooks | `src/main/plugin/userPluginHooks.ts` | Command lifecycle, bounded JSON protocol, invocation persistence and current contributions |
-| Runtime boundary | `turnCoordinator.ts`, `compactionRuntimeCoordinator.ts` | Accepted-input and committed-compaction event timing |
-| Provider projection | `deepChatLoopRunner.ts`, `runtime/pluginContext.ts` | Attributed plugin context, current user-input identity, revocation and provider dispatch checks |
-| Skills | `src/main/skill/index.ts`, `skillExecutionAuthority.ts` | Registration, assignment preservation and stale revision execution rejection |
-| MCP | `src/main/mcp/` | Existing settings, identities, transports, credentials, supervision and tool/App discovery |
-| Desktop boundary | Shared plugin route contracts, `plugin/routes.ts`, `PluginClient.ts` | Typed source/lifecycle/setup/retry requests; no renderer filesystem/process access |
-| UI | Existing Plugins Hub plus `UserPluginInstallDialog.vue`, `UserPluginDetails.vue` | Review, selection, source/revision, setup, diagnostics, update and uninstall |
-| Developer validation | `scripts/plugin.mjs --plugin-root` | Static validation through the same package reader |
+| Owner                | Implementation                                                                   | Responsibility                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Plugin host          | `src/main/plugin/index.ts`, `userPlugins.ts`                                     | Combined official/user catalog, installation records, serialized lifecycle and contribution ownership |
+| Source preparation   | `src/main/plugin/userPluginSource.ts`                                            | Git transport, ZIP/directory inspection, private snapshots, hashes, cancellation and staging          |
+| Package reader       | `src/main/plugin/userPluginPackage.ts`                                           | Static Codex manifest, Skill, hook and MCP normalization                                              |
+| Context hooks        | `src/main/plugin/userPluginHooks.ts`                                             | Command lifecycle, bounded JSON protocol, invocation persistence and current contributions            |
+| Runtime boundary     | `turnCoordinator.ts`, `compactionRuntimeCoordinator.ts`                          | Accepted-input and committed-compaction event timing                                                  |
+| Provider projection  | `deepChatLoopRunner.ts`, `runtime/pluginContext.ts`                              | Attributed plugin context, current user-input identity, revocation and provider dispatch checks       |
+| Skills               | `src/main/skill/index.ts`, `skillExecutionAuthority.ts`                          | Registration, assignment preservation and stale revision execution rejection                          |
+| MCP                  | `src/main/mcp/`                                                                  | Existing settings, identities, transports, credentials, supervision and tool/App discovery            |
+| Desktop boundary     | Shared plugin route contracts, `plugin/routes.ts`, `PluginClient.ts`             | Typed source/lifecycle/setup/retry requests; no renderer filesystem/process access                    |
+| UI                   | Existing Plugins Hub plus `UserPluginInstallDialog.vue`, `UserPluginDetails.vue` | Review, selection, source/revision, setup, diagnostics, update and uninstall                          |
+| Developer validation | `scripts/plugin.mjs --plugin-root`                                               | Static validation through the same package reader                                                     |
 
 All source paths in this document are relative to the repository root. The inspected starting
 point was `dev` commit `8dada4b3b`. Existing asynchronous notification hooks retain their payload,
@@ -49,17 +49,17 @@ Only `.codex-plugin/plugin.json` identifies a portable plugin. An unrelated root
 marketplace manifest, project `AGENTS.md` or `CLAUDE.md` cannot become an automatic contribution.
 Package files are retained unchanged; normalized declarations are host-owned metadata.
 
-| Declaration | Supported behavior |
-| --- | --- |
-| `name` | Required portable identifier; displayed separately from host installation identity |
-| `version` | Optional string; absent values display `unversioned`, while the digest identifies bytes |
-| `description`, `author` | Display metadata; publisher text is self-declared and grants no trust |
-| `homepage`, `repository`, `license`, `keywords`, `interface` | Inert metadata retained in original files; no automatic prompts or third-party UI/assets |
-| `skills` | Relative directory or array; one Skill root or a directory of Skill roots; absent field discovers `skills/` |
-| `hooks` | Relative JSON file or inline object; absent field discovers `hooks/hooks.json` |
-| `mcpServers` | Relative JSON file or inline map; absent field discovers `.mcp.json` |
-| Other declarations | Findings; no automatic execution |
-| `.app.json` | Explicit unavailable connector finding |
+| Declaration                                                  | Supported behavior                                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `name`                                                       | Required portable identifier; displayed separately from host installation identity                          |
+| `version`                                                    | Optional string; absent values display `unversioned`, while the digest identifies bytes                     |
+| `description`, `author`                                      | Display metadata; publisher text is self-declared and grants no trust                                       |
+| `homepage`, `repository`, `license`, `keywords`, `interface` | Inert metadata retained in original files; no automatic prompts or third-party UI/assets                    |
+| `skills`                                                     | Relative directory or array; one Skill root or a directory of Skill roots; absent field discovers `skills/` |
+| `hooks`                                                      | Relative JSON file or inline object; absent field discovers `hooks/hooks.json`                              |
+| `mcpServers`                                                 | Relative JSON file or inline map; absent field discovers `.mcp.json`                                        |
+| Other declarations                                           | Findings; no automatic execution                                                                            |
+| `.app.json`                                                  | Explicit unavailable connector finding                                                                      |
 
 Configuration files and Skill metadata are bounded to 1 MiB. Skill names use the existing
 portable naming contract and must be unique within the package. Activation also checks the
@@ -145,14 +145,14 @@ matches owner identity, so unrelated official plugins and manually configured MC
 
 ### Events and ordering
 
-| Event | Boundary and input | Contribution lifetime |
-| --- | --- | --- |
-| `SessionStart`, `source: startup` | First accepted input for an eligible top-level session and installation revision, before its prompt hook | Latest successful result of that handler within the session |
-| `SessionStart`, `source: resume` | First new input after application restart for a session with persisted plugin invocation history; page navigation is not resume | Replaces that handler's session contribution |
-| `SessionStart`, `source: compact` | Successful committed compaction with a stable compaction-attempt boundary | Replaces that handler's session contribution |
-| `SessionStart`, `source: clear` | No Codex clear event; clearing messages invalidates hook history | Startup runs on the next input |
-| `UserPromptSubmit` | Full accepted input text, including accepted steering, before provider assembly | That user input's provider requests and tool loop, including retries |
-| `SubagentStart` | Child DeepChat session's first accepted input; parent session ID plus child/agent identity | That child session; no top-level startup reset |
+| Event                             | Boundary and input                                                                                                              | Contribution lifetime                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `SessionStart`, `source: startup` | First accepted input for an eligible top-level session and installation revision, before its prompt hook                        | Latest successful result of that handler within the session          |
+| `SessionStart`, `source: resume`  | First new input after application restart for a session with persisted plugin invocation history; page navigation is not resume | Replaces that handler's session contribution                         |
+| `SessionStart`, `source: compact` | Successful committed compaction with a stable compaction-attempt boundary                                                       | Replaces that handler's session contribution                         |
+| `SessionStart`, `source: clear`   | No Codex clear event; clearing messages invalidates hook history                                                                | Startup runs on the next input                                       |
+| `UserPromptSubmit`                | Full accepted input text, including accepted steering, before provider assembly                                                 | That user input's provider requests and tool loop, including retries |
+| `SubagentStart`                   | Child DeepChat session's first accepted input; parent session ID plus child/agent identity                                      | That child session; no top-level startup reset                       |
 
 Input JSON contains `session_id`, `hook_event_name`, `cwd`, `model` and
 `transcript_path: null`, with `source`, `prompt`, or `agent_id`/`agent_type` for the corresponding
@@ -184,15 +184,15 @@ Unknown control/decision fields fail that invocation. `systemMessage` is a diagn
 model instructions. Empty output succeeds without contribution. Failures do not grant permissions
 or abort an otherwise usable chat turn.
 
-| Limit | Value |
-| --- | --- |
-| Declared hooks | 64 per package |
-| Handler timeout | Default 5 seconds; explicit positive value at most 30 seconds |
-| Entire accepted boundary, after queue admission | 10 seconds |
-| stdin JSON | 1 MiB |
-| stdout / stderr | 64 KiB each |
-| accepted context per input/compaction boundary | 8 KiB |
-| concurrency | One serialized context-hook boundary across sessions |
+| Limit                                           | Value                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| Declared hooks                                  | 64 per package                                                |
+| Handler timeout                                 | Default 5 seconds; explicit positive value at most 30 seconds |
+| Entire accepted boundary, after queue admission | 10 seconds                                                    |
+| stdin JSON                                      | 1 MiB                                                         |
+| stdout / stderr                                 | 64 KiB each                                                   |
+| accepted context per input/compaction boundary  | 8 KiB                                                         |
+| concurrency                                     | One serialized context-hook boundary across sessions          |
 
 Timeout, cancellation, revision replacement and disable discard late output and terminate the
 owned process tree. POSIX process-group cleanup also removes descendants after normal completion.
@@ -260,16 +260,16 @@ wrappers, transports, header aliases and simultaneous command/URL declarations. 
 operational/restrictive fields make that server unavailable instead of weakening restrictions.
 `enabled: false` is inert. `autoApprove` never grants host tool permission.
 
-| Portable declaration | Existing DeepChat configuration |
-| --- | --- |
+| Portable declaration                                           | Existing DeepChat configuration                      |
+| -------------------------------------------------------------- | ---------------------------------------------------- |
 | `command`, `args`, `env`, forwarded `env_vars`, optional `cwd` | stdio process; default cwd is installed package root |
-| `url`, `type: http` or implicit URL transport | Streamable HTTP `baseUrl` |
-| `type: sse` | Existing explicit legacy SSE transport |
-| `headers`, `http_headers` | `customHeaders` |
-| `env_http_headers` | Named environment references in headers |
-| `bearer_token_env_var` | `Authorization: Bearer ${NAME}` binding |
-| `${PLUGIN_ROOT}` and root/data aliases | Installed paths, never mutable source paths |
-| `${NAME}`, `${env:NAME}` | Explicitly supplied, per-server setup values |
+| `url`, `type: http` or implicit URL transport                  | Streamable HTTP `baseUrl`                            |
+| `type: sse`                                                    | Existing explicit legacy SSE transport               |
+| `headers`, `http_headers`                                      | `customHeaders`                                      |
+| `env_http_headers`                                             | Named environment references in headers              |
+| `bearer_token_env_var`                                         | `Authorization: Bearer ${NAME}` binding              |
+| `${PLUGIN_ROOT}` and root/data aliases                         | Installed paths, never mutable source paths          |
+| `${NAME}`, `${env:NAME}`                                       | Explicitly supplied, per-server setup values         |
 
 Remote URLs require HTTPS, with HTTP allowed only for loopback endpoints (`localhost`, `127.0.0.1`
 and `[::1]`). URLs are literal and cannot contain environment placeholders; credentials belong in
@@ -302,15 +302,15 @@ commit and uses `git archive`. It disables repository hooks, templates, system/g
 credential helpers, interactive prompts, redirects, file/ext protocols and submodule recursion.
 There is no checkout filter, install script, npm hook or marketplace parsing step.
 
-| Limit | Value |
-| --- | --- |
-| Archive / Git transport storage | 200 MiB |
-| Extracted package tree | 256 MiB |
-| Entries | 4096 |
-| Single file | 64 MiB |
-| JSON configuration | 1 MiB |
-| Git subprocess | 60 seconds; 64 KiB captured output |
-| ZIP central directory | 16 MiB; no encrypted, multidisk or ZIP64 layout |
+| Limit                           | Value                                           |
+| ------------------------------- | ----------------------------------------------- |
+| Archive / Git transport storage | 200 MiB                                         |
+| Extracted package tree          | 256 MiB                                         |
+| Entries                         | 4096                                            |
+| Single file                     | 64 MiB                                          |
+| JSON configuration              | 1 MiB                                           |
+| Git subprocess                  | 60 seconds; 64 KiB captured output              |
+| ZIP central directory           | 16 MiB; no encrypted, multidisk or ZIP64 layout |
 
 ZIP extraction uses the bounded streaming Skill archive implementation with abort support, plus
 central-directory file-kind validation. Local directories and Git output undergo the same
@@ -321,12 +321,6 @@ publisher; user selection authorizes inspected native code.
 ## 9. User interface and typed routes
 
 ```text
-BEFORE
-Plugins
-  Built-in tools
-  Official plugins                  [Enable]
-
-AFTER
 Plugins                   [Install from Git] [Install from ZIP]
   Built-in tools
   Official plugins                  [Enable]
@@ -365,9 +359,8 @@ list/get/enable/disable. Native file selection uses `DeviceClient`. No untyped a
 
 ## 10. Validation and release boundary
 
-[plan.md](plan.md) records executed gates, upstream acceptance and platform limits. Durable tests
-cover static parsing, source integrity, bounded execution, retry/recovery, ownership, assignment
-preservation and update rollback. Electron smoke tests exercise real install UI, stdio MCP,
+Durable tests cover static parsing, source integrity, bounded execution, retry/recovery, ownership,
+assignment preservation and update rollback. Electron smoke tests exercise real install UI, stdio MCP,
 authenticated HTTP MCP and hook content in actual provider requests. Build checks retain normal
 provider/ACP registry refreshes.
 

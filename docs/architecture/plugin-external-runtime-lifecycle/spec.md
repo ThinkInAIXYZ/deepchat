@@ -2,10 +2,10 @@
 
 ## Status
 
-Lifecycle ownership and the model-facing CUA 0.17.0 contract migration are complete and
-host-native validated under `docs/architecture/cua-driver-0-17-contract-migration/`. Native
-Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom cursor themes
-remain release-gated.
+Lifecycle ownership and the model-facing CUA adapter are implemented. The bundled runtime is pinned
+to `0.19.2/0.6.0` by `plugins/cua/plugin.json`; the maintained adapter contract is defined in
+[CUA Driver Contract](../cua-driver-0-17-contract-migration/spec.md). Native Windows/Linux behavior,
+release-signed macOS behavior, and preinstalled custom cursor themes remain release-gated.
 
 ## Context
 
@@ -38,7 +38,7 @@ plugin-owned external processes.
    state.
 3. Start CUA only when one of its tools is invoked, while keeping its tool catalog visible before
    process startup.
-4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.17.0` and adapt to its
+4. Use pinned upstream release `cua-driver-rs-v0.19.2` with its
    embedded daemon/proxy contract.
 5. Fail closed on stale crash evidence, runtime integrity failures, incomplete packaged catalogs,
    and unsupported launch contracts.
@@ -69,12 +69,12 @@ plugin-owned external processes.
 
 ### Four state layers
 
-| Layer | Owns | Persistence | Mutation authority |
-| --- | --- | --- | --- |
-| Manifest | Capability: ownership, surfaces, start mode, catalog, runtime adapter | Packaged | Plugin release |
-| Installation | Whether the user enabled the plugin | Persistent | Explicit user action |
-| Sentinel / quarantine | Dirty-start evidence and a safety lock bound to a runtime fingerprint | Persistent | Supervisor safety policy |
-| Supervisor | Starting, running, stopping, and error state | In-memory | Runtime supervisor |
+| Layer                 | Owns                                                                  | Persistence | Mutation authority       |
+| --------------------- | --------------------------------------------------------------------- | ----------- | ------------------------ |
+| Manifest              | Capability: ownership, surfaces, start mode, catalog, runtime adapter | Packaged    | Plugin release           |
+| Installation          | Whether the user enabled the plugin                                   | Persistent  | Explicit user action     |
+| Sentinel / quarantine | Dirty-start evidence and a safety lock bound to a runtime fingerprint | Persistent  | Supervisor safety policy |
+| Supervisor            | Starting, running, stopping, and error state                          | In-memory   | Runtime supervisor       |
 
 The manifest defines capability, the installation record preserves user intent, and the supervisor
 tracks process state. A persisted MCP `enabled` field is not an independent source of truth for a
@@ -233,20 +233,20 @@ Runtime manifests may select a closed host adapter. CUA uses `cua-embedded-v1`; 
 continue to use the direct stdio path. Adapter-specific state does not leak into the generic MCP
 configuration persisted in SQLite.
 
-## CUA 0.17.0 adapter
+## CUA Embedded Adapter
 
 The CUA adapter starts two related processes:
 
 - daemon:
   `serve --embedded --parent-liveness-stdio --no-permissions-gate --socket <private-endpoint>
-  --host-bundle-id <id> --permission-mode standard`;
+--host-bundle-id <id> --permission-mode standard`;
 - stdio proxy:
   `mcp --embedded --socket <private-endpoint> --host-bundle-id <id>`.
 
 The daemon stdin remains open for parent-liveness. Startup completes only after a newline-delimited
 metadata response validates:
 
-- driver version `0.17.0`;
+- driver version `0.19.2`;
 - contract version `0.6.0`;
 - tools-list schema version `1`;
 - capability version `1`;
@@ -321,7 +321,7 @@ The static catalog, closed policy, skill, and tests track these reviewed changes
 - `browser_type` accepts `replace`; an empty replacement clears the editable field;
 - normal `start_session` calls omit optional `cursor_theme`, while an explicit user theme request
   uses the reviewed `set_agent_cursor_theme` action;
-- `kill_app` remains denied because the 0.17.0 public `launch_app` and `kill_app` schemas omit
+- `kill_app` remains denied because the public `launch_app` and `kill_app` schemas omit
   `session`, preventing standard-mode ownership proof. DeepChat does not rely on the proxy's
   current acceptance of undeclared fields.
 - cursor themes use source schema `cua.cursor-theme/2`, profile `cua-driver-actions-v2`, semantics
@@ -425,14 +425,14 @@ security task and do not block CUA remediation.
 
 ## Platform distribution
 
-| Target | CUA artifact policy | Signature/integrity policy |
-| --- | --- | --- |
-| macOS arm64/x64 | Bundle upstream `.app`, remove authoring sidecar, rebrand/sanitize, then DeepChat-sign | Verify helper, sign helper before parent app, preserve notarization |
-| Windows x64/arm64 | Bundle only `cua-driver.exe`; omit UIA worker | Keep unsigned; checksum/file-set gate |
-| Linux x64 | Bundle executable | Checksum/file-set gate and executable mode |
-| Linux arm64 | DeepChat still builds/releases; CUA remains unbundled until validated | Unsupported CUA target |
+| Target            | CUA artifact policy                                                                    | Signature/integrity policy                                          |
+| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| macOS arm64/x64   | Bundle upstream `.app`, remove authoring sidecar, rebrand/sanitize, then DeepChat-sign | Verify helper, sign helper before parent app, preserve notarization |
+| Windows x64/arm64 | Bundle only `cua-driver.exe`; omit UIA worker                                          | Keep unsigned; checksum/file-set gate                               |
+| Linux x64         | Bundle executable                                                                      | Checksum/file-set gate and executable mode                          |
+| Linux arm64       | DeepChat still builds/releases; CUA remains unbundled until validated                  | Unsupported CUA target                                              |
 
-The upstream UIA worker is not part of the 0.17.0 release contract. DeepChat continues to package
+The packaged runtime contract excludes the upstream UIA worker. DeepChat continues to package
 only `cua-driver.exe` on Windows and removes the obsolete worker opt-in environment variable.
 
 The macOS `cua-cursor-theme` executable is an authoring utility, not part of the embedded runtime.
@@ -512,11 +512,11 @@ the invalid empty token precedence.
 Model-facing compatibility verification completed on 2026-07-28:
 
 - `pnpm exec vitest run test/main/plugin/cuaToolAdapter.test.ts test/main/mcp/toolManager.test.ts
-  test/main/agent/deepchat/runtime/toolAdapters.test.ts
-  test/main/agent/deepchat/runtime/toolRuntimeBindings.test.ts`: 62 tests passed;
+test/main/agent/deepchat/runtime/toolAdapters.test.ts
+test/main/agent/deepchat/runtime/toolRuntimeBindings.test.ts`: 62 tests passed;
 - `pnpm run test:main`: 5416 tests passed and 277 environment-gated tests skipped;
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run i18n`, and `pnpm run
-  plugin:validate -- --name cua`: passed.
+plugin:validate -- --name cua`: passed.
 
 The native Calculator flow must be rerun after restarting the development app before the
 model-facing native behavior is accepted.
@@ -525,7 +525,7 @@ CUA 0.13.1 upgrade verification completed on 2026-07-29:
 
 - `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64` and
   `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
-  build/bundled-plugins` passed with a development-signed artifact;
+build/bundled-plugins` passed with a development-signed artifact;
 - the generated macOS arm64 catalog reports driver 0.13.1 and 49 tools, and the packaged runtime
   excludes `cua-cursor-theme`;
 - 182 focused CUA, plugin, MCP, package, and renderer tests passed;
@@ -546,7 +546,7 @@ CUA 0.14.1 upgrade verification completed on 2026-07-30:
 - `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64`,
   `pnpm run plugin:validate -- --name cua --platform darwin --arch arm64`, and
   `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
-  build/bundled-plugins` passed with a development-signed artifact;
+build/bundled-plugins` passed with a development-signed artifact;
 - the generated macOS arm64 catalog reports driver 0.14.1 and 49 tools, the packaged runtime
   excludes `cua-cursor-theme`, and strict code-signature verification passed;
 - 178 focused CUA, plugin, MCP, package, integrity, and renderer tests passed;
