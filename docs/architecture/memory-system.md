@@ -168,10 +168,11 @@ terminal turn projection
   recover a missing or malformed ID from a valid shadow; Project/Session rows drop stray shadows.
   Narrow-scope rows with unrecoverable identities, including persona/working rows, are deleted
   with a warning and an FTS rebuild instead of being promoted to Agent scope. Before deleting a
-  row covered by a pending clear, persist its recoverable provenance tombstone in the same
-  transaction, using the clear job's timestamp. An unknown scope cannot produce a content
-  tombstone or widen suppression. Both temporal and scope repairs suspend the clear-job guard
-  within their transaction and restore it before returning, so pending clears cannot block
+  row covered by a pending clear, persist its recoverable provenance tombstone and increment
+  the job's removed count in the same transaction, using the clear job's timestamp. Count every
+  deleted row covered by the clear, including rows without provenance. An unknown scope cannot
+  produce a content tombstone or widen suppression. Both temporal and scope repairs suspend the
+  clear-job guard within their transaction and restore it before returning, so pending clears cannot block
   startup repairs while ordinary domain writes remain fenced;
 - 同 content 在不同 scope 可独立存在；update、supersede、conflict 和 merge 不得跨 scope；
 - exact tombstone lookup 与 insert 位于同一 transaction，关闭 delete/re-extraction race；

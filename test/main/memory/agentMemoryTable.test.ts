@@ -4030,7 +4030,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
-  it('preserves pending-clear provenance tombstones when scope repair deletes corrupt claims', () => {
+  it('preserves pending-clear tombstones and counts when scope repair deletes corrupt claims', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = createV51MigratedShapeTable(db)
@@ -4039,23 +4039,47 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const provenanceKey = buildScopedMemoryProvenanceKey('a', 'semantic', content, scope)
       table.insert({ id: 'lost', agentId: 'a', kind: 'semantic', content, scope, provenanceKey })
       table.insert({
-        id: 'other-agent',
+        id: 'lost-without-provenance',
+        agentId: 'a',
+        kind: 'semantic',
+        content,
+        scope
+      })
+      table.insert({
+        id: 'other-clearing-agent',
         agentId: 'b',
         kind: 'semantic',
         content,
         scope,
         provenanceKey
       })
+      table.insert({
+        id: 'other-agent',
+        agentId: 'c',
+        kind: 'semantic',
+        content,
+        scope,
+        provenanceKey
+      })
+      table.insert({ id: 'valid', agentId: 'a', kind: 'semantic', content: 'Another valid fact.' })
       db.exec(`
         DROP TRIGGER agent_memory_scope_bi_v1;
         DROP TRIGGER agent_memory_scope_bu_v1;
         UPDATE agent_memory SET scope_id = NULL;
       `)
       table.beginMemoryClear('a', 5_000)
+      table.beginMemoryClear('b', 5_500)
 
       const reopened = new AgentMemoryTableCtor(db)
       reopened.assertCurrentSchema()
-      completeAgentMemoryClear(reopened, 'a', 6_000)
+      // A second startup must not count the repaired rows again.
+      new AgentMemoryTableCtor(db).assertCurrentSchema()
+      expect(reopened.listPendingMemoryClearJobs()).toEqual([
+        expect.objectContaining({ agentId: 'a', removed: 2, phase: 'claims' }),
+        expect.objectContaining({ agentId: 'b', removed: 1, phase: 'claims' })
+      ])
+      expect(completeAgentMemoryClear(reopened, 'a', 6_000)).toBe(3)
+      expect(completeAgentMemoryClear(reopened, 'b', 6_000)).toBe(1)
 
       expect(
         reopened.insertClaimUnlessTombstoned({
@@ -4088,7 +4112,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(
         reopened.insertClaimUnlessTombstoned({
           id: 'other-replayed',
-          agentId: 'b',
+          agentId: 'c',
           kind: 'semantic',
           content,
           scope,
@@ -4097,10 +4121,14 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       ).not.toBeNull()
       expect(
         db
-          .prepare('SELECT agent_id, identity_kind, created_at, reason FROM agent_memory_tombstone')
+          .prepare(
+            `SELECT agent_id, identity_kind, created_at, reason FROM agent_memory_tombstone
+             WHERE identity_kind = 'provenance' ORDER BY agent_id`
+          )
           .all()
       ).toEqual([
-        { agent_id: 'a', identity_kind: 'provenance', created_at: 5_000, reason: 'agent_clear' }
+        { agent_id: 'a', identity_kind: 'provenance', created_at: 5_000, reason: 'agent_clear' },
+        { agent_id: 'b', identity_kind: 'provenance', created_at: 5_500, reason: 'agent_clear' }
       ])
     } finally {
       db.close()

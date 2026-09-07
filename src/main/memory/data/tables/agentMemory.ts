@@ -1289,6 +1289,18 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
           row.created_at
         )
       }
+      this.db
+        .prepare(
+          `UPDATE agent_memory_clear_job
+           SET removed_count = removed_count + (
+             SELECT COUNT(*) FROM agent_memory
+             WHERE agent_memory.agent_id = agent_memory_clear_job.agent_id
+               AND agent_memory.rowid <= agent_memory_clear_job.cutoff_rowid
+               AND (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})
+           )
+           WHERE phase = 'claims'`
+        )
+        .run()
       deletedRows = this.db
         .prepare(
           `DELETE FROM agent_memory
