@@ -239,4 +239,24 @@ describe('SessionTranscriptMutations', () => {
     expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
     expect(transcript.updateMessageContent).not.toHaveBeenCalled()
   })
+
+  it('hands the cloned row count to the fork target reset', async () => {
+    const runtime = { resetForkTarget: vi.fn() }
+    const transcript = {
+      getMessage: vi.fn(() => ({
+        id: 'message-9',
+        sessionId: 'source',
+        orderSeq: 9,
+        role: 'assistant',
+        content: '[]'
+      })),
+      cloneSentMessagesToSession: vi.fn(() => 7)
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+
+    await mutations.forkSessionFromMessage('source', 'target', 'message-9')
+
+    expect(transcript.cloneSentMessagesToSession).toHaveBeenCalledWith('source', 'target', 9)
+    expect(runtime.resetForkTarget).toHaveBeenCalledWith('target', 7)
+  })
 })

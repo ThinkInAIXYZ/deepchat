@@ -16,7 +16,7 @@ export interface SessionTranscriptRuntimePort {
   cancelForTranscriptMutation(sessionId: string): Promise<void>
   invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
   finishTranscriptTruncate(sessionId: string): void
-  resetForkTarget(sessionId: string): void
+  resetForkTarget(sessionId: string, clonedTailOrderSeq: number): void
 }
 
 export interface SessionTranscriptMutationDependencies {
@@ -137,12 +137,12 @@ export class SessionTranscriptMutations {
     targetMessageId: string
   ): Promise<void> {
     const target = this.requireMessage(sourceSessionId, targetMessageId)
-    this.dependencies.transcript.cloneSentMessagesToSession(
+    const clonedTailOrderSeq = this.dependencies.transcript.cloneSentMessagesToSession(
       sourceSessionId,
       targetSessionId,
       target.orderSeq
     )
-    this.dependencies.runtime.resetForkTarget(targetSessionId)
+    this.dependencies.runtime.resetForkTarget(targetSessionId, clonedTailOrderSeq)
   }
 
   private requireMessage(sessionId: string, messageId: string): ChatMessageRecord {

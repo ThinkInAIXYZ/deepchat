@@ -172,6 +172,18 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     this.deps.rewindMemoryCursorOrderSeq(sessionId, 0)
   }
 
+  /**
+   * Marks messages up to `orderSeq` as already extracted for a freshly created
+   * session. Fork targets receive cloned rows that the fork branch must not
+   * replay: replaying would rerun extraction over the whole clone and could
+   * revive superseded claims out of order. The cursor never rewinds here, and
+   * no epoch bump is needed because a fresh target has no in-flight extraction.
+   */
+  seedExtractionCursor(sessionId: string, orderSeq: number): void {
+    if (orderSeq <= 0) return
+    this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
+  }
+
   invalidateFromOrderSeq(sessionId: string, orderSeq: number): void {
     this.bumpSessionEpoch(sessionId)
     const memoryCursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0

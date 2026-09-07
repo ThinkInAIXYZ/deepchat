@@ -779,25 +779,27 @@ export class SessionTranscript implements TapeTranscriptProjection {
     const sourceRecords = this.toRecords(sourceRows)
     const forkedAt = Date.now()
 
+    // Cloned rows are renumbered densely from 1; the returned value is the
+    // fork target's tail orderSeq, which callers use as its extraction cursor.
+    let clonedTailOrderSeq = 0
     this.runInDatabaseTransaction(() => {
-      let nextOrderSeq = 1
       for (const record of sourceRecords) {
+        clonedTailOrderSeq += 1
         this.commitRecord(
           this.terminalRecord({
             ...record,
             id: nanoid(),
             sessionId: targetSessionId,
-            orderSeq: nextOrderSeq,
+            orderSeq: clonedTailOrderSeq,
             status: 'sent',
             createdAt: forkedAt,
             updatedAt: forkedAt
           })
         )
-        nextOrderSeq += 1
       }
     })
 
-    return sourceRecords.length
+    return clonedTailOrderSeq
   }
 
   recoverPendingMessages(options?: {

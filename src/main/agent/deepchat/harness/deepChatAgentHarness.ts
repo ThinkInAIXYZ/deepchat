@@ -340,8 +340,8 @@ export class DeepChatAgentHarness
     this.services.transcriptMutation.finishTranscriptTruncate(sessionId)
   }
 
-  resetForkTarget(targetSessionId: string): void {
-    this.services.transcriptMutation.resetForkTarget(targetSessionId)
+  resetForkTarget(targetSessionId: string, clonedTailOrderSeq: number): void {
+    this.services.transcriptMutation.resetForkTarget(targetSessionId, clonedTailOrderSeq)
   }
 
   assertNoActivePendingInputs(sessionId: string): void {

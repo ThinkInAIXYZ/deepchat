@@ -152,6 +152,11 @@ terminal turn projection
 ```
 
 - terminal extraction 在后台运行，不延迟已完成回复；
+- fork 出的 Session 在 Tape 中持有克隆消息的原生 `message/<role>` fact，但 fork 分支不重放这段
+  历史：fork 完成时把 target 的 Memory cursor 设到克隆尾部，后续 terminal turn 只抽取 fork 之后的
+  新消息，避免重跑 extraction 和按重放时序复活已被 supersede 的 claim。克隆区间只由 source
+  Session 自身的后续 turn 推进 cursor 覆盖；target 内对克隆区间的 delete/edit/retry 仍按既有
+  `invalidateFromOrderSeq` 语义回退 cursor 并从该点重新抽取；
 - malformed temporal metadata 只拒绝该 candidate，不让它变成永久事实，也不让整个 extraction batch
   失败；
 - startup 发现 legacy/corrupt external claim 的非法 temporal metadata 时，先归一化字段并将 claim

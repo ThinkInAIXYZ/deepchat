@@ -16,7 +16,10 @@ export interface TranscriptMutationCoordinatorDependencies {
   compaction: Pick<CompactionRuntimeCoordinator, 'reset' | 'invalidateIfNeeded'>
   memory: Pick<
     MemoryRuntimeCoordinator,
-    'resetExtractionCursor' | 'clearProjectionRetry' | 'invalidateFromOrderSeq'
+    | 'resetExtractionCursor'
+    | 'seedExtractionCursor'
+    | 'clearProjectionRetry'
+    | 'invalidateFromOrderSeq'
   >
   runLifecycle: Pick<
     RunLifecycleCoordinator,
@@ -106,9 +109,10 @@ export class TranscriptMutationCoordinator {
     this.deps.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
   }
 
-  resetForkTarget(targetSessionId: string): void {
+  resetForkTarget(targetSessionId: string, clonedTailOrderSeq: number): void {
     const targetInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(targetSessionId)).instance
     this.deps.compaction.reset(targetSessionId, targetInstance)
+    this.deps.memory.seedExtractionCursor(targetSessionId, clonedTailOrderSeq)
   }
 
   assertNoActivePendingInputs(sessionId: string): void {

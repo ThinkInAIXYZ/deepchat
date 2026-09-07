@@ -1145,6 +1145,41 @@ describe('MemoryRuntimeCoordinator', () => {
     )
   })
 
+  it('skips cloned rows once the fork target cursor is seeded', async () => {
+    const { coordinator, deps, memorySession, port, setRows } = createHarness()
+    const observer: MemoryIngestionObserver = coordinator
+    const clonedRows = Array.from({ length: 6 }, (_, index) =>
+      createRecord(`c${index + 1}`, index + 1, `cloned ${index + 1}`)
+    )
+    setRows([
+      ...clonedRows,
+      ...Array.from({ length: 6 }, (_, index) =>
+        createRecord(`n${index + 1}`, index + 7, `new ${index + 1}`)
+      )
+    ])
+
+    coordinator.seedExtractionCursor('s1', clonedRows.length)
+    observer.afterTurnSettled({
+      session: memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await coordinator.waitForSession('s1')
+
+    expect(port.extractAndStore).toHaveBeenCalledOnce()
+    expect(port.extractAndStore).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceEntryIds: [7, 8, 9, 10, 11, 12] })
+    )
+  })
+
+  it('leaves the cursor untouched when a fork clones nothing', () => {
+    const { coordinator, deps } = createHarness()
+
+    coordinator.seedExtractionCursor('s1', 0)
+
+    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+  })
+
   it('fences new admission and drains queued and running jobs without late commits', async () => {
     const { coordinator, deps, memorySession, port, setRows } = createHarness()
     const observer: MemoryIngestionObserver = coordinator

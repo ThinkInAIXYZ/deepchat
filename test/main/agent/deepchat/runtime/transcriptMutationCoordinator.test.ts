@@ -29,6 +29,7 @@ function createHarness(state: unknown = IDLE_STATE) {
     compaction: { reset: vi.fn(record('compaction.reset')), invalidateIfNeeded: vi.fn() },
     memory: {
       resetExtractionCursor: vi.fn(record('memory.resetExtractionCursor')),
+      seedExtractionCursor: vi.fn(),
       clearProjectionRetry: vi.fn(record('memory.clearProjectionRetry')),
       invalidateFromOrderSeq: vi.fn()
     },
@@ -169,14 +170,15 @@ describe('TranscriptMutationCoordinator', () => {
     expect(deps.memory.invalidateFromOrderSeq).toHaveBeenCalledWith(SESSION_ID, 7)
   })
 
-  it('resets compaction on the fork target instance', () => {
+  it('resets compaction and seeds the memory cursor past cloned rows on the fork target', () => {
     const { coordinator, deps, runtime } = createHarness()
 
-    coordinator.resetForkTarget('target')
+    coordinator.resetForkTarget('target', 12)
 
     expect(deps.compaction.reset).toHaveBeenCalledWith(
       'target',
       runtime.getHydrated(toAppSessionId('target'))
     )
+    expect(deps.memory.seedExtractionCursor).toHaveBeenCalledWith('target', 12)
   })
 })
