@@ -17,6 +17,7 @@ describe('fetch-provider-db', () => {
         modalities: { input: ['text', 'image'] }
       }))
     ]
+    const originalModels = structuredClone(models)
     const sanitized = sanitizeAggregateJson({
       providers: {
         aihubmix: { id: 'aihubmix', models },
@@ -29,8 +30,8 @@ describe('fetch-provider-db', () => {
       { type: 'rerank', limit: { context: 32768 }, modalities: { input: ['text'] } },
       { type: 'rerank', limit: { context: 32768 }, modalities: { input: ['text'] } }
     ])
-    expect(sanitized?.providers.other.models).toMatchObject(models)
-    expect(models[0].limit.output).toBe(400000)
+    expect(sanitized?.providers.other.models).toMatchObject(originalModels)
+    expect(models).toEqual(originalModels)
   })
 
   it('preserves media types, omits pricing, and classifies pinned OpenAI speech model IDs', () => {
