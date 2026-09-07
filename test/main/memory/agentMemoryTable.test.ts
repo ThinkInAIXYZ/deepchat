@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import logger from '@shared/logger'
+import { buildScopedMemoryProvenanceKey } from '@/memory/core/scoring'
 import { Database, dropV48DerivedArtifacts, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const tableModule = Database
@@ -4024,6 +4025,83 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(() =>
         db.prepare("UPDATE agent_memory SET importance = 0.9 WHERE id = 'other-agent'").run()
       ).not.toThrow()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('preserves pending-clear provenance tombstones when scope repair deletes corrupt claims', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = createV51MigratedShapeTable(db)
+      const scope = { type: 'project' as const, id: 'project-1' }
+      const content = 'Use Redis for the project cache.'
+      const provenanceKey = buildScopedMemoryProvenanceKey('a', 'semantic', content, scope)
+      table.insert({ id: 'lost', agentId: 'a', kind: 'semantic', content, scope, provenanceKey })
+      table.insert({
+        id: 'other-agent',
+        agentId: 'b',
+        kind: 'semantic',
+        content,
+        scope,
+        provenanceKey
+      })
+      db.exec(`
+        DROP TRIGGER agent_memory_scope_bi_v1;
+        DROP TRIGGER agent_memory_scope_bu_v1;
+        UPDATE agent_memory SET scope_id = NULL;
+      `)
+      table.beginMemoryClear('a', 5_000)
+
+      const reopened = new AgentMemoryTableCtor(db)
+      reopened.assertCurrentSchema()
+      completeAgentMemoryClear(reopened, 'a', 6_000)
+
+      expect(
+        reopened.insertClaimUnlessTombstoned({
+          id: 'replayed',
+          agentId: 'a',
+          kind: 'semantic',
+          content,
+          scope,
+          provenanceKey
+        })
+      ).toBeNull()
+      // Scope loss cannot justify an agent-wide content tombstone, or affect another agent.
+      expect(
+        reopened.insertClaimUnlessTombstoned({
+          id: 'agent-scope',
+          agentId: 'a',
+          kind: 'semantic',
+          content
+        })
+      ).not.toBeNull()
+      expect(
+        reopened.insertClaimUnlessTombstoned({
+          id: 'other-project',
+          agentId: 'a',
+          kind: 'semantic',
+          content,
+          scope: { type: 'project', id: 'project-2' }
+        })
+      ).not.toBeNull()
+      expect(
+        reopened.insertClaimUnlessTombstoned({
+          id: 'other-replayed',
+          agentId: 'b',
+          kind: 'semantic',
+          content,
+          scope,
+          provenanceKey
+        })
+      ).not.toBeNull()
+      expect(
+        db
+          .prepare('SELECT agent_id, identity_kind, created_at, reason FROM agent_memory_tombstone')
+          .all()
+      ).toEqual([
+        { agent_id: 'a', identity_kind: 'provenance', created_at: 5_000, reason: 'agent_clear' }
+      ])
     } finally {
       db.close()
     }

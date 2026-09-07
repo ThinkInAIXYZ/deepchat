@@ -173,13 +173,12 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   /**
-   * Marks messages up to `orderSeq` as already extracted for a freshly created
-   * session. Fork targets receive cloned rows that the fork branch must not
-   * replay: replaying would rerun extraction over the whole clone and could
-   * revive superseded claims out of order. The cursor never rewinds here, and
-   * no epoch bump is needed because a fresh target has no in-flight extraction.
+   * Skips only the cloned prefix already extracted by the source session, so
+   * forks do not replay superseded claims or lose the unprocessed source tail.
+   * Fence older extraction work before advancing the target cursor.
    */
   seedExtractionCursor(sessionId: string, orderSeq: number): void {
+    this.bumpSessionEpoch(sessionId)
     this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
   }
 

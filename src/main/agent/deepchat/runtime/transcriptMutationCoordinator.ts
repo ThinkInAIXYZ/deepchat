@@ -109,10 +109,10 @@ export class TranscriptMutationCoordinator {
     this.deps.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
   }
 
-  resetForkTarget(targetSessionId: string, clonedTailOrderSeq: number): void {
+  resetForkTarget(targetSessionId: string, clonedMemoryCursorOrderSeq: number): void {
     const targetInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(targetSessionId)).instance
     this.deps.compaction.reset(targetSessionId, targetInstance)
-    this.deps.memory.seedExtractionCursor(targetSessionId, clonedTailOrderSeq)
+    this.deps.memory.seedExtractionCursor(targetSessionId, clonedMemoryCursorOrderSeq)
   }
 
   assertNoActivePendingInputs(sessionId: string): void {

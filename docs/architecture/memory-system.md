@@ -152,23 +152,27 @@ terminal turn projection
 ```
 
 - terminal extraction 在后台运行，不延迟已完成回复；
-- fork 出的 Session 在 Tape 中持有克隆消息的原生 `message/<role>` fact，但 fork 分支不重放这段
-  历史：fork 完成时把 target 的 Memory cursor 设到克隆尾部，后续 terminal turn 只抽取 fork 之后的
-  新消息，避免重跑 extraction 和按重放时序复活已被 supersede 的 claim。克隆区间只由 source
-  Session 自身的后续 turn 推进 cursor 覆盖；target 内对克隆区间的 delete/edit/retry 仍按既有
-  `invalidateFromOrderSeq` 语义回退 cursor 并从该点重新抽取；
+- A fork keeps native `message/<role>` facts for its cloned messages. Its Memory cursor maps only
+  the source's successfully extracted prefix onto the densely renumbered clone, excluding failed
+  messages and compaction markers. Later terminal turns extract the unprocessed cloned tail and
+  new messages even if the source never resumes, without replaying the processed prefix.
+  Cursor seeding fences older extraction work. Target delete/edit/retry retains the existing
+  `invalidateFromOrderSeq` behavior, rewinding the cursor and extracting again from that point;
 - malformed temporal metadata 只拒绝该 candidate，不让它变成永久事实，也不让整个 extraction batch
   失败；
 - startup 发现 legacy/corrupt external claim 的非法 temporal metadata 时，先归一化字段并将 claim
   archive；不得把损坏状态提升成可召回的永久 atemporal fact。Persona/working 则归一化到其强制
   atemporal 形式；
-- startup 发现非法 scope pair（只有 trigger 保护的 v51 迁移库可能被外部工具写出）时同样先修复再
-  断言，且修复不得放宽 applicability：Agent row 丢弃多余 `scope_id`，User row 以合法 `scope_id` 为准
-  回写 shadow，`scope_id` 缺失或畸形时从合法 shadow 恢复，Project/Session row 清掉多余 shadow；无法
-  恢复 identity 的窄 scope row（含 persona/working）在任何 scope 下都不可召回，直接删除、标记 FTS 重建
-  并记录 warn，不得改写成 Agent scope 保留。temporal 与 scope 的 startup 修复都在挂起 clear-job guard
-  的单个事务内执行：guard 是 domain write 的最后防线，schema 修复不是 domain write，不得因某个
-  Agent 的 pending clear 让整个应用无法启动。子系统的完整性断言不得让整个应用无法启动；
+- Startup repairs invalid scope pairs before asserting integrity, without widening applicability.
+  Agent rows drop stray `scope_id` values; User rows resync the shadow from a valid `scope_id`, or
+  recover a missing or malformed ID from a valid shadow; Project/Session rows drop stray shadows.
+  Narrow-scope rows with unrecoverable identities, including persona/working rows, are deleted
+  with a warning and an FTS rebuild instead of being promoted to Agent scope. Before deleting a
+  row covered by a pending clear, persist its recoverable provenance tombstone in the same
+  transaction, using the clear job's timestamp. An unknown scope cannot produce a content
+  tombstone or widen suppression. Both temporal and scope repairs suspend the clear-job guard
+  within their transaction and restore it before returning, so pending clears cannot block
+  startup repairs while ordinary domain writes remain fenced;
 - 同 content 在不同 scope 可独立存在；update、supersede、conflict 和 merge 不得跨 scope；
 - exact tombstone lookup 与 insert 位于同一 transaction，关闭 delete/re-extraction race；
 - model 发起的 `memory_remember` 不是用户重新授权，不得释放 tombstone；只有 renderer 中的显式

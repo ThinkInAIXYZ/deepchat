@@ -240,7 +240,7 @@ describe('SessionTranscriptMutations', () => {
     expect(transcript.updateMessageContent).not.toHaveBeenCalled()
   })
 
-  it('hands the cloned row count to the fork target reset', async () => {
+  it('hands the extracted cloned prefix cursor to the fork target reset', async () => {
     const runtime = { resetForkTarget: vi.fn() }
     const transcript = {
       getMessage: vi.fn(() => ({

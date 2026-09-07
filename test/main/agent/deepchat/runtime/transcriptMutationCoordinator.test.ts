@@ -170,7 +170,7 @@ describe('TranscriptMutationCoordinator', () => {
     expect(deps.memory.invalidateFromOrderSeq).toHaveBeenCalledWith(SESSION_ID, 7)
   })
 
-  it('resets compaction and seeds the memory cursor past cloned rows on the fork target', () => {
+  it('resets compaction and seeds the extracted cloned prefix on the fork target', () => {
     const { coordinator, deps, runtime } = createHarness()
 
     coordinator.resetForkTarget('target', 12)

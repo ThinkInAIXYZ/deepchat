@@ -1145,31 +1145,57 @@ describe('MemoryRuntimeCoordinator', () => {
     )
   })
 
-  it('skips cloned rows once the fork target cursor is seeded', async () => {
-    const { coordinator, deps, memorySession, port, setRows } = createHarness()
-    const observer: MemoryIngestionObserver = coordinator
-    const clonedRows = Array.from({ length: 6 }, (_, index) =>
-      createRecord(`c${index + 1}`, index + 1, `cloned ${index + 1}`)
-    )
-    setRows([
-      ...clonedRows,
-      ...Array.from({ length: 6 }, (_, index) =>
-        createRecord(`n${index + 1}`, index + 7, `new ${index + 1}`)
+  it.each([
+    [0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+    [3, [4, 5, 6, 7, 8, 9, 10, 11, 12]],
+    [6, [7, 8, 9, 10, 11, 12]]
+  ] as const)(
+    'extracts the unprocessed cloned tail after seeding cursor %s',
+    async (cursor, sourceEntryIds) => {
+      const { coordinator, memorySession, port, setRows } = createHarness()
+      const observer: MemoryIngestionObserver = coordinator
+      const clonedRows = Array.from({ length: 6 }, (_, index) =>
+        createRecord(`c${index + 1}`, index + 1, `cloned ${index + 1}`)
       )
-    ])
+      setRows([
+        ...clonedRows,
+        ...Array.from({ length: 6 }, (_, index) =>
+          createRecord(`n${index + 1}`, index + 7, `new ${index + 1}`)
+        )
+      ])
 
-    coordinator.seedExtractionCursor('s1', clonedRows.length)
-    observer.afterTurnSettled({
+      coordinator.seedExtractionCursor('s1', cursor)
+      observer.afterTurnSettled({
+        session: memorySession,
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
+      await coordinator.waitForSession('s1')
+
+      expect(port.extractAndStore).toHaveBeenCalledOnce()
+      expect(port.extractAndStore).toHaveBeenCalledWith(expect.objectContaining({ sourceEntryIds }))
+    }
+  )
+
+  it('fences in-flight extraction when seeding a fork cursor', async () => {
+    const harness = createHarness()
+    const { coordinator, memorySession, deps, port } = harness
+    const pending = deferred<{ ok: true; createdIds: string[] }>()
+    port.extractAndStore.mockImplementationOnce(() => pending.promise)
+    coordinator.afterCompactionApplyReturned({
       session: memorySession,
       origin: 'initial',
-      outcome: { kind: 'returned', status: 'completed' }
+      targetCursorOrderSeq: 1
     })
+    await tick()
+    expect(port.extractAndStore).toHaveBeenCalledOnce()
+
+    coordinator.seedExtractionCursor('s1', 0)
+    pending.resolve({ ok: true, createdIds: ['late'] })
     await coordinator.waitForSession('s1')
 
-    expect(port.extractAndStore).toHaveBeenCalledOnce()
-    expect(port.extractAndStore).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceEntryIds: [7, 8, 9, 10, 11, 12] })
-    )
+    expect(harness.cursor).toBe(0)
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
   })
 
   it('fences new admission and drains queued and running jobs without late commits', async () => {

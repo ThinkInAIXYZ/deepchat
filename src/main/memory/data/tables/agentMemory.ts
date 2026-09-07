@@ -68,7 +68,11 @@ import {
   buildStatusProjectionFromExpressionsSql
 } from './agentMemoryStateSql'
 import { normalizeMemoryTemporalMetadata, temporalMetadataFromRow } from '../../core/temporal'
-import { buildMemoryTombstoneIdentities, isTombstoneEligibleMemoryKind } from '../../core/tombstone'
+import {
+  buildMemoryProvenanceTombstoneIdentity,
+  buildMemoryTombstoneIdentities,
+  isTombstoneEligibleMemoryKind
+} from '../../core/tombstone'
 import { MEMORY_RETRIEVAL_MAX_CANDIDATES } from '../../core/retrievalBudget'
 import {
   AGENT_MEMORY_AGENT_SCOPE_FILTER,
@@ -1045,6 +1049,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   private runRepairWithClearGuardSuspended<T>(repair: () => T): T {
     return this.db.transaction(() => {
       this.db.exec(AGENT_MEMORY_CLEAR_GUARD_TRIGGER_DROP_SQL)
+      this.db.exec(AGENT_MEMORY_CLEAR_JOB_TABLE_SQL)
       const result = repair()
       this.db.exec(AGENT_MEMORY_CLEAR_ARTIFACT_SQL)
       return result
@@ -1252,6 +1257,38 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     ).map((row) => row.id)
     let deletedRows = 0
     if (deletedIds.length) {
+      // A pending clear still owns exact forgetting for these rows. Provenance
+      // survives scope loss; inventing a content scope would widen suppression.
+      const insertTombstone = this.db.prepare(
+        `INSERT OR IGNORE INTO agent_memory_tombstone (
+           agent_id, identity_kind, identity_hash, created_at, reason
+         ) VALUES (?, ?, ?, ?, 'agent_clear')`
+      )
+      const clearingRows = this.db
+        .prepare(
+          `SELECT agent_memory.agent_id, kind, provenance_key, job.created_at
+           FROM agent_memory
+           JOIN agent_memory_clear_job AS job ON job.agent_id = agent_memory.agent_id
+           WHERE job.phase = 'claims' AND agent_memory.rowid <= job.cutoff_rowid
+             AND provenance_key IS NOT NULL
+             AND (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})`
+        )
+        .all() as Array<{
+        agent_id: string
+        kind: AgentMemoryKind
+        provenance_key: string
+        created_at: number
+      }>
+      for (const row of clearingRows) {
+        if (!row.provenance_key || !isTombstoneEligibleMemoryKind(row.kind)) continue
+        const identity = buildMemoryProvenanceTombstoneIdentity(row.agent_id, row.provenance_key)
+        insertTombstone.run(
+          row.agent_id,
+          identity.identityKind,
+          identity.identityHash,
+          row.created_at
+        )
+      }
       deletedRows = this.db
         .prepare(
           `DELETE FROM agent_memory
