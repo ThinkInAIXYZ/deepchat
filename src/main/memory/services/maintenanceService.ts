@@ -34,6 +34,7 @@ import {
   CONSOLIDATION_IDLE_MS,
   CONSOLIDATION_MERGE_SIMILARITY,
   DECISION_NEIGHBOR_TOP_S,
+  MAINTENANCE_DRAIN_TIMEOUT_MS,
   MAINTENANCE_HEAVY_MAX_CONCURRENCY,
   MAINTENANCE_MAX_INPUT_TOKENS,
   MAINTENANCE_START_DELAY_MS,
@@ -78,19 +79,36 @@ import type {
 class MaintenanceRevisionConflictError extends Error {}
 class MaintenanceClaimSuppressedError extends Error {}
 
+/**
+ * Fence for one consolidation pass: the agent execution fence plus the
+ * maintenance generation the pass started in. Stopping background maintenance
+ * bumps the generation so in-flight passes stop at their next checkpoint even
+ * though the agent itself stays healthy.
+ */
+interface MaintenancePassFence {
+  readonly operation: MemoryOperationFence
+  readonly generation: number
+}
+
+export interface MemoryMaintenanceDrainOutcome {
+  timedOut: boolean
+  pendingAgentIds: string[]
+}
+
 export class MaintenanceService {
   private readonly ctx: MemoryRuntimeContext
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
   private readonly consolidationTimerDueAt = new Map<string, number>()
   private readonly lastConsolidationAt = new Map<string, number>()
   private readonly lastConsolidationFailureAt = new Map<string, number>()
-  private readonly consolidationRuns = new Set<Promise<unknown>>()
   private readonly consolidationPasses = new Map<string, Promise<void>>()
   private readonly heavySemaphore = new AsyncSemaphore(MAINTENANCE_HEAVY_MAX_CONCURRENCY)
   private maintenanceStartTimer: NodeJS.Timeout | null = null
   private prewarmStartTimer: NodeJS.Timeout | null = null
   private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
+  private maintenancePaused = false
+  private maintenanceGeneration = 0
 
   constructor(
     private readonly ports: {
@@ -165,6 +183,7 @@ export class MaintenanceService {
   startBackgroundMaintenance(): void {
     if (this.ctx.isDisposed || this.maintenanceStarted) return
     this.maintenanceStarted = true
+    this.maintenancePaused = false
     this.prewarmStartTimer = setTimeout(() => {
       this.prewarmStartTimer = null
       if (this.ctx.isDisposed) return
@@ -179,7 +198,16 @@ export class MaintenanceService {
     if (typeof this.maintenanceStartTimer.unref === 'function') this.maintenanceStartTimer.unref()
   }
 
+  /**
+   * Synchronously fences background maintenance: no timer stays armed, no new
+   * pass is admitted, and in-flight passes stop at their next checkpoint.
+   * `startBackgroundMaintenance` re-arms after the caller's maintenance window;
+   * `drainBackgroundMaintenance` waits for the fenced passes to settle.
+   */
   stopBackgroundMaintenance(): void {
+    this.maintenanceStarted = false
+    this.maintenancePaused = true
+    this.maintenanceGeneration += 1
     if (this.prewarmStartTimer) {
       clearTimeout(this.prewarmStartTimer)
       this.prewarmStartTimer = null
@@ -190,16 +218,34 @@ export class MaintenanceService {
       clearTimeout(this.maintenanceStartTimer)
       this.maintenanceStartTimer = null
     }
+    for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
+    this.consolidationTimers.clear()
+    this.consolidationTimerDueAt.clear()
+  }
+
+  async drainBackgroundMaintenance(
+    timeoutMs: number = MAINTENANCE_DRAIN_TIMEOUT_MS
+  ): Promise<MemoryMaintenanceDrainOutcome> {
+    const drain = Promise.allSettled(this.consolidationPasses.values())
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timedOut = await Promise.race([
+      drain.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), timeoutMs)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+    ])
+    if (timer) clearTimeout(timer)
+    return {
+      timedOut,
+      pendingAgentIds: timedOut ? [...this.consolidationPasses.keys()].sort() : []
+    }
   }
 
   prepareDispose(): void {
     this.stopBackgroundMaintenance()
-    for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
-    this.consolidationTimers.clear()
-    this.consolidationTimerDueAt.clear()
     this.lastConsolidationAt.clear()
     this.lastConsolidationFailureAt.clear()
-    this.consolidationPasses.clear()
   }
 
   private shouldArmMaintenance(agentId: string): boolean {
@@ -289,7 +335,7 @@ export class MaintenanceService {
     delayMs: number = CONSOLIDATION_IDLE_MS,
     options: { preserveEarlier?: boolean } = {}
   ): void {
-    if (this.ctx.isDisposed) return
+    if (this.ctx.isDisposed || this.maintenancePaused) return
     const dueAt = Date.now() + delayMs
     const existing = this.consolidationTimers.get(agentId)
     const existingDueAt = this.consolidationTimerDueAt.get(agentId)
@@ -306,11 +352,9 @@ export class MaintenanceService {
     const timer = setTimeout(() => {
       this.consolidationTimers.delete(agentId)
       this.consolidationTimerDueAt.delete(agentId)
-      const run = this.ports.runConsolidationPass(agentId).catch((error) => {
+      void this.ports.runConsolidationPass(agentId).catch((error) => {
         logger.warn(`[Memory] consolidation pass failed for ${agentId}: ${String(error)}`)
       })
-      this.consolidationRuns.add(run)
-      void run.finally(() => this.consolidationRuns.delete(run))
     }, delayMs)
     if (typeof timer.unref === 'function') timer.unref()
     this.consolidationTimers.set(agentId, timer)
@@ -321,6 +365,7 @@ export class MaintenanceService {
     const effectiveNow = now ?? this.ctx.now()
     const existing = this.consolidationPasses.get(agentId)
     if (existing) return existing
+    if (this.maintenancePaused) return
     const tracked = this.runConsolidationPassInternal(agentId, effectiveNow).finally(() => {
       if (this.consolidationPasses.get(agentId) === tracked) {
         this.consolidationPasses.delete(agentId)
@@ -330,9 +375,19 @@ export class MaintenanceService {
     return tracked
   }
 
+  private canContinuePass(fence: MaintenancePassFence): boolean {
+    return (
+      fence.generation === this.maintenanceGeneration &&
+      this.ctx.canContinueOperation(fence.operation)
+    )
+  }
+
   private async runConsolidationPassInternal(agentId: string, now: number): Promise<void> {
     if (!this.ctx.canWriteAgentMemory(agentId)) return
-    const operationFence = this.ctx.captureOperationFence(agentId)
+    const operationFence: MaintenancePassFence = {
+      operation: this.ctx.captureOperationFence(agentId),
+      generation: this.maintenanceGeneration
+    }
     let last = this.lastConsolidationAt.get(agentId)
     if (last === undefined) {
       last =
@@ -354,7 +409,7 @@ export class MaintenanceService {
     if (!model) {
       this.archiveStale(agentId, now)
       await this.pruneDeadVectors(agentId)
-      if (!this.ctx.canContinueOperation(operationFence)) return
+      if (!this.canContinuePass(operationFence)) return
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/maintenance_llm',
         actorType: 'scheduler',
@@ -373,7 +428,7 @@ export class MaintenanceService {
     }
     await this.heavySemaphore.run(async () => {
       const heavyStartedAt = performance.now()
-      if (!this.ctx.canContinueOperation(operationFence)) return
+      if (!this.canContinuePass(operationFence)) return
       const previousLast = last ?? 0
       this.lastConsolidationAt.set(agentId, now)
 
@@ -389,7 +444,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return
+        if (!this.canContinuePass(operationFence)) return
         try {
           const merge = await this.mergeNearDuplicates(agentId, now, model, operationFence, budget)
           this.addLlmStats(llmStats, merge)
@@ -397,7 +452,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return
+        if (!this.canContinuePass(operationFence)) return
         try {
           const reflectionPass = await this.ports.maybeReflect(agentId, model, budget)
           this.addLlmStats(llmStats, reflectionPass)
@@ -416,7 +471,7 @@ export class MaintenanceService {
         } catch (error) {
           logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return
+        if (!this.canContinuePass(operationFence)) return
         try {
           const personaPass = await this.ports.maybeEvolvePersona(agentId, model, budget)
           this.addLlmStats(llmStats, personaPass)
@@ -439,7 +494,7 @@ export class MaintenanceService {
             `[Memory] background persona evolution failed for ${agentId}: ${String(error)}`
           )
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return
+        if (!this.canContinuePass(operationFence)) return
         if (this.didAllAttemptedLlmCallsFail(llmStats)) {
           this.lastConsolidationAt.set(agentId, previousLast)
           this.lastConsolidationFailureAt.set(agentId, now)
@@ -456,7 +511,7 @@ export class MaintenanceService {
         }
         this.archiveStale(agentId, now)
         await this.pruneDeadVectors(agentId)
-        if (!this.ctx.canContinueOperation(operationFence)) return
+        if (!this.canContinuePass(operationFence)) return
         this.ctx.writeAudit(agentId, {
           eventType: 'memory/maintenance_llm',
           actorType: 'scheduler',
@@ -492,7 +547,7 @@ export class MaintenanceService {
     agentId: string,
     now: number,
     model: MemoryModelRef,
-    operationFence: MemoryOperationFence,
+    operationFence: MaintenancePassFence,
     budget: MaintenanceBudget
   ): Promise<MemoryMaintenanceStepResult> {
     const result: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
@@ -520,7 +575,7 @@ export class MaintenanceService {
         return result
       }
       await this.ports.warmVectorStore(agentId, currentEmbedding)
-      if (!this.ctx.canContinueOperation(operationFence)) return result
+      if (!this.canContinuePass(operationFence)) return result
 
       const seedsByMemoryId = new Map(dirtySeeds.map((seed) => [seed.memoryId, seed]))
       const settledSeeds = new Map<string, MemoryDirtySeed>()
@@ -571,7 +626,7 @@ export class MaintenanceService {
           deferSeed(seed)
           continue
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return result
+        if (!this.canContinuePass(operationFence)) return result
         let neighbor: AgentMemoryRow | null = null
         for (const match of matches) {
           if (match.memoryId === source.id || processedMemoryIds.has(match.memoryId)) continue
@@ -659,7 +714,7 @@ export class MaintenanceService {
           deferSeed(seed)
           continue
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return result
+        if (!this.canContinuePass(operationFence)) return result
 
         if (
           decision.mergedContent !== null &&
@@ -690,7 +745,7 @@ export class MaintenanceService {
         }
         this.ports.repository.setLastConsolidatedAt(source.id, now)
       }
-      if (!this.ctx.canContinueOperation(operationFence)) return result
+      if (!this.canContinuePass(operationFence)) return result
       this.ports.repository.runInTransaction(() => {
         this.ports.repository.settleDirtySeeds(agentId, [...settledSeeds.values()])
         this.ports.repository.deferDirtySeeds(agentId, [...deferredSeeds.values()], now)
@@ -972,14 +1027,15 @@ export class MaintenanceService {
     this.consolidationTimerDueAt.delete(agentId)
     this.lastConsolidationAt.delete(agentId)
     this.lastConsolidationFailureAt.delete(agentId)
-    this.consolidationPasses.delete(agentId)
+    // An in-flight pass stays tracked until it settles so drain and dispose
+    // keep waiting for it; its own `finally` removes the entry.
   }
 
   getInFlight(): Promise<unknown>[] {
-    return [...this.consolidationRuns]
+    return [...this.consolidationPasses.values()]
   }
 
   clearInFlight(): void {
-    this.consolidationRuns.clear()
+    this.consolidationPasses.clear()
   }
 }

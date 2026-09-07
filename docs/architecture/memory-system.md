@@ -237,6 +237,10 @@ Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；�
 
 Maintenance 使用有界 batch、deadline 和 ingestion fence。Database maintenance 顺序为：停止新任务、
 fence Memory、drain accepted work、关闭 store/SQLite、执行操作、reopen、恢复后台任务。
+`stopBackgroundMaintenance` 同步清空全部 prewarm/startup/consolidation timer、拒绝新的 arm 与 pass，
+并推进 maintenance generation 让 in-flight pass 在下一个 checkpoint 停止；`drainBackgroundMaintenance`
+在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是带着未落定的 pass 关闭
+SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass 不会因此丢失。
 启动恢复按 Agent 顺序处理 pending clear job，避免多个遗留 namespace 在同一个 event-loop tick
 同时执行首批同步事务。Shutdown 只等待当前有界 batch；未完成 job 保持可恢复。
 

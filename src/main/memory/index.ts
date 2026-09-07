@@ -58,7 +58,10 @@ import { RetrievalService } from './services/retrievalService'
 import { ReflectionService } from './services/reflectionService'
 import { PersonaService } from './services/personaService'
 import { ConflictService } from './services/conflictService'
-import { MaintenanceService } from './services/maintenanceService'
+import {
+  MaintenanceService,
+  type MemoryMaintenanceDrainOutcome
+} from './services/maintenanceService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
 import { DirectiveService } from './services/directiveService'
@@ -381,6 +384,10 @@ export class MemoryService implements MemoryRuntimePort {
 
   stopBackgroundMaintenance(): void {
     this.maintenance.stopBackgroundMaintenance()
+  }
+
+  drainBackgroundMaintenance(timeoutMs?: number): Promise<MemoryMaintenanceDrainOutcome> {
+    return this.maintenance.drainBackgroundMaintenance(timeoutMs)
   }
 
   warmActiveAgents(): void {

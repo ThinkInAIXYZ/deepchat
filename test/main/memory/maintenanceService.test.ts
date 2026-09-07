@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { MaintenanceBudget } from '@/memory/core/maintenanceBudget'
 import type { AgentMemoryRow } from '@/memory/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import { createControlledPromise } from './serviceHarness'
 import {
   FakeAuditRepository,
   FakeVectorStore,
@@ -1138,6 +1139,109 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('re-arms the startup pass after a stop/start cycle inside the start delay', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = createFakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      const presenter = new MemoryService({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      presenter.stopBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+      expect(passSpy).not.toHaveBeenCalled()
+
+      presenter.startBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears armed consolidation on stop and refuses new arming until start', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = createFakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      const presenter = new MemoryService({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
+      presenter.stopBackgroundMaintenance()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+      expect(passSpy).not.toHaveBeenCalled()
+
+      presenter.startBackgroundMaintenance()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fences an in-flight pass on stop and drains it before the maintenance window', async () => {
+    const decision = createControlledPromise<string>()
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) =>
+      prompt.includes('Choose exactly ONE decision') ? decision.promise : ''
+    )
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now
+    repo.rows.get(secondId)!.created_at = now + 1
+
+    const pass = presenter.runConsolidationPass('a', now)
+    await vi.waitFor(() => expect(decisionCalls(generateText)).toBe(1))
+
+    presenter.stopBackgroundMaintenance()
+    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual({
+      timedOut: true,
+      pendingAgentIds: ['a']
+    })
+
+    decision.resolve(
+      '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    )
+    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual({
+      timedOut: false,
+      pendingAgentIds: []
+    })
+    await pass
+    // The fenced pass stopped at its checkpoint: no merge, no completed heavy pass.
+    expect(repo.getById(firstId)?.superseded_by).toBeNull()
+    expect(repo.getById(secondId)?.superseded_by).toBeNull()
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+
+    // Stopped maintenance admits no new pass, even when requested directly.
+    await presenter.runConsolidationPass('a', now + 60 * 1000)
+    expect(decisionCalls(generateText)).toBe(1)
+
+    presenter.startBackgroundMaintenance()
+    await presenter.runConsolidationPass('a', now + 60 * 1000)
+    expect(decisionCalls(generateText)).toBe(2)
   })
 
   it('prewarms enabled active agents before the delayed maintenance arm', async () => {
