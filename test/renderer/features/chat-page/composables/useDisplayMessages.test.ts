@@ -103,6 +103,45 @@ function createHarness(
 }
 
 describe('useDisplayMessages', () => {
+  it('preserves compaction summaries and failures when history reloads', () => {
+    const records = [
+      {
+        ...assistantRecord('compacted', 1, ''),
+        metadata: JSON.stringify({
+          messageType: 'compaction',
+          compactionStatus: 'compacted',
+          compactionSummary: 'The recorded summary'
+        })
+      },
+      {
+        ...assistantRecord('failed', 2, '', 'error'),
+        metadata: JSON.stringify({
+          messageType: 'compaction',
+          compactionStatus: 'failed',
+          compactionError: 'Summary provider unavailable'
+        })
+      }
+    ]
+    const { display, messageStore, streaming } = createHarness(['compacted', 'failed'], records)
+    messageStore.getMessageMetadata = (record: ChatMessageRecord) => JSON.parse(record.metadata)
+    streaming.active = false
+
+    expect(display.displayMessages.value).toMatchObject([
+      {
+        id: 'compacted',
+        messageType: 'compaction',
+        compactionStatus: 'compacted',
+        compactionSummary: 'The recorded summary'
+      },
+      {
+        id: 'failed',
+        messageType: 'compaction',
+        compactionStatus: 'failed',
+        compactionError: 'Summary provider unavailable'
+      }
+    ])
+  })
+
   it('keeps plan tool calls visible through progress, completion and history reload', () => {
     const { display, messageStore, records, streaming } = createHarness([], [])
     const running: AssistantMessageBlock = {

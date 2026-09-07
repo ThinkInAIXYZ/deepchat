@@ -215,8 +215,10 @@ type DisplayMessageBase = {
   renderKey?: string
   orderSeq: number
   messageType?: 'normal' | 'compaction'
-  compactionStatus?: 'compacting' | 'compacted'
+  compactionStatus?: 'compacting' | 'compacted' | 'failed'
   compactionBoundaryReason?: SessionCompactionBoundaryReason | null
+  compactionSummary?: string
+  compactionError?: string
   summaryUpdatedAt?: number | null
 }
 

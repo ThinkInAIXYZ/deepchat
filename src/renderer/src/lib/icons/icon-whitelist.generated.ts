@@ -104,6 +104,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'file-video',
     'file-warning',
     'file-x-2',
+    'fold-vertical',
     'folder',
     'folder-closed',
     'folder-kanban',

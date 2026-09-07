@@ -390,7 +390,14 @@ export class CompactionRuntimeCoordinator {
           })
       )
     } catch (error) {
-      this.deps.messageStore.deleteMessage(compactionMessageId)
+      if (isAbortError(error) || options?.signal?.aborted) {
+        this.deps.messageStore.deleteMessage(compactionMessageId)
+      } else {
+        this.deps.messageStore.updateCompactionMessage(compactionMessageId, 'failed', null, {
+          compactionAttemptId: intent.compactionAttemptId,
+          error: error instanceof Error ? error.message || error.name : String(error)
+        })
+      }
       this.deps.messageProjection.refresh(sessionId, compactionMessageId)
       if (scope.isCurrent()) {
         this.emit(
@@ -412,10 +419,11 @@ export class CompactionRuntimeCoordinator {
     if (result.anchorCommitted && result.outcome !== 'unchanged') {
       this.deps.messageStore.updateCompactionMessage(
         compactionMessageId,
-        'compacted',
+        result.summaryError ? 'failed' : 'compacted',
         result.summaryState.summaryUpdatedAt,
         {
           compactionAttemptId: intent.compactionAttemptId,
+          ...(result.summaryError ? { error: result.summaryError } : {}),
           boundaryReason:
             result.outcome === 'boundary_only'
               ? this.resolveBoundaryReason(
