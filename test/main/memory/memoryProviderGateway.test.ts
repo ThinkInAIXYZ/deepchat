@@ -112,8 +112,8 @@ describe('MemoryProviderGateway', () => {
       )
       await vi.advanceTimersByTimeAsync(advanceMs)
       const outcome = await guarded
-      if (!outcome.ok) throw outcome.error
-      return outcome.value
+      if (outcome.ok === true) return outcome.value
+      throw outcome.error
     }
 
     it('keeps the floor for fast providers so their behaviour is unchanged', async () => {
