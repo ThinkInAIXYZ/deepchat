@@ -76,6 +76,7 @@ const mountGroup = (props: Record<string, unknown> = {}) =>
   mount(MessageBlockActivityGroup, {
     props: {
       blocks,
+      blockKeys: ['m1:0', 'm1:tc1:0'],
       messageId: 'm1',
       threadId: 's1',
       usage,
@@ -233,6 +234,7 @@ describe('MessageBlockActivityGroup', () => {
           timestamp: 1_000
         }
       ],
+      blockKeys: ['m1:ws_1:0'],
       reasoningCount: 0,
       toolCallCount: 0
     })

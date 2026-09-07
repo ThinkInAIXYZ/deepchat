@@ -17,6 +17,7 @@ import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/di
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
+  initiallyExpanded?: boolean
   usage: {
     reasoning_start_time: number
     reasoning_end_time: number
@@ -34,11 +35,12 @@ const configClient = createConfigClient()
 // kept for potential future scroll anchoring; currently unused
 
 const collapse = ref(false)
-let hasManualToggle = false
+let hasManualToggle = Boolean(props.initiallyExpanded)
 
 const toggleExpanded = () => {
   hasManualToggle = true
   collapse.value = !collapse.value
+  void configClient.setSetting('think_collapse', collapse.value)
   emit('manual-toggle', !collapse.value)
 }
 
@@ -133,7 +135,6 @@ const headerText = computed(() => {
 watch(
   () => collapse.value,
   (newValue) => {
-    void configClient.setSetting('think_collapse', newValue)
     emit('toggle-collapse', !newValue)
   }
 )

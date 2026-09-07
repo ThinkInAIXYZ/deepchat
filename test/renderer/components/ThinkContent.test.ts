@@ -122,7 +122,7 @@ describe('ThinkContent', () => {
 
     expect(trigger.attributes('aria-expanded')).toBe('false')
     expect(wrapper.find(`#${contentId}`).exists()).toBe(false)
-    expect(trigger.attributes('aria-controls')).toBe(contentId)
+    expect(trigger.attributes('aria-controls')).toBeUndefined()
   })
 
   it('uses Markstream lifecycle props for live and completed thinking', async () => {

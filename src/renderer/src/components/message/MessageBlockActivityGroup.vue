@@ -42,7 +42,7 @@
         class="min-h-0 min-w-0 flex flex-col w-full gap-0.5 overflow-hidden"
         data-testid="activity-group-body"
       >
-        <template v-for="(block, index) in blocks" :key="buildActivityBlockKey(block, index)">
+        <template v-for="(block, index) in blocks" :key="blockKeys[index]">
           <MessageBlockThink
             v-if="
               (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
@@ -50,11 +50,14 @@
             "
             :block="block"
             :usage="usage"
+            :data-activity-key="blockKeys[index]"
             @toggle-collapse="handleChildCollapseToggle"
+            @manual-toggle="emit('manual-toggle', blockKeys[index], $event)"
           />
           <MessageBlockToolCall
             v-else-if="block.type === 'tool_call'"
             :block="block"
+            :data-activity-key="blockKeys[index]"
             :message-id="messageId"
             :thread-id="threadId"
             :read-only="readOnly"
@@ -62,6 +65,7 @@
             :permission-status="
               block.tool_call?.id ? permissionStatusByToolCallId?.[block.tool_call.id] : undefined
             "
+            @manual-toggle="emit('manual-toggle', blockKeys[index], $event)"
           />
           <MessageBlockSearch
             v-else-if="block.type === 'search'"
@@ -90,6 +94,7 @@ import MessageBlockSearch from './MessageBlockSearch.vue'
 
 const props = defineProps<{
   blocks: DisplayAssistantMessageBlock[]
+  blockKeys: string[]
   messageId: string
   threadId: string
   usage: DisplayMessageUsage
@@ -102,6 +107,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'toggle-collapse': [isCollapsed: boolean]
+  'manual-toggle': [key: string, expanded: boolean]
 }>()
 
 const { t } = useI18n()
@@ -177,11 +183,6 @@ const toggleExpanded = () => {
 
 const handleChildCollapseToggle = (isCollapsed: boolean) => {
   emit('toggle-collapse', isCollapsed)
-}
-
-const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string => {
-  const stableId = block.id ?? block.tool_call?.id
-  return stableId ? `${stableId}:${index}` : `${block.type}:${block.timestamp}:${index}`
 }
 
 onBeforeUnmount(() => {

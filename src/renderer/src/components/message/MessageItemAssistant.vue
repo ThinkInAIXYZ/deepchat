@@ -41,6 +41,8 @@
               <MessageBlockActivityGroup
                 v-if="item.kind === 'activity-group'"
                 :blocks="item.blocks"
+                :block-keys="item.blockKeys"
+                :data-activity-key="item.key"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :usage="currentMessage.usage"
@@ -50,6 +52,7 @@
                 :read-only="isReadOnly"
                 :permission-status-by-tool-call-id="permissionStatusByToolCallId"
                 @toggle-collapse="handleCollapseToggle"
+                @manual-toggle="handleManualActivityToggle"
               />
               <MessageBlockToolCall
                 v-else-if="item.kind === 'mcp-app'"
@@ -75,6 +78,8 @@
                 "
                 :block="item.block"
                 :usage="currentMessage.usage"
+                :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
+                :data-activity-key="item.key"
                 @toggle-collapse="handleCollapseToggle"
                 @manual-toggle="handleManualActivityToggle(item.key, $event)"
               />
@@ -90,11 +95,13 @@
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
                 :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
+                :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
                 :permission-status="
                   item.block.tool_call?.id
                     ? permissionStatusByToolCallId[item.block.tool_call.id]
                     : undefined
                 "
+                :data-activity-key="item.key"
                 @manual-toggle="handleManualActivityToggle(item.key, $event)"
               />
               <MessageBlockQuestionRequest
@@ -231,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
@@ -484,10 +491,25 @@ const shouldGroupActivity = computed(() => {
 const manuallyExpandedBlockKeys = ref(new Set<string>())
 
 const handleManualActivityToggle = (key: string, expanded: boolean) => {
+  const focusedElement = document.activeElement as HTMLElement | null
+  const restoreFocus =
+    focusedElement?.closest<HTMLElement>('[data-activity-key]')?.dataset.activityKey === key
   if (expanded) {
     manuallyExpandedBlockKeys.value.add(key)
   } else {
     manuallyExpandedBlockKeys.value.delete(key)
+  }
+  if (restoreFocus) {
+    void nextTick(() => {
+      if (focusedElement?.isConnected || document.activeElement !== document.body) return
+      const group = currentRenderItems.value.find(
+        (item) => item.kind === 'activity-group' && item.blockKeys.includes(key)
+      )
+      const target = Array.from(
+        rootRef.value?.querySelectorAll<HTMLElement>('[data-activity-key]') ?? []
+      ).find((element) => element.dataset.activityKey === (group?.key ?? key))
+      target?.querySelector('button')?.focus({ preventScroll: true })
+    })
   }
 }
 

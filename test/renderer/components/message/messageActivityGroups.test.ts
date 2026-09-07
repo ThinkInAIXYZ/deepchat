@@ -205,7 +205,7 @@ describe('messageActivityGroups', () => {
     })
     expect(items[1]).toMatchObject({
       kind: 'mcp-app',
-      key: 'm1:tc1:1:app',
+      key: 'm1:tc1:0:app',
       block: {
         type: 'tool_call',
         tool_call: {
@@ -286,9 +286,10 @@ describe('messageActivityGroups', () => {
       ['mcp-app', 'm1:tc1:0:app']
     ])
     expect(settledItems.map((item) => [item.kind, item.key])).toEqual([
-      ['activity-group', 'activity:m1:0:0'],
+      ['activity-group', 'activity:m1:tc1:0:m1:tc1:0'],
       ['mcp-app', 'm1:tc1:0:app']
     ])
+    expect(settledItems[0]).toMatchObject({ blockKeys: [liveItems[0].key] })
   })
 
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {
@@ -397,7 +398,7 @@ describe('messageActivityGroups', () => {
   it('keeps unfinished, failed and action-required activity visible outside completed groups', () => {
     const visibleBlocks = [
       createBlock('tool_call', { status: 'error' }),
-      createBlock('tool_call', { status: 'cancelled' }),
+      createBlock('tool_call', { status: 'cancel' }),
       createBlock('tool_call', { extra: { needsUserAction: true } }),
       createBlock('search', { status: 'reading', extra: { actionType: 'open_page' } }),
       createBlock('search', { status: 'optimizing', extra: { actionType: 'search' } })

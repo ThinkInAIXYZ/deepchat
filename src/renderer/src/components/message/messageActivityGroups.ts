@@ -11,6 +11,7 @@ export type AssistantRenderItem =
       kind: 'activity-group'
       key: string
       blocks: DisplayAssistantMessageBlock[]
+      blockKeys: string[]
       startedAt: number
       endedAt: number
       durationMs: number
@@ -40,7 +41,7 @@ export type ActivityDurationLabels = {
 
 type BufferedActivityBlock = {
   block: DisplayAssistantMessageBlock
-  index: number
+  key: string
 }
 
 const ACTIVITY_BLOCK_TYPES = new Set<DisplayAssistantMessageBlock['type']>([
@@ -88,16 +89,15 @@ export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): b
 const buildBlockKey = (
   block: DisplayAssistantMessageBlock,
   messageId: string,
-  index: number
+  index: number,
+  occurrences: Map<string, number>
 ): string => {
   const stableId = block.id ?? block.tool_call?.id
-  return stableId ? `${messageId}:${stableId}:${index}` : `${messageId}:${index}`
-}
-
-const buildGroupKey = (messageId: string, buffer: BufferedActivityBlock[]): string => {
-  const first = buffer[0]?.index ?? 0
-  const last = buffer[buffer.length - 1]?.index ?? first
-  return `activity:${messageId}:${first}:${last}`
+  // Only legacy blocks without an ID need positional identity.
+  if (!stableId) return `${messageId}:${index}`
+  const occurrence = occurrences.get(stableId) ?? 0
+  occurrences.set(stableId, occurrence + 1)
+  return `${messageId}:${stableId}:${occurrence}`
 }
 
 const countReasoningBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
@@ -108,7 +108,6 @@ const countToolCallBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
   blocks.filter((block) => block.type === 'tool_call').length
 
 const buildActivityGroupItem = (
-  messageId: string,
   messageUpdatedAt: number,
   buffer: BufferedActivityBlock[]
 ): AssistantRenderItem | null => {
@@ -123,8 +122,11 @@ const buildActivityGroupItem = (
 
   return {
     kind: 'activity-group',
-    key: buildGroupKey(messageId, buffer),
+    key: `activity:${buffer[0].key}:${buffer[buffer.length - 1].key}`,
     blocks,
+    blockKeys: buffer.map(({ block, key }) =>
+      block.type === 'tool_call' && block.tool_call?.mcpResult?.app ? `${key}:tool` : key
+    ),
     startedAt,
     endedAt,
     durationMs: endedAt - startedAt,
@@ -141,10 +143,10 @@ export const buildAssistantRenderItems = ({
   expandedBlockKeys
 }: BuildAssistantRenderItemsOptions): AssistantRenderItem[] => {
   const items: AssistantRenderItem[] = []
+  const keyOccurrences = new Map<string, number>()
   let activityBuffer: BufferedActivityBlock[] = []
 
-  const pushStandaloneBlock = (block: DisplayAssistantMessageBlock, index: number) => {
-    const key = buildBlockKey(block, messageId, index)
+  const pushStandaloneBlock = (block: DisplayAssistantMessageBlock, key: string) => {
     const hasMcpApp = block.type === 'tool_call' && Boolean(block.tool_call?.mcpResult?.app)
     items.push({
       kind: 'block',
@@ -165,15 +167,15 @@ export const buildAssistantRenderItems = ({
       return
     }
 
-    const group = buildActivityGroupItem(messageId, messageUpdatedAt, activityBuffer)
+    const group = buildActivityGroupItem(messageUpdatedAt, activityBuffer)
     if (group) {
       items.push(group)
     }
-    for (const { block, index } of activityBuffer) {
+    for (const { block, key } of activityBuffer) {
       if (block.type === 'tool_call' && block.tool_call?.mcpResult?.app) {
         items.push({
           kind: 'mcp-app',
-          key: `${buildBlockKey(block, messageId, index)}:app`,
+          key: `${key}:app`,
           block
         })
       }
@@ -182,6 +184,7 @@ export const buildAssistantRenderItems = ({
   }
 
   blocks.forEach((block, index) => {
+    const blockKey = buildBlockKey(block, messageId, index, keyOccurrences)
     if (shouldGroup && isEmptyReasoningBlock(block)) {
       return
     }
@@ -190,21 +193,20 @@ export const buildAssistantRenderItems = ({
       flushActivityBuffer()
       items.push({
         kind: 'block',
-        key: buildBlockKey(block, messageId, index),
+        key: blockKey,
         block
       })
       return
     }
 
-    const blockKey = buildBlockKey(block, messageId, index)
     const standaloneKey = block.tool_call?.mcpResult?.app ? `${blockKey}:tool` : blockKey
     if (shouldGroup && isCompletedActivityBlock(block) && !expandedBlockKeys?.has(standaloneKey)) {
-      activityBuffer.push({ block, index })
+      activityBuffer.push({ block, key: blockKey })
       return
     }
 
     flushActivityBuffer()
-    pushStandaloneBlock(block, index)
+    pushStandaloneBlock(block, blockKey)
   })
 
   flushActivityBuffer()

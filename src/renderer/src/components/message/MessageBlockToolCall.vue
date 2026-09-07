@@ -288,6 +288,7 @@ const props = defineProps<{
   readOnly?: boolean
   renderMode?: 'full' | 'tool-only' | 'app-only'
   permissionStatus?: 'granted' | 'denied'
+  initiallyExpanded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -310,9 +311,9 @@ const coerceNumericParam = (value: unknown): number | null => {
   return null
 }
 
-const isExpanded = ref(false)
+const isExpanded = ref(Boolean(props.initiallyExpanded))
 const shouldRenderDetails = ref(false)
-const expansionSource = ref<ExpansionSource>(null)
+const expansionSource = ref<ExpansionSource>(props.initiallyExpanded ? 'manual' : null)
 const autoExpandDismissed = ref(false)
 const detailsId = `tool-call-details-${useId()}`
 // Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.

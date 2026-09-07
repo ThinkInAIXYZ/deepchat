@@ -4,7 +4,7 @@
       type="button"
       class="inline-flex max-w-full min-w-0 min-h-7 items-center gap-2 py-1 text-sm leading-5 select-none self-start rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
       :aria-expanded="expanded"
-      :aria-controls="contentId"
+      :aria-controls="expanded ? contentId : undefined"
       @click="$emit('toggle')"
     >
       <Icon icon="lucide:message-circle" class="w-4 h-4 shrink-0" aria-hidden="true" />

@@ -778,7 +778,7 @@ describe('MessageBlockToolCall', () => {
 
   it.each([
     { status: 'error' as const },
-    { status: 'cancelled' as const },
+    { status: 'cancel' as const },
     { status: 'success' as const, extra: { needsUserAction: true } }
   ])('keeps automatically opened output visible when attention is needed: %j', async (outcome) => {
     const block = createBlock({

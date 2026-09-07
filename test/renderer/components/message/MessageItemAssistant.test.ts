@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick, onMounted, onUnmounted } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
@@ -13,6 +13,10 @@ const memoryActivity = vi.hoisted(() => ({
   rememberSelection: vi.fn()
 }))
 const notifyRenderer = vi.hoisted(() => vi.fn())
+const configClient = vi.hoisted(() => ({
+  getSetting: vi.fn(async () => true),
+  setSetting: vi.fn(async () => undefined)
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -32,6 +36,14 @@ vi.mock('@api/DeviceClient', () => ({
   createDeviceClient: () => ({
     copyText: vi.fn()
   })
+}))
+
+vi.mock('@api/ConfigClient', () => ({
+  createConfigClient: () => configClient
+}))
+
+vi.mock('@/lib/markdownWorkerLifecycle', () => ({
+  ensureMarkdownWorkers: async () => undefined
 }))
 
 vi.mock('@/stores/uiSettingsStore', () => ({
@@ -576,9 +588,10 @@ describe('MessageItemAssistant', () => {
   it.each(['MessageBlockThink', 'MessageBlockToolCall'])(
     'preserves a manually expanded %s when the reply finishes',
     async (componentName) => {
+      const blocks = [createThinkingBlock({ id: 'think-1' }), createToolCallBlock()]
       const wrapper = mount(MessageItemAssistant, {
         props: {
-          message: createMessage('pending', [createThinkingBlock(), createToolCallBlock()]),
+          message: createMessage('pending', blocks),
           isCapturingImage: false,
           isStreamingMessage: true
         },
@@ -589,18 +602,118 @@ describe('MessageItemAssistant', () => {
       expandedBlock.vm.$emit('manual-toggle', true)
 
       await wrapper.setProps({
-        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        message: createMessage('sent', blocks),
         isStreamingMessage: false
       })
 
       expect(wrapper.findComponent({ name: componentName }).element).toBe(originalElement)
       expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
 
+      await wrapper.setProps({
+        message: createMessage('sent', [createVideoLikeImageBlock(), ...blocks])
+      })
+      expect(wrapper.findComponent({ name: componentName }).element).toBe(originalElement)
+
       expandedBlock.vm.$emit('manual-toggle', false)
       await nextTick()
 
       expect(wrapper.findComponent({ name: componentName }).exists()).toBe(false)
       expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('2')
+    }
+  )
+
+  it.each(['thinking', 'tool', 'mcp-tool'])(
+    'preserves manually opened grouped %s details across regrouping and updates',
+    async (kind) => {
+      const selectedBlock = kind === 'thinking' ? createThinkingBlock() : createToolCallBlock()
+      if (kind === 'mcp-tool') {
+        selectedBlock.tool_call!.mcpResult = {
+          schemaVersion: 1,
+          serverId: 'server-id',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          toolName: 'read_file',
+          app: {
+            schemaVersion: 1,
+            serverId: 'server-id',
+            configGeneration: 1,
+            bindingHash: 'binding-hash',
+            serverName: 'files',
+            toolName: 'read_file',
+            resourceUri: 'ui://files/index.html',
+            resourceMimeType: 'text/html;profile=mcp-app'
+          }
+        }
+      }
+      const blocks: DisplayAssistantMessageBlock[] = [
+        { type: 'content', content: 'Before activity', status: 'success', timestamp: 0 },
+        selectedBlock,
+        createToolCallBlock({ tool_call: { id: 'other-tool', name: 'other' } })
+      ]
+      const wrapper = mount(MessageItemAssistant, {
+        attachTo: document.body,
+        props: {
+          message: createMessage('sent', blocks),
+          isCapturingImage: false
+        },
+        global: {
+          ...global,
+          stubs: {
+            ...global.stubs,
+            MessageBlockActivityGroup: false,
+            MessageBlockThink: false,
+            MessageBlockToolCall: false,
+            NodeRenderer: componentStub('NodeRenderer'),
+            CodeBlockNode: componentStub('CodeBlockNode'),
+            McpAppView: defineComponent({ template: '<div data-testid="mcp-app-view" />' })
+          }
+        }
+      })
+      await flushPromises()
+      const appElement =
+        kind === 'mcp-tool' ? wrapper.get('[data-testid="mcp-app-view"]').element : undefined
+      await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
+      await flushPromises()
+      const componentName = kind === 'thinking' ? 'MessageBlockThink' : 'MessageBlockToolCall'
+      const groupedBlock = wrapper
+        .getComponent({ name: 'MessageBlockActivityGroup' })
+        .getComponent({ name: componentName })
+      const groupedTrigger = groupedBlock.get<HTMLButtonElement>('button[aria-expanded]')
+      groupedTrigger.element.focus()
+      await groupedTrigger.trigger('click')
+      await flushPromises()
+
+      const expanded = wrapper.getComponent({ name: componentName })
+      expect(expanded.get('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
+      const standaloneElement = expanded.element
+      expect(expanded.element.closest('[data-testid="activity-group"]')).toBeNull()
+      expect(document.activeElement).toBe(expanded.get('button[aria-expanded]').element)
+      if (kind === 'thinking') {
+        expect(configClient.setSetting).toHaveBeenCalledWith('think_collapse', false)
+      }
+
+      await wrapper.setProps({
+        message: createMessage('sent', [
+          ...blocks,
+          { type: 'content', content: 'Answer', status: 'success', timestamp: 3 }
+        ])
+      })
+      await flushPromises()
+      expect(wrapper.getComponent({ name: componentName }).element).toBe(standaloneElement)
+      expect(expanded.get('button[aria-expanded]').attributes('aria-expanded')).toBe('true')
+      if (kind === 'mcp-tool') {
+        expect(wrapper.get('[data-testid="mcp-app-view"]').element).toBe(appElement)
+      }
+
+      await expanded.get('button[aria-expanded]').trigger('click')
+      await nextTick()
+      expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+      expect(
+        wrapper.getComponent({ name: 'MessageBlockActivityGroup' }).props('blocks')
+      ).toHaveLength(2)
+      expect(document.activeElement).toBe(
+        wrapper.get('[data-testid="activity-group-toggle"]').element
+      )
     }
   )
 
