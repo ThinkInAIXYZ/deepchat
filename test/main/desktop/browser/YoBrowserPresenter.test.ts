@@ -70,7 +70,10 @@ class MockWebContents extends EventEmitter {
     this.emit('destroyed')
   })
   sendInputEvent = vi.fn()
-  setBackgroundThrottling = vi.fn()
+  backgroundThrottling = true
+  setBackgroundThrottling = vi.fn((allowed: boolean) => {
+    this.backgroundThrottling = allowed
+  })
   capturePage = vi.fn(async () => ({
     resize: vi.fn(() => ({
       toJPEG: vi.fn(() => Buffer.from('preview-frame'))
@@ -833,7 +836,7 @@ describe('YoBrowserPresenter', () => {
     await presenter.releaseInactivePreview('session-a')
 
     expect(previewHosts[0].destroyed).toBe(true)
-    expect(webContents?.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+    expect(webContents?.backgroundThrottling).toBe(true)
   })
 
   it('resumes preview capture after a previous capture times out while stopping', async () => {
