@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
 
 describe('AgentPlanTool', () => {
-  it('updates session plan state and emits a progress snapshot', () => {
+  it('emits a complete plan snapshot with multiple steps running in parallel', () => {
     const tool = new AgentPlanTool()
     const onProgress = vi.fn()
 
@@ -12,6 +12,7 @@ describe('AgentPlanTool', () => {
         plan: [
           { step: ' Inspect current runtime ', status: 'completed' },
           { step: 'Implement handler', status: 'in_progress' },
+          { step: 'Delegate UI review', status: 'in_progress' },
           { step: 'Add tests', status: 'pending' }
         ]
       },
@@ -36,6 +37,7 @@ describe('AgentPlanTool', () => {
           plan: [
             { step: 'Inspect current runtime', status: 'completed' },
             { step: 'Implement handler', status: 'in_progress' },
+            { step: 'Delegate UI review', status: 'in_progress' },
             { step: 'Add tests', status: 'pending' }
           ]
         })
@@ -79,15 +81,12 @@ describe('AgentPlanTool', () => {
     expect(() =>
       tool.call(
         {
-          plan: [
-            { step: 'A', status: 'in_progress' },
-            { step: 'B', status: 'in_progress' }
-          ]
+          plan: [{ step: 'A', status: 'unknown' }]
         },
         'session-1',
         { toolCallId: 'tool-1' }
       )
-    ).toThrow('at most one step can be in_progress')
+    ).toThrow('invalid update_plan arguments')
 
     expect(() =>
       tool.call(

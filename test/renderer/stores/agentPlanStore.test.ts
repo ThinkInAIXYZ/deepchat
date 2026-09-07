@@ -126,7 +126,10 @@ describe('agentPlanStore', () => {
     store.applySnapshot({
       sessionId: 's1',
       messageId: 'm1',
-      plan: [{ step: 'Current', status: 'in_progress' }],
+      plan: [
+        { step: 'Current', status: 'in_progress' },
+        { step: 'Parallel review', status: 'in_progress' }
+      ],
       revision: 1,
       updatedAt: '2026-05-18T00:00:00.000Z'
     })
@@ -139,9 +142,25 @@ describe('agentPlanStore', () => {
     store.applySnapshot({
       sessionId: 's1',
       messageId: 'm1',
-      plan: [{ step: 'Current', status: 'completed' }],
+      plan: [
+        { step: 'Current', status: 'completed' },
+        { step: 'Parallel review', status: 'in_progress' }
+      ],
       revision: 2,
       updatedAt: '2026-05-18T00:00:01.000Z'
+    })
+
+    expect(store.isCollapsed('s1')).toBe(false)
+
+    store.applySnapshot({
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [
+        { step: 'Current', status: 'completed' },
+        { step: 'Parallel review', status: 'completed' }
+      ],
+      revision: 3,
+      updatedAt: '2026-05-18T00:00:02.000Z'
     })
 
     expect(store.isCollapsed('s1')).toBe(true)
@@ -152,9 +171,12 @@ describe('agentPlanStore', () => {
     store.applySnapshot({
       sessionId: 's1',
       messageId: 'm1',
-      plan: [{ step: 'Current', status: 'completed' }],
-      revision: 3,
-      updatedAt: '2026-05-18T00:00:02.000Z'
+      plan: [
+        { step: 'Current', status: 'completed' },
+        { step: 'Parallel review', status: 'completed' }
+      ],
+      revision: 4,
+      updatedAt: '2026-05-18T00:00:03.000Z'
     })
 
     expect(store.isCollapsed('s1')).toBe(false)

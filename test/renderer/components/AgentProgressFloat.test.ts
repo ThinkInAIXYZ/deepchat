@@ -32,7 +32,8 @@ const snapshot = {
   messageId: 'm1',
   plan: [
     { step: 'Inspect agent runtime', status: 'completed' },
-    { step: 'Wire progress panel', status: 'in_progress' }
+    { step: 'Wire progress panel', status: 'in_progress' },
+    { step: 'Delegate UI review', status: 'in_progress' }
   ],
   explanation: 'Current implementation plan',
   revision: 2,
@@ -50,12 +51,13 @@ describe('AgentProgressFloat', () => {
 
     expect(wrapper.find('[data-testid="agent-progress-float"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Plan')
-    expect(wrapper.text()).toContain('1/2')
+    expect(wrapper.text()).toContain('1/3')
     expect(wrapper.text()).toContain('Current implementation plan')
     expect(wrapper.text()).toContain('Inspect agent runtime')
     expect(wrapper.text()).toContain('Wire progress panel')
     expect(wrapper.find('[aria-label="Completed: Inspect agent runtime"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="In Progress: Wire progress panel"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="In Progress: Delegate UI review"]').exists()).toBe(true)
 
     await wrapper.find('button').trigger('click')
 
@@ -71,7 +73,7 @@ describe('AgentProgressFloat', () => {
     })
 
     expect(wrapper.text()).toContain('Plan')
-    expect(wrapper.text()).toContain('1/2')
+    expect(wrapper.text()).toContain('1/3')
     expect(wrapper.find('button').attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('[data-testid="agent-progress-float-body"]').isVisible()).toBe(false)
   })
@@ -89,5 +91,6 @@ describe('AgentProgressFloat', () => {
 
     expect(wrapper.find('.animate-spin').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Interrupted: Wire progress panel"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Interrupted: Delegate UI review"]').exists()).toBe(true)
   })
 })

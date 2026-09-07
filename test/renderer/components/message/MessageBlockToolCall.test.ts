@@ -497,6 +497,7 @@ describe('MessageBlockToolCall', () => {
     const plan = [
       { step: 'Inspect code', status: 'completed' },
       { step: 'Adjust layout', status: 'in_progress' },
+      { step: 'Delegate UI review', status: 'in_progress' },
       { step: 'Verify screenshots', status: 'pending' }
     ]
     const first = createBlock({
@@ -533,13 +534,14 @@ describe('MessageBlockToolCall', () => {
 
     const previousPlan = calls[0].get('[data-testid="tool-call-plan"]')
     expect(previousPlan.text()).toContain('Implement the compact layout')
-    expect(previousPlan.text()).toContain('1/3 completed')
+    expect(previousPlan.text()).toContain('1/4 completed')
     expect(previousPlan.findAll('li').map((item) => item.attributes('aria-label'))).toEqual([
       'Completed: Inspect code',
       'In Progress: Adjust layout',
+      'In Progress: Delegate UI review',
       'Pending: Verify screenshots'
     ])
-    expect(calls[1].get('[data-testid="tool-call-plan"]').text()).toContain('3/3 completed')
+    expect(calls[1].get('[data-testid="tool-call-plan"]').text()).toContain('4/4 completed')
     expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
     expect(wrapper.find('pre').exists()).toBe(false)
 
