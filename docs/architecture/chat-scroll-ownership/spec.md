@@ -165,10 +165,15 @@ Priority is explicit and stable:
 User ownership is event-driven, not timeout-driven. Wheel, touch, scrollbar pointer, and scroll
 keys enter reading mode. Reading mode persists until one of these occurs:
 
-- the user scrolls back within the bottom threshold;
+- the user scrolls downward back within the bottom threshold;
 - the user presses the explicit return-to-bottom action;
 - the user starts an explicit search or Spotlight navigation;
 - the session changes and a new session epoch begins.
+
+Upward movement during an active gesture keeps or reclaims user ownership even inside the bottom
+threshold. Direction uses positions clamped to the scrollable extent; unchanged positions and
+boundary bounce do not resume following. Matching programmatic scrolls are attributed before
+direction is considered.
 
 Idle timers may be used to reduce measurement and rendering work, but they must never decide who
 owns the scrollbar.

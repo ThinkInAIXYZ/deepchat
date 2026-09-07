@@ -3409,7 +3409,8 @@ describe('ChatPage', () => {
       }))
       const { wrapper } = await setup({ messages, deferStartupTasks: true })
       const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
-      let scrollTop = 250
+      let scrollTop = 270
+      let scrollHeight = 770
 
       Object.defineProperty(chatPage, 'clientHeight', {
         configurable: true,
@@ -3417,7 +3418,7 @@ describe('ChatPage', () => {
       })
       Object.defineProperty(chatPage, 'scrollHeight', {
         configurable: true,
-        get: () => 2000
+        get: () => scrollHeight
       })
       Object.defineProperty(chatPage, 'scrollTop', {
         configurable: true,
@@ -3434,11 +3435,14 @@ describe('ChatPage', () => {
       rafCallbacks.clear()
 
       await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
+      scrollTop = 250
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
         messageId: 'm0',
         height: 300
       })
 
+      scrollHeight += 112
       await vi.advanceTimersByTimeAsync(140)
       await flushRaf()
 
@@ -3494,7 +3498,7 @@ describe('ChatPage', () => {
       }))
       const { wrapper } = await setup({ messages, deferStartupTasks: true })
       const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
-      let scrollTop = 250
+      let scrollTop = 700
 
       Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
       Object.defineProperty(chatPage, 'scrollHeight', { configurable: true, get: () => 1200 })
@@ -3513,14 +3517,19 @@ describe('ChatPage', () => {
       rafCallbacks.clear()
 
       await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -4 })
-      await vi.advanceTimersByTimeAsync(140)
+      scrollTop = 680
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
         messageId: 'short-measure-0',
         height: 300
       })
+      await vi.advanceTimersByTimeAsync(140)
       await flushRaf()
 
-      expect(scrollTop).toBe(250)
+      expect(scrollTop).toBe(680)
+      // Also execute any follow request incorrectly queued by the measurement flush.
+      await flushRaf()
+      expect(scrollTop).toBe(680)
       expect(rafCallbacks.size).toBe(0)
       wrapper.unmount()
     } finally {

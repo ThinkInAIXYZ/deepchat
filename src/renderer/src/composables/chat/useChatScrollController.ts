@@ -40,6 +40,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
   let commitFrame: number | null = null
   let verifyFrame: number | null = null
   let writeCommittedThisFrame = false
+  let lastScrollTop: number | null = null
   let committedScroll: {
     request: ChatScrollRequest
     expectedTop: number
@@ -64,6 +65,12 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
   const syncActiveOperation = () => {
     activeOperation.value = arbiter.active
   }
+
+  const readDirectionTop = (viewport: HTMLElement): number =>
+    Math.min(
+      Math.max(viewport.scrollTop, 0),
+      Math.max(viewport.scrollHeight - viewport.clientHeight, 0)
+    )
 
   const completeStateForReason = (reason: ChatScrollReason) => {
     switch (reason) {
@@ -146,6 +153,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     updateState({ type: 'request-committed', requestId: request.id })
     options.onCommitted?.(targetTop, request)
     if (Math.abs(viewport.scrollTop - targetTop) < 1) {
+      lastScrollTop = readDirectionTop(viewport)
       committedScroll = null
       scheduleVerification(request)
       return
@@ -154,6 +162,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     writeCommittedThisFrame = true
     committedScroll = { request, expectedTop: targetTop }
     viewport.scrollTop = targetTop
+    lastScrollTop = readDirectionTop(viewport)
     scheduleVerification(request)
     // Expire the immediate-write guard at the next frame boundary even when
     // there is no second request waiting to be committed.
@@ -193,6 +202,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     nextSessionEpoch += 1
     activeSessionId = sessionId
     committedScroll = null
+    lastScrollTop = null
     arbiter.beginSession(sessionEpoch)
     activeOperation.value = null
     updateState({ type: 'begin-session', sessionEpoch })
@@ -228,13 +238,19 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
 
   const requestImmediate = (input: RequestInput): number | null => acceptRequest(input, true)
 
-  const notifyUserGestureStart = (_kind: 'wheel' | 'touch' | 'pointer' | 'keyboard') => {
+  const claimUserOwnership = () => {
     cancelFrames()
     queue.clear()
     arbiter.cancelAll()
     committedScroll = null
     activeOperation.value = null
     updateState({ type: 'user-gesture-start' })
+  }
+
+  const notifyUserGestureStart = (_kind: 'wheel' | 'touch' | 'pointer' | 'keyboard') => {
+    const viewport = options.viewport.value
+    lastScrollTop = viewport ? readDirectionTop(viewport) : null
+    claimUserOwnership()
   }
 
   const notifyUserGestureEnd = () => {
@@ -244,20 +260,30 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
   const notifyViewportScroll = (): ChatViewportScrollSource => {
     const viewport = options.viewport.value
     if (!viewport) return 'native'
-    const nearBottom =
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= bottomThreshold
+    const scrollTop = viewport.scrollTop
+    const maxTop = Math.max(viewport.scrollHeight - viewport.clientHeight, 0)
+    const directionTop = Math.min(Math.max(scrollTop, 0), maxTop)
+    const previousTop = lastScrollTop === null ? null : Math.min(lastScrollTop, maxTop)
+    lastScrollTop = directionTop
+    const nearBottom = maxTop - directionTop <= bottomThreshold
     updateState({ type: 'bottom-proximity-changed', nearBottom })
 
     const committed = committedScroll
-    if (committed && Math.abs(viewport.scrollTop - committed.expectedTop) < 1) {
+    if (committed && Math.abs(scrollTop - committed.expectedTop) < 1) {
       committedScroll = null
       completeOperation(committed.request)
       return 'programmatic'
     }
 
     const userOwnedBeforeTransition = state.value.userOwned || state.value.activeGesture
-    if (nearBottom && state.value.userOwned && state.value.activeGesture) {
-      updateState({ type: 'return-to-bottom' })
+    // Proximity alone cannot distinguish leaving the bottom from returning to it.
+    // Clamp both samples to the current extent so boundary bounce is not intent.
+    if (state.value.activeGesture && previousTop !== null) {
+      if (directionTop < previousTop && !state.value.userOwned) {
+        claimUserOwnership()
+      } else if (directionTop > previousTop && nearBottom && state.value.userOwned) {
+        updateState({ type: 'return-to-bottom' })
+      }
     }
     return userOwnedBeforeTransition ? 'user' : 'native'
   }
@@ -290,6 +316,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     activeOperation.value = null
     activeSessionId = ''
     committedScroll = null
+    lastScrollTop = null
   }
 
   return {

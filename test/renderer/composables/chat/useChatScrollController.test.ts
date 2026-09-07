@@ -280,6 +280,104 @@ describe('useChatScrollController', () => {
     expect(writes).toEqual([1000])
   })
 
+  it('keeps the first upward frame near bottom user-owned after idle and resize', () => {
+    const { controller, epoch, writes, setScrollTop } = setup()
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'bottom' }
+    })
+    controller.notifyViewportScroll()
+    controller.notifyUserGestureStart('wheel')
+    setScrollTop(980)
+    expect(controller.notifyViewportScroll()).toBe('user')
+    expect(controller.state.value.mode).toBe('reading')
+    setScrollTop(700)
+    controller.notifyViewportScroll()
+    controller.notifyUserGestureEnd()
+    expect(controller.notifyViewportResize()).toBeNull()
+    flushFrame()
+    expect(writes).toEqual([1000])
+    expect(controller.state.value.userOwned).toBe(true)
+  })
+
+  it('resumes on downward return and cancels queued following on same-gesture reversal', () => {
+    const { controller, epoch, writes, setScrollTop } = setup()
+    setScrollTop(700)
+    controller.notifyUserGestureStart('pointer')
+    setScrollTop(920)
+    controller.notifyViewportScroll()
+    expect(controller.state.value.mode).toBe('following')
+    expect(
+      controller.request({ sessionEpoch: epoch, reason: 'auto-follow', target: { kind: 'bottom' } })
+    ).not.toBeNull()
+    setScrollTop(910)
+    controller.notifyViewportScroll()
+    expect(controller.state.value.mode).toBe('reading')
+    expect(controller.activeOperation.value).toBeNull()
+    controller.notifyUserGestureEnd()
+    flushFrame()
+    expect(writes).toEqual([])
+  })
+
+  it.each([1000, 1040])('does not resume following for bottom bounce starting at %s', (top) => {
+    const { controller, setScrollTop } = setup()
+    setScrollTop(top)
+    controller.notifyUserGestureStart('touch')
+    for (const position of [1060, 1020, 1000]) {
+      setScrollTop(position)
+      controller.notifyViewportScroll()
+      expect(controller.state.value.mode).toBe('reading')
+    }
+  })
+
+  it.each([true, false])(
+    'syncs a submit baseline with physical write=%s during a gesture',
+    (write) => {
+      const { controller, epoch, setScrollTop } = setup()
+      setScrollTop(700)
+      controller.notifyUserGestureStart('pointer')
+      if (!write) setScrollTop(1000)
+      controller.requestImmediate({
+        sessionEpoch: epoch,
+        reason: 'submit',
+        target: { kind: 'bottom' }
+      })
+      if (write) expect(controller.notifyViewportScroll()).toBe('programmatic')
+      expect(controller.state.value.mode).toBe('following')
+      setScrollTop(980)
+      controller.notifyViewportScroll()
+      expect(controller.state.value.mode).toBe('reading')
+    }
+  )
+
+  it('uses the new session gesture position rather than the previous session sample', () => {
+    const { controller, setScrollTop } = setup()
+    setScrollTop(1000)
+    controller.notifyViewportScroll()
+    controller.beginSession('s2')
+    setScrollTop(900)
+    controller.notifyUserGestureStart('keyboard')
+    setScrollTop(940)
+    controller.notifyViewportScroll()
+    expect(controller.state.value.mode).toBe('following')
+  })
+
+  it('uses the actual fractional position when a submit needs no write', () => {
+    const { controller, epoch, writes, setScrollTop } = setup()
+    setScrollTop(999.5)
+    controller.notifyUserGestureStart('pointer')
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'submit',
+      target: { kind: 'bottom' }
+    })
+    setScrollTop(999.75)
+    controller.notifyViewportScroll()
+    expect(controller.state.value.mode).toBe('following')
+    expect(writes).toEqual([])
+  })
+
   it('coalesces a following viewport resize into the exclusive bottom owner', () => {
     const { controller, epoch, writes } = setup()
     controller.requestImmediate({
