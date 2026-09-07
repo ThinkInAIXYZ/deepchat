@@ -1,9 +1,42 @@
-import { reactive } from 'vue'
+import { effectScope, reactive, type EffectScope } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
   GUIDED_ONBOARDING_RESUME_STORAGE_KEY
 } from '@/lib/onboardingResume'
+
+const dependencies = vi.hoisted(() => ({
+  createConfigClient: vi.fn(),
+  createOnboardingClient: vi.fn(),
+  createSessionClient: vi.fn(),
+  createChatClient: vi.fn(),
+  usePageRouterStore: vi.fn(),
+  useAttachmentPreparationStore: vi.fn(),
+  useAgentStore: vi.fn(),
+  useMessageStore: vi.fn(),
+  getRuntimeWebContentsId: vi.fn()
+}))
+
+vi.mock('pinia', async () => ({
+  ...(await vi.importActual<typeof import('pinia')>('pinia')),
+  defineStore: (_id: string, setup: () => unknown) => setup
+}))
+vi.mock('@api/ConfigClient', () => ({ createConfigClient: dependencies.createConfigClient }))
+vi.mock('@api/OnboardingClient', () => ({
+  createOnboardingClient: dependencies.createOnboardingClient
+}))
+vi.mock('@api/SessionClient', () => ({ createSessionClient: dependencies.createSessionClient }))
+vi.mock('@api/ChatClient', () => ({ createChatClient: dependencies.createChatClient }))
+vi.mock('@api/runtime', async () => ({
+  ...(await vi.importActual<typeof import('@api/runtime')>('@api/runtime')),
+  getRuntimeWebContentsId: dependencies.getRuntimeWebContentsId
+}))
+vi.mock('@/stores/ui/pageRouter', () => ({ usePageRouterStore: dependencies.usePageRouterStore }))
+vi.mock('@/stores/ui/attachmentPreparation', () => ({
+  useAttachmentPreparationStore: dependencies.useAttachmentPreparationStore
+}))
+vi.mock('@/stores/ui/agent', () => ({ useAgentStore: dependencies.useAgentStore }))
+vi.mock('@/stores/ui/message', () => ({ useMessageStore: dependencies.useMessageStore }))
 
 type SessionListTestItem = {
   id: string
@@ -31,6 +64,7 @@ type SetupStoreOptions = {
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+const storeScopes: EffectScope[] = []
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -43,6 +77,7 @@ function createDeferred<T>() {
 }
 
 afterEach(() => {
+  storeScopes.splice(0).forEach((scope) => scope.stop())
   window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
 })
 
@@ -65,7 +100,6 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const setupStore = async (options: SetupStoreOptions = {}) => {
-  vi.resetModules()
   const sessionListeners: Array<(payload: any) => void> = []
   const sessionStatusListeners: Array<(payload: any) => void> = []
   const sessionCompactionListeners: Array<(payload: any) => void> = []
@@ -318,66 +352,32 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       settings[key] = value
     })
   }
-  vi.doMock('pinia', async () => {
-    const actual = await vi.importActual<typeof import('pinia')>('pinia')
-    return {
-      ...actual,
-      defineStore: (_id: string, setup: () => unknown) => setup
-    }
-  })
-
-  vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
-    createConfigClient: vi.fn(() => configClient)
-  }))
-  vi.doMock('../../../src/renderer/api/OnboardingClient', () => ({
-    createOnboardingClient: vi.fn(() => onboardingClient)
-  }))
-  vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-    createSessionClient: vi.fn(() => sessionClient)
-  }))
-  vi.doMock('../../../src/renderer/api/ChatClient', () => ({
-    createChatClient: vi.fn(() => chatClient)
-  }))
-  vi.doMock('@/stores/ui/pageRouter', () => ({
-    usePageRouterStore: () => pageRouter
-  }))
-  vi.doMock('@/stores/ui/attachmentPreparation', () => ({
-    useAttachmentPreparationStore: () => attachmentPreparationStore
-  }))
-  vi.doMock('@/stores/ui/agent', () => ({
-    useAgentStore: () => agentStore
-  }))
   const clearStreamingState = vi.fn()
   const setCurrentSessionId = vi.fn()
   const invalidateRecentSessionView = vi.fn()
   const purgeSessionTracking = vi.fn()
-  vi.doMock('@/stores/ui/message', () => ({
-    useMessageStore: () => ({
-      clearStreamingState,
-      invalidateRecentSessionView,
-      purgeSessionTracking,
-      loadMessages: vi.fn(),
-      setCurrentSessionId
-    })
-  }))
-  ;(window as any).deepchat = {
-    ...((window as any).deepchat ?? {}),
-    invoke: vi.fn(async (routeName: string) => {
-      if (routeName === 'window.getRuntimeIdentity') {
-        return (
-          options.runtimeIdentity ?? {
-            windowId: 1,
-            webContentsId: 1
-          }
-        )
-      }
-
-      return {}
-    })
-  }
+  dependencies.createConfigClient.mockReturnValue(configClient)
+  dependencies.createOnboardingClient.mockReturnValue(onboardingClient)
+  dependencies.createSessionClient.mockReturnValue(sessionClient)
+  dependencies.createChatClient.mockReturnValue(chatClient)
+  dependencies.usePageRouterStore.mockReturnValue(pageRouter)
+  dependencies.useAttachmentPreparationStore.mockReturnValue(attachmentPreparationStore)
+  dependencies.useAgentStore.mockReturnValue(agentStore)
+  dependencies.useMessageStore.mockReturnValue({
+    clearStreamingState,
+    invalidateRecentSessionView,
+    purgeSessionTracking,
+    loadMessages: vi.fn(),
+    setCurrentSessionId
+  })
+  dependencies.getRuntimeWebContentsId.mockImplementation(async () =>
+    options.runtimeIdentity ? (await options.runtimeIdentity).webContentsId : 1
+  )
 
   const { useSessionStore } = await import('@/stores/ui/session')
-  const store = useSessionStore()
+  const scope = effectScope()
+  storeScopes.push(scope)
+  const store = scope.run(() => useSessionStore())!
   await new Promise((resolve) => setTimeout(resolve, 0))
   const emitSessionUpdate = (payload: unknown) => {
     for (const handler of sessionListeners) {
